@@ -1,15 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { DEPARTMENT_LABELS } from "@/lib/utils";
 
-// GET /api/departments — returns all departments for dropdowns
-export async function GET(req: NextRequest) {
+// GET /api/departments - returns all departments for dropdowns
+export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    }
-
     const departments = Object.entries(DEPARTMENT_LABELS).map(([value, label]) => ({
       value,
       label,

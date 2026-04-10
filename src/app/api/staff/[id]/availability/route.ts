@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { AvailabilityStatus } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
 // PATCH /api/staff/[id]/availability
 export async function PATCH(
   req: NextRequest,

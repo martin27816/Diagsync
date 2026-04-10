@@ -5,6 +5,8 @@ import { z } from "zod";
 import { Role, Department, Sex, Priority, PaymentStatus } from "@prisma/client";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 
+export const dynamic = "force-dynamic";
+
 const registerPatientSchema = z.object({
   // Patient details
   fullName: z.string().min(2, "Full name required"),

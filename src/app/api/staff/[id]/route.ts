@@ -6,6 +6,8 @@ import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { Role, Department, Shift, StaffStatus } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
 const updateStaffSchema = z.object({
   fullName: z.string().min(2).optional(),
   phone: z.string().min(7).optional(),

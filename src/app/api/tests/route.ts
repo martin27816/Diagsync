@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TestType, Department } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/tests — list all active tests for the org
 // Query params: ?search=fbc&type=LAB&department=LABORATORY
 export async function GET(req: NextRequest) {

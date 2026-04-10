@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { Role, Department, AvailabilityStatus, StaffStatus } from "@prisma/client";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 
+export const dynamic = "force-dynamic";
+
 // POST /api/visits/[visitId]/route-tests
 // Triggers auto-routing: assigns each test order to the least-loaded
 // available staff member in the correct department.
