@@ -28,12 +28,14 @@ interface TestResult {
   code: string;
   type: "LAB" | "RADIOLOGY";
   department: string;
-  price: number;
+  price: number | string;
   sampleType?: string | null;
   category?: { name: string } | null;
 }
 
-interface CartItem extends TestResult {}
+interface CartItem extends Omit<TestResult, "price"> {
+  price: number;
+}
 
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
 type PaymentStatus = "PENDING" | "PAID" | "PARTIAL" | "WAIVED";
@@ -107,7 +109,11 @@ export function NewPatientForm() {
       if (json.success) {
         // Filter out already-added tests
         const cartIds = new Set(cart.map((c) => c.id));
-        setTestResults(json.data.filter((t: TestResult) => !cartIds.has(t.id)));
+        const normalized: TestResult[] = (json.data as TestResult[]).map((test) => ({
+          ...test,
+          price: toNumberPrice(test.price),
+        }));
+        setTestResults(normalized.filter((t) => !cartIds.has(t.id)));
         setShowDropdown(true);
       }
     } catch {
@@ -134,7 +140,7 @@ export function NewPatientForm() {
   }, []);
 
   function addToCart(test: TestResult) {
-    setCart((prev) => [...prev, test]);
+    setCart((prev) => [...prev, { ...test, price: toNumberPrice(test.price) }]);
     setTestSearch("");
     setTestResults([]);
     setShowDropdown(false);
@@ -146,7 +152,7 @@ export function NewPatientForm() {
 
   // ─── Billing Calculations ───────────────────────────────────────────────────
 
-  const subtotal = cart.reduce((s, t) => s + t.price, 0);
+  const subtotal = cart.reduce((s, t) => s + toNumberPrice(t.price), 0);
   const discountAmount = parseFloat(discount) || 0;
   const totalAmount = Math.max(0, subtotal - discountAmount);
   const amountPaidNum = parseFloat(amountPaid) || 0;
@@ -426,7 +432,7 @@ export function NewPatientForm() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-semibold">{formatCurrency(test.price)}</span>
+                      <span className="font-semibold">{formatCurrency(toNumberPrice(test.price))}</span>
                       <Plus className="h-4 w-4 text-primary" />
                     </div>
                   </button>
@@ -666,4 +672,9 @@ export function NewPatientForm() {
       </div>
     </div>
   );
+}
+
+function toNumberPrice(value: number | string): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
