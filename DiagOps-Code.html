@@ -7,10 +7,10 @@ pre{margin:0;padding:16px;background:#252526;overflow-x:auto;white-space:pre-wra
 DIRECT_URL="postgresql://postgres.cyjsobnepuihyiunlolj:Diagsync08145663184@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require"
 
 AUTH_SECRET="tILUZ9cj9v9yhqhApfJ7GMWmDwTduhep4ewnCNA7HPE="
-NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_URL="https://diagsync.vercel.app"
 
 NEXT_PUBLIC_APP_NAME="DiagOps"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
+NEXT_PUBLIC_APP_URL="https://diagsync.vercel.app"
 </pre></div>
 <div class='file-block'><div class='file-header'>.env.example</div><pre># Copy this file to .env.local and fill in your values
 
@@ -21,11 +21,11 @@ DIRECT_URL="postgresql://username:password@localhost:5432/diag_ops"
 
 # NextAuth
 AUTH_SECRET="your-super-secret-key-here-change-this"
-NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_URL="https://diagsync.vercel.app"
 
 # App
 NEXT_PUBLIC_APP_NAME="DiagOps"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
+NEXT_PUBLIC_APP_URL="https://diagsync.vercel.app"
 </pre></div>
 <div class='file-block'><div class='file-header'>next-env.d.ts</div><pre>/// &lt;reference types="next" /&gt;
 /// &lt;reference types="next/image-types/global" /&gt;
@@ -956,7 +956,7 @@ Open `.env.local` and fill in:
 ```
 DATABASE_URL="postgresql://username:password@localhost:5432/diag_ops"
 AUTH_SECRET="generate-a-random-secret-here"
-NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_URL="https://diagsync.vercel.app"
 ```
 
 To generate a secure AUTH_SECRET:
@@ -1000,7 +1000,7 @@ Default login after seeding:
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open [https://diagsync.vercel.app](https://diagsync.vercel.app)
 
 ---
 

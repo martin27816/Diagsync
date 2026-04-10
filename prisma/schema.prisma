@@ -94,6 +94,13 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum RoutingTaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String
@@ -138,6 +145,8 @@ model Staff {
   availabilityLogs  AvailabilityLog[]
   auditLogs         AuditLog[]
   registeredPatients Patient[]        @relation("RegisteredBy")
+  assignedTestOrders TestOrder[]      @relation("AssignedTestOrders")
+  routingTasks      RoutingTask[]
 
   @@map("staff")
 }
@@ -281,6 +290,7 @@ model Visit {
 
   patient    Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
   testOrders TestOrder[]
+  routingTasks RoutingTask[]
 
   @@map("visits")
 }
@@ -290,6 +300,7 @@ model TestOrder {
   visitId           String
   testId            String
   organizationId    String
+  assignedToId      String?
   status            OrderStatus @default(REGISTERED)
   price             Decimal     @db.Decimal(10, 2)
   notes             String?
@@ -308,6 +319,28 @@ model TestOrder {
 
   visit Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
   test  DiagnosticTest @relation(fields: [testId], references: [id])
+  assignedTo Staff?    @relation("AssignedTestOrders", fields: [assignedToId], references: [id])
 
+  @@index([organizationId, assignedToId, status])
   @@map("test_orders")
+}
+
+model RoutingTask {
+  id             String            @id @default(cuid())
+  organizationId String
+  visitId        String
+  department     Department
+  staffId        String?
+  priority       Priority          @default(ROUTINE)
+  status         RoutingTaskStatus @default(PENDING)
+  testOrderIds   String[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  visit  Visit  @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  staff  Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, department, status, priority])
+  @@index([visitId, department])
+  @@map("routing_tasks")
 }

@@ -40,7 +40,7 @@ Open `.env.local` and fill in:
 ```
 DATABASE_URL="postgresql://username:password@localhost:5432/diag_ops"
 AUTH_SECRET="generate-a-random-secret-here"
-NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_URL="https://diagsync.vercel.app"
 ```
 
 To generate a secure AUTH_SECRET:
@@ -84,7 +84,7 @@ Default login after seeding:
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open [https://diagsync.vercel.app](https://diagsync.vercel.app)
 
 ---
 

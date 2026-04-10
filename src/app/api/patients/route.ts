@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { Role, Department, Sex, Priority, PaymentStatus } from "@prisma/client";
+import { Role, Sex, Priority, PaymentStatus } from "@prisma/client";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import { assignTasksForVisit } from "@/lib/routing-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -212,6 +213,19 @@ export async function POST(req: NextRequest) {
       return { patient, visit, testOrders };
     });
 
+    let routing: Awaited<ReturnType<typeof assignTasksForVisit>> = [];
+    let routingWarning: string | null = null;
+    try {
+      routing = await assignTasksForVisit(result.visit.id, {
+        organizationId: user.organizationId,
+        actorId: user.id,
+        actorRole: user.role as Role,
+      });
+    } catch (routingError) {
+      console.error("[PATIENTS_POST_ROUTE]", routingError);
+      routingWarning = "Patient was registered, but auto-routing failed. You can route this visit manually.";
+    }
+
     // Audit log
     await createAuditLog({
       actorId: user.id,
@@ -239,6 +253,8 @@ export async function POST(req: NextRequest) {
           visitNumber: result.visit.visitNumber,
           testOrderIds: result.testOrders.map((o) => o.id),
           totalAmount,
+          routing,
+          routingWarning,
         },
       },
       { status: 201 }
