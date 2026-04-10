@@ -4,7 +4,7 @@ import { getDashboardPath } from "@/lib/utils";
 import { Role } from "@prisma/client";
 
 // Routes that don't need authentication
-const publicRoutes = ["/login", "/register", "/api/auth"];
+const publicRoutes = ["/", "/login", "/register", "/api/auth"];
 
 // Which roles can access which dashboard paths
 const roleRouteMap: Record<string, Role[]> = {
