@@ -1,0 +1,4370 @@
+﻿<!DOCTYPE html><html><head><meta charset="UTF-8"><title>DiagOps Code</title><style>
+body{margin:0;padding:20px;background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:13px;line-height:1.6;}
+.file-block{margin-bottom:48px;}
+.file-header{background:#333;color:#9cdcfe;padding:8px 14px;font-weight:bold;font-size:13px;border-left:4px solid #569cd6;margin-bottom:0;}
+pre{margin:0;padding:16px;background:#252526;overflow-x:auto;white-space:pre-wrap;word-break:break-word;border:1px solid #333;}
+</style></head><body><div class='file-block'><div class='file-header'>.env</div><pre>DATABASE_URL="postgresql://postgres.cyjsobnepuihyiunlolj:Diagsync08145663184@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true&amp;connection_limit=5&amp;pool_timeout=30&amp;sslmode=require"
+DIRECT_URL="postgresql://postgres.cyjsobnepuihyiunlolj:Diagsync08145663184@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require"
+
+AUTH_SECRET="tILUZ9cj9v9yhqhApfJ7GMWmDwTduhep4ewnCNA7HPE="
+NEXTAUTH_URL="http://localhost:3000"
+
+NEXT_PUBLIC_APP_NAME="DiagOps"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+</pre></div>
+<div class='file-block'><div class='file-header'>.env.example</div><pre># Copy this file to .env.local and fill in your values
+
+# Database - PostgreSQL connection strings
+# For Supabase pooler in local dev, use a higher connection_limit than 1 to avoid pool timeouts.
+DATABASE_URL="postgresql://username:password@localhost:5432/diag_ops?connection_limit=5&amp;pool_timeout=30"
+DIRECT_URL="postgresql://username:password@localhost:5432/diag_ops"
+
+# NextAuth
+AUTH_SECRET="your-super-secret-key-here-change-this"
+NEXTAUTH_URL="http://localhost:3000"
+
+# App
+NEXT_PUBLIC_APP_NAME="DiagOps"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+</pre></div>
+<div class='file-block'><div class='file-header'>next-env.d.ts</div><pre>/// &lt;reference types="next" /&gt;
+/// &lt;reference types="next/image-types/global" /&gt;
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/basic-features/typescript for more information.
+</pre></div>
+<div class='file-block'><div class='file-header'>package.json</div><pre>{
+  "name": "diag-ops",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:seed": "ts-node --project tsconfig.json prisma/seed.ts"
+  },
+  "dependencies": {
+    "@auth/prisma-adapter": "^2.4.1",
+    "@hookform/resolvers": "^3.6.0",
+    "@prisma/client": "^5.14.0",
+    "@radix-ui/react-avatar": "^1.0.4",
+    "@radix-ui/react-dialog": "^1.0.5",
+    "@radix-ui/react-dropdown-menu": "^2.0.6",
+    "@radix-ui/react-label": "^2.0.2",
+    "@radix-ui/react-select": "^2.0.0",
+    "@radix-ui/react-separator": "^1.0.3",
+    "@radix-ui/react-slot": "^1.0.2",
+    "@radix-ui/react-switch": "^1.0.3",
+    "@radix-ui/react-tabs": "^1.0.4",
+    "@radix-ui/react-toast": "^1.1.5",
+    "bcryptjs": "^2.4.3",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.383.0",
+    "next": "14.2.3",
+    "next-auth": "^5.0.0-beta.19",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-hook-form": "^7.51.5",
+    "tailwind-merge": "^2.3.0",
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.27",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.3",
+    "postcss": "^8.5.9",
+    "prisma": "^5.14.0",
+    "tailwindcss": "^3.4.19",
+    "ts-node": "^10.9.2",
+    "typescript": "^5"
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>prisma/schema.prisma</div><pre>// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  RECEPTIONIST
+  LAB_SCIENTIST
+  RADIOGRAPHER
+  MD
+  HRM
+}
+
+enum Department {
+  RECEPTION
+  LABORATORY
+  RADIOLOGY
+  MEDICAL_REVIEW
+  HR_OPERATIONS
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  UNAVAILABLE
+}
+
+enum Shift {
+  MORNING
+  AFTERNOON
+  NIGHT
+  FULL_DAY
+}
+
+enum TestType {
+  LAB
+  RADIOLOGY
+}
+
+enum FieldType {
+  NUMBER
+  TEXT
+  TEXTAREA
+  DROPDOWN
+  CHECKBOX
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Priority {
+  ROUTINE
+  URGENT
+  EMERGENCY
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  WAIVED
+  PARTIAL
+}
+
+enum OrderStatus {
+  REGISTERED
+  ASSIGNED
+  OPENED
+  SAMPLE_PENDING
+  SAMPLE_COLLECTED
+  IN_PROGRESS
+  RESULT_DRAFTED
+  SUBMITTED_FOR_REVIEW
+  EDIT_REQUESTED
+  RESUBMITTED
+  APPROVED
+  RELEASED
+  CANCELLED
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String
+  address   String
+  logo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff    Staff[]
+  patients Patient[]
+  tests    DiagnosticTest[]
+
+  @@map("organizations")
+}
+
+model Staff {
+  id                 String             @id @default(cuid())
+  organizationId     String
+  fullName           String
+  email              String             @unique
+  phone              String
+  passwordHash       String
+  role               Role
+  department         Department
+  gender             String?
+  dateJoined         DateTime           @default(now())
+  defaultShift       Shift              @default(MORNING)
+  status             StaffStatus        @default(ACTIVE)
+  availabilityStatus AvailabilityStatus @default(UNAVAILABLE)
+  lastAvailableAt    DateTime?
+  lastUnavailableAt  DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  createdById        String?
+
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy         Staff?            @relation("StaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff      Staff[]           @relation("StaffCreatedBy")
+  sessions          Session[]
+  availabilityLogs  AvailabilityLog[]
+  auditLogs         AuditLog[]
+  registeredPatients Patient[]        @relation("RegisteredBy")
+
+  @@map("staff")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  staffId      String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model AvailabilityLog {
+  id        String             @id @default(cuid())
+  staffId   String
+  oldStatus AvailabilityStatus
+  newStatus AvailabilityStatus
+  reason    String?
+  changedAt DateTime           @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("availability_logs")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actorRole  Role
+  action     String
+  entityType String
+  entityId   String?
+  oldValue   Json?
+  newValue   Json?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  actor Staff @relation(fields: [actorId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model TestCategory {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  tests DiagnosticTest[]
+
+  @@map("test_categories")
+}
+
+model DiagnosticTest {
+  id                String     @id @default(cuid())
+  organizationId    String
+  categoryId        String?
+  name              String
+  code              String
+  type              TestType
+  department        Department
+  price             Decimal    @db.Decimal(10, 2)
+  turnaroundMinutes Int
+  sampleType        String?
+  description       String?
+  isActive          Boolean    @default(true)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category     TestCategory?        @relation(fields: [categoryId], references: [id])
+  resultFields ResultTemplateField[]
+  testOrders   TestOrder[]
+
+  @@unique([organizationId, code])
+  @@map("diagnostic_tests")
+}
+
+model ResultTemplateField {
+  id         String    @id @default(cuid())
+  testId     String
+  label      String
+  fieldKey   String
+  fieldType  FieldType
+  unit       String?
+  normalMin  Decimal?  @db.Decimal(10, 3)
+  normalMax  Decimal?  @db.Decimal(10, 3)
+  options    String?
+  isRequired Boolean   @default(true)
+  sortOrder  Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  test DiagnosticTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@map("result_template_fields")
+}
+
+model Patient {
+  id              String    @id @default(cuid())
+  organizationId  String
+  patientId       String
+  fullName        String
+  age             Int
+  sex             Sex
+  phone           String
+  email           String?
+  address         String?
+  dateOfBirth     DateTime?
+  referringDoctor String?
+  clinicalNote    String?
+  registeredById  String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registeredBy Staff        @relation("RegisteredBy", fields: [registeredById], references: [id])
+  visits       Visit[]
+
+  @@unique([organizationId, patientId])
+  @@map("patients")
+}
+
+model Visit {
+  id             String        @id @default(cuid())
+  patientId      String
+  organizationId String
+  visitNumber    String
+  priority       Priority      @default(ROUTINE)
+  paymentStatus  PaymentStatus @default(PENDING)
+  totalAmount    Decimal       @db.Decimal(10, 2) @default(0)
+  amountPaid     Decimal       @db.Decimal(10, 2) @default(0)
+  discount       Decimal       @db.Decimal(10, 2) @default(0)
+  paymentMethod  String?
+  notes          String?
+  registeredAt   DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  patient    Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  testOrders TestOrder[]
+
+  @@map("visits")
+}
+
+model TestOrder {
+  id                String      @id @default(cuid())
+  visitId           String
+  testId            String
+  organizationId    String
+  status            OrderStatus @default(REGISTERED)
+  price             Decimal     @db.Decimal(10, 2)
+  notes             String?
+  registeredAt      DateTime    @default(now())
+  assignedAt        DateTime?
+  openedAt          DateTime?
+  sampleCollectedAt DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  approvedAt        DateTime?
+  releasedAt        DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  visit Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  test  DiagnosticTest @relation(fields: [testId], references: [id])
+
+  @@map("test_orders")
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>prisma/seed.ts</div><pre>import { PrismaClient, Role, Department, Shift, TestType, FieldType } from "@prisma/client";
+import * as bcrypt from "bcryptjs";
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log("ðŸŒ± Seeding Phase 2 â€” Test Database...");
+
+  // â”€â”€ Seed Test Categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const categories = await Promise.all([
+    prisma.testCategory.upsert({
+      where: { id: "cat-haematology" },
+      update: {},
+      create: { id: "cat-haematology", name: "Haematology", description: "Blood count and related tests" },
+    }),
+    prisma.testCategory.upsert({
+      where: { id: "cat-chemistry" },
+      update: {},
+      create: { id: "cat-chemistry", name: "Clinical Chemistry", description: "Biochemistry and metabolic tests" },
+    }),
+    prisma.testCategory.upsert({
+      where: { id: "cat-micro" },
+      update: {},
+      create: { id: "cat-micro", name: "Microbiology", description: "Infection and parasitology tests" },
+    }),
+    prisma.testCategory.upsert({
+      where: { id: "cat-urine" },
+      update: {},
+      create: { id: "cat-urine", name: "Urinalysis", description: "Urine examination tests" },
+    }),
+    prisma.testCategory.upsert({
+      where: { id: "cat-imaging" },
+      update: {},
+      create: { id: "cat-imaging", name: "Imaging &amp; Radiology", description: "X-Ray, Ultrasound, CT, MRI" },
+    }),
+    prisma.testCategory.upsert({
+      where: { id: "cat-serology" },
+      update: {},
+      create: { id: "cat-serology", name: "Serology / Immunology", description: "Antibody and antigen tests" },
+    }),
+  ]);
+
+  console.log(`âœ… ${categories.length} test categories created`);
+
+  // â”€â”€ Get Organization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const org = await prisma.organization.findFirst({
+    where: { email: "admin@reenemedical.com" },
+  });
+
+  if (!org) {
+    throw new Error("Organization not found. Run Phase 1 seed first.");
+  }
+  const orgId = org.id;
+
+  // â”€â”€ Helper: upsert test + fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  async function seedTest(data: {
+    code: string;
+    name: string;
+    type: TestType;
+    department: Department;
+    categoryId: string;
+    price: number;
+    turnaroundMinutes: number;
+    sampleType?: string;
+    description?: string;
+    fields: {
+      label: string;
+      fieldKey: string;
+      fieldType: FieldType;
+      unit?: string;
+      normalMin?: number;
+      normalMax?: number;
+      options?: string;
+      isRequired?: boolean;
+      sortOrder: number;
+    }[];
+  }) {
+    const test = await prisma.diagnosticTest.upsert({
+      where: { organizationId_code: { organizationId: orgId, code: data.code } },
+      update: { name: data.name, price: data.price },
+      create: {
+        organizationId: orgId,
+        categoryId: data.categoryId,
+        name: data.name,
+        code: data.code,
+        type: data.type,
+        department: data.department,
+        price: data.price,
+        turnaroundMinutes: data.turnaroundMinutes,
+        sampleType: data.sampleType,
+        description: data.description,
+      },
+    });
+
+    // Delete old fields and recreate (safe for seed)
+    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
+
+    for (const field of data.fields) {
+      await prisma.resultTemplateField.create({
+        data: {
+          testId: test.id,
+          label: field.label,
+          fieldKey: field.fieldKey,
+          fieldType: field.fieldType,
+          unit: field.unit,
+          normalMin: field.normalMin,
+          normalMax: field.normalMax,
+          options: field.options,
+          isRequired: field.isRequired ?? true,
+          sortOrder: field.sortOrder,
+        },
+      });
+    }
+
+    return test;
+  }
+
+  // â”€â”€ LAB TESTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  // 1. Full Blood Count
+  await seedTest({
+    code: "FBC",
+    name: "Full Blood Count",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-haematology",
+    price: 3500,
+    turnaroundMinutes: 120,
+    sampleType: "EDTA Blood",
+    description: "Complete blood count including WBC differential",
+    fields: [
+      { label: "Haemoglobin", fieldKey: "haemoglobin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 12, normalMax: 17, sortOrder: 1 },
+      { label: "PCV / Haematocrit", fieldKey: "pcv", fieldType: FieldType.NUMBER, unit: "%", normalMin: 36, normalMax: 50, sortOrder: 2 },
+      { label: "WBC Count", fieldKey: "wbc", fieldType: FieldType.NUMBER, unit: "Ã—10Â³/ÂµL", normalMin: 4, normalMax: 11, sortOrder: 3 },
+      { label: "Neutrophils", fieldKey: "neutrophils", fieldType: FieldType.NUMBER, unit: "%", normalMin: 40, normalMax: 75, sortOrder: 4 },
+      { label: "Lymphocytes", fieldKey: "lymphocytes", fieldType: FieldType.NUMBER, unit: "%", normalMin: 20, normalMax: 45, sortOrder: 5 },
+      { label: "Monocytes", fieldKey: "monocytes", fieldType: FieldType.NUMBER, unit: "%", normalMin: 2, normalMax: 10, sortOrder: 6 },
+      { label: "Eosinophils", fieldKey: "eosinophils", fieldType: FieldType.NUMBER, unit: "%", normalMin: 1, normalMax: 6, sortOrder: 7 },
+      { label: "Platelets", fieldKey: "platelets", fieldType: FieldType.NUMBER, unit: "Ã—10Â³/ÂµL", normalMin: 150, normalMax: 400, sortOrder: 8 },
+      { label: "MCV", fieldKey: "mcv", fieldType: FieldType.NUMBER, unit: "fL", normalMin: 80, normalMax: 100, sortOrder: 9 },
+      { label: "MCH", fieldKey: "mch", fieldType: FieldType.NUMBER, unit: "pg", normalMin: 27, normalMax: 33, sortOrder: 10 },
+      { label: "MCHC", fieldKey: "mchc", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 32, normalMax: 36, sortOrder: 11 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 12 },
+    ],
+  });
+
+  // 2. Malaria Parasite
+  await seedTest({
+    code: "MP",
+    name: "Malaria Parasite",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-micro",
+    price: 1500,
+    turnaroundMinutes: 60,
+    sampleType: "EDTA Blood",
+    description: "Thick and thin film for malaria parasite",
+    fields: [
+      { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+      { label: "Species", fieldKey: "species", fieldType: FieldType.DROPDOWN, options: "Plasmodium falciparum,Plasmodium vivax,Plasmodium malariae,Mixed,Not Applicable", isRequired: false, sortOrder: 2 },
+      { label: "Parasitaemia", fieldKey: "parasitaemia", fieldType: FieldType.DROPDOWN, options: "+,++,+++,++++,Not Applicable", isRequired: false, sortOrder: 3 },
+      { label: "Method", fieldKey: "method", fieldType: FieldType.DROPDOWN, options: "Thick Film,Thin Film,RDT", sortOrder: 4 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    ],
+  });
+
+  // 3. Urinalysis
+  await seedTest({
+    code: "URA",
+    name: "Urinalysis",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-urine",
+    price: 1500,
+    turnaroundMinutes: 60,
+    sampleType: "Mid-stream Urine",
+    fields: [
+      { label: "Colour", fieldKey: "colour", fieldType: FieldType.DROPDOWN, options: "Pale Yellow,Yellow,Dark Yellow,Amber,Brown,Red,Colourless", sortOrder: 1 },
+      { label: "Appearance", fieldKey: "appearance", fieldType: FieldType.DROPDOWN, options: "Clear,Slightly Turbid,Turbid,Very Turbid", sortOrder: 2 },
+      { label: "pH", fieldKey: "ph", fieldType: FieldType.NUMBER, unit: "", normalMin: 4.5, normalMax: 8, sortOrder: 3 },
+      { label: "Specific Gravity", fieldKey: "specific_gravity", fieldType: FieldType.TEXT, sortOrder: 4 },
+      { label: "Protein", fieldKey: "protein", fieldType: FieldType.DROPDOWN, options: "Negative,Trace,+,++,+++", sortOrder: 5 },
+      { label: "Glucose", fieldKey: "glucose", fieldType: FieldType.DROPDOWN, options: "Negative,Trace,+,++,+++", sortOrder: 6 },
+      { label: "Ketones", fieldKey: "ketones", fieldType: FieldType.DROPDOWN, options: "Negative,Trace,+,++,+++", sortOrder: 7 },
+      { label: "Blood", fieldKey: "blood", fieldType: FieldType.DROPDOWN, options: "Negative,Trace,+,++,+++", sortOrder: 8 },
+      { label: "Bilirubin", fieldKey: "bilirubin", fieldType: FieldType.DROPDOWN, options: "Negative,+,++,+++", sortOrder: 9 },
+      { label: "Urobilinogen", fieldKey: "urobilinogen", fieldType: FieldType.DROPDOWN, options: "Normal,Increased", sortOrder: 10 },
+      { label: "Nitrite", fieldKey: "nitrite", fieldType: FieldType.DROPDOWN, options: "Negative,Positive", sortOrder: 11 },
+      { label: "Leucocytes", fieldKey: "leucocytes", fieldType: FieldType.DROPDOWN, options: "Negative,Trace,+,++,+++", sortOrder: 12 },
+      { label: "Pus Cells (hpf)", fieldKey: "pus_cells", fieldType: FieldType.TEXT, sortOrder: 13 },
+      { label: "RBCs (hpf)", fieldKey: "rbcs", fieldType: FieldType.TEXT, sortOrder: 14 },
+      { label: "Epithelial Cells", fieldKey: "epithelial_cells", fieldType: FieldType.DROPDOWN, options: "Nil,Few,Moderate,Many", isRequired: false, sortOrder: 15 },
+      { label: "Casts", fieldKey: "casts", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 16 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 17 },
+    ],
+  });
+
+  // 4. Blood Sugar (Fasting)
+  await seedTest({
+    code: "FBS",
+    name: "Fasting Blood Sugar",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-chemistry",
+    price: 1500,
+    turnaroundMinutes: 60,
+    sampleType: "Fluoride Oxalate Blood",
+    fields: [
+      { label: "Glucose Level", fieldKey: "glucose", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.9, normalMax: 5.5, sortOrder: 1 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    ],
+  });
+
+  // 5. Random Blood Sugar
+  await seedTest({
+    code: "RBS",
+    name: "Random Blood Sugar",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-chemistry",
+    price: 1500,
+    turnaroundMinutes: 30,
+    sampleType: "Fluoride Oxalate Blood",
+    fields: [
+      { label: "Glucose Level", fieldKey: "glucose", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.9, normalMax: 7.8, sortOrder: 1 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    ],
+  });
+
+  // 6. Widal Test
+  await seedTest({
+    code: "WIDAL",
+    name: "Widal Test",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 2000,
+    turnaroundMinutes: 90,
+    sampleType: "Serum",
+    fields: [
+      { label: "S. Typhi O", fieldKey: "typhi_o", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320,1:640", sortOrder: 1 },
+      { label: "S. Typhi H", fieldKey: "typhi_h", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320,1:640", sortOrder: 2 },
+      { label: "S. Paratyphi AO", fieldKey: "paratyphi_ao", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 3 },
+      { label: "S. Paratyphi BH", fieldKey: "paratyphi_bh", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 4 },
+      { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+    ],
+  });
+
+  // 7. Liver Function Test
+  await seedTest({
+    code: "LFT",
+    name: "Liver Function Test",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-chemistry",
+    price: 5000,
+    turnaroundMinutes: 180,
+    sampleType: "Serum",
+    fields: [
+      { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 3.4, normalMax: 20.5, sortOrder: 1 },
+      { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 0, normalMax: 5.1, sortOrder: 2 },
+      { label: "Indirect Bilirubin", fieldKey: "indirect_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 0, normalMax: 17, sortOrder: 3 },
+      { label: "ALT (SGPT)", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 7, normalMax: 40, sortOrder: 4 },
+      { label: "AST (SGOT)", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 10, normalMax: 40, sortOrder: 5 },
+      { label: "ALP", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 44, normalMax: 147, sortOrder: 6 },
+      { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 60, normalMax: 83, sortOrder: 7 },
+      { label: "Albumin", fieldKey: "albumin", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 35, normalMax: 50, sortOrder: 8 },
+      { label: "Globulin", fieldKey: "globulin", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 20, normalMax: 35, sortOrder: 9 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 10 },
+    ],
+  });
+
+  // 8. Kidney Function Test
+  await seedTest({
+    code: "KFT",
+    name: "Kidney Function Test",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-chemistry",
+    price: 5000,
+    turnaroundMinutes: 180,
+    sampleType: "Serum",
+    fields: [
+      { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.5, normalMax: 7.1, sortOrder: 1 },
+      { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 62, normalMax: 115, sortOrder: 2 },
+      { label: "Uric Acid", fieldKey: "uric_acid", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.15, normalMax: 0.45, sortOrder: 3 },
+      { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 136, normalMax: 145, sortOrder: 4 },
+      { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.5, normalMax: 5.0, sortOrder: 5 },
+      { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 98, normalMax: 107, sortOrder: 6 },
+      { label: "Bicarbonate", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 22, normalMax: 29, sortOrder: 7 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
+    ],
+  });
+
+  // 9. HBsAg (Hepatitis B)
+  await seedTest({
+    code: "HBSAG",
+    name: "Hepatitis B Surface Antigen (HBsAg)",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 2500,
+    turnaroundMinutes: 60,
+    sampleType: "Serum",
+    fields: [
+      { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+      { label: "Method", fieldKey: "method", fieldType: FieldType.DROPDOWN, options: "Rapid Strip,ELISA", sortOrder: 2 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ],
+  });
+
+  // 10. HIV Screening
+  await seedTest({
+    code: "HIV",
+    name: "HIV Screening",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 2000,
+    turnaroundMinutes: 60,
+    sampleType: "Serum / Whole Blood",
+    fields: [
+      { label: "Determine Result", fieldKey: "determine", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+      { label: "Unigold Result", fieldKey: "unigold", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive,Not Done", sortOrder: 2 },
+      { label: "Final Interpretation", fieldKey: "interpretation", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 3 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    ],
+  });
+
+  // 11. Stool Analysis
+  await seedTest({
+    code: "STOOL",
+    name: "Stool Analysis",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-micro",
+    price: 1500,
+    turnaroundMinutes: 90,
+    sampleType: "Stool",
+    fields: [
+      { label: "Colour", fieldKey: "colour", fieldType: FieldType.DROPDOWN, options: "Brown,Yellow,Black,Green,Red,Pale", sortOrder: 1 },
+      { label: "Consistency", fieldKey: "consistency", fieldType: FieldType.DROPDOWN, options: "Formed,Semi-formed,Loose,Watery", sortOrder: 2 },
+      { label: "Mucus", fieldKey: "mucus", fieldType: FieldType.DROPDOWN, options: "Absent,Present", sortOrder: 3 },
+      { label: "Blood", fieldKey: "blood", fieldType: FieldType.DROPDOWN, options: "Absent,Present", sortOrder: 4 },
+      { label: "Ova / Cyst", fieldKey: "ova_cyst", fieldType: FieldType.TEXT, sortOrder: 5 },
+      { label: "Trophozoites", fieldKey: "trophozoites", fieldType: FieldType.TEXT, sortOrder: 6 },
+      { label: "Pus Cells (hpf)", fieldKey: "pus_cells", fieldType: FieldType.TEXT, sortOrder: 7 },
+      { label: "RBCs (hpf)", fieldKey: "rbcs", fieldType: FieldType.TEXT, sortOrder: 8 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
+    ],
+  });
+
+  // â”€â”€ RADIOLOGY TESTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  // 12. Chest X-Ray
+  await seedTest({
+    code: "CXR",
+    name: "Chest X-Ray",
+    type: TestType.RADIOLOGY,
+    department: Department.RADIOLOGY,
+    categoryId: "cat-imaging",
+    price: 5000,
+    turnaroundMinutes: 45,
+    description: "Plain chest radiograph (PA view)",
+    fields: [
+      { label: "Projection / View", fieldKey: "projection", fieldType: FieldType.DROPDOWN, options: "PA,AP,Lateral,AP + Lateral", sortOrder: 1 },
+      { label: "Lung Fields", fieldKey: "lung_fields", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+      { label: "Heart Size", fieldKey: "heart_size", fieldType: FieldType.DROPDOWN, options: "Normal,Mildly Enlarged,Moderately Enlarged,Markedly Enlarged", sortOrder: 3 },
+      { label: "Mediastinum", fieldKey: "mediastinum", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+      { label: "Diaphragm", fieldKey: "diaphragm", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+      { label: "Costophrenic Angles", fieldKey: "costophrenic", fieldType: FieldType.DROPDOWN, options: "Sharp bilaterally,Blunted on right,Blunted on left,Blunted bilaterally", sortOrder: 6 },
+      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 7 },
+      { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
+    ],
+  });
+
+  // 13. Abdominal Ultrasound
+  await seedTest({
+    code: "AUS",
+    name: "Abdominal Ultrasound",
+    type: TestType.RADIOLOGY,
+    department: Department.RADIOLOGY,
+    categoryId: "cat-imaging",
+    price: 8000,
+    turnaroundMinutes: 60,
+    description: "Comprehensive abdominal ultrasound scan",
+    fields: [
+      { label: "Liver", fieldKey: "liver", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+      { label: "Gallbladder", fieldKey: "gallbladder", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+      { label: "Spleen", fieldKey: "spleen", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+      { label: "Pancreas", fieldKey: "pancreas", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+      { label: "Kidneys", fieldKey: "kidneys", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+      { label: "Urinary Bladder", fieldKey: "bladder", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
+      { label: "Aorta / IVC", fieldKey: "aorta", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 7 },
+      { label: "Free Fluid / Ascites", fieldKey: "free_fluid", fieldType: FieldType.DROPDOWN, options: "None detected,Minimal,Moderate,Gross", sortOrder: 8 },
+      { label: "Other Findings", fieldKey: "other_findings", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
+      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 10 },
+      { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 11 },
+    ],
+  });
+
+  // 14. Pelvic Ultrasound
+  await seedTest({
+    code: "PUS",
+    name: "Pelvic Ultrasound",
+    type: TestType.RADIOLOGY,
+    department: Department.RADIOLOGY,
+    categoryId: "cat-imaging",
+    price: 7000,
+    turnaroundMinutes: 60,
+    fields: [
+      { label: "Uterus", fieldKey: "uterus", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+      { label: "Ovaries", fieldKey: "ovaries", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+      { label: "Endometrium", fieldKey: "endometrium", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+      { label: "Adnexa", fieldKey: "adnexa", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+      { label: "Pouch of Douglas", fieldKey: "pod", fieldType: FieldType.DROPDOWN, options: "Clear,Fluid noted", sortOrder: 5 },
+      { label: "Other Findings", fieldKey: "other_findings", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 7 },
+      { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
+    ],
+  });
+
+  // 15. Obstetric Ultrasound
+  await seedTest({
+    code: "OBS",
+    name: "Obstetric Ultrasound",
+    type: TestType.RADIOLOGY,
+    department: Department.RADIOLOGY,
+    categoryId: "cat-imaging",
+    price: 8000,
+    turnaroundMinutes: 60,
+    fields: [
+      { label: "Gestational Age (LMP)", fieldKey: "ga_lmp", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 1 },
+      { label: "Gestational Age (Scan)", fieldKey: "ga_scan", fieldType: FieldType.TEXT, sortOrder: 2 },
+      { label: "Number of Fetuses", fieldKey: "fetus_count", fieldType: FieldType.DROPDOWN, options: "Singleton,Twins,Triplets", sortOrder: 3 },
+      { label: "Fetal Lie", fieldKey: "fetal_lie", fieldType: FieldType.DROPDOWN, options: "Longitudinal,Transverse,Oblique", sortOrder: 4 },
+      { label: "Fetal Presentation", fieldKey: "presentation", fieldType: FieldType.DROPDOWN, options: "Cephalic,Breech,Shoulder", sortOrder: 5 },
+      { label: "Fetal Heart Rate", fieldKey: "fhr", fieldType: FieldType.NUMBER, unit: "bpm", normalMin: 110, normalMax: 160, sortOrder: 6 },
+      { label: "Placenta Location", fieldKey: "placenta", fieldType: FieldType.TEXT, sortOrder: 7 },
+      { label: "Amniotic Fluid", fieldKey: "amniotic_fluid", fieldType: FieldType.DROPDOWN, options: "Adequate,Reduced (Oligohydramnios),Increased (Polyhydramnios)", sortOrder: 8 },
+      { label: "BPD", fieldKey: "bpd", fieldType: FieldType.NUMBER, unit: "cm", isRequired: false, sortOrder: 9 },
+      { label: "HC", fieldKey: "hc", fieldType: FieldType.NUMBER, unit: "cm", isRequired: false, sortOrder: 10 },
+      { label: "AC", fieldKey: "ac", fieldType: FieldType.NUMBER, unit: "cm", isRequired: false, sortOrder: 11 },
+      { label: "FL", fieldKey: "fl", fieldType: FieldType.NUMBER, unit: "cm", isRequired: false, sortOrder: 12 },
+      { label: "EFW", fieldKey: "efw", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 13 },
+      { label: "EDD", fieldKey: "edd", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 14 },
+      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 15 },
+    ],
+  });
+
+  // 16. Skull X-Ray
+  await seedTest({
+    code: "SKX",
+    name: "Skull X-Ray",
+    type: TestType.RADIOLOGY,
+    department: Department.RADIOLOGY,
+    categoryId: "cat-imaging",
+    price: 5000,
+    turnaroundMinutes: 45,
+    fields: [
+      { label: "Projection / View", fieldKey: "projection", fieldType: FieldType.DROPDOWN, options: "AP,Lateral,Towne's,Submentovertex", sortOrder: 1 },
+      { label: "Skull Vault", fieldKey: "skull_vault", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+      { label: "Sella Turcica", fieldKey: "sella", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+      { label: "Pineal Gland", fieldKey: "pineal", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+      { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+    ],
+  });
+
+  // â”€â”€ Ensure Super Admin exists (Phase 1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const existingAdmin = await prisma.staff.findFirst({
+    where: { email: "superadmin@reenemedical.com" },
+  });
+
+  if (!existingAdmin) {
+    const passwordHash = await bcrypt.hash("Admin@1234", 12);
+    await prisma.staff.create({
+      data: {
+        organizationId: orgId,
+        fullName: "Super Admin",
+        email: "superadmin@reenemedical.com",
+        phone: "+2348000000001",
+        passwordHash,
+        role: Role.SUPER_ADMIN,
+        department: Department.HR_OPERATIONS,
+        defaultShift: Shift.FULL_DAY,
+      },
+    });
+    console.log("âœ… Super Admin re-seeded");
+  }
+
+  const testCount = await prisma.diagnosticTest.count({ where: { organizationId: orgId } });
+  console.log(`\nâœ… Phase 2 complete!`);
+  console.log(`   Tests in database: ${testCount}`);
+  console.log(`   Categories: ${categories.length}`);
+  console.log(`\n   Run: npx prisma db push &amp;&amp; npm run db:seed`);
+}
+
+main()
+  .then(async () =&gt; {
+    await prisma.$disconnect();
+  })
+  .catch(async (e) =&gt; {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
+  });
+</pre></div>
+<div class='file-block'><div class='file-header'>README.md</div><pre># DiagOps â€” Medical Diagnostic Operations System
+
+A multi-role diagnostic workflow operating system for medical labs.
+
+## Phase 1 Covers
+- Organization registration
+- Individual staff accounts with roles
+- Role-based access control (RBAC)
+- Authentication (NextAuth v5 + JWT)
+- Role-specific dashboards (Receptionist, Lab Scientist, Radiographer, MD, HRM)
+- Staff availability toggle
+- Audit logging
+- Middleware-based route protection
+
+---
+
+## Tech Stack
+- **Framework:** Next.js 14 (App Router)
+- **Database:** PostgreSQL
+- **ORM:** Prisma
+- **Auth:** NextAuth v5
+- **UI:** Tailwind CSS + Radix UI
+- **Validation:** Zod + React Hook Form
+
+---
+
+## Setup Instructions
+
+### 1. Install dependencies
+```bash
+npm install
+```
+
+### 2. Set up environment variables
+```bash
+cp .env.example .env.local
+```
+
+Open `.env.local` and fill in:
+```
+DATABASE_URL="postgresql://username:password@localhost:5432/diag_ops"
+AUTH_SECRET="generate-a-random-secret-here"
+NEXTAUTH_URL="http://localhost:3000"
+```
+
+To generate a secure AUTH_SECRET:
+```bash
+openssl rand -base64 32
+```
+
+### 3. Set up PostgreSQL database
+Make sure PostgreSQL is running, then create the database:
+```bash
+createdb diag_ops
+```
+Or via psql:
+```sql
+CREATE DATABASE diag_ops;
+```
+
+### 4. Push database schema
+```bash
+npx prisma db push
+```
+
+### 5. Generate Prisma client
+```bash
+npx prisma generate
+```
+
+### 6. Seed the database (creates first org + super admin)
+```bash
+npm run db:seed
+```
+
+Default login after seeding:
+- **Email:** superadmin@reenemedical.com
+- **Password:** Admin@1234
+
+&gt; âš ï¸ Change this password immediately after first login!
+
+### 7. Start development server
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000)
+
+---
+
+## Roles &amp; Dashboards
+
+| Role | Dashboard Path | Can Do |
+|------|---------------|--------|
+| SUPER_ADMIN | /dashboard/hrm | Everything |
+| HRM | /dashboard/hrm | Staff management, audit, operations |
+| RECEPTIONIST | /dashboard/receptionist | Patient registration |
+| LAB_SCIENTIST | /dashboard/lab-scientist | Lab tests, result entry |
+| RADIOGRAPHER | /dashboard/radiographer | Imaging, radiology reports |
+| MD | /dashboard/md | Review, approve, edit requests |
+
+---
+
+## Useful Commands
+
+```bash
+npm run dev          # Start dev server
+npm run build        # Production build
+npx prisma studio    # Open database GUI
+npx prisma db push   # Push schema changes
+npm run db:seed      # Re-seed the database
+```
+
+---
+
+## Phase 2 Next
+- Test database (lab tests + radiology tests)
+- Result templates
+- Pricing
+- Patient model
+- Visit model
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(auth)/layout.tsx</div><pre>export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  return (
+    &lt;div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4"&gt;
+      {children}
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(auth)/login/page.tsx</div><pre>"use client";
+
+import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import Link from "next/link";
+import { Loader2, FlaskConical } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/index";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/index";
+
+const schema = z.object({
+  email: z.string().email("Enter a valid email"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type FormData = z.infer&lt;typeof schema&gt;;
+
+export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+  const [error, setError] = useState("");
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm&lt;FormData&gt;({ resolver: zodResolver(schema) });
+
+  async function onSubmit(data: FormData) {
+    setError("");
+    try {
+      const result = await signIn("credentials", {
+        email: data.email,
+        password: data.password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError("Invalid email or password. Please try again.");
+        return;
+      }
+
+      router.push(callbackUrl);
+      router.refresh();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    }
+  }
+
+  return (
+    &lt;Card className="w-full max-w-md shadow-lg"&gt;
+      &lt;CardHeader className="text-center pb-4"&gt;
+        &lt;div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground"&gt;
+          &lt;FlaskConical className="h-6 w-6" /&gt;
+        &lt;/div&gt;
+        &lt;CardTitle className="text-2xl"&gt;Welcome back&lt;/CardTitle&gt;
+        &lt;CardDescription&gt;Sign in to your DiagOps account&lt;/CardDescription&gt;
+      &lt;/CardHeader&gt;
+
+      &lt;CardContent&gt;
+        &lt;form onSubmit={handleSubmit(onSubmit)} className="space-y-4"&gt;
+          {error &amp;&amp; (
+            &lt;div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive"&gt;
+              {error}
+            &lt;/div&gt;
+          )}
+
+          &lt;div className="space-y-1.5"&gt;
+            &lt;Label htmlFor="email"&gt;Email Address&lt;/Label&gt;
+            &lt;Input
+              id="email"
+              type="email"
+              placeholder="you@lab.com"
+              autoComplete="email"
+              {...register("email")}
+            /&gt;
+            {errors.email &amp;&amp; (
+              &lt;p className="text-xs text-destructive"&gt;{errors.email.message}&lt;/p&gt;
+            )}
+          &lt;/div&gt;
+
+          &lt;div className="space-y-1.5"&gt;
+            &lt;Label htmlFor="password"&gt;Password&lt;/Label&gt;
+            &lt;Input
+              id="password"
+              type="password"
+              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+              autoComplete="current-password"
+              {...register("password")}
+            /&gt;
+            {errors.password &amp;&amp; (
+              &lt;p className="text-xs text-destructive"&gt;{errors.password.message}&lt;/p&gt;
+            )}
+          &lt;/div&gt;
+
+          &lt;Button type="submit" className="w-full" disabled={isSubmitting}&gt;
+            {isSubmitting ? (
+              &lt;&gt;
+                &lt;Loader2 className="mr-2 h-4 w-4 animate-spin" /&gt;
+                Signing in...
+              &lt;/&gt;
+            ) : (
+              "Sign In"
+            )}
+          &lt;/Button&gt;
+        &lt;/form&gt;
+
+        &lt;div className="mt-6 text-center text-sm text-muted-foreground"&gt;
+          New lab?{" "}
+          &lt;Link href="/register" className="text-primary font-medium hover:underline"&gt;
+            Register your organization
+          &lt;/Link&gt;
+        &lt;/div&gt;
+      &lt;/CardContent&gt;
+    &lt;/Card&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(auth)/register/page.tsx</div><pre>"use client";
+
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Loader2, Building2, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/index";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/index";
+
+const schema = z.object({
+  orgName: z.string().min(2, "Organization name is required"),
+  orgEmail: z.string().email("Valid email required"),
+  orgPhone: z.string().min(7, "Phone number required"),
+  orgAddress: z.string().min(5, "Address required"),
+  adminName: z.string().min(2, "Admin full name required"),
+  adminEmail: z.string().email("Valid admin email required"),
+  adminPhone: z.string().min(7, "Admin phone required"),
+  adminPassword: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string(),
+}).refine((d) =&gt; d.adminPassword === d.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
+
+type FormData = z.infer&lt;typeof schema&gt;;
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const [serverError, setServerError] = useState("");
+  const [registered, setRegistered] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm&lt;FormData&gt;({ resolver: zodResolver(schema) });
+
+  async function onSubmit(data: FormData) {
+    setServerError("");
+    try {
+      const res = await fetch("/api/organizations/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setServerError(json.error ?? "Something went wrong");
+        return;
+      }
+      setRegistered(true);
+      setTimeout(() =&gt; router.push("/login"), 3000);
+    } catch {
+      setServerError("Network error. Please try again.");
+    }
+  }
+
+  if (registered) {
+    return (
+      &lt;Card className="w-full max-w-md shadow-lg"&gt;
+        &lt;CardContent className="pt-8 pb-8 text-center space-y-4"&gt;
+          &lt;div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100"&gt;
+            &lt;CheckCircle2 className="h-7 w-7 text-green-600" /&gt;
+          &lt;/div&gt;
+          &lt;div&gt;
+            &lt;h2 className="text-xl font-bold"&gt;Registration Successful!&lt;/h2&gt;
+            &lt;p className="mt-1 text-sm text-muted-foreground"&gt;
+              Your organization has been set up. Redirecting to login...
+            &lt;/p&gt;
+          &lt;/div&gt;
+        &lt;/CardContent&gt;
+      &lt;/Card&gt;
+    );
+  }
+
+  return (
+    &lt;Card className="w-full max-w-xl shadow-lg"&gt;
+      &lt;CardHeader className="text-center pb-4"&gt;
+        &lt;div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground"&gt;
+          &lt;Building2 className="h-6 w-6" /&gt;
+        &lt;/div&gt;
+        &lt;CardTitle className="text-2xl"&gt;Register Your Lab&lt;/CardTitle&gt;
+        &lt;CardDescription&gt;Set up your organization and admin account&lt;/CardDescription&gt;
+      &lt;/CardHeader&gt;
+
+      &lt;CardContent&gt;
+        &lt;form onSubmit={handleSubmit(onSubmit)} className="space-y-6"&gt;
+          {serverError &amp;&amp; (
+            &lt;div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive"&gt;
+              {serverError}
+            &lt;/div&gt;
+          )}
+
+          {/* Organization Details */}
+          &lt;div&gt;
+            &lt;h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3"&gt;
+              Organization Details
+            &lt;/h3&gt;
+            &lt;div className="grid grid-cols-1 gap-4 sm:grid-cols-2"&gt;
+              &lt;div className="sm:col-span-2 space-y-1.5"&gt;
+                &lt;Label htmlFor="orgName"&gt;Lab / Organization Name *&lt;/Label&gt;
+                &lt;Input id="orgName" placeholder="e.g. Reene Medical Diagnostics" {...register("orgName")} /&gt;
+                {errors.orgName &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.orgName.message}&lt;/p&gt;}
+              &lt;/div&gt;
+              &lt;div className="space-y-1.5"&gt;
+                &lt;Label htmlFor="orgEmail"&gt;Lab Email *&lt;/Label&gt;
+                &lt;Input id="orgEmail" type="email" placeholder="info@lab.com" {...register("orgEmail")} /&gt;
+                {errors.orgEmail &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.orgEmail.message}&lt;/p&gt;}
+              &lt;/div&gt;
+              &lt;div className="space-y-1.5"&gt;
+                &lt;Label htmlFor="orgPhone"&gt;Lab Phone *&lt;/Label&gt;
+                &lt;Input id="orgPhone" placeholder="+234..." {...register("orgPhone")} /&gt;
+                {errors.orgPhone &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.orgPhone.message}&lt;/p&gt;}
+              &lt;/div&gt;
+              &lt;div className="sm:col-span-2 space-y-1.5"&gt;
+                &lt;Label htmlFor="orgAddress"&gt;Lab Address *&lt;/Label&gt;
+                &lt;Input id="orgAddress" placeholder="Full lab address" {...register("orgAddress")} /&gt;
+                {errors.orgAddress &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.orgAddress.message}&lt;/p&gt;}
+              &lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+
+          {/* Admin Account */}
+          &lt;div&gt;
+            &lt;h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3"&gt;
+              Admin Account
+            &lt;/h3&gt;
+            &lt;div className="grid grid-cols-1 gap-4 sm:grid-cols-2"&gt;
+              &lt;div className="sm:col-span-2 space-y-1.5"&gt;
+                &lt;Label htmlFor="adminName"&gt;Admin Full Name *&lt;/Label&gt;
+                &lt;Input id="adminName" placeholder="e.g. Dr. Sarah Obi" {...register("adminName")} /&gt;
+                {errors.adminName &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.adminName.message}&lt;/p&gt;}
+              &lt;/div&gt;
+              &lt;div className="space-y-1.5"&gt;
+                &lt;Label htmlFor="adminEmail"&gt;Admin Email *&lt;/Label&gt;
+                &lt;Input id="adminEmail" type="email" placeholder="admin@lab.com" {...register("adminEmail")} /&gt;
+                {errors.adminEmail &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.adminEmail.message}&lt;/p&gt;}
+              &lt;/div&gt;
+              &lt;div className="space-y-1.5"&gt;
+                &lt;Label htmlFor="adminPhone"&gt;Admin Phone *&lt;/Label&gt;
+                &lt;Input id="adminPhone" placeholder="+234..." {...register("adminPhone")} /&gt;
+                {errors.adminPhone &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.adminPhone.message}&lt;/p&gt;}
+              &lt;/div&gt;
+              &lt;div className="space-y-1.5"&gt;
+                &lt;Label htmlFor="adminPassword"&gt;Password *&lt;/Label&gt;
+                &lt;Input id="adminPassword" type="password" placeholder="Min 8 characters" {...register("adminPassword")} /&gt;
+                {errors.adminPassword &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.adminPassword.message}&lt;/p&gt;}
+              &lt;/div&gt;
+              &lt;div className="space-y-1.5"&gt;
+                &lt;Label htmlFor="confirmPassword"&gt;Confirm Password *&lt;/Label&gt;
+                &lt;Input id="confirmPassword" type="password" placeholder="Repeat password" {...register("confirmPassword")} /&gt;
+                {errors.confirmPassword &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.confirmPassword.message}&lt;/p&gt;}
+              &lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+
+          &lt;Button type="submit" className="w-full" disabled={isSubmitting}&gt;
+            {isSubmitting ? (
+              &lt;&gt;
+                &lt;Loader2 className="mr-2 h-4 w-4 animate-spin" /&gt;
+                Registering...
+              &lt;/&gt;
+            ) : (
+              "Register Organization"
+            )}
+          &lt;/Button&gt;
+        &lt;/form&gt;
+
+        &lt;div className="mt-5 text-center text-sm text-muted-foreground"&gt;
+          Already registered?{" "}
+          &lt;Link href="/login" className="text-primary font-medium hover:underline"&gt;
+            Sign in
+          &lt;/Link&gt;
+        &lt;/div&gt;
+      &lt;/CardContent&gt;
+    &lt;/Card&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/audit/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+import { ClipboardList } from "lucide-react";
+import { Badge } from "@/components/ui/index";
+import { formatDateTime, ROLE_LABELS } from "@/lib/utils";
+
+export default async function AuditLogPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const user = session.user as any;
+
+  if (!["SUPER_ADMIN", "HRM"].includes(user.role)) redirect("/dashboard/hrm");
+
+  const logs = await prisma.auditLog.findMany({
+    where: { actor: { organizationId: user.organizationId } },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: {
+      actor: { select: { fullName: true, role: true } },
+    },
+  });
+
+  const actionColor: Record&lt;string, "success" | "destructive" | "info" | "warning" | "secondary"&gt; = {
+    STAFF_CREATED: "success",
+    STAFF_UPDATED: "info",
+    STAFF_DEACTIVATED: "destructive",
+    ORGANIZATION_CREATED: "success",
+    ORGANIZATION_UPDATED: "info",
+    AVAILABILITY_CHANGED: "warning",
+    STAFF_LOGIN: "secondary",
+    STAFF_LOGOUT: "secondary",
+  };
+
+  return (
+    &lt;div className="space-y-6"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-2xl font-bold flex items-center gap-2"&gt;
+          &lt;ClipboardList className="h-6 w-6" /&gt;
+          Audit Log
+        &lt;/h1&gt;
+        &lt;p className="text-sm text-muted-foreground mt-1"&gt;
+          Full history of every key action in your organization
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;div className="rounded-lg border bg-card shadow-sm overflow-hidden"&gt;
+        {logs.length === 0 ? (
+          &lt;div className="flex flex-col items-center justify-center py-16 text-center"&gt;
+            &lt;ClipboardList className="h-10 w-10 text-muted-foreground mb-3" /&gt;
+            &lt;p className="font-medium"&gt;No activity logged yet&lt;/p&gt;
+            &lt;p className="text-sm text-muted-foreground mt-1"&gt;
+              Actions taken in the system will appear here.
+            &lt;/p&gt;
+          &lt;/div&gt;
+        ) : (
+          &lt;div className="overflow-x-auto"&gt;
+            &lt;table className="w-full text-sm"&gt;
+              &lt;thead className="border-b bg-muted/40"&gt;
+                &lt;tr&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Time&lt;/th&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Actor&lt;/th&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Role&lt;/th&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Action&lt;/th&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Entity&lt;/th&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Notes&lt;/th&gt;
+                &lt;/tr&gt;
+              &lt;/thead&gt;
+              &lt;tbody className="divide-y"&gt;
+                {logs.map((log) =&gt; (
+                  &lt;tr key={log.id} className="hover:bg-muted/20 transition-colors"&gt;
+                    &lt;td className="px-4 py-3 text-muted-foreground whitespace-nowrap"&gt;
+                      {formatDateTime(log.createdAt)}
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-3 font-medium"&gt;{log.actor.fullName}&lt;/td&gt;
+                    &lt;td className="px-4 py-3 text-muted-foreground"&gt;{ROLE_LABELS[log.actorRole]}&lt;/td&gt;
+                    &lt;td className="px-4 py-3"&gt;
+                      &lt;Badge variant={actionColor[log.action] ?? "secondary"} className="text-xs"&gt;
+                        {log.action.replaceAll("_", " ")}
+                      &lt;/Badge&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-3 text-muted-foreground"&gt;
+                      {log.entityType}
+                      {log.entityId &amp;&amp; (
+                        &lt;span className="ml-1 text-xs opacity-60"&gt;
+                          #{log.entityId.slice(-6)}
+                        &lt;/span&gt;
+                      )}
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-3 text-muted-foreground text-xs max-w-xs truncate"&gt;
+                      {log.notes ?? "â€”"}
+                    &lt;/td&gt;
+                  &lt;/tr&gt;
+                ))}
+              &lt;/tbody&gt;
+            &lt;/table&gt;
+          &lt;/div&gt;
+        )}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+import { Users, UserCheck, UserX, ClipboardList, Activity, Building2 } from "lucide-react";
+import { StatsCard } from "@/components/shared/stats-card";
+import { formatDateTime, ROLE_LABELS } from "@/lib/utils";
+import { Badge } from "@/components/ui/index";
+
+export default async function HRMDashboardPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const user = session.user as any;
+
+  const [totalStaff, activeStaff, unavailableStaff, recentStaff, recentAuditLogs] =
+    await prisma.$transaction([
+      prisma.staff.count({ where: { organizationId: user.organizationId } }),
+      prisma.staff.count({
+        where: { organizationId: user.organizationId, availabilityStatus: "AVAILABLE" },
+      }),
+      prisma.staff.count({
+        where: { organizationId: user.organizationId, availabilityStatus: "UNAVAILABLE" },
+      }),
+      prisma.staff.findMany({
+        where: { organizationId: user.organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          fullName: true,
+          role: true,
+          department: true,
+          status: true,
+          availabilityStatus: true,
+          createdAt: true,
+        },
+      }),
+      prisma.auditLog.findMany({
+        where: { actor: { organizationId: user.organizationId } },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        include: { actor: { select: { fullName: true, role: true } } },
+      }),
+    ]);
+
+  return (
+    &lt;div className="space-y-6"&gt;
+      {/* Page header */}
+      &lt;div&gt;
+        &lt;h1 className="text-2xl font-bold"&gt;Operations Overview&lt;/h1&gt;
+        &lt;p className="text-sm text-muted-foreground mt-1"&gt;
+          Monitor staff, workflow, and activity across your lab
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      {/* Stats row */}
+      &lt;div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"&gt;
+        &lt;StatsCard
+          title="Total Staff"
+          value={totalStaff}
+          subtitle="All registered staff members"
+          icon={Users}
+          iconBg="bg-blue-50"
+          iconColor="text-blue-600"
+        /&gt;
+        &lt;StatsCard
+          title="Currently Available"
+          value={activeStaff}
+          subtitle="Marked as available now"
+          icon={UserCheck}
+          iconBg="bg-green-50"
+          iconColor="text-green-600"
+        /&gt;
+        &lt;StatsCard
+          title="Unavailable"
+          value={unavailableStaff}
+          subtitle="Off duty or unavailable"
+          icon={UserX}
+          iconBg="bg-yellow-50"
+          iconColor="text-yellow-600"
+        /&gt;
+        &lt;StatsCard
+          title="Audit Events Today"
+          value={recentAuditLogs.length}
+          subtitle="Actions logged today"
+          icon={ClipboardList}
+          iconBg="bg-purple-50"
+          iconColor="text-purple-600"
+        /&gt;
+      &lt;/div&gt;
+
+      {/* Two-column content */}
+      &lt;div className="grid grid-cols-1 gap-6 lg:grid-cols-2"&gt;
+        {/* Recent staff */}
+        &lt;div className="rounded-lg border bg-card p-5 shadow-sm"&gt;
+          &lt;div className="flex items-center justify-between mb-4"&gt;
+            &lt;h2 className="font-semibold flex items-center gap-2"&gt;
+              &lt;Users className="h-4 w-4 text-muted-foreground" /&gt;
+              Recent Staff
+            &lt;/h2&gt;
+            &lt;a href="/dashboard/hrm/staff" className="text-xs text-primary hover:underline"&gt;
+              View all â†’
+            &lt;/a&gt;
+          &lt;/div&gt;
+          &lt;div className="space-y-3"&gt;
+            {recentStaff.length === 0 ? (
+              &lt;p className="text-sm text-muted-foreground text-center py-4"&gt;
+                No staff added yet. Add your first staff member.
+              &lt;/p&gt;
+            ) : (
+              recentStaff.map((s) =&gt; (
+                &lt;div key={s.id} className="flex items-center justify-between py-2 border-b last:border-0"&gt;
+                  &lt;div className="flex items-center gap-3"&gt;
+                    &lt;div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-semibold"&gt;
+                      {s.fullName.charAt(0)}
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;p className="text-sm font-medium"&gt;{s.fullName}&lt;/p&gt;
+                      &lt;p className="text-xs text-muted-foreground"&gt;{ROLE_LABELS[s.role]}&lt;/p&gt;
+                    &lt;/div&gt;
+                  &lt;/div&gt;
+                  &lt;Badge variant={s.availabilityStatus === "AVAILABLE" ? "success" : "secondary"}&gt;
+                    {s.availabilityStatus === "AVAILABLE" ? "Available" : "Away"}
+                  &lt;/Badge&gt;
+                &lt;/div&gt;
+              ))
+            )}
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        {/* Recent audit activity */}
+        &lt;div className="rounded-lg border bg-card p-5 shadow-sm"&gt;
+          &lt;div className="flex items-center justify-between mb-4"&gt;
+            &lt;h2 className="font-semibold flex items-center gap-2"&gt;
+              &lt;Activity className="h-4 w-4 text-muted-foreground" /&gt;
+              Recent Activity
+            &lt;/h2&gt;
+            &lt;a href="/dashboard/hrm/audit" className="text-xs text-primary hover:underline"&gt;
+              View all â†’
+            &lt;/a&gt;
+          &lt;/div&gt;
+          &lt;div className="space-y-3"&gt;
+            {recentAuditLogs.length === 0 ? (
+              &lt;p className="text-sm text-muted-foreground text-center py-4"&gt;No activity logged yet.&lt;/p&gt;
+            ) : (
+              recentAuditLogs.map((log) =&gt; (
+                &lt;div key={log.id} className="flex items-start gap-3 py-2 border-b last:border-0"&gt;
+                  &lt;div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary"&gt;
+                    {log.actor.fullName.charAt(0)}
+                  &lt;/div&gt;
+                  &lt;div className="min-w-0"&gt;
+                    &lt;p className="text-sm"&gt;
+                      &lt;span className="font-medium"&gt;{log.actor.fullName}&lt;/span&gt;{" "}
+                      &lt;span className="text-muted-foreground"&gt;
+                        {log.action.replaceAll("_", " ").toLowerCase()}
+                      &lt;/span&gt;
+                    &lt;/p&gt;
+                    &lt;p className="text-xs text-muted-foreground"&gt;{formatDateTime(log.createdAt)}&lt;/p&gt;
+                  &lt;/div&gt;
+                &lt;/div&gt;
+              ))
+            )}
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/staff/new/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { AddStaffForm } from "@/components/forms/add-staff-form";
+
+export default async function AddStaffPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const user = session.user as any;
+
+  if (!["SUPER_ADMIN", "HRM"].includes(user.role)) {
+    redirect("/dashboard/hrm");
+  }
+
+  return (
+    &lt;div className="space-y-6 max-w-3xl"&gt;
+      &lt;div&gt;
+        &lt;Link
+          href="/dashboard/hrm/staff"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3"
+        &gt;
+          &lt;ArrowLeft className="h-3.5 w-3.5" /&gt;
+          Back to Staff
+        &lt;/Link&gt;
+        &lt;h1 className="text-2xl font-bold"&gt;Add Staff Member&lt;/h1&gt;
+        &lt;p className="text-sm text-muted-foreground mt-1"&gt;
+          Create a new account for a staff member in your organization.
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;div className="rounded-lg border bg-card p-6 shadow-sm"&gt;
+        &lt;AddStaffForm /&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/staff/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { UserPlus, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/index";
+import { ROLE_LABELS, DEPARTMENT_LABELS, formatDate } from "@/lib/utils";
+
+export default async function StaffListPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const user = session.user as any;
+
+  if (!["SUPER_ADMIN", "HRM"].includes(user.role)) redirect("/dashboard/hrm");
+
+  const staff = await prisma.staff.findMany({
+    where: { organizationId: user.organizationId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      role: true,
+      department: true,
+      status: true,
+      availabilityStatus: true,
+      defaultShift: true,
+      dateJoined: true,
+      createdAt: true,
+    },
+  });
+
+  return (
+    &lt;div className="space-y-6"&gt;
+      &lt;div className="flex items-center justify-between"&gt;
+        &lt;div&gt;
+          &lt;h1 className="text-2xl font-bold"&gt;Staff Management&lt;/h1&gt;
+          &lt;p className="text-sm text-muted-foreground mt-1"&gt;
+            {staff.length} staff member{staff.length !== 1 ? "s" : ""} in your organization
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;Link href="/dashboard/hrm/staff/new"&gt;
+          &lt;Button className="gap-2"&gt;
+            &lt;UserPlus className="h-4 w-4" /&gt;
+            Add Staff
+          &lt;/Button&gt;
+        &lt;/Link&gt;
+      &lt;/div&gt;
+
+      {/* Table */}
+      &lt;div className="rounded-lg border bg-card shadow-sm overflow-hidden"&gt;
+        {staff.length === 0 ? (
+          &lt;div className="flex flex-col items-center justify-center py-16 text-center"&gt;
+            &lt;div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted"&gt;
+              &lt;UserPlus className="h-6 w-6 text-muted-foreground" /&gt;
+            &lt;/div&gt;
+            &lt;h3 className="font-semibold"&gt;No staff yet&lt;/h3&gt;
+            &lt;p className="mt-1 text-sm text-muted-foreground"&gt;
+              Add your first staff member to get started.
+            &lt;/p&gt;
+            &lt;Link href="/dashboard/hrm/staff/new" className="mt-4"&gt;
+              &lt;Button&gt;Add First Staff Member&lt;/Button&gt;
+            &lt;/Link&gt;
+          &lt;/div&gt;
+        ) : (
+          &lt;div className="overflow-x-auto"&gt;
+            &lt;table className="w-full text-sm"&gt;
+              &lt;thead className="border-b bg-muted/40"&gt;
+                &lt;tr&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Name&lt;/th&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Role&lt;/th&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Department&lt;/th&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Status&lt;/th&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Availability&lt;/th&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Joined&lt;/th&gt;
+                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Actions&lt;/th&gt;
+                &lt;/tr&gt;
+              &lt;/thead&gt;
+              &lt;tbody className="divide-y"&gt;
+                {staff.map((s) =&gt; (
+                  &lt;tr key={s.id} className="hover:bg-muted/20 transition-colors"&gt;
+                    &lt;td className="px-4 py-3"&gt;
+                      &lt;div className="flex items-center gap-3"&gt;
+                        &lt;div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary"&gt;
+                          {s.fullName.charAt(0)}
+                        &lt;/div&gt;
+                        &lt;div&gt;
+                          &lt;p className="font-medium"&gt;{s.fullName}&lt;/p&gt;
+                          &lt;p className="text-xs text-muted-foreground"&gt;{s.email}&lt;/p&gt;
+                        &lt;/div&gt;
+                      &lt;/div&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-3 text-muted-foreground"&gt;{ROLE_LABELS[s.role]}&lt;/td&gt;
+                    &lt;td className="px-4 py-3 text-muted-foreground"&gt;
+                      {DEPARTMENT_LABELS[s.department] ?? s.department}
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-3"&gt;
+                      &lt;Badge variant={s.status === "ACTIVE" ? "success" : "destructive"}&gt;
+                        {s.status}
+                      &lt;/Badge&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-3"&gt;
+                      &lt;Badge variant={s.availabilityStatus === "AVAILABLE" ? "info" : "secondary"}&gt;
+                        {s.availabilityStatus === "AVAILABLE" ? "Available" : "Away"}
+                      &lt;/Badge&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-3 text-muted-foreground"&gt;{formatDate(s.dateJoined)}&lt;/td&gt;
+                    &lt;td className="px-4 py-3"&gt;
+                      &lt;Link
+                        href={`/dashboard/hrm/staff/${s.id}`}
+                        className="text-primary text-xs hover:underline"
+                      &gt;
+                        View â†’
+                      &lt;/Link&gt;
+                    &lt;/td&gt;
+                  &lt;/tr&gt;
+                ))}
+              &lt;/tbody&gt;
+            &lt;/table&gt;
+          &lt;/div&gt;
+        )}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/tests/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+import { FlaskConical, Scan, Clock, DollarSign } from "lucide-react";
+import { Badge } from "@/components/ui/index";
+import { formatCurrency } from "@/lib/utils";
+
+export default async function TestCatalogPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const user = session.user as any;
+
+  if (!["SUPER_ADMIN", "HRM"].includes(user.role)) redirect("/dashboard/hrm");
+
+  const tests = await prisma.diagnosticTest.findMany({
+    where: { organizationId: user.organizationId, isActive: true },
+    include: {
+      category: { select: { name: true } },
+      resultFields: { orderBy: { sortOrder: "asc" } },
+    },
+    orderBy: [{ type: "asc" }, { name: "asc" }],
+  });
+
+  const labTests = tests.filter((t) =&gt; t.type === "LAB");
+  const radioTests = tests.filter((t) =&gt; t.type === "RADIOLOGY");
+
+  return (
+    &lt;div className="space-y-6"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-2xl font-bold flex items-center gap-2"&gt;
+          &lt;FlaskConical className="h-6 w-6" /&gt;
+          Test Catalog
+        &lt;/h1&gt;
+        &lt;p className="text-sm text-muted-foreground mt-1"&gt;
+          All diagnostic tests available in your organization ({tests.length} total)
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      {/* Summary */}
+      &lt;div className="grid grid-cols-2 gap-4 sm:grid-cols-4"&gt;
+        &lt;div className="rounded-lg border bg-card p-4"&gt;
+          &lt;p className="text-xs text-muted-foreground"&gt;Total Tests&lt;/p&gt;
+          &lt;p className="text-2xl font-bold mt-1"&gt;{tests.length}&lt;/p&gt;
+        &lt;/div&gt;
+        &lt;div className="rounded-lg border bg-card p-4"&gt;
+          &lt;p className="text-xs text-muted-foreground"&gt;Lab Tests&lt;/p&gt;
+          &lt;p className="text-2xl font-bold mt-1 text-blue-600"&gt;{labTests.length}&lt;/p&gt;
+        &lt;/div&gt;
+        &lt;div className="rounded-lg border bg-card p-4"&gt;
+          &lt;p className="text-xs text-muted-foreground"&gt;Radiology Tests&lt;/p&gt;
+          &lt;p className="text-2xl font-bold mt-1 text-purple-600"&gt;{radioTests.length}&lt;/p&gt;
+        &lt;/div&gt;
+        &lt;div className="rounded-lg border bg-card p-4"&gt;
+          &lt;p className="text-xs text-muted-foreground"&gt;Result Templates&lt;/p&gt;
+          &lt;p className="text-2xl font-bold mt-1 text-green-600"&gt;
+            {tests.reduce((sum, t) =&gt; sum + t.resultFields.length, 0)}
+          &lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      {/* Lab Tests */}
+      &lt;section&gt;
+        &lt;h2 className="text-lg font-semibold flex items-center gap-2 mb-3"&gt;
+          &lt;FlaskConical className="h-5 w-5 text-blue-600" /&gt;
+          Laboratory Tests
+          &lt;Badge variant="info" className="ml-1"&gt;{labTests.length}&lt;/Badge&gt;
+        &lt;/h2&gt;
+        &lt;div className="rounded-lg border overflow-hidden"&gt;
+          &lt;table className="w-full text-sm"&gt;
+            &lt;thead className="bg-muted/40 border-b"&gt;
+              &lt;tr&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Test Name&lt;/th&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Code&lt;/th&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Category&lt;/th&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Sample&lt;/th&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;
+                  &lt;Clock className="h-3.5 w-3.5 inline mr-1" /&gt;Target
+                &lt;/th&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;
+                  &lt;DollarSign className="h-3.5 w-3.5 inline" /&gt;Price
+                &lt;/th&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Fields&lt;/th&gt;
+              &lt;/tr&gt;
+            &lt;/thead&gt;
+            &lt;tbody className="divide-y"&gt;
+              {labTests.map((test) =&gt; (
+                &lt;tr key={test.id} className="hover:bg-muted/20 transition-colors"&gt;
+                  &lt;td className="px-4 py-3 font-medium"&gt;{test.name}&lt;/td&gt;
+                  &lt;td className="px-4 py-3"&gt;
+                    &lt;Badge variant="secondary" className="font-mono text-xs"&gt;{test.code}&lt;/Badge&gt;
+                  &lt;/td&gt;
+                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;{test.category?.name ?? "â€”"}&lt;/td&gt;
+                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;{test.sampleType ?? "â€”"}&lt;/td&gt;
+                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;
+                    {test.turnaroundMinutes &gt;= 60
+                      ? `${Math.floor(test.turnaroundMinutes / 60)}h ${test.turnaroundMinutes % 60 &gt; 0 ? `${test.turnaroundMinutes % 60}m` : ""}`
+                      : `${test.turnaroundMinutes}m`}
+                  &lt;/td&gt;
+                  &lt;td className="px-4 py-3 font-medium"&gt;{formatCurrency(Number(test.price))}&lt;/td&gt;
+                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;{test.resultFields.length} fields&lt;/td&gt;
+                &lt;/tr&gt;
+              ))}
+            &lt;/tbody&gt;
+          &lt;/table&gt;
+        &lt;/div&gt;
+      &lt;/section&gt;
+
+      {/* Radiology Tests */}
+      &lt;section&gt;
+        &lt;h2 className="text-lg font-semibold flex items-center gap-2 mb-3"&gt;
+          &lt;Scan className="h-5 w-5 text-purple-600" /&gt;
+          Radiology Tests
+          &lt;Badge variant="secondary" className="ml-1"&gt;{radioTests.length}&lt;/Badge&gt;
+        &lt;/h2&gt;
+        &lt;div className="rounded-lg border overflow-hidden"&gt;
+          &lt;table className="w-full text-sm"&gt;
+            &lt;thead className="bg-muted/40 border-b"&gt;
+              &lt;tr&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Test Name&lt;/th&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Code&lt;/th&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Category&lt;/th&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;
+                  &lt;Clock className="h-3.5 w-3.5 inline mr-1" /&gt;Target
+                &lt;/th&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;
+                  &lt;DollarSign className="h-3.5 w-3.5 inline" /&gt;Price
+                &lt;/th&gt;
+                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Fields&lt;/th&gt;
+              &lt;/tr&gt;
+            &lt;/thead&gt;
+            &lt;tbody className="divide-y"&gt;
+              {radioTests.map((test) =&gt; (
+                &lt;tr key={test.id} className="hover:bg-muted/20 transition-colors"&gt;
+                  &lt;td className="px-4 py-3 font-medium"&gt;{test.name}&lt;/td&gt;
+                  &lt;td className="px-4 py-3"&gt;
+                    &lt;Badge variant="secondary" className="font-mono text-xs"&gt;{test.code}&lt;/Badge&gt;
+                  &lt;/td&gt;
+                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;{test.category?.name ?? "â€”"}&lt;/td&gt;
+                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;
+                    {test.turnaroundMinutes &gt;= 60
+                      ? `${Math.floor(test.turnaroundMinutes / 60)}h ${test.turnaroundMinutes % 60 &gt; 0 ? `${test.turnaroundMinutes % 60}m` : ""}`
+                      : `${test.turnaroundMinutes}m`}
+                  &lt;/td&gt;
+                  &lt;td className="px-4 py-3 font-medium"&gt;{formatCurrency(Number(test.price))}&lt;/td&gt;
+                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;{test.resultFields.length} fields&lt;/td&gt;
+                &lt;/tr&gt;
+              ))}
+            &lt;/tbody&gt;
+          &lt;/table&gt;
+        &lt;/div&gt;
+      &lt;/section&gt;
+    &lt;/div&gt;
+  );
+}</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/lab-scientist/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { FlaskConical, Clock, CheckCircle, AlertCircle, Edit } from "lucide-react";
+import { StatsCard } from "@/components/shared/stats-card";
+
+export default async function LabScientistDashboard() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  return (
+    &lt;div className="space-y-6"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-2xl font-bold"&gt;Lab Scientist Dashboard&lt;/h1&gt;
+        &lt;p className="text-sm text-muted-foreground mt-1"&gt;
+          Manage your assigned tests and enter results
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"&gt;
+        &lt;StatsCard
+          title="Assigned Tests"
+          value={0}
+          subtitle="Tests assigned to you"
+          icon={FlaskConical}
+          iconBg="bg-blue-50"
+          iconColor="text-blue-600"
+        /&gt;
+        &lt;StatsCard
+          title="In Progress"
+          value={0}
+          subtitle="Tests currently running"
+          icon={Clock}
+          iconBg="bg-yellow-50"
+          iconColor="text-yellow-600"
+        /&gt;
+        &lt;StatsCard
+          title="Pending Submission"
+          value={0}
+          subtitle="Results drafted, not submitted"
+          icon={Edit}
+          iconBg="bg-orange-50"
+          iconColor="text-orange-600"
+        /&gt;
+        &lt;StatsCard
+          title="Completed Today"
+          value={0}
+          subtitle="Tests submitted today"
+          icon={CheckCircle}
+          iconBg="bg-green-50"
+          iconColor="text-green-600"
+        /&gt;
+      &lt;/div&gt;
+
+      &lt;div className="grid grid-cols-1 gap-6 lg:grid-cols-2"&gt;
+        &lt;div className="rounded-lg border bg-card p-5 shadow-sm"&gt;
+          &lt;h2 className="font-semibold mb-4 flex items-center gap-2"&gt;
+            &lt;FlaskConical className="h-4 w-4 text-muted-foreground" /&gt;
+            Active Test Queue
+          &lt;/h2&gt;
+          &lt;div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground"&gt;
+            &lt;FlaskConical className="h-8 w-8 mb-2 opacity-40" /&gt;
+            &lt;p className="text-sm"&gt;No tests assigned yet.&lt;/p&gt;
+            &lt;p className="text-xs mt-1"&gt;Mark yourself as Available to receive assignments.&lt;/p&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;div className="rounded-lg border bg-card p-5 shadow-sm"&gt;
+          &lt;h2 className="font-semibold mb-4 flex items-center gap-2"&gt;
+            &lt;AlertCircle className="h-4 w-4 text-muted-foreground" /&gt;
+            Edit Requests
+          &lt;/h2&gt;
+          &lt;div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground"&gt;
+            &lt;CheckCircle className="h-8 w-8 mb-2 opacity-40" /&gt;
+            &lt;p className="text-sm"&gt;No edit requests.&lt;/p&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/md/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { Stethoscope, Clock, CheckCircle, AlertCircle, RotateCcw } from "lucide-react";
+import { StatsCard } from "@/components/shared/stats-card";
+
+export default async function MDDashboard() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  return (
+    &lt;div className="space-y-6"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-2xl font-bold"&gt;Medical Review Dashboard&lt;/h1&gt;
+        &lt;p className="text-sm text-muted-foreground mt-1"&gt;
+          Review submitted results, approve or request corrections
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"&gt;
+        &lt;StatsCard
+          title="Awaiting Review"
+          value={0}
+          subtitle="Results submitted for review"
+          icon={Clock}
+          iconBg="bg-yellow-50"
+          iconColor="text-yellow-600"
+        /&gt;
+        &lt;StatsCard
+          title="Critical / Urgent"
+          value={0}
+          subtitle="Flagged critical results"
+          icon={AlertCircle}
+          iconBg="bg-red-50"
+          iconColor="text-red-600"
+        /&gt;
+        &lt;StatsCard
+          title="Approved Today"
+          value={0}
+          subtitle="Results approved today"
+          icon={CheckCircle}
+          iconBg="bg-green-50"
+          iconColor="text-green-600"
+        /&gt;
+        &lt;StatsCard
+          title="Edit Requests Sent"
+          value={0}
+          subtitle="Corrections requested today"
+          icon={RotateCcw}
+          iconBg="bg-orange-50"
+          iconColor="text-orange-600"
+        /&gt;
+      &lt;/div&gt;
+
+      &lt;div className="grid grid-cols-1 gap-6 lg:grid-cols-2"&gt;
+        &lt;div className="rounded-lg border bg-card p-5 shadow-sm"&gt;
+          &lt;h2 className="font-semibold mb-4 flex items-center gap-2"&gt;
+            &lt;Stethoscope className="h-4 w-4 text-muted-foreground" /&gt;
+            Review Queue
+          &lt;/h2&gt;
+          &lt;div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground"&gt;
+            &lt;CheckCircle className="h-8 w-8 mb-2 opacity-40" /&gt;
+            &lt;p className="text-sm"&gt;No results awaiting review.&lt;/p&gt;
+            &lt;p className="text-xs mt-1"&gt;Submitted lab and radiology results will appear here.&lt;/p&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;div className="rounded-lg border bg-card p-5 shadow-sm"&gt;
+          &lt;h2 className="font-semibold mb-4 flex items-center gap-2"&gt;
+            &lt;AlertCircle className="h-4 w-4 text-red-500" /&gt;
+            Critical Results
+          &lt;/h2&gt;
+          &lt;div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground"&gt;
+            &lt;AlertCircle className="h-8 w-8 mb-2 opacity-40" /&gt;
+            &lt;p className="text-sm"&gt;No critical results flagged.&lt;/p&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/radiographer/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { Scan, Clock, CheckCircle, Edit } from "lucide-react";
+import { StatsCard } from "@/components/shared/stats-card";
+
+export default async function RadiographerDashboard() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  return (
+    &lt;div className="space-y-6"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-2xl font-bold"&gt;Radiology Dashboard&lt;/h1&gt;
+        &lt;p className="text-sm text-muted-foreground mt-1"&gt;
+          Manage imaging assignments and submit radiology reports
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"&gt;
+        &lt;StatsCard
+          title="Assigned Cases"
+          value={0}
+          subtitle="Imaging cases assigned to you"
+          icon={Scan}
+          iconBg="bg-blue-50"
+          iconColor="text-blue-600"
+        /&gt;
+        &lt;StatsCard
+          title="In Progress"
+          value={0}
+          subtitle="Imaging currently underway"
+          icon={Clock}
+          iconBg="bg-yellow-50"
+          iconColor="text-yellow-600"
+        /&gt;
+        &lt;StatsCard
+          title="Awaiting Submission"
+          value={0}
+          subtitle="Reports drafted, not submitted"
+          icon={Edit}
+          iconBg="bg-orange-50"
+          iconColor="text-orange-600"
+        /&gt;
+        &lt;StatsCard
+          title="Completed Today"
+          value={0}
+          subtitle="Reports submitted today"
+          icon={CheckCircle}
+          iconBg="bg-green-50"
+          iconColor="text-green-600"
+        /&gt;
+      &lt;/div&gt;
+
+      &lt;div className="rounded-lg border bg-card p-5 shadow-sm"&gt;
+        &lt;h2 className="font-semibold mb-4 flex items-center gap-2"&gt;
+          &lt;Scan className="h-4 w-4 text-muted-foreground" /&gt;
+          Imaging Queue
+        &lt;/h2&gt;
+        &lt;div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground"&gt;
+          &lt;Scan className="h-8 w-8 mb-2 opacity-40" /&gt;
+          &lt;p className="text-sm"&gt;No imaging cases assigned yet.&lt;/p&gt;
+          &lt;p className="text-xs mt-1"&gt;Mark yourself as Available to receive imaging assignments.&lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/receptionist/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { UserPlus, Users, Clock, CheckCircle } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { StatsCard } from "@/components/shared/stats-card";
+
+export default async function ReceptionistDashboard() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  return (
+    &lt;div className="space-y-6"&gt;
+      &lt;div className="flex items-center justify-between"&gt;
+        &lt;div&gt;
+          &lt;h1 className="text-2xl font-bold"&gt;Reception Desk&lt;/h1&gt;
+          &lt;p className="text-sm text-muted-foreground mt-1"&gt;
+            Register patients and manage today's visits
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;Link href="/dashboard/receptionist/new-patient"&gt;
+          &lt;Button className="gap-2"&gt;
+            &lt;UserPlus className="h-4 w-4" /&gt;
+            New Patient
+          &lt;/Button&gt;
+        &lt;/Link&gt;
+      &lt;/div&gt;
+
+      &lt;div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"&gt;
+        &lt;StatsCard
+          title="Registered Today"
+          value={0}
+          subtitle="Patients registered today"
+          icon={Users}
+          iconBg="bg-blue-50"
+          iconColor="text-blue-600"
+        /&gt;
+        &lt;StatsCard
+          title="Pending Payment"
+          value={0}
+          subtitle="Awaiting payment confirmation"
+          icon={Clock}
+          iconBg="bg-yellow-50"
+          iconColor="text-yellow-600"
+        /&gt;
+        &lt;StatsCard
+          title="Routed to Lab"
+          value={0}
+          subtitle="Tests sent to laboratory"
+          icon={CheckCircle}
+          iconBg="bg-green-50"
+          iconColor="text-green-600"
+        /&gt;
+        &lt;StatsCard
+          title="Results Ready"
+          value={0}
+          subtitle="Results approved &amp; ready"
+          icon={CheckCircle}
+          iconBg="bg-purple-50"
+          iconColor="text-purple-600"
+        /&gt;
+      &lt;/div&gt;
+
+      {/* Quick actions */}
+      &lt;div className="rounded-lg border bg-card p-5 shadow-sm"&gt;
+        &lt;h2 className="font-semibold mb-4"&gt;Quick Actions&lt;/h2&gt;
+        &lt;div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"&gt;
+          &lt;Link href="/dashboard/receptionist/new-patient"&gt;
+            &lt;div className="flex items-center gap-3 rounded-lg border p-4 hover:bg-accent transition-colors cursor-pointer"&gt;
+              &lt;div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50"&gt;
+                &lt;UserPlus className="h-5 w-5 text-blue-600" /&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;p className="font-medium text-sm"&gt;Register New Patient&lt;/p&gt;
+                &lt;p className="text-xs text-muted-foreground"&gt;Create a new patient visit&lt;/p&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/Link&gt;
+          &lt;Link href="/dashboard/receptionist/patients"&gt;
+            &lt;div className="flex items-center gap-3 rounded-lg border p-4 hover:bg-accent transition-colors cursor-pointer"&gt;
+              &lt;div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50"&gt;
+                &lt;Users className="h-5 w-5 text-green-600" /&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;p className="font-medium text-sm"&gt;Today's Patients&lt;/p&gt;
+                &lt;p className="text-xs text-muted-foreground"&gt;View all visits today&lt;/p&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/Link&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;div className="rounded-lg border bg-card p-5 shadow-sm"&gt;
+        &lt;h2 className="font-semibold mb-3"&gt;Recent Registrations&lt;/h2&gt;
+        &lt;div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground"&gt;
+          &lt;Users className="h-8 w-8 mb-2 opacity-40" /&gt;
+          &lt;p className="text-sm"&gt;No patients registered today yet.&lt;/p&gt;
+          &lt;p className="text-xs mt-1"&gt;Start by registering a new patient above.&lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/layout.tsx</div><pre>import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { Sidebar } from "@/components/layout/sidebar";
+import { HeaderBar } from "@/components/layout/header-bar";
+import { Role } from "@prisma/client";
+
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const user = session.user as any;
+
+  // Fetch fresh staff data including organization name
+  const staff = await prisma.staff.findUnique({
+    where: { id: user.id },
+    include: { organization: true },
+  });
+
+  if (!staff || staff.status !== "ACTIVE") {
+    redirect("/login");
+  }
+
+  const operationalRoles: Role[] = ["LAB_SCIENTIST", "RADIOGRAPHER", "MD", "RECEPTIONIST"];
+  const showAvailability = operationalRoles.includes(staff.role);
+
+  return (
+    &lt;div className="flex h-screen overflow-hidden bg-background"&gt;
+      &lt;Sidebar
+        user={{
+          fullName: staff.fullName,
+          email: staff.email,
+          role: staff.role,
+          organizationName: staff.organization.name,
+        }}
+      /&gt;
+      &lt;div className="flex flex-1 flex-col overflow-hidden"&gt;
+        &lt;HeaderBar
+          staffId={staff.id}
+          staffName={staff.fullName}
+          role={staff.role}
+          initialAvailability={staff.availabilityStatus === "AVAILABLE"}
+          showAvailabilityToggle={showAvailability}
+        /&gt;
+        &lt;main className="flex-1 overflow-y-auto p-6"&gt;{children}&lt;/main&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/departments/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { DEPARTMENT_LABELS } from "@/lib/utils";
+
+// GET /api/departments â€” returns all departments for dropdowns
+export async function GET(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const departments = Object.entries(DEPARTMENT_LABELS).map(([value, label]) =&gt; ({
+      value,
+      label,
+    }));
+
+    return NextResponse.json({ success: true, data: departments });
+  } catch (error) {
+    console.error("[DEPARTMENTS_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/organizations/register/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import { Role, Department } from "@prisma/client";
+
+const registerSchema = z.object({
+  // Organization details
+  orgName: z.string().min(2, "Organization name is required"),
+  orgEmail: z.string().email("Valid email required"),
+  orgPhone: z.string().min(7, "Phone number required"),
+  orgAddress: z.string().min(5, "Address required"),
+  // Admin account details
+  adminName: z.string().min(2, "Admin full name required"),
+  adminEmail: z.string().email("Valid admin email required"),
+  adminPhone: z.string().min(7, "Admin phone required"),
+  adminPassword: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const parsed = registerSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: parsed.error.errors[0].message },
+        { status: 400 }
+      );
+    }
+
+    const data = parsed.data;
+
+    // Check if org email already registered
+    const existingOrg = await prisma.organization.findUnique({
+      where: { email: data.orgEmail },
+    });
+    if (existingOrg) {
+      return NextResponse.json(
+        { success: false, error: "An organization with this email already exists" },
+        { status: 409 }
+      );
+    }
+
+    // Check if admin email already taken
+    const existingAdmin = await prisma.staff.findUnique({
+      where: { email: data.adminEmail },
+    });
+    if (existingAdmin) {
+      return NextResponse.json(
+        { success: false, error: "This admin email is already in use" },
+        { status: 409 }
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(data.adminPassword, 12);
+
+    // Create org and super admin in one transaction
+    const result = await prisma.$transaction(async (tx) =&gt; {
+      const org = await tx.organization.create({
+        data: {
+          name: data.orgName,
+          email: data.orgEmail,
+          phone: data.orgPhone,
+          address: data.orgAddress,
+        },
+      });
+
+      const admin = await tx.staff.create({
+        data: {
+          organizationId: org.id,
+          fullName: data.adminName,
+          email: data.adminEmail,
+          phone: data.adminPhone,
+          passwordHash,
+          role: Role.SUPER_ADMIN,
+          department: Department.HR_OPERATIONS,
+        },
+      });
+
+      return { org, admin };
+    });
+
+    // Audit log â€” super admin creates themselves during registration
+    await createAuditLog({
+      actorId: result.admin.id,
+      actorRole: Role.SUPER_ADMIN,
+      action: AUDIT_ACTIONS.ORG_CREATED,
+      entityType: "Organization",
+      entityId: result.org.id,
+      newValue: { name: result.org.name, email: result.org.email },
+    });
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Organization registered successfully",
+        data: {
+          organizationId: result.org.id,
+          organizationName: result.org.name,
+        },
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("[ORG_REGISTER]", error);
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/staff/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+import { auth } from "@/lib/auth";
+import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import { Role, Department, Shift } from "@prisma/client";
+
+const createStaffSchema = z.object({
+  fullName: z.string().min(2, "Full name required"),
+  email: z.string().email("Valid email required"),
+  phone: z.string().min(7, "Phone number required"),
+  role: z.nativeEnum(Role),
+  department: z.nativeEnum(Department),
+  gender: z.string().optional(),
+  defaultShift: z.nativeEnum(Shift).default(Shift.MORNING),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+// GET /api/staff â€” list all staff in the organization
+export async function GET(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = session.user as any;
+
+    // Only SUPER_ADMIN and HRM can list all staff
+    if (!["SUPER_ADMIN", "HRM"].includes(user.role)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get("page") ?? "1");
+    const pageSize = parseInt(searchParams.get("pageSize") ?? "20");
+    const search = searchParams.get("search") ?? "";
+    const role = searchParams.get("role") as Role | null;
+    const department = searchParams.get("department") as Department | null;
+    const status = searchParams.get("status");
+
+    const where: any = {
+      organizationId: user.organizationId,
+      ...(search &amp;&amp; {
+        OR: [
+          { fullName: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+          { phone: { contains: search, mode: "insensitive" } },
+        ],
+      }),
+      ...(role &amp;&amp; { role }),
+      ...(department &amp;&amp; { department }),
+      ...(status &amp;&amp; { status }),
+    };
+
+    const [staff, total] = await Promise.all([
+      prisma.staff.findMany({
+        where,
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          role: true,
+          department: true,
+          status: true,
+          availabilityStatus: true,
+          defaultShift: true,
+          gender: true,
+          dateJoined: true,
+          createdAt: true,
+          organization: { select: { id: true, name: true } },
+          createdBy: { select: { id: true, fullName: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.staff.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        items: staff,
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
+  } catch (error) {
+    console.error("[STAFF_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// POST /api/staff â€” create a new staff member
+export async function POST(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = session.user as any;
+
+    if (!["SUPER_ADMIN", "HRM"].includes(user.role)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const parsed = createStaffSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: parsed.error.errors[0].message },
+        { status: 400 }
+      );
+    }
+
+    const data = parsed.data;
+
+    // Check email uniqueness
+    const existing = await prisma.staff.findUnique({ where: { email: data.email } });
+    if (existing) {
+      return NextResponse.json(
+        { success: false, error: "A staff member with this email already exists" },
+        { status: 409 }
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(data.password, 12);
+
+    const staff = await prisma.staff.create({
+      data: {
+        organizationId: user.organizationId,
+        fullName: data.fullName,
+        email: data.email,
+        phone: data.phone,
+        role: data.role,
+        department: data.department,
+        gender: data.gender,
+        defaultShift: data.defaultShift,
+        passwordHash,
+        createdById: user.id,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        role: true,
+        department: true,
+        status: true,
+        defaultShift: true,
+        dateJoined: true,
+        createdAt: true,
+      },
+    });
+
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role,
+      action: AUDIT_ACTIONS.STAFF_CREATED,
+      entityType: "Staff",
+      entityId: staff.id,
+      newValue: { fullName: staff.fullName, email: staff.email, role: staff.role },
+    });
+
+    return NextResponse.json(
+      { success: true, message: "Staff member created successfully", data: staff },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("[STAFF_POST]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/tests/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { TestType, Department } from "@prisma/client";
+
+// GET /api/tests â€” list all active tests for the org
+// Query params: ?search=fbc&amp;type=LAB&amp;department=LABORATORY
+export async function GET(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = session.user as any;
+    const { searchParams } = new URL(req.url);
+
+    const search = searchParams.get("search") ?? "";
+    const type = searchParams.get("type") as TestType | null;
+    const department = searchParams.get("department") as Department | null;
+
+    const tests = await prisma.diagnosticTest.findMany({
+      where: {
+        organizationId: user.organizationId,
+        isActive: true,
+        ...(type ? { type } : {}),
+        ...(department ? { department } : {}),
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: "insensitive" } },
+                { code: { contains: search, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        category: { select: { id: true, name: true } },
+        resultFields: {
+          orderBy: { sortOrder: "asc" },
+        },
+      },
+      orderBy: [{ type: "asc" }, { name: "asc" }],
+    });
+
+    return NextResponse.json({ success: true, data: tests });
+  } catch (error) {
+    console.error("[TESTS_GET]", error);
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}</pre></div>
+<div class='file-block'><div class='file-header'>src/app/globals.css</div><pre>@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/layout.tsx</div><pre>import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "DiagOps â€” Medical Diagnostic Operations",
+  description: "Multi-role diagnostic operations system for medical labs",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    &lt;html lang="en" suppressHydrationWarning&gt;
+      &lt;body className={inter.className}&gt;{children}&lt;/body&gt;
+    &lt;/html&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/not-found.tsx</div><pre>import Link from "next/link";
+import { Button } from "@/components/ui/button";
+
+export default function NotFound() {
+  return (
+    &lt;div className="min-h-screen flex items-center justify-center bg-background"&gt;
+      &lt;div className="text-center space-y-4"&gt;
+        &lt;h1 className="text-6xl font-bold text-muted-foreground"&gt;404&lt;/h1&gt;
+        &lt;h2 className="text-2xl font-semibold"&gt;Page not found&lt;/h2&gt;
+        &lt;p className="text-muted-foreground"&gt;
+          The page you are looking for does not exist or you don't have permission to view it.
+        &lt;/p&gt;
+        &lt;Link href="/"&gt;
+          &lt;Button&gt;Go to Dashboard&lt;/Button&gt;
+        &lt;/Link&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/page.tsx</div><pre>import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { getDashboardPath } from "@/lib/utils";
+import { Role } from "@prisma/client";
+
+export default async function HomePage() {
+  const session = await auth();
+  if (session?.user) {
+    const role = (session.user as any).role as Role;
+    redirect(getDashboardPath(role));
+  }
+  redirect("/login");
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/forms/add-staff-form.tsx</div><pre>"use client";
+
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/index";
+import { ROLE_LABELS, DEPARTMENT_LABELS } from "@/lib/utils";
+import { Role, Department, Shift } from "@prisma/client";
+
+const schema = z.object({
+  fullName: z.string().min(2, "Full name is required"),
+  email: z.string().email("Enter a valid email"),
+  phone: z.string().min(7, "Phone number required"),
+  role: z.nativeEnum(Role),
+  department: z.nativeEnum(Department),
+  gender: z.string().optional(),
+  defaultShift: z.nativeEnum(Shift),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string(),
+}).refine((d) =&gt; d.password === d.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
+
+type FormData = z.infer&lt;typeof schema&gt;;
+
+const ROLES_FOR_FORM = Object.entries(ROLE_LABELS).filter(
+  ([key]) =&gt; key !== "SUPER_ADMIN"
+);
+
+export function AddStaffForm() {
+  const router = useRouter();
+  const [serverError, setServerError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm&lt;FormData&gt;({
+    resolver: zodResolver(schema),
+    defaultValues: { defaultShift: Shift.MORNING },
+  });
+
+  async function onSubmit(data: FormData) {
+    setServerError("");
+    try {
+      const res = await fetch("/api/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setServerError(json.error ?? "Something went wrong");
+        return;
+      }
+      setSuccess(true);
+      reset();
+      setTimeout(() =&gt; router.push("/dashboard/hrm/staff"), 1500);
+    } catch {
+      setServerError("Network error. Please try again.");
+    }
+  }
+
+  return (
+    &lt;form onSubmit={handleSubmit(onSubmit)} className="space-y-5"&gt;
+      {serverError &amp;&amp; (
+        &lt;div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive"&gt;
+          {serverError}
+        &lt;/div&gt;
+      )}
+      {success &amp;&amp; (
+        &lt;div className="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700"&gt;
+          Staff member created successfully! Redirecting...
+        &lt;/div&gt;
+      )}
+
+      &lt;div className="grid grid-cols-1 gap-5 sm:grid-cols-2"&gt;
+        {/* Full Name */}
+        &lt;div className="space-y-1.5"&gt;
+          &lt;Label htmlFor="fullName"&gt;Full Name *&lt;/Label&gt;
+          &lt;Input id="fullName" placeholder="e.g. Jane Okafor" {...register("fullName")} /&gt;
+          {errors.fullName &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.fullName.message}&lt;/p&gt;}
+        &lt;/div&gt;
+
+        {/* Email */}
+        &lt;div className="space-y-1.5"&gt;
+          &lt;Label htmlFor="email"&gt;Email Address *&lt;/Label&gt;
+          &lt;Input id="email" type="email" placeholder="jane@lab.com" {...register("email")} /&gt;
+          {errors.email &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.email.message}&lt;/p&gt;}
+        &lt;/div&gt;
+
+        {/* Phone */}
+        &lt;div className="space-y-1.5"&gt;
+          &lt;Label htmlFor="phone"&gt;Phone Number *&lt;/Label&gt;
+          &lt;Input id="phone" placeholder="+234..." {...register("phone")} /&gt;
+          {errors.phone &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.phone.message}&lt;/p&gt;}
+        &lt;/div&gt;
+
+        {/* Gender */}
+        &lt;div className="space-y-1.5"&gt;
+          &lt;Label htmlFor="gender"&gt;Gender&lt;/Label&gt;
+          &lt;Select onValueChange={(v) =&gt; setValue("gender", v)}&gt;
+            &lt;SelectTrigger id="gender"&gt;
+              &lt;SelectValue placeholder="Select gender" /&gt;
+            &lt;/SelectTrigger&gt;
+            &lt;SelectContent&gt;
+              &lt;SelectItem value="Male"&gt;Male&lt;/SelectItem&gt;
+              &lt;SelectItem value="Female"&gt;Female&lt;/SelectItem&gt;
+              &lt;SelectItem value="Other"&gt;Other&lt;/SelectItem&gt;
+            &lt;/SelectContent&gt;
+          &lt;/Select&gt;
+        &lt;/div&gt;
+
+        {/* Role */}
+        &lt;div className="space-y-1.5"&gt;
+          &lt;Label&gt;Role *&lt;/Label&gt;
+          &lt;Select onValueChange={(v) =&gt; setValue("role", v as Role)}&gt;
+            &lt;SelectTrigger&gt;
+              &lt;SelectValue placeholder="Select role" /&gt;
+            &lt;/SelectTrigger&gt;
+            &lt;SelectContent&gt;
+              {ROLES_FOR_FORM.map(([value, label]) =&gt; (
+                &lt;SelectItem key={value} value={value}&gt;
+                  {label}
+                &lt;/SelectItem&gt;
+              ))}
+            &lt;/SelectContent&gt;
+          &lt;/Select&gt;
+          {errors.role &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.role.message}&lt;/p&gt;}
+        &lt;/div&gt;
+
+        {/* Department */}
+        &lt;div className="space-y-1.5"&gt;
+          &lt;Label&gt;Department *&lt;/Label&gt;
+          &lt;Select onValueChange={(v) =&gt; setValue("department", v as Department)}&gt;
+            &lt;SelectTrigger&gt;
+              &lt;SelectValue placeholder="Select department" /&gt;
+            &lt;/SelectTrigger&gt;
+            &lt;SelectContent&gt;
+              {Object.entries(DEPARTMENT_LABELS).map(([value, label]) =&gt; (
+                &lt;SelectItem key={value} value={value}&gt;
+                  {label}
+                &lt;/SelectItem&gt;
+              ))}
+            &lt;/SelectContent&gt;
+          &lt;/Select&gt;
+          {errors.department &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.department.message}&lt;/p&gt;}
+        &lt;/div&gt;
+
+        {/* Default Shift */}
+        &lt;div className="space-y-1.5"&gt;
+          &lt;Label&gt;Default Shift *&lt;/Label&gt;
+          &lt;Select
+            defaultValue={Shift.MORNING}
+            onValueChange={(v) =&gt; setValue("defaultShift", v as Shift)}
+          &gt;
+            &lt;SelectTrigger&gt;
+              &lt;SelectValue placeholder="Select shift" /&gt;
+            &lt;/SelectTrigger&gt;
+            &lt;SelectContent&gt;
+              &lt;SelectItem value="MORNING"&gt;Morning&lt;/SelectItem&gt;
+              &lt;SelectItem value="AFTERNOON"&gt;Afternoon&lt;/SelectItem&gt;
+              &lt;SelectItem value="NIGHT"&gt;Night&lt;/SelectItem&gt;
+              &lt;SelectItem value="FULL_DAY"&gt;Full Day&lt;/SelectItem&gt;
+            &lt;/SelectContent&gt;
+          &lt;/Select&gt;
+        &lt;/div&gt;
+
+        {/* Password */}
+        &lt;div className="space-y-1.5"&gt;
+          &lt;Label htmlFor="password"&gt;Password *&lt;/Label&gt;
+          &lt;Input id="password" type="password" placeholder="Min 8 characters" {...register("password")} /&gt;
+          {errors.password &amp;&amp; &lt;p className="text-xs text-destructive"&gt;{errors.password.message}&lt;/p&gt;}
+        &lt;/div&gt;
+
+        {/* Confirm Password */}
+        &lt;div className="space-y-1.5"&gt;
+          &lt;Label htmlFor="confirmPassword"&gt;Confirm Password *&lt;/Label&gt;
+          &lt;Input id="confirmPassword" type="password" placeholder="Repeat password" {...register("confirmPassword")} /&gt;
+          {errors.confirmPassword &amp;&amp; (
+            &lt;p className="text-xs text-destructive"&gt;{errors.confirmPassword.message}&lt;/p&gt;
+          )}
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;div className="flex gap-3 pt-2"&gt;
+        &lt;Button type="submit" disabled={isSubmitting} className="min-w-[140px]"&gt;
+          {isSubmitting ? (
+            &lt;&gt;
+              &lt;Loader2 className="mr-2 h-4 w-4 animate-spin" /&gt;
+              Creating...
+            &lt;/&gt;
+          ) : (
+            "Create Staff Member"
+          )}
+        &lt;/Button&gt;
+        &lt;Button
+          type="button"
+          variant="outline"
+          onClick={() =&gt; router.push("/dashboard/hrm/staff")}
+        &gt;
+          Cancel
+        &lt;/Button&gt;
+      &lt;/div&gt;
+    &lt;/form&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/layout/header-bar.tsx</div><pre>"use client";
+
+import { useState } from "react";
+import { Bell } from "lucide-react";
+import { Switch } from "@/components/ui/index";
+import { Badge } from "@/components/ui/index";
+import { cn } from "@/lib/utils";
+
+interface HeaderBarProps {
+  staffId: string;
+  staffName: string;
+  role: string;
+  initialAvailability: boolean;
+  showAvailabilityToggle?: boolean;
+}
+
+export function HeaderBar({
+  staffId,
+  staffName,
+  role,
+  initialAvailability,
+  showAvailabilityToggle = true,
+}: HeaderBarProps) {
+  const [isAvailable, setIsAvailable] = useState(initialAvailability);
+  const [loading, setLoading] = useState(false);
+
+  // Only operational roles have the availability toggle
+  const operationalRoles = ["LAB_SCIENTIST", "RADIOGRAPHER", "MD", "RECEPTIONIST"];
+  const showToggle = showAvailabilityToggle &amp;&amp; operationalRoles.includes(role);
+
+  async function handleAvailabilityToggle(checked: boolean) {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/staff/${staffId}/availability`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: checked ? "AVAILABLE" : "UNAVAILABLE",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsAvailable(checked);
+      }
+    } catch (error) {
+      console.error("Failed to update availability:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    &lt;header className="flex h-16 items-center justify-between border-b bg-background px-6"&gt;
+      &lt;div className="flex items-center gap-2"&gt;
+        &lt;h2 className="text-sm font-medium text-muted-foreground"&gt;
+          Good {getTimeOfDay()},{" "}
+          &lt;span className="text-foreground font-semibold"&gt;{staffName.split(" ")[0]}&lt;/span&gt;
+        &lt;/h2&gt;
+      &lt;/div&gt;
+
+      &lt;div className="flex items-center gap-4"&gt;
+        {/* Availability Toggle */}
+        {showToggle &amp;&amp; (
+          &lt;div className="flex items-center gap-2"&gt;
+            &lt;span className="text-sm text-muted-foreground"&gt;Status:&lt;/span&gt;
+            &lt;Badge
+              variant={isAvailable ? "success" : "secondary"}
+              className={cn("text-xs", loading &amp;&amp; "opacity-60")}
+            &gt;
+              {isAvailable ? "â— Available" : "â—‹ Unavailable"}
+            &lt;/Badge&gt;
+            &lt;Switch
+              checked={isAvailable}
+              onCheckedChange={handleAvailabilityToggle}
+              disabled={loading}
+              aria-label="Toggle availability"
+            /&gt;
+          &lt;/div&gt;
+        )}
+
+        {/* Notifications bell */}
+        &lt;button className="relative rounded-full p-2 hover:bg-accent transition-colors"&gt;
+          &lt;Bell className="h-5 w-5" /&gt;
+          &lt;span className="absolute right-1 top-1 flex h-2 w-2 items-center justify-center rounded-full bg-destructive" /&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
+    &lt;/header&gt;
+  );
+}
+
+function getTimeOfDay() {
+  const hour = new Date().getHours();
+  if (hour &lt; 12) return "morning";
+  if (hour &lt; 17) return "afternoon";
+  return "evening";
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/layout/sidebar.tsx</div><pre>"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
+import {
+  LayoutDashboard,
+  Users,
+  UserPlus,
+  ClipboardList,
+  FlaskConical,
+  Scan,
+  Stethoscope,
+  BarChart3,
+  Bell,
+  LogOut,
+  ChevronRight,
+  Activity,
+  TestTube2,
+} from "lucide-react";
+import { cn, ROLE_LABELS } from "@/lib/utils";
+import { Role } from "@prisma/client";
+import { Button } from "@/components/ui/button";
+
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ElementType;
+}
+
+const navByRole: Record&lt;string, NavItem[]&gt; = {
+  SUPER_ADMIN: [
+    { label: "Overview", href: "/dashboard/hrm", icon: LayoutDashboard },
+    { label: "Staff Management", href: "/dashboard/hrm/staff", icon: Users },
+    { label: "Add Staff", href: "/dashboard/hrm/staff/new", icon: UserPlus },
+    { label: "Test Catalog", href: "/dashboard/hrm/tests", icon: TestTube2 },
+    { label: "Operations", href: "/dashboard/hrm/operations", icon: Activity },
+    { label: "Audit Log", href: "/dashboard/hrm/audit", icon: ClipboardList },
+    { label: "Analytics", href: "/dashboard/hrm/analytics", icon: BarChart3 },
+  ],
+  HRM: [
+    { label: "Overview", href: "/dashboard/hrm", icon: LayoutDashboard },
+    { label: "Staff Management", href: "/dashboard/hrm/staff", icon: Users },
+    { label: "Add Staff", href: "/dashboard/hrm/staff/new", icon: UserPlus },
+    { label: "Test Catalog", href: "/dashboard/hrm/tests", icon: TestTube2 },
+    { label: "Operations", href: "/dashboard/hrm/operations", icon: Activity },
+    { label: "Audit Log", href: "/dashboard/hrm/audit", icon: ClipboardList },
+    { label: "Analytics", href: "/dashboard/hrm/analytics", icon: BarChart3 },
+  ],
+  RECEPTIONIST: [
+    { label: "Dashboard", href: "/dashboard/receptionist", icon: LayoutDashboard },
+    { label: "New Patient", href: "/dashboard/receptionist/new-patient", icon: UserPlus },
+    { label: "Today's Patients", href: "/dashboard/receptionist/patients", icon: Users },
+  ],
+  LAB_SCIENTIST: [
+    { label: "Dashboard", href: "/dashboard/lab-scientist", icon: LayoutDashboard },
+    { label: "My Queue", href: "/dashboard/lab-scientist/queue", icon: ClipboardList },
+    { label: "Results", href: "/dashboard/lab-scientist/results", icon: FlaskConical },
+  ],
+  RADIOGRAPHER: [
+    { label: "Dashboard", href: "/dashboard/radiographer", icon: LayoutDashboard },
+    { label: "Imaging Queue", href: "/dashboard/radiographer/queue", icon: Scan },
+    { label: "Reports", href: "/dashboard/radiographer/reports", icon: ClipboardList },
+  ],
+  MD: [
+    { label: "Dashboard", href: "/dashboard/md", icon: LayoutDashboard },
+    { label: "Review Queue", href: "/dashboard/md/review", icon: Stethoscope },
+    { label: "Approved", href: "/dashboard/md/approved", icon: ClipboardList },
+  ],
+};
+
+interface SidebarProps {
+  user: {
+    fullName: string;
+    email: string;
+    role: Role;
+    organizationName?: string;
+  };
+}
+
+export function Sidebar({ user }: SidebarProps) {
+  const pathname = usePathname();
+  const navItems = navByRole[user.role] ?? [];
+
+  return (
+    &lt;aside className="flex h-screen w-64 flex-col border-r bg-card"&gt;
+      {/* Logo / Org name */}
+      &lt;div className="flex h-16 items-center border-b px-6"&gt;
+        &lt;div className="flex items-center gap-2"&gt;
+          &lt;div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-sm"&gt;
+            D
+          &lt;/div&gt;
+          &lt;div className="min-w-0"&gt;
+            &lt;p className="truncate text-sm font-semibold"&gt;DiagOps&lt;/p&gt;
+            {user.organizationName &amp;&amp; (
+              &lt;p className="truncate text-xs text-muted-foreground"&gt;{user.organizationName}&lt;/p&gt;
+            )}
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      {/* Nav */}
+      &lt;nav className="flex-1 overflow-y-auto px-3 py-4"&gt;
+        &lt;div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground"&gt;
+          {ROLE_LABELS[user.role]}
+        &lt;/div&gt;
+        &lt;ul className="space-y-1"&gt;
+          {navItems.map((item) =&gt; {
+            const Icon = item.icon;
+            const isActive =
+              pathname === item.href || pathname.startsWith(item.href + "/");
+            return (
+              &lt;li key={item.href}&gt;
+                &lt;Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )}
+                &gt;
+                  &lt;Icon className="h-4 w-4 shrink-0" /&gt;
+                  &lt;span className="flex-1"&gt;{item.label}&lt;/span&gt;
+                  {isActive &amp;&amp; &lt;ChevronRight className="h-3 w-3" /&gt;}
+                &lt;/Link&gt;
+              &lt;/li&gt;
+            );
+          })}
+        &lt;/ul&gt;
+      &lt;/nav&gt;
+
+      {/* Notifications link */}
+      &lt;div className="border-t px-3 py-2"&gt;
+        &lt;Link
+          href="/notifications"
+          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        &gt;
+          &lt;Bell className="h-4 w-4" /&gt;
+          Notifications
+        &lt;/Link&gt;
+      &lt;/div&gt;
+
+      {/* User info + logout */}
+      &lt;div className="border-t p-4"&gt;
+        &lt;div className="mb-3 flex items-center gap-3"&gt;
+          &lt;div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-semibold"&gt;
+            {user.fullName.charAt(0)}
+          &lt;/div&gt;
+          &lt;div className="min-w-0 flex-1"&gt;
+            &lt;p className="truncate text-sm font-medium"&gt;{user.fullName}&lt;/p&gt;
+            &lt;p className="truncate text-xs text-muted-foreground"&gt;{user.email}&lt;/p&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+        &lt;Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-2"
+          onClick={() =&gt; signOut({ callbackUrl: "/login" })}
+        &gt;
+          &lt;LogOut className="h-3.5 w-3.5" /&gt;
+          Sign Out
+        &lt;/Button&gt;
+      &lt;/div&gt;
+    &lt;/aside&gt;
+  );
+}</pre></div>
+<div class='file-block'><div class='file-header'>src/components/shared/stats-card.tsx</div><pre>import { cn } from "@/lib/utils";
+import { LucideIcon } from "lucide-react";
+
+interface StatsCardProps {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon: LucideIcon;
+  iconColor?: string;
+  iconBg?: string;
+  trend?: "up" | "down" | "neutral";
+  className?: string;
+}
+
+export function StatsCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  iconColor = "text-primary",
+  iconBg = "bg-primary/10",
+  className,
+}: StatsCardProps) {
+  return (
+    &lt;div className={cn("rounded-lg border bg-card p-5 shadow-sm", className)}&gt;
+      &lt;div className="flex items-start justify-between"&gt;
+        &lt;div className="min-w-0 flex-1"&gt;
+          &lt;p className="text-sm text-muted-foreground truncate"&gt;{title}&lt;/p&gt;
+          &lt;p className="mt-1 text-2xl font-bold tracking-tight"&gt;{value}&lt;/p&gt;
+          {subtitle &amp;&amp; (
+            &lt;p className="mt-1 text-xs text-muted-foreground"&gt;{subtitle}&lt;/p&gt;
+          )}
+        &lt;/div&gt;
+        &lt;div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ml-3", iconBg)}&gt;
+          &lt;Icon className={cn("h-5 w-5", iconColor)} /&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/ui/button.tsx</div><pre>import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3",
+        lg: "h-11 rounded-md px-8",
+        icon: "h-10 w-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+);
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes&lt;HTMLButtonElement&gt;,
+    VariantProps&lt;typeof buttonVariants&gt; {
+  asChild?: boolean;
+}
+
+const Button = React.forwardRef&lt;HTMLButtonElement, ButtonProps&gt;(
+  ({ className, variant, size, asChild = false, ...props }, ref) =&gt; {
+    const Comp = asChild ? Slot : "button";
+    return (
+      &lt;Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} /&gt;
+    );
+  }
+);
+Button.displayName = "Button";
+
+export { Button, buttonVariants };
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/ui/index.tsx</div><pre>import * as React from "react";
+import * as LabelPrimitive from "@radix-ui/react-label";
+import * as SelectPrimitive from "@radix-ui/react-select";
+import * as SwitchPrimitive from "@radix-ui/react-switch";
+import { cva, type VariantProps } from "class-variance-authority";
+import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+// â”€â”€â”€ Label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const labelVariants = cva(
+  "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+);
+
+const Label = React.forwardRef&lt;
+  React.ElementRef&lt;typeof LabelPrimitive.Root&gt;,
+  React.ComponentPropsWithoutRef&lt;typeof LabelPrimitive.Root&gt; &amp;
+    VariantProps&lt;typeof labelVariants&gt;
+&gt;(({ className, ...props }, ref) =&gt; (
+  &lt;LabelPrimitive.Root ref={ref} className={cn(labelVariants(), className)} {...props} /&gt;
+));
+Label.displayName = LabelPrimitive.Root.displayName;
+
+// â”€â”€â”€ Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const Card = React.forwardRef&lt;HTMLDivElement, React.HTMLAttributes&lt;HTMLDivElement&gt;&gt;(
+  ({ className, ...props }, ref) =&gt; (
+    &lt;div
+      ref={ref}
+      className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}
+      {...props}
+    /&gt;
+  )
+);
+Card.displayName = "Card";
+
+const CardHeader = React.forwardRef&lt;HTMLDivElement, React.HTMLAttributes&lt;HTMLDivElement&gt;&gt;(
+  ({ className, ...props }, ref) =&gt; (
+    &lt;div ref={ref} className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} /&gt;
+  )
+);
+CardHeader.displayName = "CardHeader";
+
+const CardTitle = React.forwardRef&lt;HTMLParagraphElement, React.HTMLAttributes&lt;HTMLHeadingElement&gt;&gt;(
+  ({ className, ...props }, ref) =&gt; (
+    &lt;h3
+      ref={ref}
+      className={cn("text-2xl font-semibold leading-none tracking-tight", className)}
+      {...props}
+    /&gt;
+  )
+);
+CardTitle.displayName = "CardTitle";
+
+const CardDescription = React.forwardRef&lt;
+  HTMLParagraphElement,
+  React.HTMLAttributes&lt;HTMLParagraphElement&gt;
+&gt;(({ className, ...props }, ref) =&gt; (
+  &lt;p ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props} /&gt;
+));
+CardDescription.displayName = "CardDescription";
+
+const CardContent = React.forwardRef&lt;HTMLDivElement, React.HTMLAttributes&lt;HTMLDivElement&gt;&gt;(
+  ({ className, ...props }, ref) =&gt; (
+    &lt;div ref={ref} className={cn("p-6 pt-0", className)} {...props} /&gt;
+  )
+);
+CardContent.displayName = "CardContent";
+
+const CardFooter = React.forwardRef&lt;HTMLDivElement, React.HTMLAttributes&lt;HTMLDivElement&gt;&gt;(
+  ({ className, ...props }, ref) =&gt; (
+    &lt;div ref={ref} className={cn("flex items-center p-6 pt-0", className)} {...props} /&gt;
+  )
+);
+CardFooter.displayName = "CardFooter";
+
+// â”€â”€â”€ Badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const badgeVariants = cva(
+  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      variant: {
+        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+        outline: "text-foreground",
+        success: "border-transparent bg-green-100 text-green-800",
+        warning: "border-transparent bg-yellow-100 text-yellow-800",
+        info: "border-transparent bg-blue-100 text-blue-800",
+      },
+    },
+    defaultVariants: { variant: "default" },
+  }
+);
+
+export interface BadgeProps
+  extends React.HTMLAttributes&lt;HTMLDivElement&gt;,
+    VariantProps&lt;typeof badgeVariants&gt; {}
+
+function Badge({ className, variant, ...props }: BadgeProps) {
+  return &lt;div className={cn(badgeVariants({ variant }), className)} {...props} /&gt;;
+}
+
+// â”€â”€â”€ Select â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const Select = SelectPrimitive.Root;
+const SelectGroup = SelectPrimitive.Group;
+const SelectValue = SelectPrimitive.Value;
+
+const SelectTrigger = React.forwardRef&lt;
+  React.ElementRef&lt;typeof SelectPrimitive.Trigger&gt;,
+  React.ComponentPropsWithoutRef&lt;typeof SelectPrimitive.Trigger&gt;
+&gt;(({ className, children, ...props }, ref) =&gt; (
+  &lt;SelectPrimitive.Trigger
+    ref={ref}
+    className={cn(
+      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&amp;&gt;span]:line-clamp-1",
+      className
+    )}
+    {...props}
+  &gt;
+    {children}
+    &lt;SelectPrimitive.Icon asChild&gt;
+      &lt;ChevronDown className="h-4 w-4 opacity-50" /&gt;
+    &lt;/SelectPrimitive.Icon&gt;
+  &lt;/SelectPrimitive.Trigger&gt;
+));
+SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
+
+const SelectScrollUpButton = React.forwardRef&lt;
+  React.ElementRef&lt;typeof SelectPrimitive.ScrollUpButton&gt;,
+  React.ComponentPropsWithoutRef&lt;typeof SelectPrimitive.ScrollUpButton&gt;
+&gt;(({ className, ...props }, ref) =&gt; (
+  &lt;SelectPrimitive.ScrollUpButton
+    ref={ref}
+    className={cn("flex cursor-default items-center justify-center py-1", className)}
+    {...props}
+  &gt;
+    &lt;ChevronUp className="h-4 w-4" /&gt;
+  &lt;/SelectPrimitive.ScrollUpButton&gt;
+));
+SelectScrollUpButton.displayName = SelectPrimitive.ScrollUpButton.displayName;
+
+const SelectScrollDownButton = React.forwardRef&lt;
+  React.ElementRef&lt;typeof SelectPrimitive.ScrollDownButton&gt;,
+  React.ComponentPropsWithoutRef&lt;typeof SelectPrimitive.ScrollDownButton&gt;
+&gt;(({ className, ...props }, ref) =&gt; (
+  &lt;SelectPrimitive.ScrollDownButton
+    ref={ref}
+    className={cn("flex cursor-default items-center justify-center py-1", className)}
+    {...props}
+  &gt;
+    &lt;ChevronDown className="h-4 w-4" /&gt;
+  &lt;/SelectPrimitive.ScrollDownButton&gt;
+));
+SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName;
+
+const SelectContent = React.forwardRef&lt;
+  React.ElementRef&lt;typeof SelectPrimitive.Content&gt;,
+  React.ComponentPropsWithoutRef&lt;typeof SelectPrimitive.Content&gt;
+&gt;(({ className, children, position = "popper", ...props }, ref) =&gt; (
+  &lt;SelectPrimitive.Portal&gt;
+    &lt;SelectPrimitive.Content
+      ref={ref}
+      className={cn(
+        "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+        position === "popper" &amp;&amp;
+          "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+        className
+      )}
+      position={position}
+      {...props}
+    &gt;
+      &lt;SelectScrollUpButton /&gt;
+      &lt;SelectPrimitive.Viewport
+        className={cn(
+          "p-1",
+          position === "popper" &amp;&amp;
+            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]"
+        )}
+      &gt;
+        {children}
+      &lt;/SelectPrimitive.Viewport&gt;
+      &lt;SelectScrollDownButton /&gt;
+    &lt;/SelectPrimitive.Content&gt;
+  &lt;/SelectPrimitive.Portal&gt;
+));
+SelectContent.displayName = SelectPrimitive.Content.displayName;
+
+const SelectLabel = React.forwardRef&lt;
+  React.ElementRef&lt;typeof SelectPrimitive.Label&gt;,
+  React.ComponentPropsWithoutRef&lt;typeof SelectPrimitive.Label&gt;
+&gt;(({ className, ...props }, ref) =&gt; (
+  &lt;SelectPrimitive.Label
+    ref={ref}
+    className={cn("py-1.5 pl-8 pr-2 text-sm font-semibold", className)}
+    {...props}
+  /&gt;
+));
+SelectLabel.displayName = SelectPrimitive.Label.displayName;
+
+const SelectItem = React.forwardRef&lt;
+  React.ElementRef&lt;typeof SelectPrimitive.Item&gt;,
+  React.ComponentPropsWithoutRef&lt;typeof SelectPrimitive.Item&gt;
+&gt;(({ className, children, ...props }, ref) =&gt; (
+  &lt;SelectPrimitive.Item
+    ref={ref}
+    className={cn(
+      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      className
+    )}
+    {...props}
+  &gt;
+    &lt;span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center"&gt;
+      &lt;SelectPrimitive.ItemIndicator&gt;
+        &lt;Check className="h-4 w-4" /&gt;
+      &lt;/SelectPrimitive.ItemIndicator&gt;
+    &lt;/span&gt;
+    &lt;SelectPrimitive.ItemText&gt;{children}&lt;/SelectPrimitive.ItemText&gt;
+  &lt;/SelectPrimitive.Item&gt;
+));
+SelectItem.displayName = SelectPrimitive.Item.displayName;
+
+const SelectSeparator = React.forwardRef&lt;
+  React.ElementRef&lt;typeof SelectPrimitive.Separator&gt;,
+  React.ComponentPropsWithoutRef&lt;typeof SelectPrimitive.Separator&gt;
+&gt;(({ className, ...props }, ref) =&gt; (
+  &lt;SelectPrimitive.Separator
+    ref={ref}
+    className={cn("-mx-1 my-1 h-px bg-muted", className)}
+    {...props}
+  /&gt;
+));
+SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
+
+// â”€â”€â”€ Switch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const Switch = React.forwardRef&lt;
+  React.ElementRef&lt;typeof SwitchPrimitive.Root&gt;,
+  React.ComponentPropsWithoutRef&lt;typeof SwitchPrimitive.Root&gt;
+&gt;(({ className, ...props }, ref) =&gt; (
+  &lt;SwitchPrimitive.Root
+    className={cn(
+      "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input",
+      className
+    )}
+    {...props}
+    ref={ref}
+  &gt;
+    &lt;SwitchPrimitive.Thumb
+      className={cn(
+        "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
+      )}
+    /&gt;
+  &lt;/SwitchPrimitive.Root&gt;
+));
+Switch.displayName = SwitchPrimitive.Root.displayName;
+
+export {
+  Label,
+  Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter,
+  Badge, badgeVariants,
+  Select, SelectGroup, SelectValue, SelectTrigger, SelectContent,
+  SelectLabel, SelectItem, SelectSeparator,
+  Switch,
+};
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/ui/input.tsx</div><pre>import * as React from "react";
+import { cn } from "@/lib/utils";
+
+export interface InputProps extends React.InputHTMLAttributes&lt;HTMLInputElement&gt; {}
+
+const Input = React.forwardRef&lt;HTMLInputElement, InputProps&gt;(
+  ({ className, type, ...props }, ref) =&gt; {
+    return (
+      &lt;input
+        type={type}
+        className={cn(
+          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+          className
+        )}
+        ref={ref}
+        {...props}
+      /&gt;
+    );
+  }
+);
+Input.displayName = "Input";
+
+export { Input };
+</pre></div>
+<div class='file-block'><div class='file-header'>src/hooks/use-staff.ts</div><pre>"use client";
+
+import { useState, useEffect, useCallback } from "react";
+
+interface StaffItem {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  role: string;
+  department: string;
+  status: string;
+  availabilityStatus: string;
+  defaultShift: string;
+  dateJoined: string;
+  createdAt: string;
+}
+
+interface UseStaffOptions {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  role?: string;
+  department?: string;
+  status?: string;
+}
+
+export function useStaff(options: UseStaffOptions = {}) {
+  const [staff, setStaff] = useState&lt;StaffItem[]&gt;([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState&lt;string | null&gt;(null);
+
+  const fetchStaff = useCallback(async () =&gt; {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (options.page) params.set("page", String(options.page));
+      if (options.pageSize) params.set("pageSize", String(options.pageSize));
+      if (options.search) params.set("search", options.search);
+      if (options.role) params.set("role", options.role);
+      if (options.department) params.set("department", options.department);
+      if (options.status) params.set("status", options.status);
+
+      const res = await fetch(`/api/staff?${params.toString()}`);
+      const data = await res.json();
+
+      if (!data.success) {
+        setError(data.error ?? "Failed to load staff");
+        return;
+      }
+
+      setStaff(data.data.items);
+      setTotal(data.data.total);
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [options.page, options.pageSize, options.search, options.role, options.department, options.status]);
+
+  useEffect(() =&gt; {
+    fetchStaff();
+  }, [fetchStaff]);
+
+  return { staff, total, loading, error, refetch: fetchStaff };
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/audit.ts</div><pre>// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ADD THESE to your existing src/lib/audit.ts AUDIT_ACTIONS object
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+// Paste these lines inside your existing AUDIT_ACTIONS = { ... } object:
+
+// Phase 2 additions:
+//   PATIENT_CREATED: "PATIENT_CREATED",
+//   PATIENT_UPDATED: "PATIENT_UPDATED",
+//   VISIT_CREATED: "VISIT_CREATED",
+//   TEST_ORDER_CREATED: "TEST_ORDER_CREATED",
+//   TEST_ORDER_CANCELLED: "TEST_ORDER_CANCELLED",
+//   PAYMENT_UPDATED: "PAYMENT_UPDATED",
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// FULL UPDATED audit.ts (replace your entire src/lib/audit.ts with this)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export const AUDIT_ACTIONS = {
+  // Phase 1 â€” Org &amp; Staff
+  ORG_CREATED: "ORGANIZATION_CREATED",
+  ORG_UPDATED: "ORGANIZATION_UPDATED",
+  STAFF_CREATED: "STAFF_CREATED",
+  STAFF_UPDATED: "STAFF_UPDATED",
+  STAFF_DEACTIVATED: "STAFF_DEACTIVATED",
+  STAFF_LOGIN: "STAFF_LOGIN",
+  STAFF_LOGOUT: "STAFF_LOGOUT",
+  AVAILABILITY_CHANGED: "AVAILABILITY_CHANGED",
+
+  // Phase 2 â€” Patients &amp; Tests
+  PATIENT_CREATED: "PATIENT_CREATED",
+  PATIENT_UPDATED: "PATIENT_UPDATED",
+  VISIT_CREATED: "VISIT_CREATED",
+  TEST_ORDER_CREATED: "TEST_ORDER_CREATED",
+  TEST_ORDER_CANCELLED: "TEST_ORDER_CANCELLED",
+  PAYMENT_UPDATED: "PAYMENT_UPDATED",
+} as const;
+
+export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
+
+import { prisma } from "@/lib/prisma";
+import { Role } from "@prisma/client";
+
+interface CreateAuditLogParams {
+  actorId: string;
+  actorRole: Role;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  oldValue?: object;
+  newValue?: object;
+  notes?: string;
+}
+
+export async function createAuditLog(params: CreateAuditLogParams) {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        actorId: params.actorId,
+        actorRole: params.actorRole,
+        action: params.action,
+        entityType: params.entityType,
+        entityId: params.entityId,
+        oldValue: params.oldValue ?? undefined,
+        newValue: params.newValue ?? undefined,
+        notes: params.notes,
+      },
+    });
+  } catch (error) {
+    console.error("[AUDIT_LOG_ERROR]", error);
+  }
+}</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/auth.ts</div><pre>import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  session: { strategy: "jwt" },
+  pages: {
+    signIn: "/login",
+    error: "/login",
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = (user as any).role;
+        token.organizationId = (user as any).organizationId;
+        token.fullName = (user as any).fullName;
+        token.department = (user as any).department;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token) {
+        session.user.id = token.id as string;
+        (session.user as any).role = token.role;
+        (session.user as any).organizationId = token.organizationId;
+        (session.user as any).fullName = token.fullName;
+        (session.user as any).department = token.department;
+      }
+      return session;
+    },
+  },
+  providers: [
+    Credentials({
+      name: "credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const parsed = loginSchema.safeParse(credentials);
+        if (!parsed.success) return null;
+
+        const { email, password } = parsed.data;
+
+        const staff = await prisma.staff.findUnique({
+          where: { email },
+          include: { organization: true },
+        });
+
+        if (!staff) return null;
+        if (staff.status !== "ACTIVE") return null;
+
+        const passwordMatch = await bcrypt.compare(password, staff.passwordHash);
+        if (!passwordMatch) return null;
+
+        return {
+          id: staff.id,
+          email: staff.email,
+          name: staff.fullName,
+          role: staff.role,
+          organizationId: staff.organizationId,
+          fullName: staff.fullName,
+          department: staff.department,
+        };
+      },
+    }),
+  ],
+});
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/prisma.ts</div><pre>import { PrismaClient } from "@prisma/client";
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+  });
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/utils.ts</div><pre>import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { Role } from "@prisma/client";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+// Map each role to its dashboard path
+export function getDashboardPath(role: Role): string {
+  const map: Record&lt;Role, string&gt; = {
+    SUPER_ADMIN: "/dashboard/hrm",
+    HRM: "/dashboard/hrm",
+    RECEPTIONIST: "/dashboard/receptionist",
+    LAB_SCIENTIST: "/dashboard/lab-scientist",
+    RADIOGRAPHER: "/dashboard/radiographer",
+    MD: "/dashboard/md",
+  };
+  return map[role] ?? "/dashboard/hrm";
+}
+
+// Format date to readable string
+export function formatDate(date: Date | string): string {
+  return new Date(date).toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+// Format time
+export function formatTime(date: Date | string): string {
+  return new Date(date).toLocaleTimeString("en-NG", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// Format datetime
+export function formatDateTime(date: Date | string): string {
+  return `${formatDate(date)} ${formatTime(date)}`;
+}
+
+// Format currency
+export function formatCurrency(amount: number, currency = "NGN"): string {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 0,
+  }).format(amount);
+}
+
+// Format minutes to human readable string
+export function formatMinutes(minutes: number): string {
+  if (minutes &lt; 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m &gt; 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+// Generate patient ID
+export function generatePatientId(prefix: string, count: number): string {
+  return `${prefix}-${String(count + 1).padStart(4, "0")}`;
+}
+
+// Generate visit number
+export function generateVisitNumber(prefix: string, count: number): string {
+  return `${prefix}-V-${String(count + 1).padStart(4, "0")}`;
+}
+
+// Role display labels
+export const ROLE_LABELS: Record&lt;Role, string&gt; = {
+  SUPER_ADMIN: "Super Admin",
+  HRM: "HRM / Operations",
+  RECEPTIONIST: "Receptionist",
+  LAB_SCIENTIST: "Lab Scientist",
+  RADIOGRAPHER: "Radiographer",
+  MD: "Medical Doctor",
+};
+
+// Department display labels
+export const DEPARTMENT_LABELS: Record&lt;string, string&gt; = {
+  RECEPTION: "Reception",
+  LABORATORY: "Laboratory",
+  RADIOLOGY: "Radiology",
+  MEDICAL_REVIEW: "Medical Review",
+  HR_OPERATIONS: "HR &amp; Operations",
+};</pre></div>
+<div class='file-block'><div class='file-header'>src/middleware.ts</div><pre>import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { getDashboardPath } from "@/lib/utils";
+import { Role } from "@prisma/client";
+
+// Routes that don't need authentication
+const publicRoutes = ["/login", "/register", "/api/auth"];
+
+// Which roles can access which dashboard paths
+const roleRouteMap: Record&lt;string, Role[]&gt; = {
+  "/dashboard/receptionist": ["RECEPTIONIST", "SUPER_ADMIN"],
+  "/dashboard/lab-scientist": ["LAB_SCIENTIST", "SUPER_ADMIN"],
+  "/dashboard/radiographer": ["RADIOGRAPHER", "SUPER_ADMIN"],
+  "/dashboard/md": ["MD", "SUPER_ADMIN"],
+  "/dashboard/hrm": ["HRM", "SUPER_ADMIN"],
+};
+
+export default auth((req) =&gt; {
+  const { nextUrl, auth: session } = req as any;
+  const pathname = nextUrl.pathname;
+
+  // Allow public routes through
+  const isPublicRoute = publicRoutes.some((route) =&gt;
+    pathname.startsWith(route)
+  );
+  if (isPublicRoute) {
+    // If already logged in, redirect away from login/register
+    if (session?.user &amp;&amp; (pathname === "/login" || pathname === "/register")) {
+      const role = session.user.role as Role;
+      return NextResponse.redirect(
+        new URL(getDashboardPath(role), nextUrl.origin)
+      );
+    }
+    return NextResponse.next();
+  }
+
+  // Not logged in â€” redirect to login
+  if (!session?.user) {
+    const loginUrl = new URL("/login", nextUrl.origin);
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const userRole = session.user.role as Role;
+
+  // Root path â€” redirect to role dashboard
+  if (pathname === "/" || pathname === "/dashboard") {
+    return NextResponse.redirect(
+      new URL(getDashboardPath(userRole), nextUrl.origin)
+    );
+  }
+
+  // Check dashboard route permissions
+  for (const [route, allowedRoles] of Object.entries(roleRouteMap)) {
+    if (pathname.startsWith(route)) {
+      if (!allowedRoles.includes(userRole)) {
+        // Redirect to their own dashboard instead
+        return NextResponse.redirect(
+          new URL(getDashboardPath(userRole), nextUrl.origin)
+        );
+      }
+      break;
+    }
+  }
+
+  return NextResponse.next();
+});
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
+};
+</pre></div>
+<div class='file-block'><div class='file-header'>src/types/index.ts</div><pre>import {
+  Role,
+  Department,
+  StaffStatus,
+  AvailabilityStatus,
+  Shift,
+  TestType,
+  FieldType,
+  Sex,
+  Priority,
+  PaymentStatus,
+  OrderStatus,
+} from "@prisma/client";
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// AUTH / STAFF
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export interface SessionUser {
+  id: string;
+  email: string;
+  fullName: string;
+  role: Role;
+  organizationId: string;
+  department: Department;
+}
+
+export interface StaffWithOrg {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  role: Role;
+  department: Department;
+  status: StaffStatus;
+  availabilityStatus: AvailabilityStatus;
+  defaultShift: Shift;
+  dateJoined: Date;
+  createdAt: Date;
+  organization: { id: string; name: string };
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// API WRAPPERS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export interface ApiResponse&lt;T = unknown&gt; {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface PaginatedResponse&lt;T&gt; {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// PHASE 2 â€” TEST DATABASE TYPES
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export interface ResultTemplateField {
+  id: string;
+  testId: string;
+  label: string;
+  fieldKey: string;
+  fieldType: FieldType;
+  unit?: string | null;
+  normalMin?: number | null;
+  normalMax?: number | null;
+  options?: string | null;
+  isRequired: boolean;
+  sortOrder: number;
+}
+
+export interface DiagnosticTestWithFields {
+  id: string;
+  organizationId: string;
+  categoryId?: string | null;
+  name: string;
+  code: string;
+  type: TestType;
+  department: Department;
+  price: number;
+  turnaroundMinutes: number;
+  sampleType?: string | null;
+  description?: string | null;
+  isActive: boolean;
+  category?: { id: string; name: string } | null;
+  resultFields: ResultTemplateField[];
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// PHASE 2 â€” PATIENT &amp; VISIT TYPES
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export interface Patient {
+  id: string;
+  organizationId: string;
+  patientId: string;
+  fullName: string;
+  age: number;
+  sex: Sex;
+  phone: string;
+  email?: string | null;
+  address?: string | null;
+  dateOfBirth?: Date | null;
+  referringDoctor?: string | null;
+  clinicalNote?: string | null;
+  createdAt: Date;
+}
+
+export interface Visit {
+  id: string;
+  patientId: string;
+  organizationId: string;
+  visitNumber: string;
+  priority: Priority;
+  paymentStatus: PaymentStatus;
+  totalAmount: number;
+  amountPaid: number;
+  discount: number;
+  paymentMethod?: string | null;
+  notes?: string | null;
+  registeredAt: Date;
+  testOrders?: TestOrder[];
+}
+
+export interface TestOrder {
+  id: string;
+  visitId: string;
+  testId: string;
+  organizationId: string;
+  status: OrderStatus;
+  price: number;
+  notes?: string | null;
+  registeredAt: Date;
+  test?: DiagnosticTestWithFields;
+}
+
+// Cart item used in patient registration form
+export interface TestCartItem {
+  testId: string;
+  name: string;
+  code: string;
+  type: TestType;
+  department: Department;
+  price: number;
+}</pre></div>
+<div class='file-block'><div class='file-header'>src/types/next-auth.d.ts</div><pre>import { Role, Department } from "@prisma/client";
+import "next-auth";
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      role: Role;
+      organizationId: string;
+      fullName: string;
+      department: Department;
+    };
+  }
+
+  interface User {
+    id: string;
+    email: string;
+    name: string;
+    role: Role;
+    organizationId: string;
+    fullName: string;
+    department: Department;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    role: Role;
+    organizationId: string;
+    fullName: string;
+    department: Department;
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>tailwind.config.ts</div><pre>import type { Config } from "tailwindcss";
+
+const config: Config = {
+  darkMode: ["class"],
+  content: [
+    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      keyframes: {
+        "accordion-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+      },
+    },
+  },
+  plugins: [require("tailwindcss-animate")],
+};
+
+export default config;
+</pre></div>
+<div class='file-block'><div class='file-header'>tsconfig.json</div><pre>{
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+</pre></div>
+</body></html>

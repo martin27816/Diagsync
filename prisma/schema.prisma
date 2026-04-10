@@ -1,0 +1,313 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  RECEPTIONIST
+  LAB_SCIENTIST
+  RADIOGRAPHER
+  MD
+  HRM
+}
+
+enum Department {
+  RECEPTION
+  LABORATORY
+  RADIOLOGY
+  MEDICAL_REVIEW
+  HR_OPERATIONS
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  UNAVAILABLE
+}
+
+enum Shift {
+  MORNING
+  AFTERNOON
+  NIGHT
+  FULL_DAY
+}
+
+enum TestType {
+  LAB
+  RADIOLOGY
+}
+
+enum FieldType {
+  NUMBER
+  TEXT
+  TEXTAREA
+  DROPDOWN
+  CHECKBOX
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Priority {
+  ROUTINE
+  URGENT
+  EMERGENCY
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  WAIVED
+  PARTIAL
+}
+
+enum OrderStatus {
+  REGISTERED
+  ASSIGNED
+  OPENED
+  SAMPLE_PENDING
+  SAMPLE_COLLECTED
+  IN_PROGRESS
+  RESULT_DRAFTED
+  SUBMITTED_FOR_REVIEW
+  EDIT_REQUESTED
+  RESUBMITTED
+  APPROVED
+  RELEASED
+  CANCELLED
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String
+  address   String
+  logo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff    Staff[]
+  patients Patient[]
+  tests    DiagnosticTest[]
+
+  @@map("organizations")
+}
+
+model Staff {
+  id                 String             @id @default(cuid())
+  organizationId     String
+  fullName           String
+  email              String             @unique
+  phone              String
+  passwordHash       String
+  role               Role
+  department         Department
+  gender             String?
+  dateJoined         DateTime           @default(now())
+  defaultShift       Shift              @default(MORNING)
+  status             StaffStatus        @default(ACTIVE)
+  availabilityStatus AvailabilityStatus @default(UNAVAILABLE)
+  lastAvailableAt    DateTime?
+  lastUnavailableAt  DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  createdById        String?
+
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy         Staff?            @relation("StaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff      Staff[]           @relation("StaffCreatedBy")
+  sessions          Session[]
+  availabilityLogs  AvailabilityLog[]
+  auditLogs         AuditLog[]
+  registeredPatients Patient[]        @relation("RegisteredBy")
+
+  @@map("staff")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  staffId      String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model AvailabilityLog {
+  id        String             @id @default(cuid())
+  staffId   String
+  oldStatus AvailabilityStatus
+  newStatus AvailabilityStatus
+  reason    String?
+  changedAt DateTime           @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("availability_logs")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actorRole  Role
+  action     String
+  entityType String
+  entityId   String?
+  oldValue   Json?
+  newValue   Json?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  actor Staff @relation(fields: [actorId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model TestCategory {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  tests DiagnosticTest[]
+
+  @@map("test_categories")
+}
+
+model DiagnosticTest {
+  id                String     @id @default(cuid())
+  organizationId    String
+  categoryId        String?
+  name              String
+  code              String
+  type              TestType
+  department        Department
+  price             Decimal    @db.Decimal(10, 2)
+  turnaroundMinutes Int
+  sampleType        String?
+  description       String?
+  isActive          Boolean    @default(true)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category     TestCategory?        @relation(fields: [categoryId], references: [id])
+  resultFields ResultTemplateField[]
+  testOrders   TestOrder[]
+
+  @@unique([organizationId, code])
+  @@map("diagnostic_tests")
+}
+
+model ResultTemplateField {
+  id         String    @id @default(cuid())
+  testId     String
+  label      String
+  fieldKey   String
+  fieldType  FieldType
+  unit       String?
+  normalMin  Decimal?  @db.Decimal(10, 3)
+  normalMax  Decimal?  @db.Decimal(10, 3)
+  options    String?
+  isRequired Boolean   @default(true)
+  sortOrder  Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  test DiagnosticTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@map("result_template_fields")
+}
+
+model Patient {
+  id              String    @id @default(cuid())
+  organizationId  String
+  patientId       String
+  fullName        String
+  age             Int
+  sex             Sex
+  phone           String
+  email           String?
+  address         String?
+  dateOfBirth     DateTime?
+  referringDoctor String?
+  clinicalNote    String?
+  registeredById  String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registeredBy Staff        @relation("RegisteredBy", fields: [registeredById], references: [id])
+  visits       Visit[]
+
+  @@unique([organizationId, patientId])
+  @@map("patients")
+}
+
+model Visit {
+  id             String        @id @default(cuid())
+  patientId      String
+  organizationId String
+  visitNumber    String
+  priority       Priority      @default(ROUTINE)
+  paymentStatus  PaymentStatus @default(PENDING)
+  totalAmount    Decimal       @db.Decimal(10, 2) @default(0)
+  amountPaid     Decimal       @db.Decimal(10, 2) @default(0)
+  discount       Decimal       @db.Decimal(10, 2) @default(0)
+  paymentMethod  String?
+  notes          String?
+  registeredAt   DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  patient    Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  testOrders TestOrder[]
+
+  @@map("visits")
+}
+
+model TestOrder {
+  id                String      @id @default(cuid())
+  visitId           String
+  testId            String
+  organizationId    String
+  status            OrderStatus @default(REGISTERED)
+  price             Decimal     @db.Decimal(10, 2)
+  notes             String?
+  registeredAt      DateTime    @default(now())
+  assignedAt        DateTime?
+  openedAt          DateTime?
+  sampleCollectedAt DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  approvedAt        DateTime?
+  releasedAt        DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  visit Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  test  DiagnosticTest @relation(fields: [testId], references: [id])
+
+  @@map("test_orders")
+}
