@@ -1,4 +1,4 @@
-# DiagOps — Medical Diagnostic Operations System
+# Diagsync — Medical Diagnostic Operations System
 
 A multi-role diagnostic workflow operating system for medical labs.
 
@@ -119,3 +119,4 @@ npm run db:seed      # Re-seed the database
 - Pricing
 - Patient model
 - Visit model
+

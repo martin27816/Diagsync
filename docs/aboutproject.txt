@@ -1,0 +1,1712 @@
+1. THE PRODUCT YOU ARE BUILDING
+
+This is a multi-role diagnostic operations system for a medical lab.
+
+It is not just “result entry software.”
+
+It is a system that helps a lab manage:
+
+staff
+patients
+lab tests
+radiology tests
+assignments
+result entry
+review
+corrections
+report release
+audit trail
+punctuality
+performance analytics
+
+The goal is:
+
+very easy to use
+very fast
+very traceable
+role-based
+good for management
+good for accountability
+2. CORE IDEA OF THE SYSTEM
+One lab = one organization account
+
+Example:
+
+Reene Medical Diagnostics
+
+That organization contains:
+
+staff
+roles
+tests
+pricing
+patient records
+result templates
+activity logs
+notifications
+analytics
+3. WHO USES THE SYSTEM
+
+Your system has these main roles:
+
+1. Receptionist
+
+Handles front desk intake.
+
+2. Lab Scientist
+
+Handles laboratory tests and result entry.
+
+3. Radiographer / Radiologist
+
+Handles radiography and imaging-related work.
+
+4. MD
+
+Handles review, medical approval, correction request, final sign-off.
+
+5. HRM
+
+Handles monitoring, dispatch, staff oversight, punctuality, accountability, operations tracking.
+
+4. IMPORTANT CORRECTION TO YOUR LOGIN IDEA
+
+Instead of one shared role password, each staff member should have:
+
+their own account
+their own name
+their own login credentials
+assigned role(s)
+assigned dashboard access
+individual activity trail
+
+This is important because:
+
+the system must know exactly who did what
+HRM must track exact staff activity
+audit logs must be accurate
+staff changes become easier
+security is better
+
+So:
+
+Reene Medical = organization
+John = receptionist
+Blessing = lab scientist
+Dr. James = MD
+Mary = HRM
+
+Each logs into their own account and sees only the dashboard for their role.
+
+5. FULL SYSTEM WORKFLOW
+
+Now let’s build the full flow from beginning to end.
+
+STAGE 1: LAB REGISTERS ON THE PLATFORM
+
+This is the onboarding phase.
+
+What happens
+
+A lab signs up on your system.
+
+Example:
+
+Reene Medical Diagnostics registers
+What the lab fills
+lab name
+email
+phone
+address
+branch info if any
+logo
+admin account
+preferred notification options
+default report settings
+What the system does
+creates the organization
+creates the super admin / owner account
+opens the main management dashboard
+loads test catalog defaults if your platform comes with preloaded tests
+What should show on screen
+
+On first setup screen:
+
+Lab Name
+Contact Email
+Phone Number
+Lab Address
+Logo Upload
+Create Admin Password
+Continue button
+Saved data
+organization profile
+account owner
+setup time
+creation timestamp
+STAGE 2: LAB CREATES STAFF
+
+The lab now adds workers under the organization.
+
+What happens
+
+The admin or HRM adds all staff.
+
+Staff details to collect
+full name
+phone
+email
+role
+department
+gender optional
+date joined
+default shift
+active/inactive status
+Example
+Jane Okafor — Receptionist
+David Obi — Lab Scientist
+Dr. Henry — MD
+Sarah John — HRM
+Chika — Radiographer
+What the system does
+creates user account
+assigns role
+assigns department
+gives access only to allowed dashboard
+stores staff profile
+What should show on screen
+
+“Add Staff” page should show:
+
+Full Name
+Phone
+Email
+Role dropdown
+Department dropdown
+Shift schedule
+Status toggle
+Save Staff
+Saved data
+user_id
+organization_id
+role_id
+department_id
+created_by
+created_at
+6. DEPARTMENTS IN THE SYSTEM
+
+You need departments because work is routed based on type.
+
+Possible departments:
+
+Reception
+Laboratory
+Radiology
+Medical Review
+HR / Operations
+
+Later, lab scientists may even belong to:
+
+Hematology
+Chemistry
+Microbiology
+
+This allows smarter assignment in future.
+
+7. THE TEST DATABASE
+
+This is one of the brains of the whole system.
+
+You said tests are already filled in the database and staff only search and add. Good. That is correct.
+
+There should be 2 main groups
+Laboratory tests
+
+Examples:
+
+Full Blood Count
+Malaria Parasite
+Urinalysis
+Liver Function Test
+Widal
+Blood Sugar
+Radiology tests
+
+Examples:
+
+Chest X-Ray
+Pelvic Scan
+Abdominal Ultrasound
+CT Scan
+MRI
+What each test should contain in the database
+
+For every test, store:
+
+test name
+test code
+department
+category
+price
+turnaround target
+result template
+required fields
+sample type if applicable
+who can perform it
+who can review it
+Example for lab test
+
+Full Blood Count:
+
+department: Laboratory
+sample type: Blood
+result fields:
+Hemoglobin
+PCV
+WBC
+Platelets
+units
+reference ranges
+normal/critical thresholds
+Example for radiology
+
+Abdominal Ultrasound:
+
+department: Radiology
+result type: text report
+sections:
+findings
+impression
+conclusion
+8. PATIENT REGISTRATION WORKFLOW
+
+This is where real daily operation starts.
+
+Who does it
+
+Receptionist
+
+What receptionist does
+
+When a patient enters the lab, receptionist registers the patient.
+
+Fields receptionist fills
+patient full name
+age
+sex
+phone number
+patient ID auto-generated
+referring doctor optional
+tests requested
+urgency level
+date of visit
+time of registration auto-saved
+amount to pay
+payment status
+notes
+Optional fields
+address
+email
+date of birth
+hospital source
+clinical complaint
+What should show on receptionist screen
+Reception Dashboard
+
+This should be simple and fast.
+
+It should show:
+
+New Patient button
+Search Patient
+Today’s Patients
+Pending Registrations
+Patients Awaiting Payment
+Recently Registered Cases
+New Patient Form
+Full Name
+Age
+Sex
+Phone Number
+Test Search Bar
+Selected Tests Panel
+Price Summary
+Payment Status
+Priority Level
+Save & Route button
+What happens when receptionist saves
+
+The system should:
+
+create patient record
+create visit record
+create test order(s)
+split tests by department automatically
+route lab tests to lab scientist queue
+route radiology tests to radiographer queue
+notify HRM
+notify MD optionally of new case
+save timestamp of registration
+9. AUTO ROUTING LOGIC
+
+This is very important.
+
+Once receptionist adds tests and saves, the system decides where each test goes.
+
+Example
+
+Patient has:
+
+FBC
+Malaria Parasite
+Chest X-Ray
+
+System automatically does:
+
+FBC → Laboratory queue
+Malaria → Laboratory queue
+Chest X-Ray → Radiology queue
+
+This routing must be automatic.
+
+Assignment logic
+
+You said only available staff should receive work. Good.
+
+So the system checks:
+
+which staff in that role are available
+who is active
+who belongs to correct department
+maybe who has lowest workload
+Assignment methods
+
+You can support:
+
+1. Auto assign by availability
+
+Send to any available person in that role.
+
+2. Auto assign by least workload
+
+Send to the available person with fewer active jobs.
+
+3. Manual assign
+
+HRM or admin assigns manually.
+
+For MVP, you can start with:
+
+available + least workload
+10. STAFF AVAILABILITY SYSTEM
+
+This is another major part of your product.
+
+Every operational staff can mark status as:
+
+Available
+Unavailable
+What it means
+
+If available:
+
+new cases can be assigned to them
+
+If unavailable:
+
+no new cases should be assigned to them
+What should show
+
+At top of dashboard:
+
+a status switch
+Available / Unavailable
+timestamp when last changed
+What gets saved
+user_id
+old status
+new status
+changed_at
+reason optional
+Why this is important
+
+HRM can track:
+
+who resumed work on time
+who left shift early
+who was absent
+who stayed inactive too long
+11. LAB SCIENTIST WORKFLOW
+
+Now let’s enter the lab side.
+
+What lab scientist sees
+
+When a test is routed to laboratory, the assigned scientist should see it in their queue.
+
+Lab Scientist Dashboard should show
+Assigned Tests
+New Cases
+Sample Pending
+Tests In Progress
+Tests Awaiting Submission
+Completed Today
+Availability toggle
+Notifications
+Each patient/test card should show
+patient name
+age
+sex
+patient ID
+test name
+date/time assigned
+priority
+sample type needed
+status
+Workflow steps for lab scientist
+Step 1: Receive case
+
+Scientist opens assigned case.
+
+Button
+Accept Case / Open Case
+Saves
+opened_by
+opened_at
+Step 2: Mark sample collected
+
+Once sample is taken, scientist clicks:
+
+Sample Collected
+What should show before clicking
+sample type
+collection notes
+collection time
+collected by
+Saved data
+sample collected status
+collection timestamp
+staff who collected
+sample type
+specimen notes
+HRM notification
+“Sample collected for Patient X by David at 10:42 AM”
+Step 3: Mark test started
+
+When scientist begins running the test:
+
+click Test Started
+Saved data
+started_by
+started_at
+HRM notification
+“FBC started for Patient X by David”
+Step 4: Result entry
+
+This is where your smart template system comes in.
+
+The patient tab should automatically show the right result fields based on the selected test.
+
+Example
+
+If test is FBC, show:
+
+Hemoglobin
+PCV
+WBC
+Platelets
+Comments
+
+If test is Urinalysis, show:
+
+appearance
+color
+protein
+glucose
+ketones
+microscopy fields
+
+So each test opens its own custom result form.
+
+What result entry screen should show
+patient summary
+test name
+sample info
+date/time started
+result fields
+units beside numeric fields
+reference ranges beside values
+comments field
+save draft
+submit result
+Important
+
+System should auto-flag values if abnormal.
+
+Example:
+
+Hemoglobin = 8.1
+reference = 12–16
+system highlights low
+
+This helps MD later.
+
+Step 5: Mark finished / submit
+
+After filling the results:
+
+scientist clicks Submit Result
+
+This should only work if all required result fields are completed.
+
+When submitted
+
+System does:
+
+marks test as completed by scientist
+saves completion time
+sends to MD review queue
+sends to HRM monitoring queue
+notifies both MD and HRM
+Saved data
+completed_at
+submitted_at
+submitted_by
+status = awaiting review
+12. RADIOGRAPHER / RADIOLOGIST WORKFLOW
+
+This is similar but slightly different because radiology results are often descriptive rather than numeric.
+
+Dashboard should show
+Assigned Imaging Cases
+New Imaging Requests
+In Progress
+Awaiting Review
+Completed Today
+Availability toggle
+Workflow steps
+Step 1: Open case
+
+See:
+
+patient name
+age
+sex
+requested radiology test
+priority
+assignment time
+Step 2: Mark procedure started
+
+Click:
+
+Imaging Started
+
+Saves:
+
+started_at
+started_by
+Step 3: Enter findings
+
+The radiology result form should show fields like:
+
+findings
+impression
+conclusion
+recommendation optional
+upload image or attachment optional
+Buttons
+Save Draft
+Submit Report
+Step 4: Submit result
+
+Once report is ready:
+
+send to MD and HRM
+save timestamp
+notify relevant people
+13. MD WORKFLOW
+
+The MD is the reviewer and approver.
+
+They should not be doing registration or sample collection.
+
+Their dashboard is mainly for:
+
+case review
+medical approval
+correction request
+final sign-off
+MD dashboard should show
+Results Awaiting Review
+Urgent / Critical Results
+Correction Requests
+Approved Today
+Rejected / Returned Results
+Recently Reviewed Cases
+Each item should show
+patient name
+test name
+department
+who performed it
+time submitted
+abnormal flag if any
+MD review process
+Step 1: Open submitted result
+
+MD sees:
+
+patient details
+test details
+who entered result
+timestamps
+abnormal highlights
+comments
+full result form or report
+Step 2: Decide outcome
+
+MD has 3 actions:
+
+Approve
+
+Result is acceptable.
+
+Request Edit
+
+Something is wrong or incomplete.
+
+Hold
+
+Needs more info.
+
+If MD approves
+
+System does:
+
+status = approved
+saves reviewed_by
+saves reviewed_at
+notifies HRM
+report becomes releasable
+HRM gets notification
+“Patient X result approved by Dr. Henry”
+If MD requests edit
+
+MD should be forced to enter a reason.
+
+Examples:
+
+reference range missing
+typo in result
+incomplete values
+wrong patient details
+findings unclear
+System does
+sends case back to original performer
+notifies HRM
+keeps original submission history
+marks status = edit requested
+Performer sees
+edit request reason
+old submitted data
+editable result form
+resubmit button
+14. HRM WORKFLOW
+
+In your idea, HRM is like the operational control center.
+
+That is fine.
+
+The HRM dashboard should not be too medical-heavy. It should focus more on:
+
+workflow monitoring
+staff tracking
+punctuality
+notifications
+case movement
+report dispatch
+accountability
+HRM dashboard should show
+Today’s total registered patients
+Tests pending
+Tests in progress
+Results awaiting review
+Approved results awaiting release
+Staff currently available
+Staff currently unavailable
+Delayed cases
+Notifications feed
+Audit activity feed
+What HRM should be able to do
+1. Monitor all process stages
+
+HRM sees:
+
+patient registered
+assigned to scientist
+sample collected
+started
+finished
+submitted
+approved
+released
+2. See who did each action
+
+Example:
+
+registered by Jane
+test run by David
+approved by Dr. Henry
+released by Mary
+3. Dispatch result
+
+Once approved, HRM can:
+
+print
+email
+send through WhatsApp
+mark as physically collected
+4. Track punctuality and availability
+
+See:
+
+when staff marked available
+when they marked unavailable
+how long they stayed active
+5. Monitor bottlenecks
+
+See:
+
+which tests are delayed
+which staff has too much workload
+which cases are stuck at review
+15. REPORT RELEASE WORKFLOW
+
+Once result is approved, it can be released.
+
+Who can release
+
+You can make this configurable:
+
+HRM
+MD
+both
+
+For now, based on your idea:
+
+HRM and MD can release
+Release methods
+Print
+
+System generates report PDF.
+
+Email
+
+System sends report to patient email.
+
+WhatsApp
+
+System sends link or file to patient phone.
+
+Physical Collection
+
+Staff marks:
+
+Collected physically
+Release screen should show
+patient details
+approved result
+release options
+release history
+button to mark released
+Saved data
+released_by
+released_at
+release_method
+recipient details if electronic
+16. EDIT AND UPDATE WORKFLOW
+
+You said any edit made to patient must reflect for all concerned roles. Correct.
+
+This is very important.
+
+Types of edits
+1. Patient detail edits
+
+Example:
+
+name corrected
+age corrected
+sex corrected
+2. Test edits
+
+Example:
+
+test removed
+new test added
+wrong test corrected
+3. Result edits
+
+Example:
+
+value changed
+report text corrected
+4. Billing edits
+
+Example:
+
+amount adjusted
+payment status changed
+How edits should work
+
+When someone edits a record:
+
+system saves old value
+system saves new value
+system saves who edited it
+system saves exact timestamp
+system notifies affected roles
+all relevant dashboards update instantly
+Example notification
+
+“Jane changed patient age from 35 to 36 at 11:04 AM”
+
+or
+
+“David changed Hemoglobin from 10.1 to 11.3 after MD correction request”
+
+Why this matters
+transparency
+accountability
+error tracing
+staff discipline
+medical safety
+17. NOTIFICATION SYSTEM
+
+This is another major engine.
+
+Notifications should happen automatically.
+
+Events that trigger notifications
+To HRM
+patient registered
+case assigned
+sample collected
+test started
+result submitted
+edit requested
+correction resubmitted
+result approved
+report released
+staff marked unavailable/available
+To MD
+new result submitted
+urgent abnormal result
+corrected result resubmitted
+To assigned performer
+new case assigned
+edit requested
+test reassigned
+To receptionist
+maybe payment issue
+patient detail correction request
+Where notifications should appear
+1. In-app notification center
+
+Bell icon with unread count.
+
+2. Activity sidebar
+
+Live event feed.
+
+3. Optional email or WhatsApp later
+
+For important actions.
+
+What a notification should contain
+patient name
+event type
+performer
+timestamp
+click to open case
+18. AUDIT LOG SYSTEM
+
+This is different from regular notifications.
+
+Notifications are for alerting.
+Audit logs are for permanent history.
+
+Every key action should create an audit log.
+
+Example audit logs
+Patient record created by Jane
+FBC assigned to David
+Sample collected by David
+Test started by David
+Result submitted by David
+MD requested correction
+Result edited by David
+Result approved by Dr. Henry
+Report released by Mary
+Audit log entry should save
+action type
+entity type
+entity id
+old value if changed
+new value if changed
+actor
+actor role
+time
+notes
+HRM should be able to search audit logs by
+patient
+staff
+date
+action type
+19. DASHBOARD PAGES EACH ROLE SHOULD HAVE
+
+Now let’s explain what each dashboard should contain.
+
+RECEPTIONIST DASHBOARD
+Main widgets
+Today’s registrations
+Unpaid cases
+Registered today
+Pending routed cases
+Main pages
+1. New Patient
+
+For creating patient visit.
+
+2. Search Patient
+
+Find old patient and repeat visits.
+
+3. Today’s Patients
+
+All cases registered today.
+
+4. Billing / Payment Status
+
+Track amount and payment status.
+
+5. Notifications
+
+See updates related to patients they registered.
+
+LAB SCIENTIST DASHBOARD
+Main widgets
+Assigned cases
+Sample pending
+In progress
+Awaiting submission
+Completed today
+Main pages
+1. Assigned Tests
+
+Main work queue.
+
+2. Result Entry
+
+Dynamic result forms.
+
+3. Draft Results
+
+Saved but not submitted.
+
+4. Edit Requests
+
+Cases returned by MD.
+
+5. Notifications
+RADIOLOGY DASHBOARD
+Main widgets
+Assigned imaging tests
+In progress
+Reports awaiting submission
+Completed today
+Main pages
+1. Imaging Queue
+2. Report Entry
+3. Draft Reports
+4. Edit Requests
+5. Notifications
+MD DASHBOARD
+Main widgets
+Awaiting review
+Urgent/critical results
+Approved today
+Returned for edits
+Delayed reviews
+Main pages
+1. Review Queue
+2. Critical Results
+3. Approval History
+4. Correction Requests
+5. Notifications
+HRM DASHBOARD
+Main widgets
+Total patients today
+Active staff
+Unavailable staff
+Delayed cases
+Approved pending release
+Released today
+Main pages
+1. Operations Monitor
+
+Live case movement.
+
+2. Staff Availability
+
+Who is active now.
+
+3. Release Center
+
+Print, email, WhatsApp.
+
+4. Audit Log
+
+Track actions.
+
+5. Performance Analytics
+
+Turnaround and staff productivity.
+
+6. Notifications
+20. PATIENT SEARCH AND HISTORY
+
+This should exist across roles depending on permission.
+
+Search fields
+patient name
+patient ID
+phone number
+test name
+visit date
+What patient profile should show
+demographics
+all visits
+all tests done
+result history
+payment history
+release history
+
+This is useful because many patients return.
+
+21. BILLING FUNCTIONALITY
+
+Even if price is mostly for receptionist, MD and HRM, it should still be structured.
+
+What receptionist enters
+selected tests
+test prices
+total amount
+discount optional
+payment status
+What should show
+subtotal
+total
+amount paid
+balance
+receipt number
+payment method
+Who sees price
+
+Based on your idea:
+
+receptionist
+HRM
+MD
+
+Not visible to:
+
+lab scientist
+radiographer
+
+That permission rule is good.
+
+22. PRIORITY / URGENCY FUNCTIONALITY
+
+Every case can have priority:
+
+Routine
+Urgent
+Emergency
+Why important
+
+Urgent cases should be shown first in queues.
+
+What happens
+urgent badge appears in all dashboards
+assignment should prioritize it
+HRM sees it highlighted
+MD sees it on top if result is ready
+23. RESULT TEMPLATE FUNCTIONALITY
+
+This is one of the most important features.
+
+You said staff should see fields related to the test. Exactly.
+
+That means each test has a predefined template.
+
+For lab tests
+
+Template fields can be:
+
+text
+number
+dropdown
+checkbox
+comment box
+Example
+
+Urinalysis template:
+
+color
+appearance
+protein
+glucose
+ketones
+bilirubin
+pus cells
+epithelial cells
+comments
+Example
+
+FBC template:
+
+hemoglobin
+PCV
+WBC
+neutrophils
+lymphocytes
+platelets
+
+Each can have:
+
+unit
+range
+required or optional
+abnormal threshold
+For radiology tests
+
+Template fields may be:
+
+findings
+impression
+conclusion
+recommendation
+
+This allows fast reporting without confusion.
+
+24. ABNORMAL FLAGGING FUNCTIONALITY
+
+When lab scientist enters a value, system checks against reference range.
+
+Example
+
+Reference:
+
+Hemoglobin normal = 12–16
+
+Entered:
+
+9.4
+
+System flags:
+
+LOW
+What should happen
+result turns highlighted
+abnormal badge appears
+MD sees flagged result in review
+maybe critical alert if extreme
+
+This saves time and improves safety.
+
+25. REASSIGNMENT FUNCTIONALITY
+
+What if assigned user becomes unavailable or overloaded?
+
+You need reassignment.
+
+HRM or admin should be able to
+reassign test from one user to another
+add reason
+notify old and new assignee
+save reassignment time
+Saved data
+old assignee
+new assignee
+reason
+changed_by
+changed_at
+26. TURNAROUND TIME METRICS
+
+Now let’s go deep into this one because you asked specifically.
+
+This is a major value point of your product.
+
+Turnaround time means:
+
+How long each stage of the patient/test journey takes.
+
+Instead of just knowing “result is done,” the system knows:
+
+when patient was registered
+when case was assigned
+when sample was collected
+when test was started
+when result was submitted
+when MD reviewed it
+when report was released
+Why turnaround metrics matter
+
+It helps the lab answer:
+
+are we too slow?
+which staff delays work?
+which test types take too long?
+which department is bottlenecked?
+how long do patients wait?
+who is most productive?
+are urgent cases treated fast enough?
+
+This is powerful for HRM and management.
+
+Every timestamp you should save
+
+For each patient visit / test order, save:
+
+1. Registration time
+
+When receptionist first creates the case.
+
+Field:
+
+registered_at
+2. Assignment time
+
+When case is routed to the responsible performer.
+
+Field:
+
+assigned_at
+3. Case opened time
+
+When assigned user first opens it.
+
+Field:
+
+opened_at
+4. Sample collected time
+
+For lab tests.
+
+Field:
+
+sample_collected_at
+5. Test started time
+
+When performer clicks started.
+
+Field:
+
+started_at
+6. Result completed time
+
+When data entry is done.
+
+Field:
+
+completed_at
+7. Submitted for review time
+
+When performer sends to MD.
+
+Field:
+
+submitted_at
+8. MD reviewed time
+
+When MD opens and acts on it.
+
+Field:
+
+reviewed_at
+9. Approved time
+
+When MD approves.
+
+Field:
+
+approved_at
+10. Released time
+
+When HRM or MD dispatches report.
+
+Field:
+
+released_at
+Metrics the system should calculate
+1. Registration to assignment time
+
+How long after patient registration before work is assigned.
+
+Formula:
+
+assigned_at - registered_at
+2. Assignment to open time
+
+How long assigned worker takes before opening the case.
+
+Formula:
+
+opened_at - assigned_at
+3. Open to sample collected time
+
+How long before sample is taken.
+
+Formula:
+
+sample_collected_at - opened_at
+4. Sample collected to started time
+
+How long sample waits before testing starts.
+
+Formula:
+
+started_at - sample_collected_at
+5. Started to completed time
+
+Actual working time for the test.
+
+Formula:
+
+completed_at - started_at
+6. Completed to submitted time
+
+Delay after result is ready before sending to MD.
+
+Formula:
+
+submitted_at - completed_at
+7. Submitted to review time
+
+How long MD takes before opening/reviewing it.
+
+Formula:
+
+reviewed_at - submitted_at
+8. Review to approval time
+
+How long it takes to approve after review.
+
+Formula:
+
+approved_at - reviewed_at
+9. Approval to release time
+
+How long before patient actually gets result.
+
+Formula:
+
+released_at - approved_at
+10. Total turnaround time
+
+From first registration to final result release.
+
+Formula:
+
+released_at - registered_at
+What turnaround metrics should show on HRM dashboard
+Today’s average turnaround time
+
+Average of all completed and released cases today.
+
+Per test type turnaround
+
+Example:
+
+FBC average = 1 hr 20 mins
+X-Ray average = 45 mins
+Per department turnaround
+
+Example:
+
+Lab department = 1 hr 10 mins
+Radiology = 50 mins
+Per staff turnaround
+
+Example:
+
+David average test completion time = 24 mins
+Chika average imaging report time = 31 mins
+Delayed cases
+
+Cases exceeding expected target.
+
+Example:
+
+FBC target = 2 hours
+actual = 4 hours
+status = delayed
+Turnaround target per test
+
+Every test in the database should have an expected turnaround target.
+
+Examples:
+
+FBC = 2 hours
+Malaria = 1 hour
+Urinalysis = 2 hours
+Chest X-Ray = 45 minutes
+MRI = 24 hours
+
+This allows system to compare actual time vs expected time.
+
+Delay alert functionality
+
+If a case exceeds target:
+
+HRM dashboard highlights it
+MD or HRM gets alert
+delayed badge appears
+Example
+
+“FBC for Patient Tolu has exceeded target turnaround by 1 hr 15 mins”
+
+That is a very strong feature.
+
+Staff punctuality metrics from availability
+
+Since staff mark Available and Unavailable, system can track:
+
+1. Resume time
+
+When staff marked available.
+
+2. Sign-off time
+
+When staff marked unavailable.
+
+3. Total active duration
+
+Time spent available in shift.
+
+4. Number of cases handled
+
+How many tests or reviews processed.
+
+5. Cases completed per active hour
+
+Productivity rate.
+
+6. Average response time
+
+How fast user opens assigned work.
+
+7. Average completion time
+
+How fast user closes assigned work.
+
+Examples of staff performance analytics
+For a lab scientist
+cases assigned today: 12
+completed today: 10
+average open time: 4 mins
+average sample-to-start time: 8 mins
+average started-to-completed time: 18 mins
+For MD
+results reviewed today: 15
+average submit-to-review time: 22 mins
+corrections requested: 3
+For receptionist
+patients registered today: 27
+average registration time per patient: 2 mins 40 sec
+27. WHAT EACH CARD / RECORD SHOULD SHOW
+
+To make the UI easy, each patient/test record card in queues should show only the most useful info.
+
+Lab/Radiology queue card
+patient name
+age / sex
+patient ID
+test name
+priority
+time assigned
+current status
+quick action button
+MD review card
+patient name
+test name
+performer
+abnormal flag
+submitted time
+action button
+HRM operations card
+patient name
+department
+current stage
+assigned staff
+delay badge if any
+last action time
+28. SYSTEM STATUS LABELS
+
+To avoid confusion, the system should use consistent statuses.
+
+Suggested statuses:
+
+Registered
+Assigned
+Opened
+Sample Pending
+Sample Collected
+In Progress
+Result Drafted
+Submitted for Review
+Edit Requested
+Resubmitted
+Approved
+Released
+Delayed
+Cancelled
+
+These statuses help analytics and tracking.
+
+29. WHAT YOU WERE MISSING, NOW MADE COMPLETE
+
+Your idea was already strong, but now it becomes complete because it includes:
+
+organization structure
+individual users
+role-specific dashboards
+test catalog logic
+routing engine
+availability logic
+role workflows
+result templates
+approval flow
+edit flow
+audit trail
+release flow
+notifications
+staff monitoring
+turnaround analytics
+delay detection
+productivity metrics
+30. SIMPLE EXAMPLE OF THE ENTIRE FLOW
+
+Let’s do a real example.
+
+Patient enters
+
+Receptionist Jane registers:
+
+Musa Ibrahim
+Male
+32
+Tests: FBC + Chest X-Ray
+Payment: Paid
+System actions
+creates patient
+routes FBC to lab scientist David
+routes Chest X-Ray to radiographer Chika
+notifies HRM
+David
+opens FBC case
+marks sample collected
+marks started
+enters values
+submits result
+Chika
+opens X-Ray case
+marks imaging started
+enters findings
+submits report
+MD
+reviews both
+approves both
+HRM
+sees approved reports
+prints one
+sends one through WhatsApp
+marks released
+Analytics saved
+registration time
+assignment time
+start time
+completion time
+review time
+release time
+which staff handled each stage
+
+That is the whole engine.
+
+31. MY HONEST PRODUCT ADVICE
+
+To keep this easy and fast as you want:
+
+Make the UI:
+card-based
+queue-based
+very little typing
+lots of search and prefilled templates
+big buttons
+few steps per role
+show only the fields relevant to that role
+Do not show everyone too much
+
+Receptionist should not see scientist screens.
+Scientist should not see pricing.
+HRM should not be forced into medical data entry.
+MD should focus on review.
+
+That separation is what will make it feel clean.
+
+32. BEST WAY TO BUILD IT IN PHASES
+Phase 1
+organization account
+staff accounts
+role permissions
+receptionist patient registration
+test database
+auto-routing
+lab scientist result entry
+radiology result entry
+MD review
+HRM release
+notifications
+audit logs
+timestamps
+Phase 2
+availability + punctuality
+turnaround analytics
+abnormal flagging
+delay alerts
+reassignment
+patient history
+WhatsApp sending
+Phase 3
+advanced shift management
+branch support
+file attachments
+machine integrations
+deeper analytics
+33. FINAL TRUTH
+
+What you are trying to build is actually serious.
+
+Not just “lab management.”
+It is more like:
+
+an easy-to-use diagnostic workflow operating system
+
+And the real strength of your product will be:
+
+automatic routing
+ease of use
+accountability
+visibility for HRM
+fast turnaround tracking
+role-based simplicity

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
@@ -87,11 +88,9 @@ export function Sidebar({ user }: SidebarProps) {
       {/* Logo / Org name */}
       <div className="flex h-16 items-center border-b px-6">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-sm">
-            D
-          </div>
+          <Image src="/diagsync-logo.png" alt="Diagsync logo" width={32} height={32} className="h-8 w-8 rounded-md object-cover" />
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">DiagOps</p>
+            <p className="truncate text-sm font-semibold">Diagsync</p>
             {user.organizationName && (
               <p className="truncate text-xs text-muted-foreground">{user.organizationName}</p>
             )}

@@ -60,7 +60,7 @@ export function LoginClient() {
           <FlaskConical className="h-6 w-6" />
         </div>
         <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to your DiagOps account</CardDescription>
+        <CardDescription>Sign in to your Diagsync account</CardDescription>
       </CardHeader>
 
       <CardContent>
