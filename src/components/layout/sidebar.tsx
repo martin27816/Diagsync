@@ -38,6 +38,7 @@ const navByRole: Record<string, NavItem[]> = {
     { label: "Add Staff", href: "/dashboard/hrm/staff/new", icon: UserPlus },
     { label: "Test Catalog", href: "/dashboard/hrm/tests", icon: TestTube2 },
     { label: "Operations", href: "/dashboard/hrm/operations", icon: Activity },
+    { label: "Release Center", href: "/dashboard/hrm/release", icon: ClipboardList },
     { label: "Audit Log", href: "/dashboard/hrm/audit", icon: ClipboardList },
     { label: "Analytics", href: "/dashboard/hrm/analytics", icon: BarChart3 },
   ],
@@ -47,6 +48,7 @@ const navByRole: Record<string, NavItem[]> = {
     { label: "Add Staff", href: "/dashboard/hrm/staff/new", icon: UserPlus },
     { label: "Test Catalog", href: "/dashboard/hrm/tests", icon: TestTube2 },
     { label: "Operations", href: "/dashboard/hrm/operations", icon: Activity },
+    { label: "Release Center", href: "/dashboard/hrm/release", icon: ClipboardList },
     { label: "Audit Log", href: "/dashboard/hrm/audit", icon: ClipboardList },
     { label: "Analytics", href: "/dashboard/hrm/analytics", icon: BarChart3 },
   ],
@@ -69,6 +71,7 @@ const navByRole: Record<string, NavItem[]> = {
     { label: "Dashboard", href: "/dashboard/md", icon: LayoutDashboard },
     { label: "Review Queue", href: "/dashboard/md/review", icon: Stethoscope },
     { label: "Approved", href: "/dashboard/md/approved", icon: ClipboardList },
+    { label: "Report Drafts", href: "/dashboard/md/reports", icon: ClipboardList },
   ],
 };
 
