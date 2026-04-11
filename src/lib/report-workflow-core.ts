@@ -13,7 +13,7 @@ export function canMdEditReport(role: string) {
 }
 
 export function canHrmReleaseReport(role: string) {
-  return role === "HRM";
+  return role === "HRM" || role === "SUPER_ADMIN";
 }
 
 export function canPreviewReport(role: string) {

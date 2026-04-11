@@ -445,6 +445,7 @@ export async function releaseReport(
       method: input.method,
       instructions: input.instructions ?? null,
       activeVersion: activeVersion.version,
+      effectiveRole: "HRM",
     },
     notes: `Report released via ${input.method}`,
     ...actor.auditMeta,
@@ -510,6 +511,10 @@ export async function trackReportAction(
     action: auditAction,
     entityType: "DiagnosticReport",
     entityId: report.id,
+    changes: {
+      action: input.action,
+      effectiveRole: "HRM",
+    },
     notes: input.notes ?? undefined,
     ...actor.auditMeta,
   });

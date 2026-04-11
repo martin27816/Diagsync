@@ -78,7 +78,7 @@ export function ReportWorkspace({ role }: Props) {
   const [receptionInstruction, setReceptionInstruction] = useState("");
 
   const canMdEdit = role === "MD" || role === "SUPER_ADMIN";
-  const canHrmRelease = role === "HRM";
+  const canHrmRelease = role === "HRM" || role === "SUPER_ADMIN";
 
   const activeVersion = useMemo(() => {
     if (!details) return null;

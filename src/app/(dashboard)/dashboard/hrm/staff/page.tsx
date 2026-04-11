@@ -2,16 +2,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { UserPlus, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/index";
+import { UserPlus } from "lucide-react";
 import { ROLE_LABELS, DEPARTMENT_LABELS, formatDate } from "@/lib/utils";
 
 export default async function StaffListPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
-
   if (!["SUPER_ADMIN", "HRM"].includes(user.role)) redirect("/dashboard/hrm");
 
   const staff = await prisma.staff.findMany({
@@ -33,84 +30,91 @@ export default async function StaffListPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Staff Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {staff.length} staff member{staff.length !== 1 ? "s" : ""} in your organization
+          <h1 className="text-base font-semibold text-slate-800">Staff Management</h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {staff.length} member{staff.length !== 1 ? "s" : ""} in your organisation
           </p>
         </div>
-        <Link href="/dashboard/hrm/staff/new">
-          <Button className="gap-2">
-            <UserPlus className="h-4 w-4" />
-            Add Staff
-          </Button>
+        <Link
+          href="/dashboard/hrm/staff/new"
+          className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+        >
+          <UserPlus className="h-3.5 w-3.5" />
+          Add Staff
         </Link>
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
         {staff.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-              <UserPlus className="h-6 w-6 text-muted-foreground" />
-            </div>
-            <h3 className="font-semibold">No staff yet</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Add your first staff member to get started.
-            </p>
-            <Link href="/dashboard/hrm/staff/new" className="mt-4">
-              <Button>Add First Staff Member</Button>
+          <div className="py-16 text-center">
+            <p className="text-sm text-slate-400">No staff yet.</p>
+            <Link
+              href="/dashboard/hrm/staff/new"
+              className="mt-2 inline-flex text-xs text-blue-600 hover:underline"
+            >
+              Add first staff member →
             </Link>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40">
-                <tr>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Role</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Department</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Availability</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Joined</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Name</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Email</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Role</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Department</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Shift</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Status</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Availability</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Joined</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-slate-100">
                 {staff.map((s) => (
-                  <tr key={s.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                          {s.fullName.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-medium">{s.fullName}</p>
-                          <p className="text-xs text-muted-foreground">{s.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{ROLE_LABELS[s.role]}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
+                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-2.5 font-medium text-slate-800">{s.fullName}</td>
+                    <td className="px-4 py-2.5 text-slate-500">{s.email}</td>
+                    <td className="px-4 py-2.5 text-slate-500">{ROLE_LABELS[s.role]}</td>
+                    <td className="px-4 py-2.5 text-slate-500">
                       {DEPARTMENT_LABELS[s.department] ?? s.department}
                     </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={s.status === "ACTIVE" ? "success" : "destructive"}>
+                    <td className="px-4 py-2.5 text-slate-500">{s.defaultShift}</td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={`rounded px-1.5 py-0.5 font-medium ${
+                          s.status === "ACTIVE"
+                            ? "bg-green-50 text-green-700"
+                            : "bg-red-50 text-red-600"
+                        }`}
+                      >
                         {s.status}
-                      </Badge>
+                      </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={s.availabilityStatus === "AVAILABLE" ? "info" : "secondary"}>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={`rounded px-1.5 py-0.5 font-medium ${
+                          s.availabilityStatus === "AVAILABLE"
+                            ? "bg-blue-50 text-blue-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
                         {s.availabilityStatus === "AVAILABLE" ? "Available" : "Away"}
-                      </Badge>
+                      </span>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatDate(s.dateJoined)}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">
+                      {formatDate(s.dateJoined)}
+                    </td>
+                    <td className="px-4 py-2.5">
                       <Link
                         href={`/dashboard/hrm/staff/${s.id}`}
-                        className="text-primary text-xs hover:underline"
+                        className="text-blue-600 hover:underline"
                       >
                         View →
                       </Link>

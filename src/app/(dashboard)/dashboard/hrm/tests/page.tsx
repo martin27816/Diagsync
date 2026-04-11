@@ -1,15 +1,21 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { FlaskConical, Scan, Clock, DollarSign } from "lucide-react";
-import { Badge } from "@/components/ui/index";
 import { formatCurrency } from "@/lib/utils";
+
+function turnaround(mins: number) {
+  if (mins >= 60) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+  return `${mins}m`;
+}
 
 export default async function TestCatalogPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
-
   if (!["SUPER_ADMIN", "HRM"].includes(user.role)) redirect("/dashboard/hrm");
 
   const tests = await prisma.diagnosticTest.findMany({
@@ -23,132 +29,124 @@ export default async function TestCatalogPage() {
 
   const labTests = tests.filter((t) => t.type === "LAB");
   const radioTests = tests.filter((t) => t.type === "RADIOLOGY");
+  const totalFields = tests.reduce((sum, t) => sum + t.resultFields.length, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <FlaskConical className="h-6 w-6" />
-          Test Catalog
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          All diagnostic tests available in your organization ({tests.length} total)
-        </p>
+        <h1 className="text-base font-semibold text-slate-800">Test Catalog</h1>
+        <p className="text-xs text-slate-400 mt-0.5">{tests.length} active tests in your organisation</p>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Total Tests</p>
-          <p className="text-2xl font-bold mt-1">{tests.length}</p>
-        </div>
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Lab Tests</p>
-          <p className="text-2xl font-bold mt-1 text-blue-600">{labTests.length}</p>
-        </div>
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Radiology Tests</p>
-          <p className="text-2xl font-bold mt-1 text-purple-600">{radioTests.length}</p>
-        </div>
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Result Templates</p>
-          <p className="text-2xl font-bold mt-1 text-green-600">
-            {tests.reduce((sum, t) => sum + t.resultFields.length, 0)}
-          </p>
-        </div>
+      {/* Stat strip */}
+      <div className="grid grid-cols-4 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden">
+        {[
+          { label: "Total Tests", value: tests.length },
+          { label: "Lab Tests", value: labTests.length },
+          { label: "Radiology Tests", value: radioTests.length },
+          { label: "Total Result Fields", value: totalFields },
+        ].map((s) => (
+          <div key={s.label} className="bg-white px-4 py-3">
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">{s.label}</p>
+            <p className="text-xl font-bold text-slate-800 mt-0.5">{s.value}</p>
+          </div>
+        ))}
       </div>
 
       {/* Lab Tests */}
-      <section>
-        <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
-          <FlaskConical className="h-5 w-5 text-blue-600" />
-          Laboratory Tests
-          <Badge variant="info" className="ml-1">{labTests.length}</Badge>
-        </h2>
-        <div className="rounded-lg border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 border-b">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Test Name</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Code</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Sample</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5 inline mr-1" />Target
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                  <DollarSign className="h-3.5 w-3.5 inline" />Price
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Fields</th>
+      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Laboratory Tests
+          </span>
+          <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs font-semibold text-blue-600">
+            {labTests.length}
+          </span>
+        </div>
+        {labTests.length === 0 ? (
+          <p className="px-4 py-6 text-xs text-slate-400">No lab tests.</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50">
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Test Name</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Code</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Category</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Sample</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Turnaround</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Price</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Fields</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-slate-100">
               {labTests.map((test) => (
-                <tr key={test.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-medium">{test.name}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant="secondary" className="font-mono text-xs">{test.code}</Badge>
+                <tr key={test.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-2.5 font-medium text-slate-800">{test.name}</td>
+                  <td className="px-4 py-2.5">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-600">
+                      {test.code}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{test.category?.name ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{test.sampleType ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {test.turnaroundMinutes >= 60
-                      ? `${Math.floor(test.turnaroundMinutes / 60)}h ${test.turnaroundMinutes % 60 > 0 ? `${test.turnaroundMinutes % 60}m` : ""}`
-                      : `${test.turnaroundMinutes}m`}
+                  <td className="px-4 py-2.5 text-slate-500">{test.category?.name ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{test.sampleType ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{turnaround(test.turnaroundMinutes)}</td>
+                  <td className="px-4 py-2.5 font-medium text-slate-700">
+                    {formatCurrency(Number(test.price))}
                   </td>
-                  <td className="px-4 py-3 font-medium">{formatCurrency(Number(test.price))}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{test.resultFields.length} fields</td>
+                  <td className="px-4 py-2.5 text-slate-400">{test.resultFields.length}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      </section>
+        )}
+      </div>
 
       {/* Radiology Tests */}
-      <section>
-        <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
-          <Scan className="h-5 w-5 text-purple-600" />
-          Radiology Tests
-          <Badge variant="secondary" className="ml-1">{radioTests.length}</Badge>
-        </h2>
-        <div className="rounded-lg border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 border-b">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Test Name</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Code</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5 inline mr-1" />Target
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                  <DollarSign className="h-3.5 w-3.5 inline" />Price
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Fields</th>
+      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Radiology Tests
+          </span>
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600">
+            {radioTests.length}
+          </span>
+        </div>
+        {radioTests.length === 0 ? (
+          <p className="px-4 py-6 text-xs text-slate-400">No radiology tests.</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50">
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Test Name</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Code</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Category</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Turnaround</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Price</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Fields</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-slate-100">
               {radioTests.map((test) => (
-                <tr key={test.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-medium">{test.name}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant="secondary" className="font-mono text-xs">{test.code}</Badge>
+                <tr key={test.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-2.5 font-medium text-slate-800">{test.name}</td>
+                  <td className="px-4 py-2.5">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-600">
+                      {test.code}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{test.category?.name ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {test.turnaroundMinutes >= 60
-                      ? `${Math.floor(test.turnaroundMinutes / 60)}h ${test.turnaroundMinutes % 60 > 0 ? `${test.turnaroundMinutes % 60}m` : ""}`
-                      : `${test.turnaroundMinutes}m`}
+                  <td className="px-4 py-2.5 text-slate-500">{test.category?.name ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{turnaround(test.turnaroundMinutes)}</td>
+                  <td className="px-4 py-2.5 font-medium text-slate-700">
+                    {formatCurrency(Number(test.price))}
                   </td>
-                  <td className="px-4 py-3 font-medium">{formatCurrency(Number(test.price))}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{test.resultFields.length} fields</td>
+                  <td className="px-4 py-2.5 text-slate-400">{test.resultFields.length}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      </section>
+        )}
+      </div>
     </div>
   );
 }
