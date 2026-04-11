@@ -27,6 +27,7 @@ type RenderArgs = {
 };
 
 export function renderReportHtml(args: RenderArgs) {
+  const hasLetterhead = Boolean(args.organization.letterheadUrl);
   const patient = args.content.patient ?? {};
   const meta = args.content.meta ?? {};
   const tests = Array.isArray(args.content.tests) ? args.content.tests : [];
@@ -81,7 +82,7 @@ export function renderReportHtml(args: RenderArgs) {
           )
           .join("");
 
-  const letterheadBackground = args.organization.letterheadUrl
+  const letterheadBackground = hasLetterhead
     ? `background-image:url('${args.organization.letterheadUrl}');background-size:cover;background-position:center top;`
     : "background:#ffffff;";
 
@@ -97,7 +98,7 @@ export function renderReportHtml(args: RenderArgs) {
     .page {
       position: relative;
       min-height: 1123px;
-      padding: 120px 44px 90px;
+      padding: ${hasLetterhead ? "240px 44px 90px" : "120px 44px 90px"};
       ${letterheadBackground}
     }
     .watermark {
@@ -117,7 +118,7 @@ export function renderReportHtml(args: RenderArgs) {
       max-width: 760px;
       margin: 0 auto;
       padding: 18px 22px;
-      background: rgba(255, 255, 255, 0.93);
+      background: ${hasLetterhead ? "#ffffff" : "rgba(255, 255, 255, 0.93)"};
       border-radius: 8px;
     }
     .content { position: relative; z-index: 2; }
@@ -144,10 +145,14 @@ export function renderReportHtml(args: RenderArgs) {
   <main class="page">
     <div class="content-shell">
     <div class="content">
-      <div class="header">
+      ${
+        hasLetterhead
+          ? ""
+          : `<div class="header">
         <h1>${escapeHtml(args.organization.name)}</h1>
         <p class="muted">${escapeHtml(args.organization.address)} | ${escapeHtml(args.organization.phone)} | ${escapeHtml(args.organization.email)}</p>
-      </div>
+      </div>`
+      }
       <h2>${args.department === Department.LABORATORY ? "Laboratory Report" : "Radiology Report"}</h2>
       <div class="meta-grid">
         <p><strong>Patient:</strong> ${escapeHtml(String(patient.fullName ?? "-"))}</p>
