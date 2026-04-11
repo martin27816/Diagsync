@@ -27,13 +27,38 @@ type Item = {
   review: { status: ReviewStatus; comments?: string | null; rejectionReason?: string | null } | null;
   results: Array<{
     testOrder: { test: { name: string } };
+    currentVersion: number;
     resultData: Record<string, any>;
     notes?: string | null;
+    versionHistory: Array<{
+      id: string;
+      version: number;
+      isActive: boolean;
+      parentId?: string | null;
+      resultData: Record<string, any>;
+      notes?: string | null;
+      editReason: string;
+      editedBy: { id: string; fullName: string };
+      createdAt: string;
+    }>;
   }>;
   radiologyReport: {
+    currentVersion: number;
     findings: string;
     impression: string;
     notes?: string | null;
+    versionHistory: Array<{
+      id: string;
+      version: number;
+      isActive: boolean;
+      parentId?: string | null;
+      findings: string;
+      impression: string;
+      notes?: string | null;
+      editReason: string;
+      editedBy: { id: string; fullName: string };
+      createdAt: string;
+    }>;
   } | null;
   imagingFiles: Array<{ id: string; fileName: string; fileUrl: string }>;
 };
@@ -59,6 +84,7 @@ export function MdReviewBoard({
   const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
   const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
   const [editPayloads, setEditPayloads] = useState<Record<string, string>>({});
+  const [editReasons, setEditReasons] = useState<Record<string, string>>({});
   const [approveComments, setApproveComments] = useState<Record<string, string>>({});
 
   async function loadData() {
@@ -135,6 +161,12 @@ export function MdReviewBoard({
   }
 
   async function edit(taskId: string) {
+    const reason = editReasons[taskId]?.trim();
+    if (!reason) {
+      setError("Edit reason is required.");
+      return;
+    }
+
     const raw = editPayloads[taskId]?.trim();
     if (!raw) {
       setError("Edit payload JSON is required.");
@@ -156,7 +188,8 @@ export function MdReviewBoard({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          comments: "MD edited values before final decision",
+          reason,
+          comments: "Controlled edit created and sent for re-approval",
           editedData: parsed,
         }),
       });
@@ -255,8 +288,28 @@ export function MdReviewBoard({
                         {item.results.map((r, idx) => (
                           <div key={idx}>
                             <p className="font-medium text-sm">{r.testOrder.test.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs text-muted-foreground">Version {r.currentVersion}</p>
+                              {r.currentVersion > 1 ? <Badge variant="warning">Edited</Badge> : null}
+                            </div>
                             <p className="text-sm text-muted-foreground">{formatResultData(r.resultData)}</p>
                             {r.notes && <p className="text-xs text-muted-foreground">Note: {r.notes}</p>}
+                            {r.versionHistory.length > 0 && (
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-xs text-primary">View version history</summary>
+                                <div className="mt-1 space-y-1 rounded-md border p-2 text-xs">
+                                  {r.versionHistory.map((v) => (
+                                    <div key={v.id} className="border-b pb-1 last:border-b-0">
+                                      <p className="font-medium">
+                                        v{v.version} by {v.editedBy.fullName} {v.isActive ? "(Active)" : ""}
+                                      </p>
+                                      <p className="text-muted-foreground">{formatDateTime(v.createdAt)} · {v.editReason}</p>
+                                      {v.parentId ? <p className="text-muted-foreground">Parent: #{v.parentId.slice(-6)}</p> : <p className="text-muted-foreground">Parent: none</p>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -264,9 +317,29 @@ export function MdReviewBoard({
                       <div className="space-y-2">
                         <p className="text-sm"><span className="font-medium">Findings:</span> {item.radiologyReport?.findings ?? "-"}</p>
                         <p className="text-sm"><span className="font-medium">Impression:</span> {item.radiologyReport?.impression ?? "-"}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground">Version {item.radiologyReport?.currentVersion ?? 1}</p>
+                          {(item.radiologyReport?.currentVersion ?? 1) > 1 ? <Badge variant="warning">Modified</Badge> : null}
+                        </div>
                         {item.radiologyReport?.notes && (
                           <p className="text-sm"><span className="font-medium">Notes:</span> {item.radiologyReport.notes}</p>
                         )}
+                        {item.radiologyReport?.versionHistory?.length ? (
+                          <details className="mt-1">
+                            <summary className="cursor-pointer text-xs text-primary">View version history</summary>
+                            <div className="mt-1 space-y-1 rounded-md border p-2 text-xs">
+                              {item.radiologyReport.versionHistory.map((v) => (
+                                <div key={v.id} className="border-b pb-1 last:border-b-0">
+                                  <p className="font-medium">
+                                    v{v.version} by {v.editedBy.fullName} {v.isActive ? "(Active)" : ""}
+                                  </p>
+                                  <p className="text-muted-foreground">{formatDateTime(v.createdAt)} · {v.editReason}</p>
+                                  {v.parentId ? <p className="text-muted-foreground">Parent: #{v.parentId.slice(-6)}</p> : <p className="text-muted-foreground">Parent: none</p>}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        ) : null}
                         <div className="space-y-1">
                           {item.imagingFiles.map((img) => (
                             <a key={img.id} href={img.fileUrl} target="_blank" rel="noreferrer" className="block text-primary text-sm hover:underline">
@@ -305,6 +378,14 @@ export function MdReviewBoard({
                       value={editPayloads[item.id] ?? ""}
                       onChange={(e) => setEditPayloads((p) => ({ ...p, [item.id]: e.target.value }))}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
+                    />
+
+                    <Label>Edit Reason (required)</Label>
+                    <textarea
+                      rows={2}
+                      value={editReasons[item.id] ?? ""}
+                      onChange={(e) => setEditReasons((p) => ({ ...p, [item.id]: e.target.value }))}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     />
 
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">

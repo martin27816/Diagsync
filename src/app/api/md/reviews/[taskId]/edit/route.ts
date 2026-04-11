@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   comments: z.string().max(1000).optional(),
+  reason: z.string().min(3, "Edit reason is required"),
   editedData: z.unknown().refine((v) => v !== undefined, { message: "editedData is required" }),
 });
 
@@ -34,7 +35,7 @@ export async function PATCH(
         organizationId: user.organizationId,
         auditMeta: getAuditMetaFromRequest(req),
       },
-      parsed.data as { editedData: any; comments?: string }
+      parsed.data as { editedData: any; reason: string; comments?: string }
     );
 
     return NextResponse.json({ success: true, message: "Edits saved for review" });
@@ -51,6 +52,15 @@ export async function PATCH(
       }
       if (error.message === "TASK_NOT_REVIEWABLE") {
         return NextResponse.json({ success: false, error: "Task is not reviewable" }, { status: 400 });
+      }
+      if (error.message === "REASON_REQUIRED") {
+        return NextResponse.json({ success: false, error: "Edit reason is required" }, { status: 400 });
+      }
+      if (error.message === "INVALID_EDIT_DATA") {
+        return NextResponse.json({ success: false, error: "Invalid edit payload for this task type" }, { status: 400 });
+      }
+      if (error.message === "RESULT_NOT_FOUND") {
+        return NextResponse.json({ success: false, error: "Result/report not found for edit" }, { status: 404 });
       }
     }
     console.error("[MD_EDIT]", error);

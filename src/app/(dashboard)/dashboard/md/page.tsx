@@ -10,7 +10,7 @@ export default async function MDDashboard({
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
-  if (user.role !== "MD") {
+  if (user.role !== "MD" && user.role !== "SUPER_ADMIN") {
     redirect("/dashboard");
   }
 

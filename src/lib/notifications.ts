@@ -11,6 +11,7 @@ import {
   isPrivilegedOpsRole,
 } from "./notifications-core";
 import { isTaskDelayed, type TaskForMetrics } from "./hrm-monitoring-core";
+import { resolveEditNotificationTargets } from "./edit-versioning-core";
 
 export type NotificationActor = {
   id: string;
@@ -302,6 +303,37 @@ export async function notifyTaskReviewOutcome(input: {
   });
 
   return count;
+}
+
+export async function notifyResultEdited(input: {
+  organizationId: string;
+  taskId: string;
+  patientName: string;
+  editorId: string;
+  mdIds: string[];
+  performerIds: string[];
+  dedupeSeed: string;
+}) {
+  const targets = resolveEditNotificationTargets({
+    editorId: input.editorId,
+    mdIds: input.mdIds,
+    performerIds: input.performerIds,
+  });
+  let sent = 0;
+  for (const userId of targets) {
+    const created = await sendNotification({
+      organizationId: input.organizationId,
+      userId,
+      type: NotificationType.RESULT_EDITED,
+      title: "Result Updated",
+      message: `${input.patientName} result was modified and requires review.`,
+      entityId: input.taskId,
+      entityType: "RoutingTask",
+      dedupeKey: `edited:${input.taskId}:${input.dedupeSeed}:${userId}`,
+    });
+    if (created) sent += 1;
+  }
+  return sent;
 }
 
 export function canManageNotifications(role: string) {

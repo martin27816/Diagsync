@@ -120,6 +120,7 @@ enum NotificationType {
   RESULT_SUBMITTED
   RESULT_APPROVED
   RESULT_REJECTED
+  RESULT_EDITED
   TASK_DELAYED
   TASK_REASSIGNED
   TASK_OVERRIDDEN
@@ -174,8 +175,10 @@ model Staff {
   routingTasks      RoutingTask[]
   labSamples        LabSample[]
   labResults        LabResult[]
+  editedLabResultVersions LabResultVersion[] @relation("LabResultVersionEditedBy")
   imagingFiles      ImagingFile[]
   radiologyReports  RadiologyReport[]
+  editedRadiologyReportVersions RadiologyReportVersion[] @relation("RadiologyReportVersionEditedBy")
   reviews           Review[]
   notifications     Notification[]
 
@@ -429,6 +432,7 @@ model LabResult {
   task      RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
   testOrder TestOrder   @relation(fields: [testOrderId], references: [id], onDelete: Cascade)
   staff     Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  versions  LabResultVersion[]
 
   @@unique([taskId, testOrderId])
   @@index([organizationId, staffId, isSubmitted])
@@ -469,6 +473,7 @@ model RadiologyReport {
 
   task  RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
   staff Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  versions RadiologyReportVersion[]
 
   @@index([organizationId, staffId, isSubmitted])
   @@map("radiology_reports")
@@ -516,4 +521,55 @@ model Notification {
   @@index([userId, isRead, createdAt])
   @@index([organizationId, type, createdAt])
   @@map("notifications")
+}
+
+model LabResultVersion {
+  id          String   @id @default(cuid())
+  labResultId String
+  version     Int
+  resultData  Json
+  notes       String?
+  isActive    Boolean  @default(true)
+  parentId    String?
+  editedById  String
+  editReason  String
+  createdAt   DateTime @default(now())
+
+  labResult LabResult @relation(fields: [labResultId], references: [id], onDelete: Cascade)
+  editedBy  Staff     @relation("LabResultVersionEditedBy", fields: [editedById], references: [id], onDelete: Cascade)
+  parent    LabResultVersion?  @relation("LabResultVersionChain", fields: [parentId], references: [id], onDelete: SetNull)
+  children  LabResultVersion[] @relation("LabResultVersionChain")
+
+  @@unique([labResultId, version])
+  @@index([labResultId, isActive])
+  @@index([parentId])
+  @@index([createdAt])
+  @@index([editedById, createdAt])
+  @@map("lab_result_versions")
+}
+
+model RadiologyReportVersion {
+  id         String   @id @default(cuid())
+  reportId   String
+  version    Int
+  findings   String
+  impression String
+  notes      String?
+  isActive   Boolean  @default(true)
+  parentId   String?
+  editedById String
+  editReason String
+  createdAt  DateTime @default(now())
+
+  report   RadiologyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  editedBy Staff           @relation("RadiologyReportVersionEditedBy", fields: [editedById], references: [id], onDelete: Cascade)
+  parent   RadiologyReportVersion?  @relation("RadiologyReportVersionChain", fields: [parentId], references: [id], onDelete: SetNull)
+  children RadiologyReportVersion[] @relation("RadiologyReportVersionChain")
+
+  @@unique([reportId, version])
+  @@index([reportId, isActive])
+  @@index([parentId])
+  @@index([createdAt])
+  @@index([editedById, createdAt])
+  @@map("radiology_report_versions")
 }

@@ -1,6 +1,6 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
-import { notifyTaskReviewOutcome } from "@/lib/notifications";
+import { notifyResultEdited, notifyTaskReviewOutcome } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
   Department,
@@ -12,12 +12,18 @@ import {
 } from "@prisma/client";
 import {
   canApprove,
-  canEdit,
   canReject,
   canUseMdWorkflow,
   isTaskReviewable,
   requireRejectReason,
 } from "./md-workflow-core";
+import {
+  canUseControlledEdit,
+  nextVersionNumber,
+  requireEditReason,
+  shouldResetApproval,
+} from "./edit-system-core";
+import { pickActiveVersion } from "./edit-versioning-core";
 
 export type MdActor = {
   id: string;
@@ -44,8 +50,22 @@ async function getTaskForReview(taskId: string, actor: MdActor) {
     include: {
       visit: { include: { patient: true } },
       review: true,
-      results: true,
-      radiologyReport: true,
+      results: {
+        include: {
+          versions: {
+            include: { editedBy: { select: { id: true, fullName: true } } },
+            orderBy: { version: "desc" },
+          },
+        },
+      },
+      radiologyReport: {
+        include: {
+          versions: {
+            include: { editedBy: { select: { id: true, fullName: true } } },
+            orderBy: { version: "desc" },
+          },
+        },
+      },
       imagingFiles: true,
       staff: { select: { id: true, fullName: true } },
     },
@@ -73,10 +93,21 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
       review: true,
       staff: { select: { id: true, fullName: true } },
       imagingFiles: true,
-      radiologyReport: true,
+      radiologyReport: {
+        include: {
+          versions: {
+            include: { editedBy: { select: { id: true, fullName: true } } },
+            orderBy: { version: "desc" },
+          },
+        },
+      },
       results: {
         include: {
           testOrder: { include: { test: true } },
+          versions: {
+            include: { editedBy: { select: { id: true, fullName: true } } },
+            orderBy: { version: "desc" },
+          },
         },
       },
     },
@@ -97,8 +128,61 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
     approved: tasks.filter((t) => t.review?.status === ReviewStatus.APPROVED).length,
     rejected: tasks.filter((t) => t.review?.status === ReviewStatus.REJECTED).length,
   };
+  const items = filtered.map((task) => {
+    const results = task.results.map((result) => {
+      const activeVersion = pickActiveVersion(result.versions) ?? result.versions[0] ?? null;
+      return {
+        ...result,
+        currentVersion: activeVersion?.version ?? 1,
+        resultData: activeVersion?.resultData ?? result.resultData,
+        notes: activeVersion?.notes ?? result.notes,
+        versionHistory: result.versions.map((version) => ({
+          id: version.id,
+          version: version.version,
+          isActive: version.isActive,
+          parentId: version.parentId,
+          resultData: version.resultData,
+          notes: version.notes,
+          editReason: version.editReason,
+          editedBy: version.editedBy,
+          createdAt: version.createdAt,
+        })),
+      };
+    });
 
-  return { items: filtered, counts };
+    const activeReportVersion = task.radiologyReport
+      ? pickActiveVersion(task.radiologyReport.versions) ?? task.radiologyReport.versions[0] ?? null
+      : null;
+    const radiologyReport = task.radiologyReport
+      ? {
+          ...task.radiologyReport,
+          currentVersion: activeReportVersion?.version ?? 1,
+          findings: activeReportVersion?.findings ?? task.radiologyReport.findings,
+          impression: activeReportVersion?.impression ?? task.radiologyReport.impression,
+          notes: activeReportVersion?.notes ?? task.radiologyReport.notes,
+          versionHistory: task.radiologyReport.versions.map((version) => ({
+            id: version.id,
+            version: version.version,
+            isActive: version.isActive,
+            parentId: version.parentId,
+            findings: version.findings,
+            impression: version.impression,
+            notes: version.notes,
+            editReason: version.editReason,
+            editedBy: version.editedBy,
+            createdAt: version.createdAt,
+          })),
+        }
+      : null;
+
+    return {
+      ...task,
+      results,
+      radiologyReport,
+    };
+  });
+
+  return { items, counts };
 }
 
 export async function approveMdReview(taskId: string, actor: MdActor, comments?: string) {
@@ -250,57 +334,162 @@ export async function editMdReview(
   actor: MdActor,
   payload: {
     editedData: Prisma.InputJsonValue;
+    reason: string;
     comments?: string;
   }
 ) {
-  assertMd(actor);
-  const task = await getTaskForReview(taskId, actor);
+  if (!canUseControlledEdit(actor.role)) throw new Error("FORBIDDEN_ROLE");
+  if (!requireEditReason(payload.reason)) throw new Error("REASON_REQUIRED");
 
+  const task = await getTaskForReview(taskId, actor);
   const currentStatus = task.review?.status ?? null;
-  if (!canEdit(currentStatus)) throw new Error("EDIT_AFTER_APPROVAL");
+  const resetApproval = shouldResetApproval(currentStatus);
+  const now = new Date();
+  const versionTrace: string[] = [];
 
   await prisma.$transaction(async (tx) => {
     if (task.department === Department.LABORATORY) {
       const data = payload.editedData as any;
       const items = Array.isArray(data?.testResults) ? data.testResults : [];
+      if (items.length === 0) throw new Error("INVALID_EDIT_DATA");
+
       for (const item of items) {
         if (!item?.testOrderId) continue;
         if (!task.testOrderIds.includes(item.testOrderId)) continue;
-        await tx.labResult.upsert({
+
+        const labResult = await tx.labResult.findUnique({
           where: {
             taskId_testOrderId: {
               taskId: task.id,
               testOrderId: item.testOrderId,
             },
           },
-          create: {
-            organizationId: actor.organizationId,
-            taskId: task.id,
-            testOrderId: item.testOrderId,
-            staffId: task.staffId!,
-            resultData: item.resultData ?? {},
-            notes: item.notes ?? null,
-            isSubmitted: true,
-          },
-          update: {
-            resultData: item.resultData ?? {},
-            notes: item.notes ?? null,
+          include: {
+            versions: {
+              orderBy: { version: "desc" },
+              take: 1,
+            },
           },
         });
+        if (!labResult) throw new Error("RESULT_NOT_FOUND");
+
+        if (labResult.versions.length === 0) {
+          const baseline = await tx.labResultVersion.create({
+            data: {
+              labResultId: labResult.id,
+              version: 1,
+              resultData: (labResult.resultData ?? {}) as Prisma.InputJsonValue,
+              notes: labResult.notes,
+              isActive: true,
+              parentId: null,
+              editedById: labResult.staffId,
+              editReason: "Initial submitted version",
+            },
+          });
+          labResult.versions = [baseline];
+        }
+
+        const latestVersion = await tx.labResultVersion.findFirst({
+          where: { labResultId: labResult.id },
+          orderBy: { version: "desc" },
+        });
+        const activeVersion = await tx.labResultVersion.findFirst({
+          where: { labResultId: labResult.id, isActive: true },
+          orderBy: { version: "desc" },
+        });
+        if (!activeVersion) throw new Error("INVALID_VERSION_CHAIN");
+
+        const nextVersion = nextVersionNumber(
+          latestVersion ? [latestVersion.version] : [1]
+        );
+
+        await tx.labResultVersion.updateMany({
+          where: { labResultId: labResult.id, isActive: true },
+          data: { isActive: false },
+        });
+
+        await tx.labResultVersion.create({
+          data: {
+            labResultId: labResult.id,
+            version: nextVersion,
+            resultData: (
+              item.resultData ?? activeVersion.resultData ?? latestVersion?.resultData ?? labResult.resultData ?? {}
+            ) as Prisma.InputJsonValue,
+            notes: item.notes ?? activeVersion.notes ?? latestVersion?.notes ?? labResult.notes,
+            isActive: true,
+            parentId: activeVersion.id,
+            editedById: actor.id,
+            editReason: payload.reason,
+          },
+        });
+        versionTrace.push(`${labResult.id}:v${nextVersion}`);
       }
     }
 
     if (task.department === Department.RADIOLOGY) {
       const data = payload.editedData as any;
       if (data?.report) {
-        await tx.radiologyReport.update({
+        const report = await tx.radiologyReport.findUnique({
           where: { taskId: task.id },
-          data: {
-            findings: data.report.findings ?? task.radiologyReport?.findings ?? "",
-            impression: data.report.impression ?? task.radiologyReport?.impression ?? "",
-            notes: data.report.notes ?? task.radiologyReport?.notes ?? null,
+          include: {
+            versions: {
+              orderBy: { version: "desc" },
+              take: 1,
+            },
           },
         });
+        if (!report) throw new Error("RESULT_NOT_FOUND");
+
+        if (report.versions.length === 0) {
+          const baseline = await tx.radiologyReportVersion.create({
+            data: {
+              reportId: report.id,
+              version: 1,
+              findings: report.findings,
+              impression: report.impression,
+              notes: report.notes,
+              isActive: true,
+              parentId: null,
+              editedById: report.staffId,
+              editReason: "Initial submitted version",
+            },
+          });
+          report.versions = [baseline];
+        }
+
+        const latestVersion = await tx.radiologyReportVersion.findFirst({
+          where: { reportId: report.id },
+          orderBy: { version: "desc" },
+        });
+        const activeVersion = await tx.radiologyReportVersion.findFirst({
+          where: { reportId: report.id, isActive: true },
+          orderBy: { version: "desc" },
+        });
+        if (!activeVersion) throw new Error("INVALID_VERSION_CHAIN");
+
+        const nextVersion = nextVersionNumber(latestVersion ? [latestVersion.version] : [1]);
+
+        await tx.radiologyReportVersion.updateMany({
+          where: { reportId: report.id, isActive: true },
+          data: { isActive: false },
+        });
+
+        await tx.radiologyReportVersion.create({
+          data: {
+            reportId: report.id,
+            version: nextVersion,
+            findings: data.report.findings ?? activeVersion.findings ?? latestVersion?.findings ?? report.findings,
+            impression: data.report.impression ?? activeVersion.impression ?? latestVersion?.impression ?? report.impression,
+            notes: data.report.notes ?? activeVersion.notes ?? latestVersion?.notes ?? report.notes,
+            isActive: true,
+            parentId: activeVersion.id,
+            editedById: actor.id,
+            editReason: payload.reason,
+          },
+        });
+        versionTrace.push(`${report.id}:v${nextVersion}`);
+      } else {
+        throw new Error("INVALID_EDIT_DATA");
       }
     }
 
@@ -314,23 +503,73 @@ export async function editMdReview(
         status: ReviewStatus.PENDING,
         comments: payload.comments,
         editedData: payload.editedData,
+        rejectionReason: resetApproval ? "Approved result edited and reset for re-approval" : null,
       },
       update: {
         reviewedById: actor.id,
         status: ReviewStatus.PENDING,
         comments: payload.comments,
         editedData: payload.editedData,
+        rejectionReason: resetApproval ? "Approved result edited and reset for re-approval" : null,
       },
+    });
+
+    await tx.testOrder.updateMany({
+      where: { id: { in: task.testOrderIds }, organizationId: actor.organizationId },
+      data: {
+        status: OrderStatus.RESUBMITTED,
+        submittedAt: now,
+        reviewedAt: null,
+        approvedAt: null,
+      },
+    });
+
+    await tx.routingTask.update({
+      where: { id: task.id },
+      data: { status: RoutingTaskStatus.COMPLETED },
     });
   });
 
   await createAuditLog({
     actorId: actor.id,
-    actorRole: Role.MD,
+    actorRole: actor.role as Role,
     action: AUDIT_ACTIONS.REVIEW_EDITED,
     entityType: "Review",
     entityId: task.id,
-    newValue: { editedData: payload.editedData, comments: payload.comments },
+    changes: {
+      reason: payload.reason,
+      resetApproval,
+      beforeStatus: currentStatus ?? "PENDING",
+      afterStatus: "PENDING",
+      editedData: payload.editedData,
+      comments: payload.comments ?? null,
+    },
+    notes: payload.reason,
     ...actor.auditMeta,
+  });
+
+  const mdUsers = await prisma.staff.findMany({
+    where: {
+      organizationId: actor.organizationId,
+      role: Role.MD,
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+
+  const performerIds = new Set<string>();
+  if (task.staffId) performerIds.add(task.staffId);
+  for (const result of task.results) {
+    if (result.staffId) performerIds.add(result.staffId);
+  }
+
+  await notifyResultEdited({
+    organizationId: actor.organizationId,
+    taskId: task.id,
+    patientName: task.visit.patient.fullName,
+    editorId: actor.id,
+    mdIds: mdUsers.map((user) => user.id),
+    performerIds: Array.from(performerIds),
+    dedupeSeed: versionTrace.sort().join("|") || `${task.id}:edit`,
   });
 }

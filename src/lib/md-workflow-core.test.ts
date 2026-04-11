@@ -11,6 +11,7 @@ import {
 
 function testPermissions() {
   assert.equal(canUseMdWorkflow("MD"), true);
+  assert.equal(canUseMdWorkflow("SUPER_ADMIN"), true);
   assert.equal(canUseMdWorkflow("HRM"), false);
 }
 
@@ -53,4 +54,3 @@ function run() {
 }
 
 run();
-
