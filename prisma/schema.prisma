@@ -101,6 +101,14 @@ enum RoutingTaskStatus {
   CANCELLED
 }
 
+enum SampleStatus {
+  PENDING
+  COLLECTED
+  RECEIVED
+  PROCESSING
+  DONE
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String
@@ -147,6 +155,8 @@ model Staff {
   registeredPatients Patient[]        @relation("RegisteredBy")
   assignedTestOrders TestOrder[]      @relation("AssignedTestOrders")
   routingTasks      RoutingTask[]
+  labSamples        LabSample[]
+  labResults        LabResult[]
 
   @@map("staff")
 }
@@ -291,6 +301,7 @@ model Visit {
   patient    Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
   testOrders TestOrder[]
   routingTasks RoutingTask[]
+  labSamples LabSample[]
 
   @@map("visits")
 }
@@ -320,6 +331,7 @@ model TestOrder {
   visit Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
   test  DiagnosticTest @relation(fields: [testId], references: [id])
   assignedTo Staff?    @relation("AssignedTestOrders", fields: [assignedToId], references: [id])
+  labResults LabResult[]
 
   @@index([organizationId, assignedToId, status])
   @@map("test_orders")
@@ -339,8 +351,55 @@ model RoutingTask {
 
   visit  Visit  @relation(fields: [visitId], references: [id], onDelete: Cascade)
   staff  Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  sample LabSample?
+  results LabResult[]
 
   @@index([organizationId, department, status, priority])
   @@index([visitId, department])
   @@map("routing_tasks")
+}
+
+model LabSample {
+  id             String       @id @default(cuid())
+  organizationId String
+  visitId        String
+  taskId         String       @unique
+  staffId        String
+  status         SampleStatus @default(PENDING)
+  notes          String?
+  collectedAt    DateTime?
+  receivedAt     DateTime?
+  processingAt   DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  task  RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  staff Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  visit Visit       @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, staffId, status])
+  @@map("lab_samples")
+}
+
+model LabResult {
+  id          String   @id @default(cuid())
+  organizationId String
+  taskId       String
+  testOrderId  String
+  staffId      String
+  resultData   Json
+  notes        String?
+  isSubmitted  Boolean  @default(false)
+  submittedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  task      RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  testOrder TestOrder   @relation(fields: [testOrderId], references: [id], onDelete: Cascade)
+  staff     Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, testOrderId])
+  @@index([organizationId, staffId, isSubmitted])
+  @@map("lab_results")
 }
