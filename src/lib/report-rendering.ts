@@ -84,7 +84,7 @@ export function renderReportHtml(args: RenderArgs) {
           .join("");
 
   const letterheadBackground = hasLetterhead
-    ? `background-image:url('${args.organization.letterheadUrl}');background-size:cover;background-position:center top;`
+    ? `background-image:url('${args.organization.letterheadUrl}');background-size:100% 100%;background-position:left top;background-repeat:no-repeat;`
     : "background:#ffffff;";
   const effectiveWatermarkUrl = args.watermarkUrl || null;
 
@@ -107,13 +107,14 @@ export function renderReportHtml(args: RenderArgs) {
       position: fixed;
       inset: 0;
       display: flex;
-      align-items: center;
-      justify-content: center;
+      align-items: flex-end;
+      justify-content: flex-start;
       pointer-events: none;
       z-index: 0;
-      opacity: 0.07;
+      opacity: 0.08;
+      padding: 0 0 28px 28px;
     }
-    .watermark img { width: 300px; height: auto; }
+    .watermark img { width: 110px; height: auto; }
     .content-shell {
       position: relative;
       z-index: 2;
@@ -127,16 +128,17 @@ export function renderReportHtml(args: RenderArgs) {
       position: absolute;
       inset: 0;
       display: flex;
-      align-items: center;
-      justify-content: center;
+      align-items: flex-end;
+      justify-content: flex-start;
       pointer-events: none;
       z-index: 0;
       opacity: 0.1;
+      padding: 0 0 18px 18px;
     }
     .shell-watermark img {
-      width: 360px;
+      width: 95px;
       height: auto;
-      max-width: 72%;
+      max-width: 24%;
     }
     .content { position: relative; z-index: 2; }
     .header { margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }

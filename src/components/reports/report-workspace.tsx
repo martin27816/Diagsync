@@ -254,21 +254,39 @@ export function ReportWorkspace({ role }: Props) {
     }
     const doc = iframe.contentDocument;
     const target =
-      (doc.querySelector(".page") as HTMLElement | null) ??
-      (doc.body as HTMLElement | null);
+      (doc.body as HTMLElement | null) ??
+      (doc.querySelector(".page") as HTMLElement | null);
     if (!target) {
       setError("Preview content is unavailable.");
       return null;
     }
 
     try {
+      const previewWindow = iframe.contentWindow;
+      if (previewWindow) {
+        previewWindow.scrollTo(0, 0);
+      }
+      const width = Math.max(
+        doc.documentElement?.scrollWidth ?? 0,
+        doc.body?.scrollWidth ?? 0,
+        target.scrollWidth ?? 0
+      );
+      const height = Math.max(
+        doc.documentElement?.scrollHeight ?? 0,
+        doc.body?.scrollHeight ?? 0,
+        target.scrollHeight ?? 0
+      );
       const canvas = await html2canvas(target, {
         useCORS: true,
         allowTaint: false,
         scale: 2,
         backgroundColor: "#ffffff",
-        width: target.scrollWidth || target.clientWidth,
-        height: target.scrollHeight || target.clientHeight,
+        scrollX: 0,
+        scrollY: 0,
+        width: width || target.clientWidth,
+        height: height || target.clientHeight,
+        windowWidth: width || target.clientWidth,
+        windowHeight: height || target.clientHeight,
       });
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob((nextBlob) => resolve(nextBlob), "image/png", 1)
