@@ -1,12 +1,11 @@
-import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { getDashboardPath } from "@/lib/utils";
 import { Role } from "@prisma/client";
 
-// Routes that don't need authentication
 const publicRoutes = ["/", "/login", "/register", "/api/auth"];
 
-// Which roles can access which dashboard paths
 const roleRouteMap: Record<string, Role[]> = {
   "/dashboard/receptionist": ["RECEPTIONIST", "SUPER_ADMIN"],
   "/dashboard/lab-scientist": ["LAB_SCIENTIST", "SUPER_ADMIN"],
@@ -15,57 +14,46 @@ const roleRouteMap: Record<string, Role[]> = {
   "/dashboard/hrm": ["HRM", "SUPER_ADMIN"],
 };
 
-export default auth((req) => {
-  const { nextUrl, auth: session } = req as any;
+export default async function middleware(req: NextRequest) {
+  const { nextUrl } = req;
   const pathname = nextUrl.pathname;
 
-  // Allow public routes through
-  const isPublicRoute = publicRoutes.some((route) =>
-    pathname.startsWith(route)
-  );
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  });
+
+  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
   if (isPublicRoute) {
-    // If already logged in, redirect away from login/register
-    if (session?.user && (pathname === "/login" || pathname === "/register")) {
-      const role = session.user.role as Role;
-      return NextResponse.redirect(
-        new URL(getDashboardPath(role), nextUrl.origin)
-      );
+    if (token && (pathname === "/login" || pathname === "/register")) {
+      const role = token.role as Role;
+      return NextResponse.redirect(new URL(getDashboardPath(role), nextUrl.origin));
     }
     return NextResponse.next();
   }
 
-  // Not logged in — redirect to login
-  if (!session?.user) {
+  if (!token) {
     const loginUrl = new URL("/login", nextUrl.origin);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  const userRole = session.user.role as Role;
+  const userRole = token.role as Role;
 
-  // Root path — redirect to role dashboard
   if (pathname === "/" || pathname === "/dashboard") {
-    return NextResponse.redirect(
-      new URL(getDashboardPath(userRole), nextUrl.origin)
-    );
+    return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
   }
 
-  // Check dashboard route permissions
   for (const [route, allowedRoles] of Object.entries(roleRouteMap)) {
-    if (pathname.startsWith(route)) {
-      if (!allowedRoles.includes(userRole)) {
-        // Redirect to their own dashboard instead
-        return NextResponse.redirect(
-          new URL(getDashboardPath(userRole), nextUrl.origin)
-        );
-      }
-      break;
+    if (pathname.startsWith(route) && !allowedRoles.includes(userRole)) {
+      return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
     }
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
 };
+
