@@ -3,19 +3,7 @@ import { getHrmOverview } from "@/lib/hrm-monitoring";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  Users,
-  UserCheck,
-  UserX,
-  ClipboardList,
-  Activity,
-  Clock3,
-  Timer,
-  AlertTriangle,
-  CheckCircle2,
-  Settings2,
-} from "lucide-react";
-import { StatsCard } from "@/components/shared/stats-card";
+import { Settings2 } from "lucide-react";
 import { formatDateTime, formatMinutes, ROLE_LABELS } from "@/lib/utils";
 import { Badge } from "@/components/ui/index";
 
@@ -37,7 +25,7 @@ export default async function HRMDashboardPage() {
       prisma.auditLog.findMany({
         where: { actor: { organizationId: user.organizationId } },
         orderBy: { createdAt: "desc" },
-        take: 8,
+        take: 10,
         include: { actor: { select: { fullName: true, role: true } } },
       }),
       getHrmOverview({
@@ -47,173 +35,150 @@ export default async function HRMDashboardPage() {
       }),
     ]);
 
+  const metrics = [
+    { label: "Patients Today", value: overview.metrics.todayPatients },
+    { label: "Active Visits", value: overview.metrics.activeVisits },
+    { label: "Pending Tasks", value: overview.metrics.pendingTasks },
+    { label: "Completed", value: overview.metrics.completedTasks },
+    { label: "Delayed", value: overview.metrics.delayedTasks, alert: overview.metrics.delayedTasks > 0 },
+    { label: "Total Staff", value: totalStaff },
+    { label: "Available", value: activeStaff },
+    { label: "Unavailable", value: unavailableStaff },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">Operations Overview</h1>
-          {user.role === "SUPER_ADMIN" ? (
-            <Link href="/dashboard/hrm/settings" className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted">
-              <Settings2 className="h-4 w-4" />
-              Settings
-            </Link>
-          ) : null}
+    <div className="space-y-5">
+      {/* Page header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-base font-semibold text-slate-800">Operations Overview</h1>
+          <p className="text-xs text-slate-400 mt-0.5">Live workflow across your lab</p>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Monitor workflow movement, staff load, and release readiness across your lab
-        </p>
+        {user.role === "SUPER_ADMIN" && (
+          <Link
+            href="/dashboard/hrm/settings"
+            className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            Settings
+          </Link>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <StatsCard
-          title="Patients Today"
-          value={overview.metrics.todayPatients}
-          subtitle="Registered today"
-          icon={Users}
-          iconBg="bg-blue-50"
-          iconColor="text-blue-600"
-        />
-        <StatsCard
-          title="Active Visits"
-          value={overview.metrics.activeVisits}
-          subtitle="Still in workflow"
-          icon={Activity}
-          iconBg="bg-indigo-50"
-          iconColor="text-indigo-600"
-        />
-        <StatsCard
-          title="Pending Tasks"
-          value={overview.metrics.pendingTasks}
-          subtitle="Awaiting completion"
-          icon={Clock3}
-          iconBg="bg-yellow-50"
-          iconColor="text-yellow-600"
-        />
-        <StatsCard
-          title="Completed Tasks"
-          value={overview.metrics.completedTasks}
-          subtitle="Done so far"
-          icon={CheckCircle2}
-          iconBg="bg-green-50"
-          iconColor="text-green-600"
-        />
-        <StatsCard
-          title="Delayed Tasks"
-          value={overview.metrics.delayedTasks}
-          subtitle="Exceeded target time"
-          icon={AlertTriangle}
-          iconBg="bg-red-50"
-          iconColor="text-red-600"
-        />
+      {/* Metrics strip */}
+      <div className="grid grid-cols-4 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden lg:grid-cols-8">
+        {metrics.map((m) => (
+          <div key={m.label} className="bg-white px-4 py-3">
+            <p className="text-[11px] text-slate-400 uppercase tracking-wide">{m.label}</p>
+            <p className={`text-xl font-bold mt-0.5 ${m.alert ? "text-red-600" : "text-slate-800"}`}>
+              {m.value}
+            </p>
+          </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border bg-card p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 font-semibold">
-              <Timer className="h-4 w-4 text-muted-foreground" />
-              Basic Analytics
-            </h2>
-            <Link href="/dashboard/hrm/operations" className="text-xs text-primary hover:underline">
-              Open operations -&gt;
+      {/* Two column: analytics + activity */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Analytics */}
+        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Analytics</span>
+            <Link href="/dashboard/hrm/operations" className="text-xs text-blue-600 hover:underline">
+              View operations →
             </Link>
           </div>
-          <div className="space-y-4 text-sm">
-            <div className="flex items-center justify-between border-b pb-3">
-              <span className="text-muted-foreground">Average completion time</span>
-              <span className="font-semibold">{formatMinutes(overview.analytics.averageCompletionMinutes)}</span>
+
+          <div className="divide-y divide-slate-100">
+            <div className="flex items-center justify-between px-4 py-2.5">
+              <span className="text-xs text-slate-500">Avg. completion time</span>
+              <span className="text-xs font-semibold text-slate-800">
+                {formatMinutes(overview.analytics.averageCompletionMinutes)}
+              </span>
             </div>
-            <div>
-              <p className="mb-2 text-muted-foreground">Tasks per department</p>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(overview.analytics.tasksPerDepartment).map(([department, count]) => (
-                  <Badge key={department} variant="secondary">
-                    {department}: {count}
-                  </Badge>
+
+            {/* Tasks per dept */}
+            <div className="px-4 py-2.5">
+              <p className="text-xs text-slate-400 mb-2">Tasks per department</p>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(overview.analytics.tasksPerDepartment).map(([dept, count]) => (
+                  <span
+                    key={dept}
+                    className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                  >
+                    {dept}: <strong>{count as number}</strong>
+                  </span>
                 ))}
               </div>
             </div>
-            <div>
-              <p className="mb-2 text-muted-foreground">Busiest staff right now</p>
-              <div className="space-y-2">
-                {overview.analytics.busiestStaff.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No active workload yet.</p>
-                ) : (
-                  overview.analytics.busiestStaff.map((s) => (
-                    <div key={s.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                      <div>
-                        <p className="font-medium">{s.fullName}</p>
-                        <p className="text-xs text-muted-foreground">{ROLE_LABELS[s.role]}</p>
-                      </div>
-                      <Badge variant={s.overloaded ? "warning" : "info"}>{s.active} active</Badge>
-                    </div>
-                  ))
-                )}
-              </div>
+
+            {/* Busiest staff */}
+            <div className="px-4 py-2.5">
+              <p className="text-xs text-slate-400 mb-2">Busiest staff</p>
+              {overview.analytics.busiestStaff.length === 0 ? (
+                <p className="text-xs text-slate-400">No active workload.</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-slate-100">
+                    {overview.analytics.busiestStaff.map((s) => (
+                      <tr key={s.id}>
+                        <td className="py-1.5 font-medium text-slate-700">{s.fullName}</td>
+                        <td className="py-1.5 text-slate-400">{ROLE_LABELS[s.role]}</td>
+                        <td className="py-1.5 text-right">
+                          <span
+                            className={`rounded px-1.5 py-0.5 font-semibold ${
+                              s.overloaded
+                                ? "bg-red-50 text-red-600"
+                                : "bg-blue-50 text-blue-600"
+                            }`}
+                          >
+                            {s.active} active
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="rounded-lg border bg-card p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 font-semibold">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              Recent Activity
-            </h2>
-            <Link href="/dashboard/hrm/audit" className="text-xs text-primary hover:underline">
-              View all -&gt;
+        {/* Recent Activity */}
+        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent Activity</span>
+            <Link href="/dashboard/hrm/audit" className="text-xs text-blue-600 hover:underline">
+              View all →
             </Link>
           </div>
-          <div className="space-y-3">
-            {recentAuditLogs.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">No activity logged yet.</p>
-            ) : (
-              recentAuditLogs.map((log) => (
-                <div key={log.id} className="flex items-start gap-3 border-b py-2 last:border-0">
-                  <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                    {log.actor.fullName.charAt(0)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm">
-                      <span className="font-medium">{log.actor.fullName}</span>{" "}
-                      <span className="text-muted-foreground">
-                        {log.action.replaceAll("_", " ").toLowerCase()}
-                      </span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">{formatDateTime(log.createdAt)}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatsCard
-          title="Total Staff"
-          value={totalStaff}
-          subtitle="All staff accounts"
-          icon={ClipboardList}
-          iconBg="bg-slate-100"
-          iconColor="text-slate-700"
-        />
-        <StatsCard
-          title="Available Staff"
-          value={activeStaff}
-          subtitle="Ready to receive tasks"
-          icon={UserCheck}
-          iconBg="bg-green-50"
-          iconColor="text-green-700"
-        />
-        <StatsCard
-          title="Unavailable Staff"
-          value={unavailableStaff}
-          subtitle="Not receiving new tasks"
-          icon={UserX}
-          iconBg="bg-amber-50"
-          iconColor="text-amber-700"
-        />
+          {recentAuditLogs.length === 0 ? (
+            <p className="px-4 py-6 text-center text-xs text-slate-400">No activity logged yet.</p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  <th className="px-4 py-2 text-left font-medium text-slate-400">Staff</th>
+                  <th className="px-4 py-2 text-left font-medium text-slate-400">Action</th>
+                  <th className="px-4 py-2 text-right font-medium text-slate-400">Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recentAuditLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-2 font-medium text-slate-700">{log.actor.fullName}</td>
+                    <td className="px-4 py-2 text-slate-500 capitalize">
+                      {log.action.replaceAll("_", " ").toLowerCase()}
+                    </td>
+                    <td className="px-4 py-2 text-right text-slate-400 whitespace-nowrap">
+                      {formatDateTime(log.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );

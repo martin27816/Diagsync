@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Switch } from "@/components/ui/index";
-import { Badge } from "@/components/ui/index";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 
@@ -24,7 +23,6 @@ export function HeaderBar({
   const [isAvailable, setIsAvailable] = useState(initialAvailability);
   const [loading, setLoading] = useState(false);
 
-  // Only operational roles have the availability toggle
   const operationalRoles = ["LAB_SCIENTIST", "RADIOGRAPHER", "MD", "RECEPTIONIST"];
   const showToggle = showAvailabilityToggle && operationalRoles.includes(role);
 
@@ -34,14 +32,10 @@ export function HeaderBar({
       const res = await fetch(`/api/staff/${staffId}/availability`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: checked ? "AVAILABLE" : "UNAVAILABLE",
-        }),
+        body: JSON.stringify({ status: checked ? "AVAILABLE" : "UNAVAILABLE" }),
       });
       const data = await res.json();
-      if (data.success) {
-        setIsAvailable(checked);
-      }
+      if (data.success) setIsAvailable(checked);
     } catch (error) {
       console.error("Failed to update availability:", error);
     } finally {
@@ -50,25 +44,24 @@ export function HeaderBar({
   }
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-background px-6">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          Good {getTimeOfDay()},{" "}
-          <span className="text-foreground font-semibold">{staffName.split(" ")[0]}</span>
-        </h2>
-      </div>
+    <header className="flex h-12 items-center justify-between border-b border-slate-200 bg-white px-5">
+      <p className="text-sm text-slate-500">
+        {getTimeOfDay()},{" "}
+        <span className="font-semibold text-slate-800">{staffName.split(" ")[0]}</span>
+      </p>
 
       <div className="flex items-center gap-4">
-        {/* Availability Toggle */}
         {showToggle && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Status:</span>
-            <Badge
-              variant={isAvailable ? "success" : "secondary"}
-              className={cn("text-xs", loading && "opacity-60")}
-            >
-              {isAvailable ? "● Available" : "○ Unavailable"}
-            </Badge>
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                isAvailable ? "bg-green-500" : "bg-slate-300"
+              )}
+            />
+            <span className="text-xs text-slate-500">
+              {isAvailable ? "Available" : "Unavailable"}
+            </span>
             <Switch
               checked={isAvailable}
               onCheckedChange={handleAvailabilityToggle}
@@ -77,7 +70,6 @@ export function HeaderBar({
             />
           </div>
         )}
-
         <NotificationBell role={role} />
       </div>
     </header>
@@ -86,7 +78,7 @@ export function HeaderBar({
 
 function getTimeOfDay() {
   const hour = new Date().getHours();
-  if (hour < 12) return "morning";
-  if (hour < 17) return "afternoon";
-  return "evening";
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }

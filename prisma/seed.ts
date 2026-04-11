@@ -1,10 +1,9 @@
-import { PrismaClient, Role, Department, Shift, TestType, FieldType } from "@prisma/client";
-import * as bcrypt from "bcryptjs";
+import { PrismaClient, Department, TestType, FieldType } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("🌱 Seeding Phase 2 — Test Database...");
+  console.log("🌱 Seeding Tests...");
 
   // ── Seed Test Categories ─────────────────────────────────────────────────
   const categories = await Promise.all([
@@ -43,14 +42,14 @@ async function main() {
   console.log(`✅ ${categories.length} test categories created`);
 
   // ── Get Organization ─────────────────────────────────────────────────────
-  const org = await prisma.organization.findFirst({
-    where: { email: "admin@reenemedical.com" },
-  });
+  const org = await prisma.organization.findFirst();
 
   if (!org) {
-    throw new Error("Organization not found. Run Phase 1 seed first.");
+    throw new Error("No organization found. Please create one first.");
   }
+
   const orgId = org.id;
+  console.log(`✅ Organization found: ${org.name}`);
 
   // ── Helper: upsert test + fields ────────────────────────────────────────
   async function seedTest(data: {
@@ -92,7 +91,6 @@ async function main() {
       },
     });
 
-    // Delete old fields and recreate (safe for seed)
     await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
 
     for (const field of data.fields) {
@@ -195,7 +193,7 @@ async function main() {
     ],
   });
 
-  // 4. Blood Sugar (Fasting)
+  // 4. Fasting Blood Sugar
   await seedTest({
     code: "FBS",
     name: "Fasting Blood Sugar",
@@ -293,7 +291,7 @@ async function main() {
     ],
   });
 
-  // 9. HBsAg (Hepatitis B)
+  // 9. HBsAg
   await seedTest({
     code: "HBSAG",
     name: "Hepatitis B Surface Antigen (HBsAg)",
@@ -468,33 +466,10 @@ async function main() {
     ],
   });
 
-  // ── Ensure Super Admin exists (Phase 1) ─────────────────────────────────
-  const existingAdmin = await prisma.staff.findFirst({
-    where: { email: "superadmin@reenemedical.com" },
-  });
-
-  if (!existingAdmin) {
-    const passwordHash = await bcrypt.hash("Admin@1234", 12);
-    await prisma.staff.create({
-      data: {
-        organizationId: orgId,
-        fullName: "Super Admin",
-        email: "superadmin@reenemedical.com",
-        phone: "+2348000000001",
-        passwordHash,
-        role: Role.SUPER_ADMIN,
-        department: Department.HR_OPERATIONS,
-        defaultShift: Shift.FULL_DAY,
-      },
-    });
-    console.log("✅ Super Admin re-seeded");
-  }
-
   const testCount = await prisma.diagnosticTest.count({ where: { organizationId: orgId } });
-  console.log(`\n✅ Phase 2 complete!`);
+  console.log(`\n✅ Seeding complete!`);
   console.log(`   Tests in database: ${testCount}`);
   console.log(`   Categories: ${categories.length}`);
-  console.log(`\n   Run: npx prisma db push && npm run db:seed`);
 }
 
 main()

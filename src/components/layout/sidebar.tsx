@@ -15,14 +15,12 @@ import {
   BarChart3,
   Bell,
   LogOut,
-  ChevronRight,
   Activity,
   TestTube2,
   Settings2,
 } from "lucide-react";
 import { cn, ROLE_LABELS } from "@/lib/utils";
 import { Role } from "@prisma/client";
-import { Button } from "@/components/ui/button";
 
 interface NavItem {
   label: string;
@@ -97,26 +95,34 @@ export function Sidebar({ user }: SidebarProps) {
   const navItems = navByRole[user.role] ?? [];
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r bg-card">
-      {/* Logo / Org name */}
-      <div className="flex h-16 items-center border-b px-6">
-        <div className="flex items-center gap-2">
-          <Image src="/diagsync-logo.png" alt="Diagsync logo" width={32} height={32} className="h-8 w-8 rounded-md object-cover" />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">Diagsync</p>
-            {user.organizationName && (
-              <p className="truncate text-xs text-muted-foreground">{user.organizationName}</p>
-            )}
-          </div>
+    <aside className="flex h-screen w-56 flex-col border-r border-slate-200 bg-white">
+      {/* Logo */}
+      <div className="flex h-14 items-center gap-2.5 border-b border-slate-200 px-4">
+        <Image
+          src="/diagsync-logo.png"
+          alt="Diagsync"
+          width={28}
+          height={28}
+          className="h-7 w-7 rounded object-cover"
+        />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-slate-800">Diagsync</p>
+          {user.organizationName && (
+            <p className="truncate text-[11px] text-slate-400">{user.organizationName}</p>
+          )}
         </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      {/* Role label */}
+      <div className="px-4 pt-4 pb-1">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
           {ROLE_LABELS[user.role]}
-        </div>
-        <ul className="space-y-1">
+        </span>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-2 pb-2">
+        <ul className="space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -126,15 +132,14 @@ export function Sidebar({ user }: SidebarProps) {
                 <Link
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    "flex items-center gap-2.5 rounded px-3 py-2 text-sm transition-colors",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      ? "bg-blue-600 text-white font-medium"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1">{item.label}</span>
-                  {isActive && <ChevronRight className="h-3 w-3" />}
+                  <span>{item.label}</span>
                 </Link>
               </li>
             );
@@ -142,37 +147,35 @@ export function Sidebar({ user }: SidebarProps) {
         </ul>
       </nav>
 
-      {/* Notifications link */}
-      <div className="border-t px-3 py-2">
+      {/* Notifications */}
+      <div className="border-t border-slate-200 px-2 py-1">
         <Link
           href={notificationPathForRole(user.role)}
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          className="flex items-center gap-2.5 rounded px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
         >
           <Bell className="h-4 w-4" />
           Notifications
         </Link>
       </div>
 
-      {/* User info + logout */}
-      <div className="border-t p-4">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-semibold">
+      {/* User + Sign out */}
+      <div className="border-t border-slate-200 p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
             {user.fullName.charAt(0)}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{user.fullName}</p>
-            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+            <p className="truncate text-xs font-semibold text-slate-800">{user.fullName}</p>
+            <p className="truncate text-[11px] text-slate-400">{user.email}</p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2"
+        <button
           onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
         >
           <LogOut className="h-3.5 w-3.5" />
-          Sign Out
-        </Button>
+          Sign out
+        </button>
       </div>
     </aside>
   );
