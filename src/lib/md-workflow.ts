@@ -24,6 +24,7 @@ import {
   shouldResetApproval,
 } from "./edit-system-core";
 import { pickActiveVersion } from "./edit-versioning-core";
+import { ensureDraftReportForTask } from "./report-workflow";
 
 export type MdActor = {
   id: string;
@@ -259,6 +260,8 @@ export async function approveMdReview(taskId: string, actor: MdActor, comments?:
     patientName: task.visit.patient.fullName,
     approved: true,
   });
+
+  await ensureDraftReportForTask(task.id, actor);
 }
 
 export async function rejectMdReview(taskId: string, actor: MdActor, reason: string) {

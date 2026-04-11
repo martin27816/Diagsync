@@ -13,6 +13,7 @@ import {
   Timer,
   AlertTriangle,
   CheckCircle2,
+  Settings2,
 } from "lucide-react";
 import { StatsCard } from "@/components/shared/stats-card";
 import { formatDateTime, formatMinutes, ROLE_LABELS } from "@/lib/utils";
@@ -49,7 +50,15 @@ export default async function HRMDashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Operations Overview</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold">Operations Overview</h1>
+          {user.role === "SUPER_ADMIN" ? (
+            <Link href="/dashboard/hrm/settings" className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted">
+              <Settings2 className="h-4 w-4" />
+              Settings
+            </Link>
+          ) : null}
+        </div>
         <p className="mt-1 text-sm text-muted-foreground">
           Monitor workflow movement, staff load, and release readiness across your lab
         </p>

@@ -121,10 +121,27 @@ enum NotificationType {
   RESULT_APPROVED
   RESULT_REJECTED
   RESULT_EDITED
+  REPORT_DRAFT_UPDATED
+  REPORT_READY_FOR_REVIEW
+  REPORT_RELEASED
+  REPORT_SENT
+  REPORT_PRINTED
+  REPORT_DOWNLOADED
+  REPORT_SEND_FAILED
   TASK_DELAYED
   TASK_REASSIGNED
   TASK_OVERRIDDEN
   SYSTEM
+}
+
+enum ReportStatus {
+  DRAFT
+  RELEASED
+}
+
+enum ReportType {
+  lab
+  radiology
 }
 
 model Organization {
@@ -134,12 +151,15 @@ model Organization {
   phone     String
   address   String
   logo      String?
+  contactInfo String?
+  letterheadUrl String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   staff    Staff[]
   patients Patient[]
   tests    DiagnosticTest[]
+  reports  DiagnosticReport[]
 
   @@map("organizations")
 }
@@ -181,6 +201,9 @@ model Staff {
   editedRadiologyReportVersions RadiologyReportVersion[] @relation("RadiologyReportVersionEditedBy")
   reviews           Review[]
   notifications     Notification[]
+  generatedReports  DiagnosticReport[] @relation("ReportGeneratedBy")
+  releasedReports   DiagnosticReport[] @relation("ReportReleasedBy")
+  editedReportVersions DiagnosticReportVersion[]
 
   @@map("staff")
 }
@@ -333,6 +356,7 @@ model Visit {
   routingTasks RoutingTask[]
   labSamples LabSample[]
   reviews Review[]
+  reports DiagnosticReport[]
 
   @@map("visits")
 }
@@ -521,6 +545,69 @@ model Notification {
   @@index([userId, isRead, createdAt])
   @@index([organizationId, type, createdAt])
   @@map("notifications")
+}
+
+model DiagnosticReport {
+  id             String       @id @default(cuid())
+  organizationId String
+  visitId        String
+  department     Department
+  reportType     ReportType   @default(lab)
+  sourceTaskId   String?
+  status         ReportStatus @default(DRAFT)
+  reportContent  Json
+  comments       String?
+  prescription   String?
+  previewFileUrl String?
+  finalFileUrl   String?
+  generatedById  String?
+  lastEditedById String?
+  lastEditedAt   DateTime?
+  isReleased     Boolean      @default(false)
+  releasedAt     DateTime?
+  releasedById   String?
+  releaseInstructions String?
+  lastActionAt   DateTime?
+  publicShareToken String?    @unique
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  visit         Visit         @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  generatedBy   Staff?        @relation("ReportGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull)
+  releasedBy    Staff?        @relation("ReportReleasedBy", fields: [releasedById], references: [id], onDelete: SetNull)
+  versions      DiagnosticReportVersion[]
+
+  @@unique([visitId, department])
+  @@index([organizationId, department, status, updatedAt])
+  @@index([organizationId, reportType, status, updatedAt])
+  @@index([sourceTaskId])
+  @@map("diagnostic_reports")
+}
+
+model DiagnosticReportVersion {
+  id         String   @id @default(cuid())
+  reportId   String
+  version    Int
+  content    Json
+  comments   String?
+  prescription String?
+  isActive   Boolean  @default(true)
+  parentId   String?
+  editedById String
+  editReason String
+  createdAt  DateTime @default(now())
+
+  report   DiagnosticReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  editedBy Staff            @relation(fields: [editedById], references: [id], onDelete: Cascade)
+  parent   DiagnosticReportVersion?  @relation("DiagnosticReportVersionChain", fields: [parentId], references: [id], onDelete: SetNull)
+  children DiagnosticReportVersion[] @relation("DiagnosticReportVersionChain")
+
+  @@unique([reportId, version])
+  @@index([reportId, isActive])
+  @@index([parentId])
+  @@index([editedById, createdAt])
+  @@map("diagnostic_report_versions")
 }
 
 model LabResultVersion {

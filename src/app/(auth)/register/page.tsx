@@ -17,6 +17,9 @@ const schema = z.object({
   orgEmail: z.string().email("Valid email required"),
   orgPhone: z.string().min(7, "Phone number required"),
   orgAddress: z.string().min(5, "Address required"),
+  orgContactInfo: z.string().optional(),
+  orgLogo: z.string().url().optional().or(z.literal("")),
+  orgLetterheadUrl: z.string().url().optional().or(z.literal("")),
   adminName: z.string().min(2, "Admin full name required"),
   adminEmail: z.string().email("Valid admin email required"),
   adminPhone: z.string().min(7, "Admin phone required"),
@@ -33,9 +36,13 @@ export default function RegisterPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState("");
   const [registered, setRegistered] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingLetterhead, setUploadingLetterhead] = useState(false);
 
   const {
     register,
+    setValue,
+    watch,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
@@ -57,6 +64,27 @@ export default function RegisterPage() {
       setTimeout(() => router.push("/login"), 3000);
     } catch {
       setServerError("Network error. Please try again.");
+    }
+  }
+
+  async function uploadBranding(file: File, folder: string, setter: (v: boolean) => void) {
+    setter(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("folder", folder);
+      const res = await fetch("/api/uploads/branding", { method: "POST", body: form });
+      const json = await res.json();
+      if (!json.success) {
+        setServerError(json.error ?? "Branding upload failed");
+        return null;
+      }
+      return json.data.fileUrl as string;
+    } catch {
+      setServerError("Branding upload failed");
+      return null;
+    } finally {
+      setter(false);
     }
   }
 
@@ -90,6 +118,8 @@ export default function RegisterPage() {
 
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <input type="hidden" {...register("orgLogo")} />
+          <input type="hidden" {...register("orgLetterheadUrl")} />
           {serverError && (
             <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">
               {serverError}
@@ -121,6 +151,44 @@ export default function RegisterPage() {
                 <Label htmlFor="orgAddress">Lab Address *</Label>
                 <Input id="orgAddress" placeholder="Full lab address" {...register("orgAddress")} />
                 {errors.orgAddress && <p className="text-xs text-destructive">{errors.orgAddress.message}</p>}
+              </div>
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label htmlFor="orgContactInfo">Additional Contact Info (optional)</Label>
+                <Input id="orgContactInfo" placeholder="Website, alternate phone, etc." {...register("orgContactInfo")} />
+              </div>
+              <div className="sm:col-span-2 space-y-2">
+                <Label>Lab Logo (optional)</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const url = await uploadBranding(file, "diagsync/branding/logo", setUploadingLogo);
+                      if (url) setValue("orgLogo", url);
+                    }}
+                  />
+                  {uploadingLogo ? <span className="text-xs text-muted-foreground">Uploading...</span> : null}
+                </div>
+                {watch("orgLogo") ? <p className="text-xs text-muted-foreground break-all">{watch("orgLogo")}</p> : null}
+              </div>
+              <div className="sm:col-span-2 space-y-2">
+                <Label>Letterhead Template (optional)</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const url = await uploadBranding(file, "diagsync/branding/letterhead", setUploadingLetterhead);
+                      if (url) setValue("orgLetterheadUrl", url);
+                    }}
+                  />
+                  {uploadingLetterhead ? <span className="text-xs text-muted-foreground">Uploading...</span> : null}
+                </div>
+                {watch("orgLetterheadUrl") ? <p className="text-xs text-muted-foreground break-all">{watch("orgLetterheadUrl")}</p> : null}
               </div>
             </div>
           </div>

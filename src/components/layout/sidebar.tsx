@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Activity,
   TestTube2,
+  Settings2,
 } from "lucide-react";
 import { cn, ROLE_LABELS } from "@/lib/utils";
 import { Role } from "@prisma/client";
@@ -32,6 +33,7 @@ interface NavItem {
 const navByRole: Record<string, NavItem[]> = {
   SUPER_ADMIN: [
     { label: "Overview", href: "/dashboard/hrm", icon: LayoutDashboard },
+    { label: "Lab Settings", href: "/dashboard/hrm/settings", icon: Settings2 },
     { label: "Staff Management", href: "/dashboard/hrm/staff", icon: Users },
     { label: "Add Staff", href: "/dashboard/hrm/staff/new", icon: UserPlus },
     { label: "Test Catalog", href: "/dashboard/hrm/tests", icon: TestTube2 },

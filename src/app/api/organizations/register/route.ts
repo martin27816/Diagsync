@@ -11,6 +11,9 @@ const registerSchema = z.object({
   orgEmail: z.string().email("Valid email required"),
   orgPhone: z.string().min(7, "Phone number required"),
   orgAddress: z.string().min(5, "Address required"),
+  orgContactInfo: z.string().max(1000).optional().nullable(),
+  orgLogo: z.string().url().optional().nullable(),
+  orgLetterheadUrl: z.string().url().optional().nullable(),
   // Admin account details
   adminName: z.string().min(2, "Admin full name required"),
   adminEmail: z.string().email("Valid admin email required"),
@@ -64,6 +67,9 @@ export async function POST(req: NextRequest) {
           email: data.orgEmail,
           phone: data.orgPhone,
           address: data.orgAddress,
+          contactInfo: data.orgContactInfo ?? null,
+          logo: data.orgLogo ?? null,
+          letterheadUrl: data.orgLetterheadUrl ?? null,
         },
       });
 
@@ -89,7 +95,12 @@ export async function POST(req: NextRequest) {
       action: AUDIT_ACTIONS.ORG_CREATED,
       entityType: "Organization",
       entityId: result.org.id,
-      newValue: { name: result.org.name, email: result.org.email },
+      newValue: {
+        name: result.org.name,
+        email: result.org.email,
+        logo: result.org.logo,
+        letterheadUrl: result.org.letterheadUrl,
+      },
     });
 
     return NextResponse.json(
