@@ -63,6 +63,7 @@ export async function POST(
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === "FORBIDDEN_ROLE") return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+      if (error.message === "FORBIDDEN_UNRELEASED_REPORT") return NextResponse.json({ success: false, error: "Reception can only access released reports" }, { status: 403 });
       if (error.message === "REPORT_NOT_FOUND") return NextResponse.json({ success: false, error: "Report not found" }, { status: 404 });
       if (error.message === "REPORT_NOT_RELEASED") return NextResponse.json({ success: false, error: "Report must be released first" }, { status: 409 });
       if (error.message === "REPORT_TYPE_MISMATCH") return NextResponse.json({ success: false, error: "Invalid report state" }, { status: 409 });

@@ -27,6 +27,7 @@ export async function GET(
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === "FORBIDDEN_ROLE") return new NextResponse("Forbidden", { status: 403 });
+      if (error.message === "FORBIDDEN_UNRELEASED_REPORT") return new NextResponse("Forbidden", { status: 403 });
       if (error.message === "REPORT_NOT_FOUND") return new NextResponse("Report not found", { status: 404 });
       if (error.message === "REPORT_TYPE_MISMATCH") return new NextResponse("Invalid report state", { status: 409 });
       if (error.message === "CROSS_DEPARTMENT_CONTENT") return new NextResponse("Invalid report content", { status: 409 });

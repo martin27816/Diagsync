@@ -3,6 +3,7 @@ import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
 import {
   assertReportTypeMatchesDepartment,
+  canDispatchReleasedReport,
   canHrmReleaseReport,
   canMdEditReport,
   canPreviewReport,
@@ -221,6 +222,7 @@ export async function listReports(
   const reports = await prisma.diagnosticReport.findMany({
     where: {
       organizationId: actor.organizationId,
+      ...(actor.role === "RECEPTIONIST" ? { isReleased: true } : {}),
       ...(opts?.department && opts.department !== "ALL" ? { department: opts.department } : {}),
       ...(opts?.status && opts.status !== "ALL" ? { status: opts.status } : {}),
       ...(opts?.reportType && opts.reportType !== "ALL" ? { reportType: opts.reportType } : {}),
@@ -250,6 +252,9 @@ export async function getReportDetails(actor: ReportActor, reportId: string) {
   });
   if (!report) throw new Error("REPORT_NOT_FOUND");
   if (!isReportDepartment(report.department)) throw new Error("INVALID_REPORT_DEPARTMENT");
+  if (actor.role === "RECEPTIONIST" && !report.isReleased) {
+    throw new Error("FORBIDDEN_UNRELEASED_REPORT");
+  }
   const expectedType = reportTypeForDepartment(report.department);
   if (report.reportType !== expectedType) {
     await prisma.diagnosticReport.update({
@@ -480,6 +485,25 @@ export async function releaseReport(
       });
     }
   }
+
+  const receptionists = await prisma.staff.findMany({
+    where: { organizationId: actor.organizationId, role: Role.RECEPTIONIST, status: "ACTIVE" },
+    select: { id: true },
+  });
+  for (const r of receptionists) {
+    await sendNotification({
+      organizationId: actor.organizationId,
+      userId: r.id,
+      type: NotificationType.SYSTEM,
+      title: "Result ready for dispatch",
+      message: input.instructions?.trim()
+        ? `A released report is ready. Instruction: ${input.instructions}`
+        : "A released report is ready for dispatch actions (print, download, WhatsApp).",
+      entityId: report.id,
+      entityType: "DiagnosticReport",
+      dedupeKey: `reception-dispatch-ready:${report.id}:${r.id}`,
+    });
+  }
 }
 
 export async function trackReportAction(
@@ -490,7 +514,7 @@ export async function trackReportAction(
     notes?: string;
   }
 ) {
-  if (!canHrmReleaseReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
+  if (!canDispatchReleasedReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
   const report = await getReportDetails(actor, input.reportId);
   if (!report.isReleased && input.action !== "PRINT") {
     throw new Error("REPORT_NOT_RELEASED");

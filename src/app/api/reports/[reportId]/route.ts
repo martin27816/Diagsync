@@ -29,6 +29,9 @@ export async function GET(
       if (error.message === "REPORT_TYPE_MISMATCH") {
         return NextResponse.json({ success: false, error: "Invalid report state" }, { status: 409 });
       }
+      if (error.message === "FORBIDDEN_UNRELEASED_REPORT") {
+        return NextResponse.json({ success: false, error: "Reception can only access released reports" }, { status: 403 });
+      }
     }
     console.error("[REPORT_GET_ONE]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });

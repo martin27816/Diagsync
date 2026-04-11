@@ -46,7 +46,7 @@ type ReportDetails = ReportListItem & {
 };
 
 type Props = {
-  role: "MD" | "HRM" | "SUPER_ADMIN";
+  role: "MD" | "HRM" | "SUPER_ADMIN" | "RECEPTIONIST";
 };
 
 function reportLabel(reportType: ReportType) {
@@ -79,6 +79,7 @@ export function ReportWorkspace({ role }: Props) {
 
   const canMdEdit = role === "MD" || role === "SUPER_ADMIN";
   const canHrmRelease = role === "HRM" || role === "SUPER_ADMIN";
+  const canReceptionDispatch = role === "RECEPTIONIST";
 
   const activeVersion = useMemo(() => {
     if (!details) return null;
@@ -461,9 +462,10 @@ export function ReportWorkspace({ role }: Props) {
                 </div>
               ) : null}
 
-              {canHrmRelease ? (
+              {canHrmRelease || canReceptionDispatch ? (
                 <div className="space-y-3 rounded-md border p-3">
-                  <p className="font-medium">HRM Release Controls</p>
+                  <p className="font-medium">{canReceptionDispatch ? "Reception Dispatch Controls" : "HRM Release Controls"}</p>
+                  {!canReceptionDispatch ? (
                   <label className="block text-sm">
                     <span className="mb-1 block">Instruction for receptionist (optional)</span>
                     <textarea
@@ -473,7 +475,9 @@ export function ReportWorkspace({ role }: Props) {
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     />
                   </label>
+                  ) : null}
 
+                  {!canReceptionDispatch ? (
                   <label className="block text-sm">
                     <span className="mb-1 block">Release method</span>
                     <select
@@ -486,6 +490,7 @@ export function ReportWorkspace({ role }: Props) {
                       <option value="WHATSAPP">WhatsApp</option>
                     </select>
                   </label>
+                  ) : null}
 
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                     <Button variant="outline" disabled={busy} onClick={printReport}>
@@ -497,9 +502,11 @@ export function ReportWorkspace({ role }: Props) {
                     <Button variant="outline" disabled={busy || !details.isReleased} onClick={sendWhatsapp}>
                       Send WhatsApp
                     </Button>
-                    <Button disabled={busy || details.isReleased} onClick={releaseReport}>
-                      {details.isReleased ? "Already Released" : "Release Report"}
-                    </Button>
+                    {!canReceptionDispatch ? (
+                      <Button disabled={busy || details.isReleased} onClick={releaseReport}>
+                        {details.isReleased ? "Already Released" : "Release Report"}
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               ) : null}

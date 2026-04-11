@@ -17,7 +17,11 @@ export function canHrmReleaseReport(role: string) {
 }
 
 export function canPreviewReport(role: string) {
-  return role === "MD" || role === "HRM" || role === "SUPER_ADMIN";
+  return role === "MD" || role === "HRM" || role === "SUPER_ADMIN" || role === "RECEPTIONIST";
+}
+
+export function canDispatchReleasedReport(role: string) {
+  return role === "HRM" || role === "SUPER_ADMIN" || role === "RECEPTIONIST";
 }
 
 export function canRelease(reportStatus: ReportStatus, isReleased: boolean) {
