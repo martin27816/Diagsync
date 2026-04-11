@@ -1,18 +1,31 @@
 import { auth } from "@/lib/auth";
+import { getHrmOverview } from "@/lib/hrm-monitoring";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { Users, UserCheck, UserX, ClipboardList, Activity, Building2 } from "lucide-react";
+import Link from "next/link";
+import {
+  Users,
+  UserCheck,
+  UserX,
+  ClipboardList,
+  Activity,
+  Clock3,
+  Timer,
+  AlertTriangle,
+  CheckCircle2,
+} from "lucide-react";
 import { StatsCard } from "@/components/shared/stats-card";
-import { formatDateTime, ROLE_LABELS } from "@/lib/utils";
+import { formatDateTime, formatMinutes, ROLE_LABELS } from "@/lib/utils";
 import { Badge } from "@/components/ui/index";
 
 export default async function HRMDashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
+  if (!["SUPER_ADMIN", "HRM"].includes(user.role)) redirect("/dashboard");
 
-  const [totalStaff, activeStaff, unavailableStaff, recentStaff, recentAuditLogs] =
-    await prisma.$transaction([
+  const [totalStaff, activeStaff, unavailableStaff, recentAuditLogs, overview] =
+    await Promise.all([
       prisma.staff.count({ where: { organizationId: user.organizationId } }),
       prisma.staff.count({
         where: { organizationId: user.organizationId, availabilityStatus: "AVAILABLE" },
@@ -20,130 +33,134 @@ export default async function HRMDashboardPage() {
       prisma.staff.count({
         where: { organizationId: user.organizationId, availabilityStatus: "UNAVAILABLE" },
       }),
-      prisma.staff.findMany({
-        where: { organizationId: user.organizationId },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: {
-          id: true,
-          fullName: true,
-          role: true,
-          department: true,
-          status: true,
-          availabilityStatus: true,
-          createdAt: true,
-        },
-      }),
       prisma.auditLog.findMany({
         where: { actor: { organizationId: user.organizationId } },
         orderBy: { createdAt: "desc" },
         take: 8,
         include: { actor: { select: { fullName: true, role: true } } },
       }),
+      getHrmOverview({
+        id: user.id,
+        role: user.role,
+        organizationId: user.organizationId,
+      }),
     ]);
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold">Operations Overview</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Monitor staff, workflow, and activity across your lab
+        <p className="mt-1 text-sm text-muted-foreground">
+          Monitor workflow movement, staff load, and release readiness across your lab
         </p>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatsCard
-          title="Total Staff"
-          value={totalStaff}
-          subtitle="All registered staff members"
+          title="Patients Today"
+          value={overview.metrics.todayPatients}
+          subtitle="Registered today"
           icon={Users}
           iconBg="bg-blue-50"
           iconColor="text-blue-600"
         />
         <StatsCard
-          title="Currently Available"
-          value={activeStaff}
-          subtitle="Marked as available now"
-          icon={UserCheck}
-          iconBg="bg-green-50"
-          iconColor="text-green-600"
+          title="Active Visits"
+          value={overview.metrics.activeVisits}
+          subtitle="Still in workflow"
+          icon={Activity}
+          iconBg="bg-indigo-50"
+          iconColor="text-indigo-600"
         />
         <StatsCard
-          title="Unavailable"
-          value={unavailableStaff}
-          subtitle="Off duty or unavailable"
-          icon={UserX}
+          title="Pending Tasks"
+          value={overview.metrics.pendingTasks}
+          subtitle="Awaiting completion"
+          icon={Clock3}
           iconBg="bg-yellow-50"
           iconColor="text-yellow-600"
         />
         <StatsCard
-          title="Audit Events Today"
-          value={recentAuditLogs.length}
-          subtitle="Actions logged today"
-          icon={ClipboardList}
-          iconBg="bg-purple-50"
-          iconColor="text-purple-600"
+          title="Completed Tasks"
+          value={overview.metrics.completedTasks}
+          subtitle="Done so far"
+          icon={CheckCircle2}
+          iconBg="bg-green-50"
+          iconColor="text-green-600"
+        />
+        <StatsCard
+          title="Delayed Tasks"
+          value={overview.metrics.delayedTasks}
+          subtitle="Exceeded target time"
+          icon={AlertTriangle}
+          iconBg="bg-red-50"
+          iconColor="text-red-600"
         />
       </div>
 
-      {/* Two-column content */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Recent staff */}
         <div className="rounded-lg border bg-card p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              Recent Staff
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 font-semibold">
+              <Timer className="h-4 w-4 text-muted-foreground" />
+              Basic Analytics
             </h2>
-            <a href="/dashboard/hrm/staff" className="text-xs text-primary hover:underline">
-              View all →
-            </a>
+            <Link href="/dashboard/hrm/operations" className="text-xs text-primary hover:underline">
+              Open operations -&gt;
+            </Link>
           </div>
-          <div className="space-y-3">
-            {recentStaff.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No staff added yet. Add your first staff member.
-              </p>
-            ) : (
-              recentStaff.map((s) => (
-                <div key={s.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-semibold">
-                      {s.fullName.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{s.fullName}</p>
-                      <p className="text-xs text-muted-foreground">{ROLE_LABELS[s.role]}</p>
-                    </div>
-                  </div>
-                  <Badge variant={s.availabilityStatus === "AVAILABLE" ? "success" : "secondary"}>
-                    {s.availabilityStatus === "AVAILABLE" ? "Available" : "Away"}
+          <div className="space-y-4 text-sm">
+            <div className="flex items-center justify-between border-b pb-3">
+              <span className="text-muted-foreground">Average completion time</span>
+              <span className="font-semibold">{formatMinutes(overview.analytics.averageCompletionMinutes)}</span>
+            </div>
+            <div>
+              <p className="mb-2 text-muted-foreground">Tasks per department</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(overview.analytics.tasksPerDepartment).map(([department, count]) => (
+                  <Badge key={department} variant="secondary">
+                    {department}: {count}
                   </Badge>
-                </div>
-              ))
-            )}
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-muted-foreground">Busiest staff right now</p>
+              <div className="space-y-2">
+                {overview.analytics.busiestStaff.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No active workload yet.</p>
+                ) : (
+                  overview.analytics.busiestStaff.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                      <div>
+                        <p className="font-medium">{s.fullName}</p>
+                        <p className="text-xs text-muted-foreground">{ROLE_LABELS[s.role]}</p>
+                      </div>
+                      <Badge variant={s.overloaded ? "warning" : "info"}>{s.active} active</Badge>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Recent audit activity */}
         <div className="rounded-lg border bg-card p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold flex items-center gap-2">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 font-semibold">
               <Activity className="h-4 w-4 text-muted-foreground" />
               Recent Activity
             </h2>
-            <a href="/dashboard/hrm/audit" className="text-xs text-primary hover:underline">
-              View all →
-            </a>
+            <Link href="/dashboard/hrm/audit" className="text-xs text-primary hover:underline">
+              View all -&gt;
+            </Link>
           </div>
           <div className="space-y-3">
             {recentAuditLogs.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No activity logged yet.</p>
+              <p className="py-4 text-center text-sm text-muted-foreground">No activity logged yet.</p>
             ) : (
               recentAuditLogs.map((log) => (
-                <div key={log.id} className="flex items-start gap-3 py-2 border-b last:border-0">
+                <div key={log.id} className="flex items-start gap-3 border-b py-2 last:border-0">
                   <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                     {log.actor.fullName.charAt(0)}
                   </div>
@@ -161,6 +178,33 @@ export default async function HRMDashboardPage() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatsCard
+          title="Total Staff"
+          value={totalStaff}
+          subtitle="All staff accounts"
+          icon={ClipboardList}
+          iconBg="bg-slate-100"
+          iconColor="text-slate-700"
+        />
+        <StatsCard
+          title="Available Staff"
+          value={activeStaff}
+          subtitle="Ready to receive tasks"
+          icon={UserCheck}
+          iconBg="bg-green-50"
+          iconColor="text-green-700"
+        />
+        <StatsCard
+          title="Unavailable Staff"
+          value={unavailableStaff}
+          subtitle="Not receiving new tasks"
+          icon={UserX}
+          iconBg="bg-amber-50"
+          iconColor="text-amber-700"
+        />
       </div>
     </div>
   );
