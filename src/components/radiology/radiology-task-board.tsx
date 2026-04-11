@@ -51,6 +51,14 @@ type Draft = {
   notes: string;
 };
 
+function isImageFile(file: ImagingFile) {
+  if (file.fileType?.startsWith("image/")) return true;
+  const name = file.fileName.toLowerCase();
+  return [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"].some((ext) =>
+    name.endsWith(ext)
+  );
+}
+
 function priorityVariant(priority: Priority) {
   if (priority === "EMERGENCY") return "destructive";
   if (priority === "URGENT") return "warning";
@@ -370,18 +378,40 @@ export function RadiologyTaskBoard() {
                       )}
                     </div>
                     {task.imagingFiles.length > 0 && (
-                      <div className="mt-3 space-y-1">
-                        {task.imagingFiles.map((f) => (
-                          <a
-                            key={f.id}
-                            href={f.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block text-sm text-primary underline-offset-2 hover:underline"
-                          >
-                            {f.fileName} ({Math.round(f.fileSizeBytes / 1024)} KB)
-                          </a>
-                        ))}
+                      <div className="mt-3 space-y-3">
+                        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                          {task.imagingFiles.filter(isImageFile).map((f) => (
+                            <a
+                              key={f.id}
+                              href={f.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="group overflow-hidden rounded-md border"
+                              title={f.fileName}
+                            >
+                              <img
+                                src={f.fileUrl}
+                                alt={f.fileName}
+                                className="h-24 w-full object-cover transition group-hover:scale-[1.02]"
+                                loading="lazy"
+                              />
+                            </a>
+                          ))}
+                        </div>
+
+                        <div className="space-y-1">
+                          {task.imagingFiles.map((f) => (
+                            <a
+                              key={f.id}
+                              href={f.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block text-sm text-primary underline-offset-2 hover:underline"
+                            >
+                              {f.fileName} ({Math.round(f.fileSizeBytes / 1024)} KB)
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -459,4 +489,3 @@ export function RadiologyTaskBoard() {
     </div>
   );
 }
-
