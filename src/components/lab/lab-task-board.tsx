@@ -43,7 +43,6 @@ type LabTask = {
   status: TaskStatus;
   priority: Priority;
   createdAt: string;
-  updatedAt: string;
   visit: {
     visitNumber: string;
     patient: {
@@ -55,7 +54,6 @@ type LabTask = {
   };
   sample?: {
     status: SampleStatus;
-    notes?: string | null;
   } | null;
   testOrders: TestOrder[];
 };
@@ -80,16 +78,13 @@ export function LabTaskBoard() {
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const [sampleState, setSampleState] = useState<Record<string, { status: SampleStatus; notes: string }>>({});
+  const [sampleStatusByTask, setSampleStatusByTask] = useState<Record<string, SampleStatus>>({});
 
   async function loadTasks() {
     setLoading(true);
     setError("");
     try {
-      const query = new URLSearchParams({
-        status: statusFilter,
-        sort,
-      });
+      const query = new URLSearchParams({ status: statusFilter, sort });
       const res = await fetch(`/api/lab/tasks?${query.toString()}`);
       const json = await res.json();
       if (!json.success) {
@@ -101,13 +96,10 @@ export function LabTaskBoard() {
       setTasks(rows);
 
       const nextDrafts: Record<string, Draft> = {};
-      const nextSamples: Record<string, { status: SampleStatus; notes: string }> = {};
+      const nextSampleState: Record<string, SampleStatus> = {};
 
       for (const task of rows) {
-        nextSamples[task.id] = {
-          status: task.sample?.status ?? "PENDING",
-          notes: task.sample?.notes ?? "",
-        };
+        nextSampleState[task.id] = task.sample?.status ?? "PENDING";
         for (const order of task.testOrders) {
           const existing = order.labResults[0];
           nextDrafts[order.id] = {
@@ -118,7 +110,7 @@ export function LabTaskBoard() {
       }
 
       setDrafts(nextDrafts);
-      setSampleState(nextSamples);
+      setSampleStatusByTask(nextSampleState);
     } catch {
       setError("Network error while loading tasks");
     } finally {
@@ -130,9 +122,10 @@ export function LabTaskBoard() {
     void loadTasks();
   }, [statusFilter, sort]);
 
-  const filtered = useMemo(() => {
-    return tasks.filter((task) => (priorityFilter === "ALL" ? true : task.priority === priorityFilter));
-  }, [tasks, priorityFilter]);
+  const filtered = useMemo(
+    () => tasks.filter((task) => (priorityFilter === "ALL" ? true : task.priority === priorityFilter)),
+    [tasks, priorityFilter]
+  );
 
   const grouped = useMemo(
     () => ({
@@ -150,6 +143,24 @@ export function LabTaskBoard() {
     });
   }
 
+  function getSampleStatus(task: LabTask): SampleStatus {
+    return sampleStatusByTask[task.id] ?? task.sample?.status ?? "PENDING";
+  }
+
+  function showResultForm(task: LabTask) {
+    const sampleStatus = getSampleStatus(task);
+    return sampleStatus === "PROCESSING" || sampleStatus === "DONE" || task.status === "COMPLETED";
+  }
+
+  function getActionLabel(task: LabTask) {
+    if (task.status === "COMPLETED") return "Submitted";
+    if (task.status === "PENDING") return "Start Task";
+    const sampleStatus = getSampleStatus(task);
+    if (sampleStatus === "PENDING") return "Sample Collected";
+    if (sampleStatus === "COLLECTED" || sampleStatus === "RECEIVED") return "Start Processing";
+    return "Done & Submit Result";
+  }
+
   function isValueFilled(value: any) {
     if (typeof value === "boolean") return true;
     if (value === 0) return true;
@@ -159,82 +170,78 @@ export function LabTaskBoard() {
   function isOrderReady(order: TestOrder) {
     const draft = drafts[order.id] ?? { values: {}, notes: "" };
     const required = order.test.resultFields.filter((f) => f.isRequired);
-
     if (required.length === 0) {
       return Object.values(draft.values).some(isValueFilled) || draft.notes.trim().length > 0;
     }
-
     return required.every((field) => isValueFilled(draft.values[field.fieldKey]));
   }
 
-  async function startTask(taskId: string) {
-    setSavingTaskId(taskId);
-    try {
-      const res = await fetch(`/api/lab/tasks/${taskId}/start`, { method: "PATCH" });
-      const json = await res.json();
-      if (!json.success) {
-        setError(json.error ?? "Unable to start task");
-        return;
-      }
-      await loadTasks();
-    } finally {
-      setSavingTaskId(null);
-    }
+  async function callStart(taskId: string) {
+    const res = await fetch(`/api/lab/tasks/${taskId}/start`, { method: "PATCH" });
+    return res.json();
   }
 
-  async function saveSample(taskId: string) {
-    setSavingTaskId(taskId);
-    setError("");
-    try {
-      const payload = sampleState[taskId] ?? { status: "PENDING", notes: "" };
-      const res = await fetch(`/api/lab/tasks/${taskId}/sample`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!json.success) {
-        setError(json.error ?? "Unable to save sample status");
-        return;
-      }
-      await loadTasks();
-    } finally {
-      setSavingTaskId(null);
-    }
+  async function callSample(taskId: string, status: SampleStatus) {
+    const res = await fetch(`/api/lab/tasks/${taskId}/sample`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    return res.json();
   }
 
-  async function saveResults(task: LabTask, submit = false) {
-    setSavingTaskId(task.id);
-    setError("");
-    try {
-      const payload = {
-        submit,
+  async function callSubmit(task: LabTask) {
+    const res = await fetch(`/api/lab/tasks/${task.id}/results`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        submit: true,
         results: task.testOrders.map((order) => ({
           testOrderId: order.id,
           resultData: drafts[order.id]?.values ?? {},
           notes: drafts[order.id]?.notes ?? "",
         })),
-      };
+      }),
+    });
+    return res.json();
+  }
 
-      if (submit) {
-        const notReady = task.testOrders.some((order) => !isOrderReady(order));
-        if (notReady) {
-          setError("Please complete required result fields for all tests before submission.");
-          return;
-        }
-      }
+  async function onWorkflowClick(task: LabTask) {
+    if (task.status === "COMPLETED") return;
 
-      const res = await fetch(`/api/lab/tasks/${task.id}/results`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!json.success) {
-        setError(json.error ?? "Unable to save results");
+    setSavingTaskId(task.id);
+    setError("");
+    try {
+      if (task.status === "PENDING") {
+        const json = await callStart(task.id);
+        if (!json.success) return setError(json.error ?? "Unable to start task");
+        await loadTasks();
         return;
       }
 
+      const sampleStatus = getSampleStatus(task);
+      if (sampleStatus === "PENDING") {
+        const json = await callSample(task.id, "COLLECTED");
+        if (!json.success) return setError(json.error ?? "Unable to mark sample collected");
+        await loadTasks();
+        return;
+      }
+
+      if (sampleStatus === "COLLECTED" || sampleStatus === "RECEIVED") {
+        const json = await callSample(task.id, "PROCESSING");
+        if (!json.success) return setError(json.error ?? "Unable to mark processing");
+        await loadTasks();
+        return;
+      }
+
+      const missing = task.testOrders.some((order) => !isOrderReady(order));
+      if (missing) {
+        setError("Please complete required result fields for all tests before submitting.");
+        return;
+      }
+
+      const json = await callSubmit(task);
+      if (!json.success) return setError(json.error ?? "Unable to submit results");
       await loadTasks();
     } finally {
       setSavingTaskId(null);
@@ -309,216 +316,166 @@ export function LabTaskBoard() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map((task) => (
-            <div key={task.id} className="rounded-lg border bg-card p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Visit {task.visit.visitNumber}</p>
-                  <h3 className="text-lg font-semibold">{task.visit.patient.fullName}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {task.visit.patient.patientId} · {task.visit.patient.age}y · {task.visit.patient.sex}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Assigned: {formatDateTime(task.createdAt)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={priorityBadge(task.priority) as any}>{task.priority}</Badge>
-                  <Badge variant={task.status === "COMPLETED" ? "success" : task.status === "IN_PROGRESS" ? "info" : "secondary"}>
-                    {task.status.replace("_", " ")}
-                  </Badge>
-                </div>
-              </div>
+          {filtered.map((task) => {
+            const visibleForm = showResultForm(task);
 
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <div className="md:col-span-2 space-y-2">
-                  {task.testOrders.map((order) => (
-                    <div key={order.id} className="rounded-md border p-3">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{order.test.name}</p>
-                          <p className="text-xs text-muted-foreground">{order.test.code}</p>
+            return (
+              <div key={task.id} className="rounded-lg border bg-card p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Visit {task.visit.visitNumber}</p>
+                    <h3 className="text-lg font-semibold">{task.visit.patient.fullName}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {task.visit.patient.patientId} - {task.visit.patient.age}y - {task.visit.patient.sex}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Assigned: {formatDateTime(task.createdAt)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={priorityBadge(task.priority) as any}>{task.priority}</Badge>
+                    <Badge variant={task.status === "COMPLETED" ? "success" : task.status === "IN_PROGRESS" ? "info" : "secondary"}>
+                      {task.status.replace("_", " ")}
+                    </Badge>
+                    <Badge variant="outline">{getSampleStatus(task)}</Badge>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="md:col-span-2 space-y-2">
+                    {task.testOrders.map((order) => (
+                      <div key={order.id} className="rounded-md border p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{order.test.name}</p>
+                            <p className="text-xs text-muted-foreground">{order.test.code}</p>
+                          </div>
+                          {visibleForm && (
+                            <Badge variant={isOrderReady(order) ? "success" : "warning"}>
+                              {isOrderReady(order) ? "Ready" : "Incomplete"}
+                            </Badge>
+                          )}
                         </div>
-                        <Badge variant={isOrderReady(order) ? "success" : "warning"}>
-                          {isOrderReady(order) ? "Ready" : "Incomplete"}
-                        </Badge>
-                      </div>
 
-                      <div className="grid gap-2 md:grid-cols-2">
-                        {order.test.resultFields.map((field) => {
-                          const value = drafts[order.id]?.values?.[field.fieldKey];
-                          if (field.fieldType === "TEXTAREA") {
-                            return (
-                              <div key={field.id} className="md:col-span-2">
-                                <Label>{field.label}{field.isRequired ? " *" : ""}</Label>
-                                <textarea
-                                  rows={2}
-                                  value={value ?? ""}
-                                  onChange={(e) =>
-                                    updateDraft(order.id, (prev) => ({
-                                      ...prev,
-                                      values: { ...prev.values, [field.fieldKey]: e.target.value },
-                                    }))
-                                  }
-                                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                />
-                              </div>
-                            );
-                          }
+                        {visibleForm && (
+                          <>
+                            <div className="grid gap-2 md:grid-cols-2">
+                              {order.test.resultFields.map((field) => {
+                                const value = drafts[order.id]?.values?.[field.fieldKey];
 
-                          if (field.fieldType === "DROPDOWN") {
-                            const options = (field.options ?? "").split(",").map((x) => x.trim()).filter(Boolean);
-                            return (
-                              <div key={field.id}>
-                                <Label>{field.label}{field.isRequired ? " *" : ""}</Label>
-                                <Select
-                                  value={value ?? ""}
-                                  onValueChange={(v) =>
-                                    updateDraft(order.id, (prev) => ({
-                                      ...prev,
-                                      values: { ...prev.values, [field.fieldKey]: v },
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
-                                  <SelectContent>
-                                    {options.map((opt) => (
-                                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            );
-                          }
-
-                          if (field.fieldType === "CHECKBOX") {
-                            return (
-                              <label key={field.id} className="mt-2 flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(value)}
-                                  onChange={(e) =>
-                                    updateDraft(order.id, (prev) => ({
-                                      ...prev,
-                                      values: { ...prev.values, [field.fieldKey]: e.target.checked },
-                                    }))
-                                  }
-                                />
-                                {field.label}
-                              </label>
-                            );
-                          }
-
-                          return (
-                            <div key={field.id}>
-                              <Label>{field.label}{field.isRequired ? " *" : ""}</Label>
-                              <Input
-                                type={field.fieldType === "NUMBER" ? "number" : "text"}
-                                value={value ?? ""}
-                                onChange={(e) =>
-                                  updateDraft(order.id, (prev) => ({
-                                    ...prev,
-                                    values: { ...prev.values, [field.fieldKey]: e.target.value },
-                                  }))
+                                if (field.fieldType === "TEXTAREA") {
+                                  return (
+                                    <div key={field.id} className="md:col-span-2">
+                                      <Label>{field.label}{field.isRequired ? " *" : ""}</Label>
+                                      <textarea
+                                        rows={2}
+                                        value={value ?? ""}
+                                        onChange={(e) =>
+                                          updateDraft(order.id, (prev) => ({
+                                            ...prev,
+                                            values: { ...prev.values, [field.fieldKey]: e.target.value },
+                                          }))
+                                        }
+                                        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                      />
+                                    </div>
+                                  );
                                 }
-                                placeholder={field.unit ? `Unit: ${field.unit}` : ""}
-                                className="mt-1"
+
+                                if (field.fieldType === "DROPDOWN") {
+                                  const options = (field.options ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+                                  return (
+                                    <div key={field.id}>
+                                      <Label>{field.label}{field.isRequired ? " *" : ""}</Label>
+                                      <Select
+                                        value={value ?? ""}
+                                        onValueChange={(v) =>
+                                          updateDraft(order.id, (prev) => ({
+                                            ...prev,
+                                            values: { ...prev.values, [field.fieldKey]: v },
+                                          }))
+                                        }
+                                      >
+                                        <SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
+                                        <SelectContent>
+                                          {options.map((opt) => (
+                                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  );
+                                }
+
+                                if (field.fieldType === "CHECKBOX") {
+                                  return (
+                                    <label key={field.id} className="mt-2 flex items-center gap-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(value)}
+                                        onChange={(e) =>
+                                          updateDraft(order.id, (prev) => ({
+                                            ...prev,
+                                            values: { ...prev.values, [field.fieldKey]: e.target.checked },
+                                          }))
+                                        }
+                                      />
+                                      {field.label}
+                                    </label>
+                                  );
+                                }
+
+                                return (
+                                  <div key={field.id}>
+                                    <Label>{field.label}{field.isRequired ? " *" : ""}</Label>
+                                    <Input
+                                      type={field.fieldType === "NUMBER" ? "number" : "text"}
+                                      value={value ?? ""}
+                                      onChange={(e) =>
+                                        updateDraft(order.id, (prev) => ({
+                                          ...prev,
+                                          values: { ...prev.values, [field.fieldKey]: e.target.value },
+                                        }))
+                                      }
+                                      placeholder={field.unit ? `Unit: ${field.unit}` : ""}
+                                      className="mt-1"
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="mt-2">
+                              <Label>Notes</Label>
+                              <textarea
+                                rows={2}
+                                value={drafts[order.id]?.notes ?? ""}
+                                onChange={(e) => updateDraft(order.id, (prev) => ({ ...prev, notes: e.target.value }))}
+                                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                               />
                             </div>
-                          );
-                        })}
+                          </>
+                        )}
                       </div>
-
-                      <div className="mt-2">
-                        <Label>Notes</Label>
-                        <textarea
-                          rows={2}
-                          value={drafts[order.id]?.notes ?? ""}
-                          onChange={(e) =>
-                            updateDraft(order.id, (prev) => ({ ...prev, notes: e.target.value }))
-                          }
-                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-3 rounded-md border p-3">
-                  <div>
-                    <Label>Sample Status</Label>
-                    <Select
-                      value={sampleState[task.id]?.status ?? "PENDING"}
-                      onValueChange={(v) =>
-                        setSampleState((prev) => ({
-                          ...prev,
-                          [task.id]: { ...(prev[task.id] ?? { notes: "" }), status: v as SampleStatus },
-                        }))
-                      }
-                    >
-                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PENDING">Pending</SelectItem>
-                        <SelectItem value="COLLECTED">Collected</SelectItem>
-                        <SelectItem value="RECEIVED">Received</SelectItem>
-                        <SelectItem value="PROCESSING">Processing</SelectItem>
-                        <SelectItem value="DONE">Done</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    ))}
                   </div>
 
-                  <div>
-                    <Label>Sample Notes</Label>
-                    <textarea
-                      rows={3}
-                      value={sampleState[task.id]?.notes ?? ""}
-                      onChange={(e) =>
-                        setSampleState((prev) => ({
-                          ...prev,
-                          [task.id]: { ...(prev[task.id] ?? { status: "PENDING" }), notes: e.target.value },
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Button
-                      className="w-full"
-                      variant="outline"
-                      disabled={savingTaskId === task.id || task.status === "COMPLETED"}
-                      onClick={() => startTask(task.id)}
-                    >
-                      {savingTaskId === task.id ? "Working..." : "Start Task"}
-                    </Button>
-                    <Button
-                      className="w-full"
-                      variant="outline"
-                      disabled={savingTaskId === task.id || task.status === "COMPLETED"}
-                      onClick={() => saveSample(task.id)}
-                    >
-                      Save Sample
-                    </Button>
-                    <Button
-                      className="w-full"
-                      variant="outline"
-                      disabled={savingTaskId === task.id || task.status === "COMPLETED"}
-                      onClick={() => saveResults(task, false)}
-                    >
-                      Save Draft Results
-                    </Button>
+                  <div className="space-y-3 rounded-md border p-3">
+                    <p className="text-sm text-muted-foreground">
+                      Workflow: Start Task, then Sample Collected, then Start Processing, then Done and Submit Result.
+                    </p>
                     <Button
                       className="w-full"
                       disabled={savingTaskId === task.id || task.status === "COMPLETED"}
-                      onClick={() => saveResults(task, true)}
+                      onClick={() => onWorkflowClick(task)}
                     >
-                      Complete & Submit
+                      {savingTaskId === task.id ? "Working..." : getActionLabel(task)}
                     </Button>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
