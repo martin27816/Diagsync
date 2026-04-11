@@ -115,6 +115,17 @@ enum ReviewStatus {
   REJECTED
 }
 
+enum NotificationType {
+  TASK_ASSIGNED
+  RESULT_SUBMITTED
+  RESULT_APPROVED
+  RESULT_REJECTED
+  TASK_DELAYED
+  TASK_REASSIGNED
+  TASK_OVERRIDDEN
+  SYSTEM
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String
@@ -166,6 +177,7 @@ model Staff {
   imagingFiles      ImagingFile[]
   radiologyReports  RadiologyReport[]
   reviews           Review[]
+  notifications     Notification[]
 
   @@map("staff")
 }
@@ -476,4 +488,26 @@ model Review {
   @@index([organizationId, status, updatedAt])
   @@index([visitId])
   @@map("reviews")
+}
+
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  type           NotificationType
+  title          String
+  message        String
+  isRead         Boolean          @default(false)
+  readAt         DateTime?
+  entityId       String?
+  entityType     String?
+  dedupeKey      String?          @unique
+  createdAt      DateTime         @default(now())
+
+  user Staff @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, createdAt])
+  @@index([userId, isRead, createdAt])
+  @@index([organizationId, type, createdAt])
+  @@map("notifications")
 }

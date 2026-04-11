@@ -1,4 +1,5 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import { notifyMdResultSubmitted } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
   Department,
@@ -249,5 +250,11 @@ export async function submitRadiologyTask(
     entityId: task.id,
     notes: "Radiology report submitted for MD review",
   });
-}
 
+  await notifyMdResultSubmitted({
+    organizationId: actor.organizationId,
+    taskId: task.id,
+    patientName: task.visit.patient.fullName,
+    department: task.department,
+  });
+}

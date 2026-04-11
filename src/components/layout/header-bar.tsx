@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Bell } from "lucide-react";
 import { Switch } from "@/components/ui/index";
 import { Badge } from "@/components/ui/index";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 interface HeaderBarProps {
   staffId: string;
@@ -78,11 +78,7 @@ export function HeaderBar({
           </div>
         )}
 
-        {/* Notifications bell */}
-        <button className="relative rounded-full p-2 hover:bg-accent transition-colors">
-          <Bell className="h-5 w-5" />
-          <span className="absolute right-1 top-1 flex h-2 w-2 items-center justify-center rounded-full bg-destructive" />
-        </button>
+        <NotificationBell role={role} />
       </div>
     </header>
   );

@@ -1,4 +1,5 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import { notifyStaffForTaskAssignment } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
   ACTIVE_WORKLOAD_STATUSES,
@@ -146,7 +147,7 @@ export async function assignTasksForVisit(
     const testOrderIds = orders.map((order) => order.id);
     const testNames = orders.map((order) => order.test.name);
 
-    await prisma.$transaction(async (tx) => {
+    const createdTask = await prisma.$transaction(async (tx) => {
       await tx.testOrder.updateMany({
         where: {
           id: { in: testOrderIds },
@@ -159,7 +160,7 @@ export async function assignTasksForVisit(
         },
       });
 
-      await tx.routingTask.create({
+      return tx.routingTask.create({
         data: {
           organizationId: options.organizationId,
           visitId: visit.id,
@@ -180,6 +181,17 @@ export async function assignTasksForVisit(
       testOrderIds,
       testNames,
     });
+
+    if (selected?.id) {
+      await notifyStaffForTaskAssignment({
+        organizationId: options.organizationId,
+        staffId: selected.id,
+        taskId: createdTask.id,
+        testNames,
+        department,
+        patientName: visit.patient.fullName,
+      });
+    }
 
     if (options.actorId && options.actorRole) {
       for (const order of orders) {

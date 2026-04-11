@@ -1,10 +1,13 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import { emitDelayedTaskNotifications } from "@/lib/notifications";
+import { sendNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
   AvailabilityStatus,
   Department,
   OrderStatus,
   Priority,
+  NotificationType,
   Role,
   RoutingTaskStatus,
   StaffStatus,
@@ -105,6 +108,7 @@ async function fetchTaskRows(actor: HrmActor, filters?: TaskFilters) {
 
 export async function getHrmOverview(actor: HrmActor) {
   assertHrm(actor);
+  await emitDelayedTaskNotifications(actor.organizationId);
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -301,6 +305,16 @@ export async function reassignTask(
     newValue: { newStaffId: staff.id, reason: input.reason ?? null },
     notes: input.reason,
   });
+
+  await sendNotification({
+    organizationId: actor.organizationId,
+    userId: staff.id,
+    type: NotificationType.TASK_REASSIGNED,
+    title: "Task reassigned to you",
+    message: `A ${task.department} task was reassigned to you${input.reason ? `: ${input.reason}` : "."}`,
+    entityId: task.id,
+    entityType: "RoutingTask",
+  });
 }
 
 export async function overrideTask(
@@ -351,4 +365,17 @@ export async function overrideTask(
     newValue: { overrideAction: input.action },
     notes: input.reason ?? `Override action: ${input.action}`,
   });
+
+  if (task.staffId) {
+    await sendNotification({
+      organizationId: actor.organizationId,
+      userId: task.staffId,
+      type: NotificationType.TASK_OVERRIDDEN,
+      title: "Task status overridden",
+      message: `HRM updated task status to ${input.action}.`,
+      entityId: task.id,
+      entityType: "RoutingTask",
+      dedupeKey: `override:${task.id}:${input.action}:${task.staffId}`,
+    });
+  }
 }

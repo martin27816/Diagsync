@@ -1,4 +1,5 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import { notifyTaskReviewOutcome } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
   Department,
@@ -163,6 +164,14 @@ export async function approveMdReview(taskId: string, actor: MdActor, comments?:
     entityId: task.id,
     newValue: { status: "APPROVED", comments },
   });
+
+  await notifyTaskReviewOutcome({
+    organizationId: actor.organizationId,
+    taskId: task.id,
+    performerId: task.staffId,
+    patientName: task.visit.patient.fullName,
+    approved: true,
+  });
 }
 
 export async function rejectMdReview(taskId: string, actor: MdActor, reason: string) {
@@ -220,6 +229,15 @@ export async function rejectMdReview(taskId: string, actor: MdActor, reason: str
     entityType: "Review",
     entityId: task.id,
     newValue: { status: "REJECTED", reason },
+  });
+
+  await notifyTaskReviewOutcome({
+    organizationId: actor.organizationId,
+    taskId: task.id,
+    performerId: task.staffId,
+    patientName: task.visit.patient.fullName,
+    approved: false,
+    reason,
   });
 }
 

@@ -79,6 +79,14 @@ interface SidebarProps {
   };
 }
 
+function notificationPathForRole(role: Role) {
+  if (role === "RECEPTIONIST") return "/dashboard/receptionist/notifications";
+  if (role === "LAB_SCIENTIST") return "/dashboard/lab-scientist/notifications";
+  if (role === "RADIOGRAPHER") return "/dashboard/radiographer/notifications";
+  if (role === "MD") return "/dashboard/md/notifications";
+  return "/dashboard/hrm/notifications";
+}
+
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const navItems = navByRole[user.role] ?? [];
@@ -132,7 +140,7 @@ export function Sidebar({ user }: SidebarProps) {
       {/* Notifications link */}
       <div className="border-t px-3 py-2">
         <Link
-          href="/notifications"
+          href={notificationPathForRole(user.role)}
           className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
         >
           <Bell className="h-4 w-4" />

@@ -17,7 +17,8 @@
     "test:lab": "ts-node --project tsconfig.test.json src/lib/lab-workflow-core.test.ts",
     "test:radiology": "ts-node --project tsconfig.test.json src/lib/radiology-workflow-core.test.ts",
     "test:md": "ts-node --project tsconfig.test.json src/lib/md-workflow-core.test.ts",
-    "test:hrm": "ts-node --project tsconfig.test.json src/lib/hrm-monitoring-core.test.ts"
+    "test:hrm": "ts-node --project tsconfig.test.json src/lib/hrm-monitoring-core.test.ts",
+    "test:notifications": "ts-node --project tsconfig.test.json src/lib/notifications-core.test.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.4.1",
