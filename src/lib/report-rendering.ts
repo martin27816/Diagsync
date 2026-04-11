@@ -99,7 +99,11 @@ export function renderReportHtml(args: RenderArgs) {
     body { font-family: Arial, sans-serif; margin: 0; color: #111827; }
     .page {
       position: relative;
+      width: 794px;
+      max-width: 794px;
       min-height: 1123px;
+      margin: 0 auto;
+      box-sizing: border-box;
       padding: ${hasLetterhead ? "340px 44px 90px" : "120px 44px 90px"};
       ${letterheadBackground}
     }
