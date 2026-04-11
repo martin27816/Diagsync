@@ -1,4 +1,5 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import type { AuditMeta } from "@/lib/audit-core";
 import { notifyTaskReviewOutcome } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
@@ -22,6 +23,7 @@ export type MdActor = {
   id: string;
   role: string;
   organizationId: string;
+  auditMeta?: AuditMeta;
 };
 
 type MdFilter = "all" | "pending" | "approved" | "rejected";
@@ -163,6 +165,7 @@ export async function approveMdReview(taskId: string, actor: MdActor, comments?:
     entityType: "Review",
     entityId: task.id,
     newValue: { status: "APPROVED", comments },
+    ...actor.auditMeta,
   });
 
   await notifyTaskReviewOutcome({
@@ -229,6 +232,7 @@ export async function rejectMdReview(taskId: string, actor: MdActor, reason: str
     entityType: "Review",
     entityId: task.id,
     newValue: { status: "REJECTED", reason },
+    ...actor.auditMeta,
   });
 
   await notifyTaskReviewOutcome({
@@ -327,5 +331,6 @@ export async function editMdReview(
     entityType: "Review",
     entityId: task.id,
     newValue: { editedData: payload.editedData, comments: payload.comments },
+    ...actor.auditMeta,
   });
 }

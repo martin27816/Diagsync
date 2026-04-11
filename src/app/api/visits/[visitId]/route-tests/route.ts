@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { assignTasksForVisit } from "@/lib/routing-engine";
 
 export const dynamic = "force-dynamic";
 
 // POST /api/visits/[visitId]/route-tests
 // Triggers auto-routing for all REGISTERED test orders in the visit.
-export async function POST(
-  _req: NextRequest,
-  { params }: { params: { visitId: string } }
-) {
+export async function POST(req: NextRequest, { params }: { params: { visitId: string } }) {
   try {
     const session = await auth();
     if (!session?.user) {
@@ -25,6 +23,7 @@ export async function POST(
       organizationId: user.organizationId,
       actorId: user.id,
       actorRole: user.role,
+      auditMeta: getAuditMetaFromRequest(req),
     });
 
     return NextResponse.json({

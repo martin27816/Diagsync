@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { submitRadiologyTask } from "@/lib/radiology-workflow";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,12 @@ export async function PATCH(
     const user = session.user as any;
     await submitRadiologyTask(
       params.taskId,
-      { id: user.id, role: user.role, organizationId: user.organizationId },
+      {
+        id: user.id,
+        role: user.role,
+        organizationId: user.organizationId,
+        auditMeta: getAuditMetaFromRequest(req),
+      },
       { requireImaging }
     );
 
@@ -50,4 +56,3 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
-

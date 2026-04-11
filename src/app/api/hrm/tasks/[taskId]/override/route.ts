@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { overrideTask } from "@/lib/hrm-monitoring";
 import { z } from "zod";
 
@@ -24,7 +25,12 @@ export async function PATCH(
     }
 
     await overrideTask(
-      { id: user.id, role: user.role, organizationId: user.organizationId },
+      {
+        id: user.id,
+        role: user.role,
+        organizationId: user.organizationId,
+        auditMeta: getAuditMetaFromRequest(req),
+      },
       { taskId: params.taskId, ...parsed.data }
     );
 
@@ -42,4 +48,3 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
-

@@ -1,25 +1,73 @@
 import { auth } from "@/lib/auth";
+import { canViewAuditLogs } from "@/lib/audit-core";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/index";
 import { formatDateTime, ROLE_LABELS } from "@/lib/utils";
 
-export default async function AuditLogPage() {
+export default async function AuditLogPage({
+  searchParams,
+}: {
+  searchParams?: {
+    userId?: string;
+    action?: string;
+    entityType?: string;
+    from?: string;
+    to?: string;
+  };
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
 
-  if (!["SUPER_ADMIN", "HRM"].includes(user.role)) redirect("/dashboard/hrm");
+  if (!canViewAuditLogs(user.role)) redirect("/dashboard/hrm");
 
-  const logs = await prisma.auditLog.findMany({
-    where: { actor: { organizationId: user.organizationId } },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    include: {
-      actor: { select: { fullName: true, role: true } },
-    },
-  });
+  const fromDate = searchParams?.from ? new Date(`${searchParams.from}T00:00:00`) : null;
+  const toDate = searchParams?.to ? new Date(`${searchParams.to}T23:59:59`) : null;
+
+  const where = {
+    actor: { organizationId: user.organizationId },
+    ...(searchParams?.userId ? { actorId: searchParams.userId } : {}),
+    ...(searchParams?.action ? { action: searchParams.action } : {}),
+    ...(searchParams?.entityType ? { entityType: searchParams.entityType } : {}),
+    ...(fromDate || toDate
+      ? {
+          createdAt: {
+            ...(fromDate ? { gte: fromDate } : {}),
+            ...(toDate ? { lte: toDate } : {}),
+          },
+        }
+      : {}),
+  };
+
+  const [logs, actors, actionOptions, entityOptions] = await Promise.all([
+    prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      include: {
+        actor: { select: { id: true, fullName: true, role: true } },
+      },
+    }),
+    prisma.staff.findMany({
+      where: { organizationId: user.organizationId },
+      select: { id: true, fullName: true },
+      orderBy: { fullName: "asc" },
+    }),
+    prisma.auditLog.findMany({
+      where: { actor: { organizationId: user.organizationId } },
+      distinct: ["action"],
+      select: { action: true },
+      orderBy: { action: "asc" },
+    }),
+    prisma.auditLog.findMany({
+      where: { actor: { organizationId: user.organizationId } },
+      distinct: ["entityType"],
+      select: { entityType: true },
+      orderBy: { entityType: "asc" },
+    }),
+  ]);
 
   const actionColor: Record<string, "success" | "destructive" | "info" | "warning" | "secondary"> = {
     STAFF_CREATED: "success",
@@ -30,26 +78,94 @@ export default async function AuditLogPage() {
     AVAILABILITY_CHANGED: "warning",
     STAFF_LOGIN: "secondary",
     STAFF_LOGOUT: "secondary",
+    TEST_ASSIGNED: "info",
+    TEST_REASSIGNED: "warning",
+    TEST_STARTED: "info",
+    RESULT_SUBMITTED: "success",
+    RESULT_APPROVED: "success",
+    RESULT_REJECTED: "destructive",
+    TASK_OVERRIDDEN: "warning",
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
           <ClipboardList className="h-6 w-6" />
           Audit Log
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="mt-1 text-sm text-muted-foreground">
           Full history of every key action in your organization
         </p>
       </div>
 
-      <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
+      <form className="rounded-lg border bg-card p-4">
+        <div className="grid gap-3 md:grid-cols-5">
+          <select
+            name="userId"
+            defaultValue={searchParams?.userId ?? ""}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">All users</option>
+            {actors.map((actor) => (
+              <option key={actor.id} value={actor.id}>
+                {actor.fullName}
+              </option>
+            ))}
+          </select>
+          <select
+            name="action"
+            defaultValue={searchParams?.action ?? ""}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">All actions</option>
+            {actionOptions.map((row) => (
+              <option key={row.action} value={row.action}>
+                {row.action}
+              </option>
+            ))}
+          </select>
+          <select
+            name="entityType"
+            defaultValue={searchParams?.entityType ?? ""}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">All entities</option>
+            {entityOptions.map((row) => (
+              <option key={row.entityType} value={row.entityType}>
+                {row.entityType}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            name="from"
+            defaultValue={searchParams?.from ?? ""}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          />
+          <input
+            type="date"
+            name="to"
+            defaultValue={searchParams?.to ?? ""}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          />
+        </div>
+        <div className="mt-3 flex gap-3">
+          <button type="submit" className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground">
+            Apply Filters
+          </button>
+          <a href="/dashboard/hrm/audit" className="rounded-md border px-4 py-2 text-sm">
+            Reset
+          </a>
+        </div>
+      </form>
+
+      <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
         {logs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <ClipboardList className="h-10 w-10 text-muted-foreground mb-3" />
+            <ClipboardList className="mb-3 h-10 w-10 text-muted-foreground" />
             <p className="font-medium">No activity logged yet</p>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="mt-1 text-sm text-muted-foreground">
               Actions taken in the system will appear here.
             </p>
           </div>
@@ -63,13 +179,14 @@ export default async function AuditLogPage() {
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Role</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Action</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Entity</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Notes</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Changes</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Meta</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                  <tr key={log.id} className="transition-colors hover:bg-muted/20">
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                       {formatDateTime(log.createdAt)}
                     </td>
                     <td className="px-4 py-3 font-medium">{log.actor.fullName}</td>
@@ -81,14 +198,16 @@ export default async function AuditLogPage() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {log.entityType}
-                      {log.entityId && (
-                        <span className="ml-1 text-xs opacity-60">
-                          #{log.entityId.slice(-6)}
-                        </span>
-                      )}
+                      {log.entityId && <span className="ml-1 text-xs opacity-60">#{log.entityId.slice(-6)}</span>}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-xs truncate">
-                      {log.notes ?? "—"}
+                    <td className="max-w-[340px] px-4 py-3 text-xs text-muted-foreground">
+                      <pre className="whitespace-pre-wrap break-all">
+                        {JSON.stringify(log.changes ?? log.newValue ?? log.oldValue ?? {}, null, 2)}
+                      </pre>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                      {log.ipAddress ? <div>{log.ipAddress}</div> : <div>-</div>}
+                      {log.userAgent ? <div className="max-w-[220px] truncate">{log.userAgent}</div> : null}
                     </td>
                   </tr>
                 ))}

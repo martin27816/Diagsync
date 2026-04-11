@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { saveLabResults, submitLabTask } from "@/lib/lab-workflow";
 import { z } from "zod";
 import type { SaveResultInput } from "@/lib/lab-workflow";
@@ -37,6 +38,7 @@ export async function POST(
       id: user.id,
       role: user.role,
       organizationId: user.organizationId,
+      auditMeta: getAuditMetaFromRequest(req),
     };
 
     await saveLabResults(params.taskId, actor, parsed.data.results as SaveResultInput[]);

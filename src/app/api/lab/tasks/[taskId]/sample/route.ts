@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { updateSampleForLabTask } from "@/lib/lab-workflow";
 import { SampleStatus } from "@prisma/client";
 import { z } from "zod";
@@ -33,6 +34,7 @@ export async function PATCH(
         id: user.id,
         role: user.role,
         organizationId: user.organizationId,
+        auditMeta: getAuditMetaFromRequest(req),
       },
       parsed.data.status,
       parsed.data.notes
@@ -53,4 +55,3 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
-

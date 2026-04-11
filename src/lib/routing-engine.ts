@@ -1,4 +1,5 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import type { AuditMeta } from "@/lib/audit-core";
 import { notifyStaffForTaskAssignment } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
@@ -27,6 +28,7 @@ type RoutingOptions = {
   organizationId: string;
   actorId?: string;
   actorRole?: Role;
+  auditMeta?: AuditMeta;
 };
 
 export type RoutingAssignment = {
@@ -209,6 +211,7 @@ export async function assignTasksForVisit(
             department,
             priority: visit.priority,
           },
+          ...options.auditMeta,
         });
       }
     }

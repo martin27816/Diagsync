@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { saveRadiologyReport } from "@/lib/radiology-workflow";
 import { z } from "zod";
 
@@ -29,7 +30,12 @@ export async function POST(
     const user = session.user as any;
     const report = await saveRadiologyReport(
       params.taskId,
-      { id: user.id, role: user.role, organizationId: user.organizationId },
+      {
+        id: user.id,
+        role: user.role,
+        organizationId: user.organizationId,
+        auditMeta: getAuditMetaFromRequest(req),
+      },
       parsed.data
     );
 
@@ -47,4 +53,3 @@ export async function POST(
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
-

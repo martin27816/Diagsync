@@ -214,13 +214,19 @@ model AuditLog {
   action     String
   entityType String
   entityId   String?
+  changes    Json?
   oldValue   Json?
   newValue   Json?
   notes      String?
+  ipAddress  String?
+  userAgent  String?
   createdAt  DateTime @default(now())
 
   actor Staff @relation(fields: [actorId], references: [id])
 
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, createdAt])
   @@map("audit_logs")
 }
 

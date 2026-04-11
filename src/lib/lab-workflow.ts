@@ -1,4 +1,5 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import type { AuditMeta } from "@/lib/audit-core";
 import { notifyMdResultSubmitted } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
@@ -22,6 +23,7 @@ export type LabActor = {
   id: string;
   role: string;
   organizationId: string;
+  auditMeta?: AuditMeta;
 };
 
 export type SaveResultInput = {
@@ -156,6 +158,7 @@ export async function startLabTask(taskId: string, actor: LabActor) {
     entityType: "RoutingTask",
     entityId: task.id,
     notes: "Lab task started",
+    ...actor.auditMeta,
   });
 }
 
@@ -227,6 +230,7 @@ export async function updateSampleForLabTask(
     entityType: "LabSample",
     entityId: task.id,
     notes: `Sample status updated to ${sampleStatus}${notes ? `: ${notes}` : ""}`,
+    ...actor.auditMeta,
   });
 }
 
@@ -283,6 +287,7 @@ export async function saveLabResults(taskId: string, actor: LabActor, inputs: Sa
     entityType: "RoutingTask",
     entityId: task.id,
     notes: `Draft results saved for ${inputs.length} test(s)`,
+    ...actor.auditMeta,
   });
 }
 
@@ -342,6 +347,7 @@ export async function submitLabTask(taskId: string, actor: LabActor) {
     entityType: "RoutingTask",
     entityId: task.id,
     notes: "Task submitted for MD review",
+    ...actor.auditMeta,
   });
 
   await notifyMdResultSubmitted({

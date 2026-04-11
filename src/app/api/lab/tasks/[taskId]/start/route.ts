@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { startLabTask } from "@/lib/lab-workflow";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { taskId: string } }
 ) {
   try {
@@ -19,6 +20,7 @@ export async function PATCH(
       id: user.id,
       role: user.role,
       organizationId: user.organizationId,
+      auditMeta: getAuditMetaFromRequest(req),
     });
 
     return NextResponse.json({ success: true, message: "Task started" });
@@ -39,4 +41,3 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
-

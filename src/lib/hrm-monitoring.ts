@@ -1,4 +1,5 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import type { AuditMeta } from "@/lib/audit-core";
 import { emitDelayedTaskNotifications } from "@/lib/notifications";
 import { sendNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
@@ -27,6 +28,7 @@ type HrmActor = {
   id: string;
   role: string;
   organizationId: string;
+  auditMeta?: AuditMeta;
 };
 
 type TaskFilters = {
@@ -304,6 +306,7 @@ export async function reassignTask(
     oldValue: { oldStaffId },
     newValue: { newStaffId: staff.id, reason: input.reason ?? null },
     notes: input.reason,
+    ...actor.auditMeta,
   });
 
   await sendNotification({
@@ -364,6 +367,7 @@ export async function overrideTask(
     entityId: task.id,
     newValue: { overrideAction: input.action },
     notes: input.reason ?? `Override action: ${input.action}`,
+    ...actor.auditMeta,
   });
 
   if (task.staffId) {

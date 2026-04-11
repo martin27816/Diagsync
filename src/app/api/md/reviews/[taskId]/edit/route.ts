@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { editMdReview } from "@/lib/md-workflow";
 import { z } from "zod";
 
@@ -27,7 +28,12 @@ export async function PATCH(
 
     await editMdReview(
       params.taskId,
-      { id: user.id, role: user.role, organizationId: user.organizationId },
+      {
+        id: user.id,
+        role: user.role,
+        organizationId: user.organizationId,
+        auditMeta: getAuditMetaFromRequest(req),
+      },
       parsed.data as { editedData: any; comments?: string }
     );
 

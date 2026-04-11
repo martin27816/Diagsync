@@ -1,4 +1,5 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import type { AuditMeta } from "@/lib/audit-core";
 import { notifyMdResultSubmitted } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
@@ -20,6 +21,7 @@ export type RadiologyActor = {
   id: string;
   role: string;
   organizationId: string;
+  auditMeta?: AuditMeta;
 };
 
 export type ImagingUploadInput = {
@@ -124,6 +126,7 @@ export async function startRadiologyTask(taskId: string, actor: RadiologyActor) 
     entityType: "RoutingTask",
     entityId: task.id,
     notes: "Radiology task started",
+    ...actor.auditMeta,
   });
 }
 
@@ -155,6 +158,7 @@ export async function addImagingFile(taskId: string, actor: RadiologyActor, inpu
     entityType: "ImagingFile",
     entityId: file.id,
     notes: `Imaging file uploaded: ${input.fileName}`,
+    ...actor.auditMeta,
   });
 
   return file;
@@ -197,6 +201,7 @@ export async function saveRadiologyReport(
     entityType: "RadiologyReport",
     entityId: report.id,
     notes: "Radiology report draft saved",
+    ...actor.auditMeta,
   });
 
   return report;
@@ -249,6 +254,7 @@ export async function submitRadiologyTask(
     entityType: "RoutingTask",
     entityId: task.id,
     notes: "Radiology report submitted for MD review",
+    ...actor.auditMeta,
   });
 
   await notifyMdResultSubmitted({
