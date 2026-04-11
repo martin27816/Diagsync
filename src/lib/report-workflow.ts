@@ -73,6 +73,13 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
           versions: { where: { isActive: true }, orderBy: { version: "desc" }, take: 1 },
         },
       },
+      imagingFiles: {
+        select: {
+          fileUrl: true,
+          fileName: true,
+          fileType: true,
+        },
+      },
     },
   });
 
@@ -133,7 +140,12 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
     impression: activeReportVersion?.impression ?? report?.impression ?? "",
     notes: activeReportVersion?.notes ?? report?.notes ?? "",
   }));
-  return { department: task.department, reportType, content: { ...common, tests } };
+  const imagingFiles = task.imagingFiles.map((file) => ({
+    url: file.fileUrl,
+    name: file.fileName,
+    fileType: file.fileType,
+  }));
+  return { department: task.department, reportType, content: { ...common, tests, imagingFiles } };
 }
 
 export async function ensureDraftReportForTask(taskId: string, actor: ReportActor) {

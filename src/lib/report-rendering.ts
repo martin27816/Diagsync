@@ -33,6 +33,7 @@ export function renderReportHtml(args: RenderArgs) {
   const tests = Array.isArray(args.content.tests) ? args.content.tests : [];
   const safeLabTests = tests.filter((test: any) => Array.isArray(test?.rows));
   const safeRadiologyTests = tests.filter((test: any) => !Array.isArray(test?.rows));
+  const imagingFiles = Array.isArray(args.content.imagingFiles) ? args.content.imagingFiles : [];
 
   const testsHtml =
     args.department === Department.LABORATORY
@@ -85,6 +86,7 @@ export function renderReportHtml(args: RenderArgs) {
   const letterheadBackground = hasLetterhead
     ? `background-image:url('${args.organization.letterheadUrl}');background-size:cover;background-position:center top;`
     : "background:#ffffff;";
+  const effectiveWatermarkUrl = args.watermarkUrl || null;
 
   return `
 <!doctype html>
@@ -98,7 +100,7 @@ export function renderReportHtml(args: RenderArgs) {
     .page {
       position: relative;
       min-height: 1123px;
-      padding: ${hasLetterhead ? "240px 44px 90px" : "120px 44px 90px"};
+      padding: ${hasLetterhead ? "340px 44px 90px" : "120px 44px 90px"};
       ${letterheadBackground}
     }
     .watermark {
@@ -109,7 +111,7 @@ export function renderReportHtml(args: RenderArgs) {
       justify-content: center;
       pointer-events: none;
       z-index: 0;
-      opacity: 0.05;
+      opacity: 0.07;
     }
     .watermark img { width: 300px; height: auto; }
     .content-shell {
@@ -120,6 +122,21 @@ export function renderReportHtml(args: RenderArgs) {
       padding: 18px 22px;
       background: ${hasLetterhead ? "#ffffff" : "rgba(255, 255, 255, 0.93)"};
       border-radius: 8px;
+    }
+    .shell-watermark {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.1;
+    }
+    .shell-watermark img {
+      width: 360px;
+      height: auto;
+      max-width: 72%;
     }
     .content { position: relative; z-index: 2; }
     .header { margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
@@ -134,16 +151,26 @@ export function renderReportHtml(args: RenderArgs) {
     th { background: #f3f4f6; }
     .footer-note { margin-top: 18px; font-size: 12px; }
     .muted { color: #6b7280; }
+    .imaging-section { margin-bottom: 16px; }
+    .imaging-grid { display:grid; grid-template-columns: 1fr; gap: 14px; }
+    .imaging-card { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px; background: #fff; break-inside: avoid; }
+    .imaging-card img { width: 100%; max-height: 560px; object-fit: contain; display:block; margin:0 auto; border-radius: 6px; }
+    .imaging-caption { font-size: 11px; color: #6b7280; margin-top: 6px; word-break: break-all; }
   </style>
 </head>
 <body>
   ${
-    args.watermarkUrl
-      ? `<div class="watermark"><img src="${args.watermarkUrl}" alt="watermark" /></div>`
+    effectiveWatermarkUrl
+      ? `<div class="watermark"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>`
       : ""
   }
   <main class="page">
     <div class="content-shell">
+    ${
+      effectiveWatermarkUrl
+        ? `<div class="shell-watermark"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>`
+        : ""
+    }
     <div class="content">
       ${
         hasLetterhead
@@ -163,6 +190,25 @@ export function renderReportHtml(args: RenderArgs) {
         <p><strong>Report Date:</strong> ${escapeHtml(String(meta.reportDate ?? "-"))}</p>
         <p><strong>Referring Doctor:</strong> ${escapeHtml(String(meta.referringDoctor ?? "-"))}</p>
       </div>
+      ${
+        args.department === Department.RADIOLOGY && imagingFiles.length
+          ? `<section class="imaging-section">
+          <h3>Imaging Preview</h3>
+          <div class="imaging-grid">
+            ${imagingFiles
+              .map((img: any) => {
+                const isImage = String(img.fileType ?? "").startsWith("image/");
+                if (!isImage || !img.url) return "";
+                return `<div class="imaging-card">
+                  <img src="${escapeHtml(String(img.url))}" alt="${escapeHtml(String(img.name ?? "Radiology Image"))}" crossorigin="anonymous" />
+                  <p class="imaging-caption">${escapeHtml(String(img.name ?? ""))}</p>
+                </div>`;
+              })
+              .join("")}
+          </div>
+        </section>`
+          : ""
+      }
       ${testsHtml || `<p>No reportable items.</p>`}
       ${
         args.comments

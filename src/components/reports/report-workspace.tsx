@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import html2canvas from "html2canvas";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/index";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/utils";
@@ -76,6 +77,8 @@ export function ReportWorkspace({ role }: Props) {
 
   const [releaseMethod, setReleaseMethod] = useState<"PRINT" | "DOWNLOAD" | "WHATSAPP">("PRINT");
   const [receptionInstruction, setReceptionInstruction] = useState("");
+  const [previewLoaded, setPreviewLoaded] = useState(false);
+  const previewRef = useRef<HTMLIFrameElement | null>(null);
 
   const canMdEdit = role === "MD" || role === "SUPER_ADMIN";
   const canHrmRelease = role === "HRM" || role === "SUPER_ADMIN";
@@ -143,6 +146,7 @@ export function ReportWorkspace({ role }: Props) {
 
   useEffect(() => {
     if (!selectedId) return;
+    setPreviewLoaded(false);
     void loadDetails(selectedId);
   }, [selectedId]);
 
@@ -241,9 +245,67 @@ export function ReportWorkspace({ role }: Props) {
     window.open(`/api/reports/${details.id}/preview`, "_blank", "noopener,noreferrer");
   }
 
+  async function captureReportPng(): Promise<{ blob: Blob; fileName: string } | null> {
+    if (!details) return null;
+    const iframe = previewRef.current;
+    if (!iframe?.contentDocument) {
+      setError("Preview is not ready yet. Please wait a second and retry.");
+      return null;
+    }
+    const doc = iframe.contentDocument;
+    const target =
+      (doc.querySelector(".page") as HTMLElement | null) ??
+      (doc.body as HTMLElement | null);
+    if (!target) {
+      setError("Preview content is unavailable.");
+      return null;
+    }
+
+    try {
+      const canvas = await html2canvas(target, {
+        useCORS: true,
+        allowTaint: false,
+        scale: 2,
+        backgroundColor: "#ffffff",
+        width: target.scrollWidth || target.clientWidth,
+        height: target.scrollHeight || target.clientHeight,
+      });
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((nextBlob) => resolve(nextBlob), "image/png", 1)
+      );
+      if (!blob) {
+        setError("Could not generate image file.");
+        return null;
+      }
+      const safePatient = details.visit.patient.fullName.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
+      const safeVisit = details.visit.visitNumber.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
+      return {
+        blob,
+        fileName: `${safePatient}-${safeVisit}-${details.reportType}-report.png`,
+      };
+    } catch {
+      setError(
+        "Image export failed. Check letterhead/image CORS settings in Cloudinary, then retry."
+      );
+      return null;
+    }
+  }
+
   async function downloadReport() {
     if (!details) return;
     setError("");
+    const captured = await captureReportPng();
+    if (!captured) return;
+
+    const objectUrl = URL.createObjectURL(captured.blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = captured.fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+
     const res = await fetch(`/api/reports/${details.id}/action`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -251,10 +313,10 @@ export function ReportWorkspace({ role }: Props) {
     });
     const json = await res.json().catch(() => ({ success: false }));
     if (!json.success) {
-      setError(json.error ?? "Download tracking failed");
+      setError(json.error ?? "Download logged locally but tracking failed");
       return;
     }
-    window.open(`/api/reports/${details.id}/preview`, "_blank", "noopener,noreferrer");
+    setMessage("Report image downloaded.");
   }
 
   async function sendWhatsapp() {
@@ -273,9 +335,40 @@ export function ReportWorkspace({ role }: Props) {
         setError(json.error ?? "WhatsApp handoff failed");
         return;
       }
-      setMessage("WhatsApp handoff opened.");
+
+      const captured = await captureReportPng();
+      const canUseFileShare =
+        Boolean(captured) &&
+        typeof navigator !== "undefined" &&
+        typeof navigator.share === "function" &&
+        typeof navigator.canShare === "function";
+
+      if (captured && canUseFileShare) {
+        const file = new File([captured.blob], captured.fileName, { type: "image/png" });
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: "Diagnostic Report",
+              text: `Report for ${details.visit.patient.fullName}`,
+            });
+            setMessage("Report image shared. Choose WhatsApp if prompted.");
+            return;
+          } catch (error) {
+            if (!(error instanceof DOMException && error.name === "AbortError")) {
+              setError("Image share failed. Falling back to WhatsApp link handoff.");
+            } else {
+              return;
+            }
+          }
+        }
+      }
+
       if (json.data?.waUrl) {
+        setMessage("WhatsApp opened. Your report link has been prepared.");
         window.open(json.data.waUrl, "_blank", "noopener,noreferrer");
+      } else {
+        setError("No WhatsApp destination was returned.");
       }
     } finally {
       setBusy(false);
@@ -367,7 +460,9 @@ export function ReportWorkspace({ role }: Props) {
 
               <iframe
                 title="Report preview"
+                ref={previewRef}
                 src={`/api/reports/${details.id}/preview`}
+                onLoad={() => setPreviewLoaded(true)}
                 className="h-[420px] w-full rounded-md border"
               />
 
@@ -496,10 +591,10 @@ export function ReportWorkspace({ role }: Props) {
                     <Button variant="outline" disabled={busy} onClick={printReport}>
                       Print Preview
                     </Button>
-                    <Button variant="outline" disabled={busy || !details.isReleased} onClick={downloadReport}>
+                    <Button variant="outline" disabled={busy || !details.isReleased || !previewLoaded} onClick={downloadReport}>
                       Download
                     </Button>
-                    <Button variant="outline" disabled={busy || !details.isReleased} onClick={sendWhatsapp}>
+                    <Button variant="outline" disabled={busy || !details.isReleased || !previewLoaded} onClick={sendWhatsapp}>
                       Send WhatsApp
                     </Button>
                     {!canReceptionDispatch ? (
