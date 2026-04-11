@@ -157,6 +157,8 @@ model Staff {
   routingTasks      RoutingTask[]
   labSamples        LabSample[]
   labResults        LabResult[]
+  imagingFiles      ImagingFile[]
+  radiologyReports  RadiologyReport[]
 
   @@map("staff")
 }
@@ -353,6 +355,8 @@ model RoutingTask {
   staff  Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
   sample LabSample?
   results LabResult[]
+  imagingFiles ImagingFile[]
+  radiologyReport RadiologyReport?
 
   @@index([organizationId, department, status, priority])
   @@index([visitId, department])
@@ -402,4 +406,43 @@ model LabResult {
   @@unique([taskId, testOrderId])
   @@index([organizationId, staffId, isSubmitted])
   @@map("lab_results")
+}
+
+model ImagingFile {
+  id             String   @id @default(cuid())
+  organizationId String
+  taskId         String
+  uploadedById   String
+  fileUrl        String
+  fileType       String
+  fileName       String
+  fileSizeBytes  Int
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  task       RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy Staff       @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, taskId])
+  @@map("imaging_files")
+}
+
+model RadiologyReport {
+  id             String   @id @default(cuid())
+  organizationId String
+  taskId         String   @unique
+  staffId        String
+  findings       String
+  impression     String
+  notes          String?
+  isSubmitted    Boolean  @default(false)
+  submittedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  task  RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  staff Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, staffId, isSubmitted])
+  @@map("radiology_reports")
 }
