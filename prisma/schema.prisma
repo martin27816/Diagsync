@@ -109,6 +109,12 @@ enum SampleStatus {
   DONE
 }
 
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String
@@ -159,6 +165,7 @@ model Staff {
   labResults        LabResult[]
   imagingFiles      ImagingFile[]
   radiologyReports  RadiologyReport[]
+  reviews           Review[]
 
   @@map("staff")
 }
@@ -304,6 +311,7 @@ model Visit {
   testOrders TestOrder[]
   routingTasks RoutingTask[]
   labSamples LabSample[]
+  reviews Review[]
 
   @@map("visits")
 }
@@ -357,6 +365,7 @@ model RoutingTask {
   results LabResult[]
   imagingFiles ImagingFile[]
   radiologyReport RadiologyReport?
+  review Review?
 
   @@index([organizationId, department, status, priority])
   @@index([visitId, department])
@@ -445,4 +454,26 @@ model RadiologyReport {
 
   @@index([organizationId, staffId, isSubmitted])
   @@map("radiology_reports")
+}
+
+model Review {
+  id             String       @id @default(cuid())
+  organizationId String
+  taskId         String       @unique
+  visitId        String?
+  reviewedById   String
+  status         ReviewStatus @default(PENDING)
+  comments       String?
+  editedData     Json?
+  rejectionReason String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  task       RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  visit      Visit?      @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  reviewedBy Staff       @relation(fields: [reviewedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, updatedAt])
+  @@index([visitId])
+  @@map("reviews")
 }

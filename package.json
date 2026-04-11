@@ -15,7 +15,8 @@
     "db:seed": "ts-node --project tsconfig.json prisma/seed.ts",
     "test:routing": "ts-node --project tsconfig.test.json src/lib/routing-core.test.ts",
     "test:lab": "ts-node --project tsconfig.test.json src/lib/lab-workflow-core.test.ts",
-    "test:radiology": "ts-node --project tsconfig.test.json src/lib/radiology-workflow-core.test.ts"
+    "test:radiology": "ts-node --project tsconfig.test.json src/lib/radiology-workflow-core.test.ts",
+    "test:md": "ts-node --project tsconfig.test.json src/lib/md-workflow-core.test.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.4.1",
