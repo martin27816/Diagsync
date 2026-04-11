@@ -26,6 +26,7 @@ type Item = {
   staff: { fullName: string } | null;
   review: { status: ReviewStatus; comments?: string | null; rejectionReason?: string | null } | null;
   results: Array<{
+    testOrderId: string;
     testOrder: { test: { name: string } };
     currentVersion: number;
     resultData: Record<string, any>;
@@ -83,9 +84,17 @@ export function MdReviewBoard({
   const [items, setItems] = useState<Item[]>([]);
   const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
   const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
-  const [editPayloads, setEditPayloads] = useState<Record<string, string>>({});
   const [editReasons, setEditReasons] = useState<Record<string, string>>({});
   const [approveComments, setApproveComments] = useState<Record<string, string>>({});
+  const [labEdits, setLabEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});
+  const [labEditNotes, setLabEditNotes] = useState<Record<string, Record<string, string>>>({});
+  const [radiologyEdits, setRadiologyEdits] = useState<Record<string, { findings: string; impression: string; notes: string }>>({});
+
+  function normalizeResultData(value: Record<string, any>) {
+    return Object.fromEntries(
+      Object.entries(value ?? {}).map(([k, v]) => [k, v === null || v === undefined ? "" : String(v)])
+    );
+  }
 
   async function loadData() {
     setLoading(true);
@@ -99,6 +108,28 @@ export function MdReviewBoard({
       }
       setItems(json.data.items);
       setCounts(json.data.counts);
+      const nextLabEdits: Record<string, Record<string, Record<string, string>>> = {};
+      const nextLabNotes: Record<string, Record<string, string>> = {};
+      const nextRadEdits: Record<string, { findings: string; impression: string; notes: string }> = {};
+      for (const item of json.data.items as Item[]) {
+        if (item.department === "LABORATORY") {
+          nextLabEdits[item.id] = {};
+          nextLabNotes[item.id] = {};
+          for (const result of item.results) {
+            nextLabEdits[item.id][result.testOrderId] = normalizeResultData(result.resultData);
+            nextLabNotes[item.id][result.testOrderId] = result.notes ?? "";
+          }
+        } else {
+          nextRadEdits[item.id] = {
+            findings: item.radiologyReport?.findings ?? "",
+            impression: item.radiologyReport?.impression ?? "",
+            notes: item.radiologyReport?.notes ?? "",
+          };
+        }
+      }
+      setLabEdits(nextLabEdits);
+      setLabEditNotes(nextLabNotes);
+      setRadiologyEdits(nextRadEdits);
     } catch {
       setError("Network error while loading reviews");
     } finally {
@@ -167,18 +198,31 @@ export function MdReviewBoard({
       return;
     }
 
-    const raw = editPayloads[taskId]?.trim();
-    if (!raw) {
-      setError("Edit payload JSON is required.");
+    const item = items.find((row) => row.id === taskId);
+    if (!item) {
+      setError("Task not found for edit.");
       return;
     }
 
     let parsed: any;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      setError("Edit payload must be valid JSON.");
-      return;
+    if (item.department === "LABORATORY") {
+      const testResults = item.results.map((result) => ({
+        testOrderId: result.testOrderId,
+        resultData: labEdits[taskId]?.[result.testOrderId] ?? normalizeResultData(result.resultData),
+        notes: labEditNotes[taskId]?.[result.testOrderId] ?? result.notes ?? "",
+      }));
+      parsed = { testResults };
+    } else {
+      const current = radiologyEdits[taskId] ?? {
+        findings: item.radiologyReport?.findings ?? "",
+        impression: item.radiologyReport?.impression ?? "",
+        notes: item.radiologyReport?.notes ?? "",
+      };
+      if (!current.findings.trim() || !current.impression.trim()) {
+        setError("Findings and impression are required for radiology edit.");
+        return;
+      }
+      parsed = { report: current };
     }
 
     setBusyTaskId(taskId);
@@ -371,14 +415,105 @@ export function MdReviewBoard({
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     />
 
-                    <Label>Edit Payload JSON (optional)</Label>
-                    <textarea
-                      rows={3}
-                      placeholder={item.department === "LABORATORY" ? '{"testResults":[{"testOrderId":"...","resultData":{"key":"value"}}]}' : '{"report":{"findings":"...","impression":"...","notes":"..."}}'}
-                      value={editPayloads[item.id] ?? ""}
-                      onChange={(e) => setEditPayloads((p) => ({ ...p, [item.id]: e.target.value }))}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
-                    />
+                    <Label>Edit Data</Label>
+                    {item.department === "LABORATORY" ? (
+                      <div className="space-y-2 rounded-md border p-2">
+                        <p className="text-xs text-muted-foreground">
+                          Edit result fields directly. No JSON needed.
+                        </p>
+                        {item.results.map((result, idx) => (
+                          <div key={idx} className="space-y-2 rounded-md border p-2">
+                            <p className="text-sm font-medium">{result.testOrder.test.name}</p>
+                            <div className="grid gap-2 md:grid-cols-2">
+                              {Object.keys(normalizeResultData(result.resultData)).map((fieldKey) => (
+                                <label key={fieldKey} className="space-y-1 text-xs">
+                                  <span className="text-muted-foreground">{fieldKey}</span>
+                                  <input
+                                    value={labEdits[item.id]?.[result.testOrderId]?.[fieldKey] ?? ""}
+                                    onChange={(e) =>
+                                      setLabEdits((prev) => ({
+                                        ...prev,
+                                        [item.id]: {
+                                          ...(prev[item.id] ?? {}),
+                                          [result.testOrderId]: {
+                                            ...((prev[item.id] ?? {})[result.testOrderId] ?? {}),
+                                            [fieldKey]: e.target.value,
+                                          },
+                                        },
+                                      }))
+                                    }
+                                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                            <label className="space-y-1 text-xs block">
+                              <span className="text-muted-foreground">Result note</span>
+                              <input
+                                value={labEditNotes[item.id]?.[result.testOrderId] ?? ""}
+                                onChange={(e) =>
+                                  setLabEditNotes((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...(prev[item.id] ?? {}),
+                                      [result.testOrderId]: e.target.value,
+                                    },
+                                  }))
+                                }
+                                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                              />
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-2 rounded-md border p-2">
+                        <p className="text-xs text-muted-foreground">
+                          Edit report fields directly. No JSON needed.
+                        </p>
+                        <label className="space-y-1 text-xs block">
+                          <span className="text-muted-foreground">Findings</span>
+                          <textarea
+                            rows={2}
+                            value={radiologyEdits[item.id]?.findings ?? ""}
+                            onChange={(e) =>
+                              setRadiologyEdits((prev) => ({
+                                ...prev,
+                                [item.id]: { ...(prev[item.id] ?? { findings: "", impression: "", notes: "" }), findings: e.target.value },
+                              }))
+                            }
+                            className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
+                          />
+                        </label>
+                        <label className="space-y-1 text-xs block">
+                          <span className="text-muted-foreground">Impression</span>
+                          <textarea
+                            rows={2}
+                            value={radiologyEdits[item.id]?.impression ?? ""}
+                            onChange={(e) =>
+                              setRadiologyEdits((prev) => ({
+                                ...prev,
+                                [item.id]: { ...(prev[item.id] ?? { findings: "", impression: "", notes: "" }), impression: e.target.value },
+                              }))
+                            }
+                            className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
+                          />
+                        </label>
+                        <label className="space-y-1 text-xs block">
+                          <span className="text-muted-foreground">Notes</span>
+                          <input
+                            value={radiologyEdits[item.id]?.notes ?? ""}
+                            onChange={(e) =>
+                              setRadiologyEdits((prev) => ({
+                                ...prev,
+                                [item.id]: { ...(prev[item.id] ?? { findings: "", impression: "", notes: "" }), notes: e.target.value },
+                              }))
+                            }
+                            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                          />
+                        </label>
+                      </div>
+                    )}
 
                     <Label>Edit Reason (required)</Label>
                     <textarea

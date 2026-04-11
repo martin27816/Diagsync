@@ -6,6 +6,35 @@ import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/index";
 import { formatDateTime, ROLE_LABELS } from "@/lib/utils";
 
+function shortValue(value: unknown): string {
+  if (value === null || value === undefined) return "-";
+  if (typeof value === "string") return value.length > 60 ? `${value.slice(0, 60)}...` : value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return `[${value.length} item${value.length === 1 ? "" : "s"}]`;
+  if (typeof value === "object") return "{...}";
+  return String(value);
+}
+
+function pickDisplayChanges(log: {
+  changes: unknown;
+  newValue: unknown;
+  oldValue: unknown;
+}) {
+  const payload =
+    (log.changes && typeof log.changes === "object" ? log.changes : null) ??
+    (log.newValue && typeof log.newValue === "object" ? log.newValue : null) ??
+    (log.oldValue && typeof log.oldValue === "object" ? log.oldValue : null);
+
+  if (!payload || typeof payload !== "object") return [];
+
+  const entries = Object.entries(payload as Record<string, unknown>)
+    .filter(([, value]) => value !== null && value !== undefined)
+    .slice(0, 5)
+    .map(([key, value]) => ({ key, value: shortValue(value) }));
+
+  return entries;
+}
+
 export default async function AuditLogPage({
   searchParams,
 }: {
@@ -200,10 +229,25 @@ export default async function AuditLogPage({
                       {log.entityType}
                       {log.entityId && <span className="ml-1 text-xs opacity-60">#{log.entityId.slice(-6)}</span>}
                     </td>
-                    <td className="max-w-[340px] px-4 py-3 text-xs text-muted-foreground">
-                      <pre className="whitespace-pre-wrap break-all">
-                        {JSON.stringify(log.changes ?? log.newValue ?? log.oldValue ?? {}, null, 2)}
-                      </pre>
+                    <td className="max-w-[340px] px-4 py-3 text-xs text-muted-foreground align-top">
+                      {pickDisplayChanges(log).length > 0 ? (
+                        <div className="space-y-1">
+                          {pickDisplayChanges(log).map((entry) => (
+                            <div key={entry.key} className="flex gap-2">
+                              <span className="font-medium text-foreground/80">{entry.key}:</span>
+                              <span className="break-all">{entry.value}</span>
+                            </div>
+                          ))}
+                          <details className="pt-1">
+                            <summary className="cursor-pointer text-primary">View full JSON</summary>
+                            <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded border bg-muted/40 p-2">
+                              {JSON.stringify(log.changes ?? log.newValue ?? log.oldValue ?? {}, null, 2)}
+                            </pre>
+                          </details>
+                        </div>
+                      ) : (
+                        <span>-</span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
                       {log.ipAddress ? <div>{log.ipAddress}</div> : <div>-</div>}
