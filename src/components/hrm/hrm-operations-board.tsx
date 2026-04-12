@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { formatDateTime } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type TaskRow = {
   taskId: string;
@@ -120,6 +121,12 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
     } finally { setBusyTaskId(null); }
   }
 
+  function nextStep(task: TaskRow) {
+    if (task.status === "PENDING") return "Next: Assign and open case";
+    if (task.status === "IN_PROGRESS") return "Next: Complete processing and submit";
+    return "Next: Await MD/release flow";
+  }
+
   return (
     <div className="space-y-4">
       {/* Filters */}
@@ -202,14 +209,17 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
-                    Loading...
+                  <td colSpan={8} className="px-4 py-4">
+                    <div className="space-y-2">
+                      <Skeleton className="h-6 w-full" />
+                      <Skeleton className="h-6 w-full" />
+                    </div>
                   </td>
                 </tr>
               ) : tasks.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
-                    No tasks found.
+                    No assigned tests. You're all caught up.
                   </td>
                 </tr>
               ) : (
@@ -228,6 +238,7 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
                         {task.assignedStaff?.fullName ?? (
                           <span className="text-slate-300">Unassigned</span>
                         )}
+                        <p className="text-[11px] text-slate-400">{nextStep(task)}</p>
                       </td>
                       <td className="px-4 py-2.5">
                         <span className={`rounded px-1.5 py-0.5 font-medium ${statusStyle[task.status] ?? "bg-slate-100 text-slate-500"}`}>
@@ -246,6 +257,7 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
                       </td>
                       <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">
                         {formatDateTime(task.updatedAt)}
+                        <p className="text-[11px]">by {task.assignedStaff?.fullName ?? "system"}</p>
                       </td>
                       <td className="px-4 py-2.5">
                         <button

@@ -30,6 +30,14 @@ const registerPatientSchema = z.object({
 
   // Test orders
   testIds: z.array(z.string()).min(1, "At least one test is required"),
+  testPrices: z
+    .array(
+      z.object({
+        testId: z.string().min(1),
+        price: z.number().min(0, "Price cannot be negative"),
+      })
+    )
+    .min(1, "Provide prices for selected tests"),
 });
 
 // GET /api/patients — list patients for org
@@ -143,8 +151,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Calculate totals
-    const subtotal = tests.reduce((sum, t) => sum + Number(t.price), 0);
+    const submittedPrices = new Map(data.testPrices.map((item) => [item.testId, item.price]));
+    const uniquePriceKeys = new Set(data.testPrices.map((item) => item.testId));
+    if (uniquePriceKeys.size !== data.testPrices.length) {
+      return NextResponse.json(
+        { success: false, error: "Duplicate test prices submitted" },
+        { status: 400 }
+      );
+    }
+    if (submittedPrices.size !== data.testIds.length || data.testIds.some((testId) => !submittedPrices.has(testId))) {
+      return NextResponse.json(
+        { success: false, error: "Please provide a price for each selected test" },
+        { status: 400 }
+      );
+    }
+
+    // Calculate totals from receptionist-entered prices
+    const subtotal = data.testIds.reduce((sum, testId) => sum + (submittedPrices.get(testId) ?? 0), 0);
     const totalAmount = Math.max(0, subtotal - data.discount);
 
     const result = await prisma.$transaction(async (tx) => {
@@ -204,7 +227,7 @@ export async function POST(req: NextRequest) {
               testId: test.id,
               organizationId: user.organizationId,
               status: "REGISTERED",
-              price: test.price,
+              price: submittedPrices.get(test.id) ?? 0,
             },
           })
         )

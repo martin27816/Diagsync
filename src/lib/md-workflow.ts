@@ -129,6 +129,67 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
     approved: tasks.filter((t) => t.review?.status === ReviewStatus.APPROVED).length,
     rejected: tasks.filter((t) => t.review?.status === ReviewStatus.REJECTED).length,
   };
+
+  const patientIds = Array.from(new Set(tasks.map((task) => task.visit.patient.id)));
+  const visitCounts = patientIds.length
+    ? await prisma.visit.groupBy({
+        by: ["patientId"],
+        where: { organizationId: actor.organizationId, patientId: { in: patientIds } },
+        _count: { patientId: true },
+      })
+    : [];
+  const visitCountMap = new Map(visitCounts.map((row) => [row.patientId, row._count.patientId]));
+
+  const historyOrders = patientIds.length
+    ? await prisma.testOrder.findMany({
+        where: {
+          organizationId: actor.organizationId,
+          visit: { patientId: { in: patientIds } },
+        },
+        include: {
+          visit: { select: { patientId: true, registeredAt: true } },
+          test: { select: { name: true } },
+          labResults: {
+            select: {
+              resultData: true,
+              submittedAt: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+
+  const historyMap = new Map<
+    string,
+    Array<{ testName: string; recordedAt: string; resultData: Record<string, unknown> | null }>
+  >();
+  for (const order of historyOrders) {
+    const patientId = order.visit.patientId;
+    const existing = historyMap.get(patientId) ?? [];
+    if (order.labResults.length === 0) {
+      existing.push({
+        testName: order.test.name,
+        recordedAt: order.visit.registeredAt.toISOString(),
+        resultData: null,
+      });
+    } else {
+      for (const result of order.labResults) {
+        existing.push({
+          testName: order.test.name,
+          recordedAt: (result.submittedAt ?? result.createdAt).toISOString(),
+          resultData:
+            result.resultData && typeof result.resultData === "object"
+              ? (result.resultData as Record<string, unknown>)
+              : null,
+        });
+      }
+    }
+    historyMap.set(patientId, existing);
+  }
+
   const items = filtered.map((task) => {
     const results = task.results.map((result) => {
       const activeVersion = pickActiveVersion(result.versions) ?? result.versions[0] ?? null;
@@ -180,6 +241,8 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
       ...task,
       results,
       radiologyReport,
+      patientHistory: historyMap.get(task.visit.patient.id) ?? [],
+      patientVisitCount: visitCountMap.get(task.visit.patient.id) ?? 1,
     };
   });
 
@@ -264,7 +327,7 @@ export async function approveMdReview(taskId: string, actor: MdActor, comments?:
   await ensureDraftReportForTask(task.id, actor);
 }
 
-export async function rejectMdReview(taskId: string, actor: MdActor, reason: string) {
+export async function rejectMdReview(taskId: string, actor: MdActor, reason: string, highlightFields: string[] = []) {
   assertMd(actor);
   const task = await getTaskForReview(taskId, actor);
 
@@ -284,12 +347,14 @@ export async function rejectMdReview(taskId: string, actor: MdActor, reason: str
         status: ReviewStatus.REJECTED,
         comments: reason,
         rejectionReason: reason,
+        editedData: { highlightFields },
       },
       update: {
         reviewedById: actor.id,
         status: ReviewStatus.REJECTED,
         comments: reason,
         rejectionReason: reason,
+        editedData: { highlightFields },
       },
     });
 

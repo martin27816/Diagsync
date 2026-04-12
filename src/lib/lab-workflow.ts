@@ -89,6 +89,8 @@ export async function getLabTasks(actor: LabActor, opts?: {
       },
       sample: true,
       results: true,
+      review: true,
+      staff: { select: { id: true, fullName: true } },
     },
     orderBy: { createdAt: "desc" },
   });

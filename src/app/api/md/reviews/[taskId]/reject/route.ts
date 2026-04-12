@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   reason: z.string().min(3, "Rejection reason is required"),
+  highlightFields: z.array(z.string()).optional(),
 });
 
 export async function PATCH(
@@ -34,7 +35,8 @@ export async function PATCH(
         organizationId: user.organizationId,
         auditMeta: getAuditMetaFromRequest(req),
       },
-      parsed.data.reason
+      parsed.data.reason,
+      parsed.data.highlightFields ?? []
     );
 
     return NextResponse.json({ success: true, message: "Edit request sent to originating department" });

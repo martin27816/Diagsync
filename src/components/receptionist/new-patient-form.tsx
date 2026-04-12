@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/index";
 import { Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { cn, formatCurrency } from "@/lib/utils";
+import { enqueueOfflinePatient, listOfflinePatientItems, removeOfflinePatient, type OfflinePatientPayload } from "@/lib/offline-sync";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,13 +29,12 @@ interface TestResult {
   code: string;
   type: "LAB" | "RADIOLOGY";
   department: string;
-  price: number | string;
   sampleType?: string | null;
   category?: { name: string } | null;
 }
 
-interface CartItem extends Omit<TestResult, "price"> {
-  price: number;
+interface CartItem extends TestResult {
+  enteredPrice: string;
 }
 
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -90,6 +90,8 @@ export function NewPatientForm() {
 
   // Form state
   const [submitting, setSubmitting] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [syncingOffline, setSyncingOffline] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [savedData, setSavedData] = useState<{ patientId: string; visitNumber: string } | null>(null);
@@ -109,11 +111,7 @@ export function NewPatientForm() {
       if (json.success) {
         // Filter out already-added tests
         const cartIds = new Set(cart.map((c) => c.id));
-        const normalized: TestResult[] = (json.data as TestResult[]).map((test) => ({
-          ...test,
-          price: toNumberPrice(test.price),
-        }));
-        setTestResults(normalized.filter((t) => !cartIds.has(t.id)));
+        setTestResults((json.data as TestResult[]).filter((t) => !cartIds.has(t.id)));
         setShowDropdown(true);
       }
     } catch {
@@ -140,7 +138,7 @@ export function NewPatientForm() {
   }, []);
 
   function addToCart(test: TestResult) {
-    setCart((prev) => [...prev, { ...test, price: toNumberPrice(test.price) }]);
+    setCart((prev) => [...prev, { ...test, enteredPrice: "" }]);
     setTestSearch("");
     setTestResults([]);
     setShowDropdown(false);
@@ -150,9 +148,22 @@ export function NewPatientForm() {
     setCart((prev) => prev.filter((t) => t.id !== id));
   }
 
+  function updateCartPrice(id: string, value: string) {
+    setCart((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              enteredPrice: value,
+            }
+          : item
+      )
+    );
+  }
+
   // ─── Billing Calculations ───────────────────────────────────────────────────
 
-  const subtotal = cart.reduce((s, t) => s + toNumberPrice(t.price), 0);
+  const subtotal = cart.reduce((s, t) => s + toNumberPrice(t.enteredPrice), 0);
   const discountAmount = parseFloat(discount) || 0;
   const totalAmount = Math.max(0, subtotal - discountAmount);
   const amountPaidNum = parseFloat(amountPaid) || 0;
@@ -166,6 +177,112 @@ export function NewPatientForm() {
     else setPaymentStatus("PENDING");
   }, [amountPaidNum, totalAmount]);
 
+  useEffect(() => {
+    const syncStatus = () => setIsOnline(navigator.onLine);
+    syncStatus();
+    window.addEventListener("online", syncStatus);
+    window.addEventListener("offline", syncStatus);
+    return () => {
+      window.removeEventListener("online", syncStatus);
+      window.removeEventListener("offline", syncStatus);
+    };
+  }, []);
+
+  function buildPatientPayload(): OfflinePatientPayload {
+    return {
+      fullName: fullName.trim(),
+      age: parseInt(age),
+      sex,
+      phone: phone.trim(),
+      email: email.trim() || undefined,
+      address: address.trim() || undefined,
+      dateOfBirth: dateOfBirth || undefined,
+      referringDoctor: referringDoctor.trim() || undefined,
+      clinicalNote: clinicalNote.trim() || undefined,
+      priority,
+      paymentStatus,
+      amountPaid: amountPaidNum,
+      discount: discountAmount,
+      paymentMethod: paymentMethod || undefined,
+      notes: visitNotes.trim() || undefined,
+      testIds: cart.map((item) => item.id),
+      testPrices: cart.map((item) => ({ testId: item.id, price: toNumberPrice(item.enteredPrice) })),
+    };
+  }
+
+  function saveRepeatSnapshot(payload: OfflinePatientPayload) {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      "diag_sync_last_patient_snapshot",
+      JSON.stringify({
+        payload,
+        cart,
+      })
+    );
+  }
+
+  function preloadRepeatPatient() {
+    if (typeof window === "undefined") return;
+    const raw = window.localStorage.getItem("diag_sync_last_patient_snapshot");
+    if (!raw) {
+      setError("No previous patient data found.");
+      return;
+    }
+    try {
+      const data = JSON.parse(raw) as { payload: OfflinePatientPayload; cart?: CartItem[] };
+      const payload = data.payload;
+      setFullName(payload.fullName);
+      setAge(String(payload.age));
+      setSex(payload.sex);
+      setPhone(payload.phone);
+      setEmail(payload.email ?? "");
+      setAddress(payload.address ?? "");
+      setDateOfBirth(payload.dateOfBirth ?? "");
+      setReferringDoctor(payload.referringDoctor ?? "");
+      setClinicalNote(payload.clinicalNote ?? "");
+      setPriority(payload.priority);
+      setPaymentStatus(payload.paymentStatus);
+      setAmountPaid(String(payload.amountPaid));
+      setDiscount(String(payload.discount));
+      setPaymentMethod(payload.paymentMethod ?? "");
+      setVisitNotes(payload.notes ?? "");
+      if (Array.isArray(data.cart) && data.cart.length > 0) {
+        setCart(data.cart);
+      }
+      setError("");
+    } catch {
+      setError("Previous patient data is invalid.");
+    }
+  }
+
+  const syncOfflinePatients = useCallback(async () => {
+    if (!navigator.onLine) return;
+    const pending = listOfflinePatientItems();
+    if (pending.length === 0) return;
+    setSyncingOffline(true);
+    for (const item of pending) {
+      try {
+        const res = await fetch("/api/patients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item.payload),
+        });
+        const json = await res.json();
+        if (json.success) {
+          removeOfflinePatient(item.id);
+        }
+      } catch {
+        break;
+      }
+    }
+    setSyncingOffline(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    void syncOfflinePatients();
+  }, [isOnline, syncOfflinePatients]);
+
   // ─── Submission ─────────────────────────────────────────────────────────────
 
   async function handleSubmit() {
@@ -175,30 +292,26 @@ export function NewPatientForm() {
     if (!age || isNaN(parseInt(age))) return setError("Valid age is required.");
     if (!phone.trim()) return setError("Phone number is required.");
     if (cart.length === 0) return setError("Please add at least one test.");
+    if (cart.some((item) => toNumberPrice(item.enteredPrice) <= 0)) return setError("Enter a valid price for each selected test.");
+
+    const payload = buildPatientPayload();
+    if (!isOnline) {
+      enqueueOfflinePatient(payload);
+      saveRepeatSnapshot(payload);
+      setSavedData({
+        patientId: "OFFLINE-SAVED",
+        visitNumber: `LOCAL-${Date.now().toString().slice(-6)}`,
+      });
+      setSuccess(true);
+      return;
+    }
 
     setSubmitting(true);
     try {
       const res = await fetch("/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName: fullName.trim(),
-          age: parseInt(age),
-          sex,
-          phone: phone.trim(),
-          email: email.trim() || undefined,
-          address: address.trim() || undefined,
-          dateOfBirth: dateOfBirth || undefined,
-          referringDoctor: referringDoctor.trim() || undefined,
-          clinicalNote: clinicalNote.trim() || undefined,
-          priority,
-          paymentStatus,
-          amountPaid: amountPaidNum,
-          discount: discountAmount,
-          paymentMethod: paymentMethod || undefined,
-          notes: visitNotes.trim() || undefined,
-          testIds: cart.map((t) => t.id),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const json = await res.json();
@@ -211,6 +324,7 @@ export function NewPatientForm() {
         patientId: json.data.patientId,
         visitNumber: json.data.visitNumber,
       });
+      saveRepeatSnapshot(payload);
       setSuccess(true);
     } catch {
       setError("Network error. Please try again.");
@@ -230,7 +344,9 @@ export function NewPatientForm() {
         <div>
           <h2 className="text-xl font-bold">Patient Registered!</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Tests have been routed to the relevant departments.
+            {savedData.patientId === "OFFLINE-SAVED"
+              ? "You are offline. This registration is saved locally and will sync automatically."
+              : "Tests have been routed to the relevant departments."}
           </p>
         </div>
         <div className="rounded-lg bg-muted p-4 text-left space-y-2">
@@ -280,7 +396,12 @@ export function NewPatientForm() {
   // ─── Main Form ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <div className="space-y-3">
+      <div className={`rounded border px-3 py-2 text-xs ${isOnline ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>
+        {isOnline ? (syncingOffline ? "Online - syncing offline registrations..." : "Online") : "Offline - patient registration will be saved locally."}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       {/* Left: Patient details + visit details */}
       <div className="lg:col-span-2 space-y-6">
 
@@ -432,7 +553,7 @@ export function NewPatientForm() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-semibold">{formatCurrency(toNumberPrice(test.price))}</span>
+                      <span className="text-xs text-muted-foreground">Set at billing</span>
                       <Plus className="h-4 w-4 text-primary" />
                     </div>
                   </button>
@@ -470,7 +591,16 @@ export function NewPatientForm() {
                     <p className="text-sm font-medium">{item.name}</p>
                     <p className="text-xs text-muted-foreground">{item.code}</p>
                   </div>
-                  <span className="text-sm font-semibold shrink-0">{formatCurrency(item.price)}</span>
+                  <div className="w-28 shrink-0">
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="Price"
+                      value={item.enteredPrice}
+                      onChange={(e) => updateCartPrice(item.id, e.target.value)}
+                      className="h-8"
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => removeFromCart(item.id)}
@@ -501,6 +631,9 @@ export function NewPatientForm() {
 
       {/* Right: Priority + Billing Summary + Submit */}
       <div className="space-y-4">
+        <Button variant="outline" className="w-full" onClick={preloadRepeatPatient}>
+          One-click repeat patient
+        </Button>
 
         {/* Priority */}
         <section className="rounded-lg border bg-card p-5">
@@ -544,7 +677,7 @@ export function NewPatientForm() {
             {cart.map((item) => (
               <div key={item.id} className="flex justify-between">
                 <span className="text-muted-foreground truncate pr-2">{item.name}</span>
-                <span>{formatCurrency(item.price)}</span>
+                <span>{formatCurrency(toNumberPrice(item.enteredPrice))}</span>
               </div>
             ))}
             {cart.length === 0 && (
@@ -669,6 +802,7 @@ export function NewPatientForm() {
             Tests will be automatically routed to the correct department.
           </p>
         </div>
+      </div>
       </div>
     </div>
   );

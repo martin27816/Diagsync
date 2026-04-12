@@ -1,5 +1,9 @@
 import { PrismaClient, Department, TestType, FieldType } from "@prisma/client";
 
+if (process.env.DIRECT_URL) {
+  process.env.DATABASE_URL = process.env.DIRECT_URL;
+}
+
 const prisma = new PrismaClient();
 
 async function main() {
@@ -92,23 +96,20 @@ async function main() {
     });
 
     await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
-
-    for (const field of data.fields) {
-      await prisma.resultTemplateField.create({
-        data: {
-          testId: test.id,
-          label: field.label,
-          fieldKey: field.fieldKey,
-          fieldType: field.fieldType,
-          unit: field.unit,
-          normalMin: field.normalMin,
-          normalMax: field.normalMax,
-          options: field.options,
-          isRequired: field.isRequired ?? true,
-          sortOrder: field.sortOrder,
-        },
-      });
-    }
+    await prisma.resultTemplateField.createMany({
+      data: data.fields.map((field) => ({
+        testId: test.id,
+        label: field.label,
+        fieldKey: field.fieldKey,
+        fieldType: field.fieldType,
+        unit: field.unit,
+        normalMin: field.normalMin,
+        normalMax: field.normalMax,
+        options: field.options,
+        isRequired: field.isRequired ?? true,
+        sortOrder: field.sortOrder,
+      })),
+    });
 
     return test;
   }
@@ -465,6 +466,325 @@ async function main() {
       { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
     ],
   });
+
+  // 17. Bulk catalog expansion (Lab + Radiology master list)
+  const extraCategories = await Promise.all([
+    prisma.testCategory.upsert({
+      where: { id: "cat-molecular" },
+      update: {},
+      create: { id: "cat-molecular", name: "Molecular / PCR", description: "Molecular diagnostics and PCR assays" },
+    }),
+    prisma.testCategory.upsert({
+      where: { id: "cat-cardiac" },
+      update: {},
+      create: { id: "cat-cardiac", name: "Cardiac Markers", description: "Cardiac and heart-related markers" },
+    }),
+  ]);
+  console.log(`✅ ${extraCategories.length} additional categories ready`);
+
+  const rawLabTests = [
+    "ALKALINE PHOSPHATASE (ALP)",
+    "B10 CHEMISTRY PANEL HBA1C",
+    "LIPID PROFILE",
+    "TRIGLYCERIDE",
+    "CHOLESTEROL (TOTAL)",
+    "HDL-C",
+    "AST (SGOT)",
+    "ALT (SGPT)",
+    "GGT",
+    "TOTAL BILIRUBIN",
+    "DIRECT BILIRUBIN",
+    "LDL-C",
+    "PROTEIN (TOTAL)",
+    "VLDL-C",
+    "ALBUMIN",
+    "THYROID STIMULATING HORMONE (TSH)",
+    "THYROXINE (T4 FREE)",
+    "THYROXINE (T4 TOTAL)",
+    "TRIIODOTHYRONINE (T3 TOTAL)",
+    "TRIIODOTHYRONINE (T3 FREE)",
+    "ELECTROLYTES",
+    "UREA",
+    "CREATININE",
+    "BLOOD GASES",
+    "BLOOD PH",
+    "OXYGEN (O2)",
+    "CARBON DIOXIDE (CO2)",
+    "CALCIUM (TOTAL)",
+    "IONIZED CALCIUM",
+    "LACTATE",
+    "URIC ACID",
+    "PREGNANCY TEST",
+    "CRP",
+    "CREATINE KINASE",
+    "PROCALCITONIN",
+    "AMYLASE",
+    "COMPREHENSIVE METABOLIC PANEL (CMP)",
+    "PROTEIN ELECTROPHORESIS",
+    "PROSTATE SPECIFIC ANTIGEN (PSA)",
+    "PROSTATE SPECIFIC ANTIGEN (FREE)",
+    "CARCINOEMBRYONIC ANTIGEN (CEA)",
+    "ALPHA-FETOPROTEIN (AFP)",
+    "CA-125 TEST",
+    "CD4 T CELL COUNT",
+    "CD4 T CELL PERCENTAGE",
+    "CD8 T CELL COUNT",
+    "HIV 1 & II CONFIRMATORY TEST",
+    "HUMAN CHORIONIC GONADOTROPIN (B-HCG)",
+    "PROGESTERONE",
+    "FOLLICLE STIMULATING HORMONE (FSH)",
+    "LUTEINIZING HORMONE (LH)",
+    "PROLACTIN",
+    "OESTROGEN (E2)",
+    "VITAMIN B12",
+    "VITAMIN D",
+    "FERRITIN",
+    "PARATHYROID HORMONE (PTH)",
+    "DEHYDROEPIANDROSTERONE SULFATE (DHEA-S)",
+    "CORTISOL",
+    "TESTOSTERONE",
+    "MICROALBUMIN",
+    "ADRENOCORTICOTROPIC HORMONE (ACTH)",
+    "HBsAg-QUANTITATIVE",
+    "HUMAN GROWTH HORMONE",
+    "ANTI NUCLEAR ANTIBODY (ANA)",
+    "DOUBLE STRANDED DNA TEST (ds-DNA)",
+    "BRAIN NATRIURETIC PEPTIDE (NT-proBNP)",
+    "CK-MB",
+    "TROPONIN T",
+    "TROPONIN I",
+    "PROSTATE BIOPSY",
+    "LIVER BIOPSY",
+    "HBV 5 PANEL TEST",
+    "HBsAb-QUANTITATIVE",
+    "HBeAg-QUANTITATIVE",
+    "HBeAb-QUANTITATIVE",
+    "HBcAb-QUANTITATIVE",
+    "HBV DNA PANEL",
+    "HBsAg-QUALITATIVE",
+    "HBsAb-QUALITATIVE",
+    "HBeAg-QUALITATIVE",
+    "HBeAb-QUALITATIVE",
+    "HBcAb-QUALITATIVE",
+    "URINE M/C/S",
+    "STOOL M/C/S",
+    "SPUTUM M/C/S",
+    "BLOOD CULTURE/SENSITIVITY",
+    "HIGH VAGINAL SWAB (HVS) M/C/S",
+    "ENDOCERVICAL SWAB (ECS) M/C/S",
+    "URETHRAL SWAB M/C/S",
+    "SEMEN M/C/S",
+    "SKIN/NAIL SCRAPING M/C/S",
+    "OTHER SWABS/FLUID M/C/S",
+    "URINALYSIS",
+    "STOOL ANALYSIS",
+    "SEMEN ANALYSIS",
+    "SPUTUM AFB (X2)",
+    "HIV SCREENING",
+    "GRAM STAINING",
+    "MANTOUX TEST",
+    "SKIN SCRAPING ANALYSIS",
+    "H. PYLORI SCREENING",
+    "ASO TITRE",
+    "RHEUMATOID FACTOR",
+    "HEPATITIS A SCREENING",
+    "BLOOD FILM",
+    "MALARIA PARASITES (MP)",
+    "BLOOD GROUP",
+    "GENOTYPE",
+    "DIRECT COOMBS TEST",
+    "INDIRECT COOMBS TEST",
+    "CROSS MATCHING",
+    "HB ELECTROPHORESIS",
+    "GENOTYPING (CONFIRMATORY)",
+    "PROTHROMBIN TIME",
+    "APTT",
+    "FIBRINOGEN",
+    "ESR",
+    "HAEMOGLOBIN (HB)",
+    "DNA PATERNITY TEST",
+    "HBV DNA VIRAL LOAD",
+    "HBV RNA BY RT-PCR",
+    "HCV RNA VIRAL LOAD",
+    "HCV GENOTYPING",
+    "TUBERCULOSIS ANTIGEN TEST",
+    "HBV QUALITATIVE (CONFIRMATORY TEST)",
+    "HCV QUALITATIVE (CONFIRMATORY TEST)",
+    "HEPATITIS B SCREENING",
+    "HEPATITIS C SCREENING",
+    "CHLAMYDIA",
+    "VDRL",
+    "BRUCELLA SCREENING",
+  ];
+
+  const rawRadiologyTests = [
+    "ABDOMINAL SCAN",
+    "PELVIC SCAN",
+    "OBSTETRIC/FETAL ULTRASOUND",
+    "BREAST SCAN",
+    "OCCULAR SCAN",
+    "TRANSRECTAL/PROSTATE SCAN",
+    "FOLLICULOMETRY",
+    "SONO-HSG",
+    "ECHOCARDIOGRAM",
+    "PROSTATE BIOPSY (ULTRASOUND GUIDED)",
+    "LIVER BIOPSY (ULTRASOUND GUIDED)",
+    "KIDNEY BIOPSY (ULTRASOUND GUIDED)",
+    "BREAST BIOPSY (ULTRASOUND GUIDED)",
+    "THYROID BIOPSY (ULTRASOUND GUIDED)",
+    "DOPPLER STUDY",
+    "DIGITAL X-RAY SKULL",
+    "DIGITAL X-RAY MANDIBLE",
+    "DIGITAL X-RAY TMJ",
+    "DIGITAL X-RAY CHEST",
+    "DIGITAL X-RAY SHOULDER",
+    "DIGITAL X-RAY HUMERUS",
+    "DIGITAL X-RAY ELBOW",
+    "DIGITAL X-RAY FOREARM",
+    "DIGITAL X-RAY WRIST",
+    "DIGITAL X-RAY HAND",
+    "DIGITAL X-RAY CERVICAL SPINE",
+    "DIGITAL X-RAY THORACIC SPINE",
+    "DIGITAL X-RAY LUMBO-SACRAL SPINE",
+    "DIGITAL X-RAY PELVIS/HIP",
+    "DIGITAL X-RAY FEMUR",
+    "DIGITAL X-RAY KNEE",
+    "DIGITAL X-RAY TIBIA-FIBULA",
+    "DIGITAL X-RAY ANKLE",
+    "DIGITAL X-RAY FOOT",
+    "DIGITAL X-RAY PARANASAL SINUSES",
+    "DIGITAL X-RAY POST NASAL SPACE",
+    "DIGITAL X-RAY TRANS-CRANIAL",
+    "BARIUM MEAL/FOLLOW THROUGH",
+    "BARIUM SWALLOW",
+    "BARIUM ENEMA",
+    "INTRAVENOUS UROGRAPHY (IVU)",
+    "HYSTEROSALPINGOGRAPHY (HSG)",
+    "FISTULOGRAPHY",
+    "RETROGRADE PYELOGRAPHY (RUCG)",
+    "MICTURATING CYSTOURETHROGRAPHY (MCUG)",
+    "SIALOGRAPHY",
+    "MAMMOGRAPHY",
+    "CT HEAD ROUTINE",
+    "CT HEAD NEURO",
+    "CT INNER EAR",
+    "CT SINUS",
+    "CT ORBIT",
+    "CT DENTAL",
+    "CT NECK",
+    "CT SHOULDER",
+    "CT LOWER EXTREMITIES",
+    "CT CARDIAC STUDY",
+    "CT VASCULAR",
+    "CT CRANIAL ANGIOGRAPHY",
+    "CT CAROTID ANGIOGRAPHY",
+    "CT CAROTID DIGITAL SUBTRACTION",
+    "CT THORACIC ANGIOGRAPHY",
+    "UPPER GI ENDOSCOPY",
+    "SIGMOIDOSCOPY/COLONOSCOPY",
+    "PROCTOSCOPY",
+    "REST ECG",
+    "STRESS ECG",
+    "AMBULATORY ECG (HOLTER)",
+    "CT THORAX ROUTINE",
+    "CT THORAX HR",
+    "CT LUNG LOW DOSE",
+    "CT CERVICAL SPINE",
+    "CT THORACIC SPINE",
+    "CT LUMBO-SACRAL SPINE",
+    "CT PELVIS",
+    "CT UPPER EXTREMITIES",
+  ];
+
+  function normalizeName(input: string) {
+    return input
+      .replace(/&amp;/gi, "&")
+      .replace(/\s+/g, " ")
+      .replace(/\|/g, "")
+      .trim();
+  }
+
+  function generateCode(prefix: "LB" | "RD", name: string, index: number) {
+    const initials = name
+      .replace(/[^A-Za-z0-9 ]+/g, " ")
+      .split(" ")
+      .map((chunk) => chunk.trim())
+      .filter(Boolean)
+      .slice(0, 5)
+      .map((chunk) => chunk[0].toUpperCase())
+      .join("");
+    return `${prefix}${String(index + 1).padStart(3, "0")}${initials || "TS"}`;
+  }
+
+  function inferLabCategory(name: string) {
+    const n = name.toLowerCase();
+    if (n.includes("culture") || n.includes("m/c/s") || n.includes("swab") || n.includes("stool") || n.includes("sputum") || n.includes("gram") || n.includes("mantoux")) {
+      return "cat-micro";
+    }
+    if (n.includes("pcr") || n.includes("dna") || n.includes("rna") || n.includes("viral load") || n.includes("genotyping")) {
+      return "cat-molecular";
+    }
+    if (n.includes("coombs") || n.includes("blood film") || n.includes("haemoglobin") || n.includes("fibrinogen") || n.includes("aptt") || n.includes("esr") || n.includes("cross match") || n.includes("blood group")) {
+      return "cat-haematology";
+    }
+    if (n.includes("troponin") || n.includes("ck-mb") || n.includes("nt-probnp") || n.includes("cardiac")) {
+      return "cat-cardiac";
+    }
+    if (n.includes("hiv") || n.includes("hepatitis") || n.includes("vdrl") || n.includes("brucella") || n.includes("hbs") || n.includes("hbe") || n.includes("hbcab") || n.includes("rf") || n.includes("ana")) {
+      return "cat-serology";
+    }
+    if (n.includes("urine") || n.includes("urinalysis") || n.includes("microalbumin")) {
+      return "cat-urine";
+    }
+    return "cat-chemistry";
+  }
+
+  const dedupedLab = Array.from(new Set(rawLabTests.map(normalizeName).filter(Boolean)));
+  const dedupedRadiology = Array.from(new Set(rawRadiologyTests.map(normalizeName).filter(Boolean)));
+
+  for (let i = 0; i < dedupedLab.length; i += 1) {
+    const testName = dedupedLab[i];
+    const code = generateCode("LB", testName, i);
+    await seedTest({
+      code,
+      name: testName,
+      type: TestType.LAB,
+      department: Department.LABORATORY,
+      categoryId: inferLabCategory(testName),
+      price: 5000,
+      turnaroundMinutes: 180,
+      sampleType: "Lab Sample",
+      description: "Added from expanded catalog list",
+      fields: [
+        { label: "Result", fieldKey: "result", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+        { label: "Reference Range", fieldKey: "reference_range", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+      ],
+    });
+  }
+
+  for (let i = 0; i < dedupedRadiology.length; i += 1) {
+    const testName = dedupedRadiology[i];
+    const code = generateCode("RD", testName, i);
+    await seedTest({
+      code,
+      name: testName,
+      type: TestType.RADIOLOGY,
+      department: Department.RADIOLOGY,
+      categoryId: "cat-imaging",
+      price: 12000,
+      turnaroundMinutes: 120,
+      description: "Added from expanded catalog list",
+      fields: [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+        { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+        { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+      ],
+    });
+  }
+
+  console.log(`✅ Added/updated ${dedupedLab.length} expanded lab tests`);
+  console.log(`✅ Added/updated ${dedupedRadiology.length} expanded radiology tests`);
 
   const testCount = await prisma.diagnosticTest.count({ where: { organizationId: orgId } });
   console.log(`\n✅ Seeding complete!`);

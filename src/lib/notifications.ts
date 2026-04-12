@@ -250,7 +250,7 @@ export async function notifyMdResultSubmitted(input: {
   department: string;
   submittedByName?: string | null;
 }) {
-  return sendNotificationToRoles({
+  const mdSent = await sendNotificationToRoles({
     organizationId: input.organizationId,
     roles: [Role.MD],
     type: NotificationType.RESULT_SUBMITTED,
@@ -260,6 +260,19 @@ export async function notifyMdResultSubmitted(input: {
     entityType: "RoutingTask",
     dedupeKeyPrefix: `submitted:${input.taskId}`,
   });
+
+  const hrmSent = await sendNotificationToRoles({
+    organizationId: input.organizationId,
+    roles: [Role.HRM, Role.SUPER_ADMIN],
+    type: NotificationType.RESULT_SUBMITTED,
+    title: "Result submitted to MD queue",
+    message: `${input.patientName} (${input.department}) has entered MD review queue.`,
+    entityId: input.taskId,
+    entityType: "RoutingTask",
+    dedupeKeyPrefix: `submitted-ops:${input.taskId}`,
+  });
+
+  return mdSent + hrmSent;
 }
 
 export async function notifyTaskReviewOutcome(input: {

@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { Button } from "@/components/ui/button";
-import { formatDateTime } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { ResultInsightBox } from "@/components/results/result-insight-box";
+import { buildResultInsights } from "@/lib/result-insights";
+import { PatientInsights } from "@/components/patients/patient-insights";
+import { analyzePatientInsights, type PatientHistoryRow } from "@/lib/patient-insights";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 type TaskDepartment = "LABORATORY" | "RADIOLOGY";
@@ -24,19 +27,24 @@ type Item = {
     };
   };
   staff: { fullName: string } | null;
-  review: { status: ReviewStatus; comments?: string | null; rejectionReason?: string | null } | null;
+  review: {
+    status: ReviewStatus;
+    comments?: string | null;
+    rejectionReason?: string | null;
+    editedData?: unknown;
+  } | null;
   results: Array<{
     testOrderId: string;
     testOrder: { test: { name: string } };
     currentVersion: number;
-    resultData: Record<string, any>;
+    resultData: Record<string, unknown>;
     notes?: string | null;
     versionHistory: Array<{
       id: string;
       version: number;
       isActive: boolean;
       parentId?: string | null;
-      resultData: Record<string, any>;
+      resultData: Record<string, unknown>;
       notes?: string | null;
       editReason: string;
       editedBy: { id: string; fullName: string };
@@ -62,6 +70,8 @@ type Item = {
     }>;
   } | null;
   imagingFiles: Array<{ id: string; fileName: string; fileUrl: string }>;
+  patientHistory: PatientHistoryRow[];
+  patientVisitCount: number;
 };
 
 function formatResultData(value: unknown) {
@@ -70,6 +80,19 @@ function formatResultData(value: unknown) {
     .filter(([, v]) => v !== null && v !== undefined && `${v}`.trim() !== "")
     .map(([k, v]) => `${k}: ${String(v)}`);
   return entries.length ? entries.join(", ") : "-";
+}
+
+function minutesAgoLabel(dateText: string) {
+  const deltaMs = Date.now() - new Date(dateText).getTime();
+  const mins = Math.max(1, Math.floor(deltaMs / 60000));
+  return `${mins} min${mins > 1 ? "s" : ""} ago`;
+}
+
+function getHighlightFields(review: Item["review"]) {
+  if (!review?.editedData || typeof review.editedData !== "object") return [];
+  const data = review.editedData as { highlightFields?: unknown };
+  if (!Array.isArray(data.highlightFields)) return [];
+  return data.highlightFields.filter((row): row is string => typeof row === "string");
 }
 
 export function MdReviewBoard({
@@ -84,13 +107,14 @@ export function MdReviewBoard({
   const [items, setItems] = useState<Item[]>([]);
   const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
   const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
+  const [rejectFieldHints, setRejectFieldHints] = useState<Record<string, string>>({});
   const [editReasons, setEditReasons] = useState<Record<string, string>>({});
   const [approveComments, setApproveComments] = useState<Record<string, string>>({});
   const [labEdits, setLabEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});
   const [labEditNotes, setLabEditNotes] = useState<Record<string, Record<string, string>>>({});
   const [radiologyEdits, setRadiologyEdits] = useState<Record<string, { findings: string; impression: string; notes: string }>>({});
 
-  function normalizeResultData(value: Record<string, any>) {
+  function normalizeResultData(value: Record<string, unknown>) {
     return Object.fromEntries(
       Object.entries(value ?? {}).map(([k, v]) => [k, v === null || v === undefined ? "" : String(v)])
     );
@@ -101,17 +125,22 @@ export function MdReviewBoard({
     setError("");
     try {
       const res = await fetch(`/api/md/reviews?status=${status}`);
-      const json = await res.json();
+      const json = (await res.json()) as {
+        success: boolean;
+        error?: string;
+        data: { items: Item[]; counts: { pending: number; approved: number; rejected: number } };
+      };
       if (!json.success) {
         setError(json.error ?? "Failed to load review queue");
         return;
       }
       setItems(json.data.items);
       setCounts(json.data.counts);
+
       const nextLabEdits: Record<string, Record<string, Record<string, string>>> = {};
       const nextLabNotes: Record<string, Record<string, string>> = {};
       const nextRadEdits: Record<string, { findings: string; impression: string; notes: string }> = {};
-      for (const item of json.data.items as Item[]) {
+      for (const item of json.data.items) {
         if (item.department === "LABORATORY") {
           nextLabEdits[item.id] = {};
           nextLabNotes[item.id] = {};
@@ -145,21 +174,49 @@ export function MdReviewBoard({
   const totalApproved = useMemo(() => counts.approved, [counts.approved]);
   const totalRejected = useMemo(() => counts.rejected, [counts.rejected]);
 
+  function applyOptimisticReview(taskId: string, nextStatus: ReviewStatus, reason?: string) {
+    const current = items.find((item) => item.id === taskId)?.review?.status ?? "PENDING";
+
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === taskId
+          ? {
+              ...item,
+              review: {
+                status: nextStatus,
+                comments: item.review?.comments ?? null,
+                rejectionReason: reason ?? item.review?.rejectionReason ?? null,
+                editedData: item.review?.editedData,
+              },
+            }
+          : item
+      )
+    );
+
+    if (current !== nextStatus) {
+      setCounts((prev) => ({
+        pending: prev.pending + (current === "PENDING" ? -1 : 0) + (nextStatus === "PENDING" ? 1 : 0),
+        approved: prev.approved + (current === "APPROVED" ? -1 : 0) + (nextStatus === "APPROVED" ? 1 : 0),
+        rejected: prev.rejected + (current === "REJECTED" ? -1 : 0) + (nextStatus === "REJECTED" ? 1 : 0),
+      }));
+    }
+  }
+
   async function approve(taskId: string) {
     setBusyTaskId(taskId);
     setError("");
+    applyOptimisticReview(taskId, "APPROVED");
     try {
       const res = await fetch(`/api/md/reviews/${taskId}/approve`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ comments: approveComments[taskId] ?? "" }),
       });
-      const json = await res.json();
+      const json = (await res.json()) as { success: boolean; error?: string };
       if (!json.success) {
         setError(json.error ?? "Approval failed");
-        return;
+        await loadData();
       }
-      await loadData();
     } finally {
       setBusyTaskId(null);
     }
@@ -174,18 +231,22 @@ export function MdReviewBoard({
 
     setBusyTaskId(taskId);
     setError("");
+    applyOptimisticReview(taskId, "REJECTED", reason);
     try {
+      const highlightFields = (rejectFieldHints[taskId] ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
       const res = await fetch(`/api/md/reviews/${taskId}/reject`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, highlightFields }),
       });
-      const json = await res.json();
+      const json = (await res.json()) as { success: boolean; error?: string };
       if (!json.success) {
         setError(json.error ?? "Rejection failed");
-        return;
+        await loadData();
       }
-      await loadData();
     } finally {
       setBusyTaskId(null);
     }
@@ -204,14 +265,18 @@ export function MdReviewBoard({
       return;
     }
 
-    let parsed: any;
+    let payload:
+      | { testResults: Array<{ testOrderId: string; resultData: Record<string, string>; notes: string }> }
+      | { report: { findings: string; impression: string; notes: string } };
+
     if (item.department === "LABORATORY") {
-      const testResults = item.results.map((result) => ({
-        testOrderId: result.testOrderId,
-        resultData: labEdits[taskId]?.[result.testOrderId] ?? normalizeResultData(result.resultData),
-        notes: labEditNotes[taskId]?.[result.testOrderId] ?? result.notes ?? "",
-      }));
-      parsed = { testResults };
+      payload = {
+        testResults: item.results.map((result) => ({
+          testOrderId: result.testOrderId,
+          resultData: labEdits[taskId]?.[result.testOrderId] ?? normalizeResultData(result.resultData),
+          notes: labEditNotes[taskId]?.[result.testOrderId] ?? result.notes ?? "",
+        })),
+      };
     } else {
       const current = radiologyEdits[taskId] ?? {
         findings: item.radiologyReport?.findings ?? "",
@@ -222,11 +287,12 @@ export function MdReviewBoard({
         setError("Findings and impression are required for radiology edit.");
         return;
       }
-      parsed = { report: current };
+      payload = { report: current };
     }
 
     setBusyTaskId(taskId);
     setError("");
+    applyOptimisticReview(taskId, "PENDING");
     try {
       const res = await fetch(`/api/md/reviews/${taskId}/edit`, {
         method: "PATCH",
@@ -234,15 +300,14 @@ export function MdReviewBoard({
         body: JSON.stringify({
           reason,
           comments: "Controlled edit created and sent for re-approval",
-          editedData: parsed,
+          editedData: payload,
         }),
       });
-      const json = await res.json();
+      const json = (await res.json()) as { success: boolean; error?: string };
       if (!json.success) {
         setError(json.error ?? "Edit failed");
-        return;
+        await loadData();
       }
-      await loadData();
     } finally {
       setBusyTaskId(null);
     }
@@ -250,9 +315,10 @@ export function MdReviewBoard({
 
   if (loading) {
     return (
-      <div className="rounded-lg border bg-card p-10 text-center text-muted-foreground">
-        <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin" />
-        Loading MD review queue...
+      <div className="space-y-3 rounded-lg border bg-card p-4">
+        <Skeleton className="h-5 w-44" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
       </div>
     );
   }
@@ -274,7 +340,7 @@ export function MdReviewBoard({
         </div>
       </div>
 
-      <Select value={status} onValueChange={(v) => setStatus(v as any)}>
+      <Select value={status} onValueChange={(v) => setStatus(v as "pending" | "approved" | "rejected" | "all")}>
         <SelectTrigger className="max-w-xs">
           <SelectValue placeholder="Filter status" />
         </SelectTrigger>
@@ -300,6 +366,15 @@ export function MdReviewBoard({
         <div className="space-y-4">
           {items.map((item) => {
             const reviewStatus = item.review?.status ?? "PENDING";
+            const highlightFields = getHighlightFields(item.review);
+            const insights = analyzePatientInsights({
+              visitCount: item.patientVisitCount,
+              currentTestNames:
+                item.department === "LABORATORY"
+                  ? item.results.map((result) => result.testOrder.test.name)
+                  : ["Radiology follow-up"],
+              history: item.patientHistory,
+            });
             return (
               <div key={item.id} className="rounded-lg border bg-card p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -307,11 +382,10 @@ export function MdReviewBoard({
                     <p className="text-sm text-muted-foreground">Visit {item.visit.visitNumber}</p>
                     <h3 className="text-lg font-semibold">{item.visit.patient.fullName}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {item.visit.patient.patientId} · {item.visit.patient.age}y · {item.visit.patient.sex}
+                      {item.visit.patient.patientId} - {item.visit.patient.age}y - {item.visit.patient.sex}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Last update: {formatDateTime(item.updatedAt)}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Last update: {minutesAgoLabel(item.updatedAt)}</p>
+                    <p className="text-xs text-muted-foreground">Last updated by {item.staff?.fullName ?? "Unassigned"}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={item.priority === "EMERGENCY" ? "destructive" : item.priority === "URGENT" ? "warning" : "secondary"}>
@@ -325,35 +399,18 @@ export function MdReviewBoard({
                 </div>
 
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-md border p-3">
-                    <p className="font-medium mb-2">Submitted Output</p>
+                  <div className="rounded-md border p-3 space-y-3">
+                    <p className="font-medium">Submitted Output</p>
+                    <PatientInsights insights={insights} />
                     {item.department === "LABORATORY" ? (
                       <div className="space-y-2">
-                        {item.results.map((r, idx) => (
-                          <div key={idx}>
-                            <p className="font-medium text-sm">{r.testOrder.test.name}</p>
-                            <div className="flex items-center gap-2">
-                              <p className="text-xs text-muted-foreground">Version {r.currentVersion}</p>
-                              {r.currentVersion > 1 ? <Badge variant="warning">Edited</Badge> : null}
-                            </div>
-                            <p className="text-sm text-muted-foreground">{formatResultData(r.resultData)}</p>
-                            {r.notes && <p className="text-xs text-muted-foreground">Note: {r.notes}</p>}
-                            {r.versionHistory.length > 0 && (
-                              <details className="mt-1">
-                                <summary className="cursor-pointer text-xs text-primary">View version history</summary>
-                                <div className="mt-1 space-y-1 rounded-md border p-2 text-xs">
-                                  {r.versionHistory.map((v) => (
-                                    <div key={v.id} className="border-b pb-1 last:border-b-0">
-                                      <p className="font-medium">
-                                        v{v.version} by {v.editedBy.fullName} {v.isActive ? "(Active)" : ""}
-                                      </p>
-                                      <p className="text-muted-foreground">{formatDateTime(v.createdAt)} · {v.editReason}</p>
-                                      {v.parentId ? <p className="text-muted-foreground">Parent: #{v.parentId.slice(-6)}</p> : <p className="text-muted-foreground">Parent: none</p>}
-                                    </div>
-                                  ))}
-                                </div>
-                              </details>
-                            )}
+                        {item.results.map((result) => (
+                          <div key={result.testOrderId} className="space-y-1 rounded-md border p-2">
+                            <p className="font-medium text-sm">{result.testOrder.test.name}</p>
+                            <p className="text-xs text-muted-foreground">Version {result.currentVersion}</p>
+                            <p className="text-sm text-muted-foreground">{formatResultData(result.resultData)}</p>
+                            {result.notes ? <p className="text-xs text-muted-foreground">Note: {result.notes}</p> : null}
+                            <ResultInsightBox messages={buildResultInsights(result.resultData)} />
                           </div>
                         ))}
                       </div>
@@ -361,38 +418,16 @@ export function MdReviewBoard({
                       <div className="space-y-2">
                         <p className="text-sm"><span className="font-medium">Findings:</span> {item.radiologyReport?.findings ?? "-"}</p>
                         <p className="text-sm"><span className="font-medium">Impression:</span> {item.radiologyReport?.impression ?? "-"}</p>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs text-muted-foreground">Version {item.radiologyReport?.currentVersion ?? 1}</p>
-                          {(item.radiologyReport?.currentVersion ?? 1) > 1 ? <Badge variant="warning">Modified</Badge> : null}
-                        </div>
-                        {item.radiologyReport?.notes && (
-                          <p className="text-sm"><span className="font-medium">Notes:</span> {item.radiologyReport.notes}</p>
-                        )}
-                        {item.radiologyReport?.versionHistory?.length ? (
-                          <details className="mt-1">
-                            <summary className="cursor-pointer text-xs text-primary">View version history</summary>
-                            <div className="mt-1 space-y-1 rounded-md border p-2 text-xs">
-                              {item.radiologyReport.versionHistory.map((v) => (
-                                <div key={v.id} className="border-b pb-1 last:border-b-0">
-                                  <p className="font-medium">
-                                    v{v.version} by {v.editedBy.fullName} {v.isActive ? "(Active)" : ""}
-                                  </p>
-                                  <p className="text-muted-foreground">{formatDateTime(v.createdAt)} · {v.editReason}</p>
-                                  {v.parentId ? <p className="text-muted-foreground">Parent: #{v.parentId.slice(-6)}</p> : <p className="text-muted-foreground">Parent: none</p>}
-                                </div>
-                              ))}
-                            </div>
-                          </details>
-                        ) : null}
+                        <p className="text-xs text-muted-foreground">Version {item.radiologyReport?.currentVersion ?? 1}</p>
                         <div className="space-y-1">
                           {item.imagingFiles.map((img) => (
                             <a key={img.id} href={img.fileUrl} target="_blank" rel="noreferrer" className="block text-primary text-sm hover:underline">
                               {img.fileName}
                             </a>
                           ))}
-                          {item.imagingFiles.length === 0 && (
+                          {item.imagingFiles.length === 0 ? (
                             <p className="text-sm text-muted-foreground">No imaging files attached.</p>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     )}
@@ -403,7 +438,7 @@ export function MdReviewBoard({
                     <textarea
                       rows={2}
                       value={approveComments[item.id] ?? ""}
-                      onChange={(e) => setApproveComments((p) => ({ ...p, [item.id]: e.target.value }))}
+                      onChange={(e) => setApproveComments((prev) => ({ ...prev, [item.id]: e.target.value }))}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     />
 
@@ -411,18 +446,28 @@ export function MdReviewBoard({
                     <textarea
                       rows={2}
                       value={rejectReasons[item.id] ?? ""}
-                      onChange={(e) => setRejectReasons((p) => ({ ...p, [item.id]: e.target.value }))}
+                      onChange={(e) => setRejectReasons((prev) => ({ ...prev, [item.id]: e.target.value }))}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+
+                    <Label>Fields Needing Change (optional, comma-separated)</Label>
+                    <input
+                      value={rejectFieldHints[item.id] ?? ""}
+                      onChange={(e) => setRejectFieldHints((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      placeholder="e.g. hemoglobin, wbc"
                     />
 
                     <Label>Edit Data</Label>
                     {item.department === "LABORATORY" ? (
                       <div className="space-y-2 rounded-md border p-2">
-                        <p className="text-xs text-muted-foreground">
-                          Edit result fields directly. No JSON needed.
-                        </p>
-                        {item.results.map((result, idx) => (
-                          <div key={idx} className="space-y-2 rounded-md border p-2">
+                        {item.review?.rejectionReason ? (
+                          <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-700">
+                            Edit requested: {item.review.rejectionReason}
+                          </div>
+                        ) : null}
+                        {item.results.map((result) => (
+                          <div key={result.testOrderId} className="space-y-2 rounded-md border p-2">
                             <p className="text-sm font-medium">{result.testOrder.test.name}</p>
                             <div className="grid gap-2 md:grid-cols-2">
                               {Object.keys(normalizeResultData(result.resultData)).map((fieldKey) => (
@@ -442,7 +487,9 @@ export function MdReviewBoard({
                                         },
                                       }))
                                     }
-                                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                    className={`h-9 w-full rounded-md border bg-background px-2 text-sm ${
+                                      highlightFields.includes(fieldKey) ? "border-amber-300 bg-amber-50" : "border-input"
+                                    }`}
                                   />
                                 </label>
                               ))}
@@ -468,9 +515,6 @@ export function MdReviewBoard({
                       </div>
                     ) : (
                       <div className="space-y-2 rounded-md border p-2">
-                        <p className="text-xs text-muted-foreground">
-                          Edit report fields directly. No JSON needed.
-                        </p>
                         <label className="space-y-1 text-xs block">
                           <span className="text-muted-foreground">Findings</span>
                           <textarea
@@ -519,29 +563,18 @@ export function MdReviewBoard({
                     <textarea
                       rows={2}
                       value={editReasons[item.id] ?? ""}
-                      onChange={(e) => setEditReasons((p) => ({ ...p, [item.id]: e.target.value }))}
+                      onChange={(e) => setEditReasons((prev) => ({ ...prev, [item.id]: e.target.value }))}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     />
 
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                      <Button
-                        disabled={busyTaskId === item.id || reviewStatus === "APPROVED"}
-                        onClick={() => approve(item.id)}
-                      >
+                      <Button disabled={busyTaskId === item.id || reviewStatus === "APPROVED"} onClick={() => approve(item.id)}>
                         {busyTaskId === item.id ? "Working..." : "Approve"}
                       </Button>
-                      <Button
-                        variant="outline"
-                        disabled={busyTaskId === item.id || reviewStatus === "APPROVED"}
-                        onClick={() => reject(item.id)}
-                      >
+                      <Button variant="outline" disabled={busyTaskId === item.id || reviewStatus === "APPROVED"} onClick={() => reject(item.id)}>
                         Reject
                       </Button>
-                      <Button
-                        variant="outline"
-                        disabled={busyTaskId === item.id || reviewStatus === "APPROVED"}
-                        onClick={() => edit(item.id)}
-                      >
+                      <Button variant="outline" disabled={busyTaskId === item.id || reviewStatus === "APPROVED"} onClick={() => edit(item.id)}>
                         Edit
                       </Button>
                     </div>
