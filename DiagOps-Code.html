@@ -85,6 +85,7 @@ CLOUDINARY_API_SECRET=""
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.383.0",
     "next": "^14.2.35",
     "next-auth": "^5.0.0-beta.19",
@@ -774,13 +775,12 @@ model RadiologyReportVersion {
   @@map("radiology_report_versions")
 }
 </pre></div>
-<div class='file-block'><div class='file-header'>prisma/seed.ts</div><pre>import { PrismaClient, Role, Department, Shift, TestType, FieldType } from "@prisma/client";
-import bcrypt from "bcryptjs";
+<div class='file-block'><div class='file-header'>prisma/seed.ts</div><pre>import { PrismaClient, Department, TestType, FieldType } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("ðŸŒ± Seeding Phase 2 â€” Test Database...");
+  console.log("ðŸŒ± Seeding Tests...");
 
   // â”€â”€ Seed Test Categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const categories = await Promise.all([
@@ -819,14 +819,14 @@ async function main() {
   console.log(`âœ… ${categories.length} test categories created`);
 
   // â”€â”€ Get Organization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const org = await prisma.organization.findFirst({
-    where: { email: "admin@reenemedical.com" },
-  });
+  const org = await prisma.organization.findFirst();
 
   if (!org) {
-    throw new Error("Organization not found. Run Phase 1 seed first.");
+    throw new Error("No organization found. Please create one first.");
   }
+
   const orgId = org.id;
+  console.log(`âœ… Organization found: ${org.name}`);
 
   // â”€â”€ Helper: upsert test + fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function seedTest(data: {
@@ -868,7 +868,6 @@ async function main() {
       },
     });
 
-    // Delete old fields and recreate (safe for seed)
     await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
 
     for (const field of data.fields) {
@@ -971,7 +970,7 @@ async function main() {
     ],
   });
 
-  // 4. Blood Sugar (Fasting)
+  // 4. Fasting Blood Sugar
   await seedTest({
     code: "FBS",
     name: "Fasting Blood Sugar",
@@ -1069,7 +1068,7 @@ async function main() {
     ],
   });
 
-  // 9. HBsAg (Hepatitis B)
+  // 9. HBsAg
   await seedTest({
     code: "HBSAG",
     name: "Hepatitis B Surface Antigen (HBsAg)",
@@ -1244,33 +1243,10 @@ async function main() {
     ],
   });
 
-  // â”€â”€ Ensure Super Admin exists (Phase 1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const existingAdmin = await prisma.staff.findFirst({
-    where: { email: "superadmin@reenemedical.com" },
-  });
-
-  if (!existingAdmin) {
-    const passwordHash = await bcrypt.hash("Admin@1234", 12);
-    await prisma.staff.create({
-      data: {
-        organizationId: orgId,
-        fullName: "Super Admin",
-        email: "superadmin@reenemedical.com",
-        phone: "+2348000000001",
-        passwordHash,
-        role: Role.SUPER_ADMIN,
-        department: Department.HR_OPERATIONS,
-        defaultShift: Shift.FULL_DAY,
-      },
-    });
-    console.log("âœ… Super Admin re-seeded");
-  }
-
   const testCount = await prisma.diagnosticTest.count({ where: { organizationId: orgId } });
-  console.log(`\nâœ… Phase 2 complete!`);
+  console.log(`\nâœ… Seeding complete!`);
   console.log(`   Tests in database: ${testCount}`);
   console.log(`   Categories: ${categories.length}`);
-  console.log(`\n   Run: npx prisma db push &amp;&amp; npm run db:seed`);
 }
 
 main()
@@ -1281,8 +1257,7 @@ main()
     console.error(e);
     await prisma.$disconnect();
     process.exit(1);
-  });
-</pre></div>
+  });</pre></div>
 <div class='file-block'><div class='file-header'>README.md</div><pre># Diagsync â€” Medical Diagnostic Operations System
 
 A multi-role diagnostic workflow operating system for medical labs.
@@ -1882,8 +1857,6 @@ export default async function HrmAnalyticsPage() {
 import { canViewAuditLogs } from "@/lib/audit-core";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { ClipboardList } from "lucide-react";
-import { Badge } from "@/components/ui/index";
 import { formatDateTime, ROLE_LABELS } from "@/lib/utils";
 
 function shortValue(value: unknown): string {
@@ -1891,29 +1864,39 @@ function shortValue(value: unknown): string {
   if (typeof value === "string") return value.length &gt; 60 ? `${value.slice(0, 60)}...` : value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) return `[${value.length} item${value.length === 1 ? "" : "s"}]`;
-  if (typeof value === "object") return "{...}";
+  if (typeof value === "object") return "{â€¦}";
   return String(value);
 }
 
-function pickDisplayChanges(log: {
-  changes: unknown;
-  newValue: unknown;
-  oldValue: unknown;
-}) {
+function pickDisplayChanges(log: { changes: unknown; newValue: unknown; oldValue: unknown }) {
   const payload =
     (log.changes &amp;&amp; typeof log.changes === "object" ? log.changes : null) ??
     (log.newValue &amp;&amp; typeof log.newValue === "object" ? log.newValue : null) ??
     (log.oldValue &amp;&amp; typeof log.oldValue === "object" ? log.oldValue : null);
-
   if (!payload || typeof payload !== "object") return [];
-
-  const entries = Object.entries(payload as Record&lt;string, unknown&gt;)
-    .filter(([, value]) =&gt; value !== null &amp;&amp; value !== undefined)
-    .slice(0, 5)
+  return Object.entries(payload as Record&lt;string, unknown&gt;)
+    .filter(([, v]) =&gt; v !== null &amp;&amp; v !== undefined)
+    .slice(0, 4)
     .map(([key, value]) =&gt; ({ key, value: shortValue(value) }));
-
-  return entries;
 }
+
+const actionStyle: Record&lt;string, string&gt; = {
+  STAFF_CREATED: "bg-green-50 text-green-700",
+  STAFF_UPDATED: "bg-blue-50 text-blue-700",
+  STAFF_DEACTIVATED: "bg-red-50 text-red-600",
+  ORGANIZATION_CREATED: "bg-green-50 text-green-700",
+  ORGANIZATION_UPDATED: "bg-blue-50 text-blue-700",
+  AVAILABILITY_CHANGED: "bg-amber-50 text-amber-700",
+  STAFF_LOGIN: "bg-slate-100 text-slate-600",
+  STAFF_LOGOUT: "bg-slate-100 text-slate-600",
+  TEST_ASSIGNED: "bg-blue-50 text-blue-700",
+  TEST_REASSIGNED: "bg-amber-50 text-amber-700",
+  TEST_STARTED: "bg-blue-50 text-blue-700",
+  RESULT_SUBMITTED: "bg-green-50 text-green-700",
+  RESULT_APPROVED: "bg-green-50 text-green-700",
+  RESULT_REJECTED: "bg-red-50 text-red-600",
+  TASK_OVERRIDDEN: "bg-amber-50 text-amber-700",
+};
 
 export default async function AuditLogPage({
   searchParams,
@@ -1929,7 +1912,6 @@ export default async function AuditLogPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
-
   if (!canViewAuditLogs(user.role)) redirect("/dashboard/hrm");
 
   const fromDate = searchParams?.from ? new Date(`${searchParams.from}T00:00:00`) : null;
@@ -1941,12 +1923,7 @@ export default async function AuditLogPage({
     ...(searchParams?.action ? { action: searchParams.action } : {}),
     ...(searchParams?.entityType ? { entityType: searchParams.entityType } : {}),
     ...(fromDate || toDate
-      ? {
-          createdAt: {
-            ...(fromDate ? { gte: fromDate } : {}),
-            ...(toDate ? { lte: toDate } : {}),
-          },
-        }
+      ? { createdAt: { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) } }
       : {}),
   };
 
@@ -1955,9 +1932,7 @@ export default async function AuditLogPage({
       where,
       orderBy: { createdAt: "desc" },
       take: 200,
-      include: {
-        actor: { select: { id: true, fullName: true, role: true } },
-      },
+      include: { actor: { select: { id: true, fullName: true, role: true } } },
     }),
     prisma.staff.findMany({
       where: { organizationId: user.organizationId },
@@ -1978,163 +1953,156 @@ export default async function AuditLogPage({
     }),
   ]);
 
-  const actionColor: Record&lt;string, "success" | "destructive" | "info" | "warning" | "secondary"&gt; = {
-    STAFF_CREATED: "success",
-    STAFF_UPDATED: "info",
-    STAFF_DEACTIVATED: "destructive",
-    ORGANIZATION_CREATED: "success",
-    ORGANIZATION_UPDATED: "info",
-    AVAILABILITY_CHANGED: "warning",
-    STAFF_LOGIN: "secondary",
-    STAFF_LOGOUT: "secondary",
-    TEST_ASSIGNED: "info",
-    TEST_REASSIGNED: "warning",
-    TEST_STARTED: "info",
-    RESULT_SUBMITTED: "success",
-    RESULT_APPROVED: "success",
-    RESULT_REJECTED: "destructive",
-    TASK_OVERRIDDEN: "warning",
-  };
-
   return (
-    &lt;div className="space-y-6"&gt;
+    &lt;div className="space-y-4"&gt;
+      {/* Header */}
       &lt;div&gt;
-        &lt;h1 className="flex items-center gap-2 text-2xl font-bold"&gt;
-          &lt;ClipboardList className="h-6 w-6" /&gt;
-          Audit Log
-        &lt;/h1&gt;
-        &lt;p className="mt-1 text-sm text-muted-foreground"&gt;
-          Full history of every key action in your organization
+        &lt;h1 className="text-base font-semibold text-slate-800"&gt;Audit Log&lt;/h1&gt;
+        &lt;p className="text-xs text-slate-400 mt-0.5"&gt;
+          {logs.length} records Â· Full action history for your organisation
         &lt;/p&gt;
       &lt;/div&gt;
 
-      &lt;form className="rounded-lg border bg-card p-4"&gt;
-        &lt;div className="grid gap-3 md:grid-cols-5"&gt;
-          &lt;select
-            name="userId"
-            defaultValue={searchParams?.userId ?? ""}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          &gt;
-            &lt;option value=""&gt;All users&lt;/option&gt;
-            {actors.map((actor) =&gt; (
-              &lt;option key={actor.id} value={actor.id}&gt;
-                {actor.fullName}
-              &lt;/option&gt;
-            ))}
-          &lt;/select&gt;
-          &lt;select
-            name="action"
-            defaultValue={searchParams?.action ?? ""}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          &gt;
-            &lt;option value=""&gt;All actions&lt;/option&gt;
-            {actionOptions.map((row) =&gt; (
-              &lt;option key={row.action} value={row.action}&gt;
-                {row.action}
-              &lt;/option&gt;
-            ))}
-          &lt;/select&gt;
-          &lt;select
-            name="entityType"
-            defaultValue={searchParams?.entityType ?? ""}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          &gt;
-            &lt;option value=""&gt;All entities&lt;/option&gt;
-            {entityOptions.map((row) =&gt; (
-              &lt;option key={row.entityType} value={row.entityType}&gt;
-                {row.entityType}
-              &lt;/option&gt;
-            ))}
-          &lt;/select&gt;
+      {/* Filter bar */}
+      &lt;form className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3"&gt;
+        &lt;select
+          name="userId"
+          defaultValue={searchParams?.userId ?? ""}
+          className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"
+        &gt;
+          &lt;option value=""&gt;All users&lt;/option&gt;
+          {actors.map((a) =&gt; (
+            &lt;option key={a.id} value={a.id}&gt;
+              {a.fullName}
+            &lt;/option&gt;
+          ))}
+        &lt;/select&gt;
+
+        &lt;select
+          name="action"
+          defaultValue={searchParams?.action ?? ""}
+          className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"
+        &gt;
+          &lt;option value=""&gt;All actions&lt;/option&gt;
+          {actionOptions.map((r) =&gt; (
+            &lt;option key={r.action} value={r.action}&gt;
+              {r.action.replaceAll("_", " ")}
+            &lt;/option&gt;
+          ))}
+        &lt;/select&gt;
+
+        &lt;select
+          name="entityType"
+          defaultValue={searchParams?.entityType ?? ""}
+          className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"
+        &gt;
+          &lt;option value=""&gt;All entities&lt;/option&gt;
+          {entityOptions.map((r) =&gt; (
+            &lt;option key={r.entityType} value={r.entityType}&gt;
+              {r.entityType}
+            &lt;/option&gt;
+          ))}
+        &lt;/select&gt;
+
+        &lt;div className="flex items-center gap-1.5"&gt;
+          &lt;span className="text-xs text-slate-400"&gt;From&lt;/span&gt;
           &lt;input
             type="date"
             name="from"
             defaultValue={searchParams?.from ?? ""}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"
           /&gt;
+        &lt;/div&gt;
+
+        &lt;div className="flex items-center gap-1.5"&gt;
+          &lt;span className="text-xs text-slate-400"&gt;To&lt;/span&gt;
           &lt;input
             type="date"
             name="to"
             defaultValue={searchParams?.to ?? ""}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"
           /&gt;
         &lt;/div&gt;
-        &lt;div className="mt-3 flex gap-3"&gt;
-          &lt;button type="submit" className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"&gt;
-            Apply Filters
-          &lt;/button&gt;
-          &lt;a href="/dashboard/hrm/audit" className="rounded-md border px-4 py-2 text-sm"&gt;
-            Reset
-          &lt;/a&gt;
-        &lt;/div&gt;
+
+        &lt;button
+          type="submit"
+          className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+        &gt;
+          Filter
+        &lt;/button&gt;
+        &lt;a
+          href="/dashboard/hrm/audit"
+          className="rounded border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+        &gt;
+          Reset
+        &lt;/a&gt;
       &lt;/form&gt;
 
-      &lt;div className="overflow-hidden rounded-lg border bg-card shadow-sm"&gt;
+      {/* Log table */}
+      &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
         {logs.length === 0 ? (
-          &lt;div className="flex flex-col items-center justify-center py-16 text-center"&gt;
-            &lt;ClipboardList className="mb-3 h-10 w-10 text-muted-foreground" /&gt;
-            &lt;p className="font-medium"&gt;No activity logged yet&lt;/p&gt;
-            &lt;p className="mt-1 text-sm text-muted-foreground"&gt;
-              Actions taken in the system will appear here.
-            &lt;/p&gt;
-          &lt;/div&gt;
+          &lt;p className="px-4 py-10 text-center text-xs text-slate-400"&gt;No activity logged yet.&lt;/p&gt;
         ) : (
           &lt;div className="overflow-x-auto"&gt;
-            &lt;table className="w-full text-sm"&gt;
-              &lt;thead className="border-b bg-muted/40"&gt;
-                &lt;tr&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Time&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Actor&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Role&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Action&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Entity&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Changes&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Meta&lt;/th&gt;
+            &lt;table className="w-full text-xs"&gt;
+              &lt;thead&gt;
+                &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Time&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Actor&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Role&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Action&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Entity&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Changes&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;IP&lt;/th&gt;
                 &lt;/tr&gt;
               &lt;/thead&gt;
-              &lt;tbody className="divide-y"&gt;
-                {logs.map((log) =&gt; (
-                  &lt;tr key={log.id} className="transition-colors hover:bg-muted/20"&gt;
-                    &lt;td className="whitespace-nowrap px-4 py-3 text-muted-foreground"&gt;
-                      {formatDateTime(log.createdAt)}
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-3 font-medium"&gt;{log.actor.fullName}&lt;/td&gt;
-                    &lt;td className="px-4 py-3 text-muted-foreground"&gt;{ROLE_LABELS[log.actorRole]}&lt;/td&gt;
-                    &lt;td className="px-4 py-3"&gt;
-                      &lt;Badge variant={actionColor[log.action] ?? "secondary"} className="text-xs"&gt;
-                        {log.action.replaceAll("_", " ")}
-                      &lt;/Badge&gt;
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-3 text-muted-foreground"&gt;
-                      {log.entityType}
-                      {log.entityId &amp;&amp; &lt;span className="ml-1 text-xs opacity-60"&gt;#{log.entityId.slice(-6)}&lt;/span&gt;}
-                    &lt;/td&gt;
-                    &lt;td className="max-w-[340px] px-4 py-3 text-xs text-muted-foreground align-top"&gt;
-                      {pickDisplayChanges(log).length &gt; 0 ? (
-                        &lt;div className="space-y-1"&gt;
-                          {pickDisplayChanges(log).map((entry) =&gt; (
-                            &lt;div key={entry.key} className="flex gap-2"&gt;
-                              &lt;span className="font-medium text-foreground/80"&gt;{entry.key}:&lt;/span&gt;
-                              &lt;span className="break-all"&gt;{entry.value}&lt;/span&gt;
-                            &lt;/div&gt;
-                          ))}
-                          &lt;details className="pt-1"&gt;
-                            &lt;summary className="cursor-pointer text-primary"&gt;View full JSON&lt;/summary&gt;
-                            &lt;pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded border bg-muted/40 p-2"&gt;
-                              {JSON.stringify(log.changes ?? log.newValue ?? log.oldValue ?? {}, null, 2)}
-                            &lt;/pre&gt;
-                          &lt;/details&gt;
-                        &lt;/div&gt;
-                      ) : (
-                        &lt;span&gt;-&lt;/span&gt;
-                      )}
-                    &lt;/td&gt;
-                    &lt;td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground"&gt;
-                      {log.ipAddress ? &lt;div&gt;{log.ipAddress}&lt;/div&gt; : &lt;div&gt;-&lt;/div&gt;}
-                      {log.userAgent ? &lt;div className="max-w-[220px] truncate"&gt;{log.userAgent}&lt;/div&gt; : null}
-                    &lt;/td&gt;
-                  &lt;/tr&gt;
-                ))}
+              &lt;tbody className="divide-y divide-slate-100"&gt;
+                {logs.map((log) =&gt; {
+                  const changes = pickDisplayChanges(log);
+                  return (
+                    &lt;tr key={log.id} className="hover:bg-slate-50 transition-colors align-top"&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
+                        {formatDateTime(log.createdAt)}
+                      &lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{log.actor.fullName}&lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-500"&gt;{ROLE_LABELS[log.actorRole]}&lt;/td&gt;
+                      &lt;td className="px-4 py-2.5"&gt;
+                        &lt;span
+                          className={`rounded px-1.5 py-0.5 font-medium ${
+                            actionStyle[log.action] ?? "bg-slate-100 text-slate-600"
+                          }`}
+                        &gt;
+                          {log.action.replaceAll("_", " ")}
+                        &lt;/span&gt;
+                      &lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-500"&gt;
+                        {log.entityType}
+                        {log.entityId &amp;&amp; (
+                          &lt;span className="ml-1 font-mono text-slate-300"&gt;
+                            #{log.entityId.slice(-6)}
+                          &lt;/span&gt;
+                        )}
+                      &lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-500 max-w-[280px]"&gt;
+                        {changes.length &gt; 0 ? (
+                          &lt;div className="space-y-0.5"&gt;
+                            {changes.map((c) =&gt; (
+                              &lt;div key={c.key} className="flex gap-1.5"&gt;
+                                &lt;span className="font-medium text-slate-600"&gt;{c.key}:&lt;/span&gt;
+                                &lt;span className="break-all text-slate-400"&gt;{c.value}&lt;/span&gt;
+                              &lt;/div&gt;
+                            ))}
+                          &lt;/div&gt;
+                        ) : (
+                          &lt;span className="text-slate-300"&gt;â€”&lt;/span&gt;
+                        )}
+                      &lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
+                        {log.ipAddress ?? "â€”"}
+                      &lt;/td&gt;
+                    &lt;/tr&gt;
+                  );
+                })}
               &lt;/tbody&gt;
             &lt;/table&gt;
           &lt;/div&gt;
@@ -2142,8 +2110,7 @@ export default async function AuditLogPage({
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/notifications/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { NotificationCenter } from "@/components/notifications/notification-center";
@@ -2206,19 +2173,7 @@ import { getHrmOverview } from "@/lib/hrm-monitoring";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  Users,
-  UserCheck,
-  UserX,
-  ClipboardList,
-  Activity,
-  Clock3,
-  Timer,
-  AlertTriangle,
-  CheckCircle2,
-  Settings2,
-} from "lucide-react";
-import { StatsCard } from "@/components/shared/stats-card";
+import { Settings2 } from "lucide-react";
 import { formatDateTime, formatMinutes, ROLE_LABELS } from "@/lib/utils";
 import { Badge } from "@/components/ui/index";
 
@@ -2240,7 +2195,7 @@ export default async function HRMDashboardPage() {
       prisma.auditLog.findMany({
         where: { actor: { organizationId: user.organizationId } },
         orderBy: { createdAt: "desc" },
-        take: 8,
+        take: 10,
         include: { actor: { select: { fullName: true, role: true } } },
       }),
       getHrmOverview({
@@ -2250,178 +2205,154 @@ export default async function HRMDashboardPage() {
       }),
     ]);
 
+  const metrics = [
+    { label: "Patients Today", value: overview.metrics.todayPatients },
+    { label: "Active Visits", value: overview.metrics.activeVisits },
+    { label: "Pending Tasks", value: overview.metrics.pendingTasks },
+    { label: "Completed", value: overview.metrics.completedTasks },
+    { label: "Delayed", value: overview.metrics.delayedTasks, alert: overview.metrics.delayedTasks &gt; 0 },
+    { label: "Total Staff", value: totalStaff },
+    { label: "Available", value: activeStaff },
+    { label: "Unavailable", value: unavailableStaff },
+  ];
+
   return (
-    &lt;div className="space-y-6"&gt;
-      &lt;div&gt;
-        &lt;div className="flex items-center justify-between gap-3"&gt;
-          &lt;h1 className="text-2xl font-bold"&gt;Operations Overview&lt;/h1&gt;
-          {user.role === "SUPER_ADMIN" ? (
-            &lt;Link href="/dashboard/hrm/settings" className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"&gt;
-              &lt;Settings2 className="h-4 w-4" /&gt;
-              Settings
-            &lt;/Link&gt;
-          ) : null}
+    &lt;div className="space-y-5"&gt;
+      {/* Page header */}
+      &lt;div className="flex items-center justify-between"&gt;
+        &lt;div&gt;
+          &lt;h1 className="text-base font-semibold text-slate-800"&gt;Operations Overview&lt;/h1&gt;
+          &lt;p className="text-xs text-slate-400 mt-0.5"&gt;Live workflow across your lab&lt;/p&gt;
         &lt;/div&gt;
-        &lt;p className="mt-1 text-sm text-muted-foreground"&gt;
-          Monitor workflow movement, staff load, and release readiness across your lab
-        &lt;/p&gt;
+        {user.role === "SUPER_ADMIN" &amp;&amp; (
+          &lt;Link
+            href="/dashboard/hrm/settings"
+            className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+          &gt;
+            &lt;Settings2 className="h-3.5 w-3.5" /&gt;
+            Settings
+          &lt;/Link&gt;
+        )}
       &lt;/div&gt;
 
-      &lt;div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"&gt;
-        &lt;StatsCard
-          title="Patients Today"
-          value={overview.metrics.todayPatients}
-          subtitle="Registered today"
-          icon={Users}
-          iconBg="bg-blue-50"
-          iconColor="text-blue-600"
-        /&gt;
-        &lt;StatsCard
-          title="Active Visits"
-          value={overview.metrics.activeVisits}
-          subtitle="Still in workflow"
-          icon={Activity}
-          iconBg="bg-indigo-50"
-          iconColor="text-indigo-600"
-        /&gt;
-        &lt;StatsCard
-          title="Pending Tasks"
-          value={overview.metrics.pendingTasks}
-          subtitle="Awaiting completion"
-          icon={Clock3}
-          iconBg="bg-yellow-50"
-          iconColor="text-yellow-600"
-        /&gt;
-        &lt;StatsCard
-          title="Completed Tasks"
-          value={overview.metrics.completedTasks}
-          subtitle="Done so far"
-          icon={CheckCircle2}
-          iconBg="bg-green-50"
-          iconColor="text-green-600"
-        /&gt;
-        &lt;StatsCard
-          title="Delayed Tasks"
-          value={overview.metrics.delayedTasks}
-          subtitle="Exceeded target time"
-          icon={AlertTriangle}
-          iconBg="bg-red-50"
-          iconColor="text-red-600"
-        /&gt;
+      {/* Metrics strip */}
+      &lt;div className="grid grid-cols-4 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden lg:grid-cols-8"&gt;
+        {metrics.map((m) =&gt; (
+          &lt;div key={m.label} className="bg-white px-4 py-3"&gt;
+            &lt;p className="text-[11px] text-slate-400 uppercase tracking-wide"&gt;{m.label}&lt;/p&gt;
+            &lt;p className={`text-xl font-bold mt-0.5 ${m.alert ? "text-red-600" : "text-slate-800"}`}&gt;
+              {m.value}
+            &lt;/p&gt;
+          &lt;/div&gt;
+        ))}
       &lt;/div&gt;
 
-      &lt;div className="grid grid-cols-1 gap-6 lg:grid-cols-2"&gt;
-        &lt;div className="rounded-lg border bg-card p-5 shadow-sm"&gt;
-          &lt;div className="mb-4 flex items-center justify-between"&gt;
-            &lt;h2 className="flex items-center gap-2 font-semibold"&gt;
-              &lt;Timer className="h-4 w-4 text-muted-foreground" /&gt;
-              Basic Analytics
-            &lt;/h2&gt;
-            &lt;Link href="/dashboard/hrm/operations" className="text-xs text-primary hover:underline"&gt;
-              Open operations -&amp;gt;
+      {/* Two column: analytics + activity */}
+      &lt;div className="grid grid-cols-1 gap-4 lg:grid-cols-2"&gt;
+        {/* Analytics */}
+        &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+          &lt;div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5"&gt;
+            &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Analytics&lt;/span&gt;
+            &lt;Link href="/dashboard/hrm/operations" className="text-xs text-blue-600 hover:underline"&gt;
+              View operations â†’
             &lt;/Link&gt;
           &lt;/div&gt;
-          &lt;div className="space-y-4 text-sm"&gt;
-            &lt;div className="flex items-center justify-between border-b pb-3"&gt;
-              &lt;span className="text-muted-foreground"&gt;Average completion time&lt;/span&gt;
-              &lt;span className="font-semibold"&gt;{formatMinutes(overview.analytics.averageCompletionMinutes)}&lt;/span&gt;
+
+          &lt;div className="divide-y divide-slate-100"&gt;
+            &lt;div className="flex items-center justify-between px-4 py-2.5"&gt;
+              &lt;span className="text-xs text-slate-500"&gt;Avg. completion time&lt;/span&gt;
+              &lt;span className="text-xs font-semibold text-slate-800"&gt;
+                {formatMinutes(overview.analytics.averageCompletionMinutes)}
+              &lt;/span&gt;
             &lt;/div&gt;
-            &lt;div&gt;
-              &lt;p className="mb-2 text-muted-foreground"&gt;Tasks per department&lt;/p&gt;
-              &lt;div className="flex flex-wrap gap-2"&gt;
-                {Object.entries(overview.analytics.tasksPerDepartment).map(([department, count]) =&gt; (
-                  &lt;Badge key={department} variant="secondary"&gt;
-                    {department}: {count}
-                  &lt;/Badge&gt;
+
+            {/* Tasks per dept */}
+            &lt;div className="px-4 py-2.5"&gt;
+              &lt;p className="text-xs text-slate-400 mb-2"&gt;Tasks per department&lt;/p&gt;
+              &lt;div className="flex flex-wrap gap-1.5"&gt;
+                {Object.entries(overview.analytics.tasksPerDepartment).map(([dept, count]) =&gt; (
+                  &lt;span
+                    key={dept}
+                    className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                  &gt;
+                    {dept}: &lt;strong&gt;{count as number}&lt;/strong&gt;
+                  &lt;/span&gt;
                 ))}
               &lt;/div&gt;
             &lt;/div&gt;
-            &lt;div&gt;
-              &lt;p className="mb-2 text-muted-foreground"&gt;Busiest staff right now&lt;/p&gt;
-              &lt;div className="space-y-2"&gt;
-                {overview.analytics.busiestStaff.length === 0 ? (
-                  &lt;p className="text-sm text-muted-foreground"&gt;No active workload yet.&lt;/p&gt;
-                ) : (
-                  overview.analytics.busiestStaff.map((s) =&gt; (
-                    &lt;div key={s.id} className="flex items-center justify-between rounded-md border px-3 py-2"&gt;
-                      &lt;div&gt;
-                        &lt;p className="font-medium"&gt;{s.fullName}&lt;/p&gt;
-                        &lt;p className="text-xs text-muted-foreground"&gt;{ROLE_LABELS[s.role]}&lt;/p&gt;
-                      &lt;/div&gt;
-                      &lt;Badge variant={s.overloaded ? "warning" : "info"}&gt;{s.active} active&lt;/Badge&gt;
-                    &lt;/div&gt;
-                  ))
-                )}
-              &lt;/div&gt;
+
+            {/* Busiest staff */}
+            &lt;div className="px-4 py-2.5"&gt;
+              &lt;p className="text-xs text-slate-400 mb-2"&gt;Busiest staff&lt;/p&gt;
+              {overview.analytics.busiestStaff.length === 0 ? (
+                &lt;p className="text-xs text-slate-400"&gt;No active workload.&lt;/p&gt;
+              ) : (
+                &lt;table className="w-full text-xs"&gt;
+                  &lt;tbody className="divide-y divide-slate-100"&gt;
+                    {overview.analytics.busiestStaff.map((s) =&gt; (
+                      &lt;tr key={s.id}&gt;
+                        &lt;td className="py-1.5 font-medium text-slate-700"&gt;{s.fullName}&lt;/td&gt;
+                        &lt;td className="py-1.5 text-slate-400"&gt;{ROLE_LABELS[s.role]}&lt;/td&gt;
+                        &lt;td className="py-1.5 text-right"&gt;
+                          &lt;span
+                            className={`rounded px-1.5 py-0.5 font-semibold ${
+                              s.overloaded
+                                ? "bg-red-50 text-red-600"
+                                : "bg-blue-50 text-blue-600"
+                            }`}
+                          &gt;
+                            {s.active} active
+                          &lt;/span&gt;
+                        &lt;/td&gt;
+                      &lt;/tr&gt;
+                    ))}
+                  &lt;/tbody&gt;
+                &lt;/table&gt;
+              )}
             &lt;/div&gt;
           &lt;/div&gt;
         &lt;/div&gt;
 
-        &lt;div className="rounded-lg border bg-card p-5 shadow-sm"&gt;
-          &lt;div className="mb-4 flex items-center justify-between"&gt;
-            &lt;h2 className="flex items-center gap-2 font-semibold"&gt;
-              &lt;Activity className="h-4 w-4 text-muted-foreground" /&gt;
-              Recent Activity
-            &lt;/h2&gt;
-            &lt;Link href="/dashboard/hrm/audit" className="text-xs text-primary hover:underline"&gt;
-              View all -&amp;gt;
+        {/* Recent Activity */}
+        &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+          &lt;div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5"&gt;
+            &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Recent Activity&lt;/span&gt;
+            &lt;Link href="/dashboard/hrm/audit" className="text-xs text-blue-600 hover:underline"&gt;
+              View all â†’
             &lt;/Link&gt;
           &lt;/div&gt;
-          &lt;div className="space-y-3"&gt;
-            {recentAuditLogs.length === 0 ? (
-              &lt;p className="py-4 text-center text-sm text-muted-foreground"&gt;No activity logged yet.&lt;/p&gt;
-            ) : (
-              recentAuditLogs.map((log) =&gt; (
-                &lt;div key={log.id} className="flex items-start gap-3 border-b py-2 last:border-0"&gt;
-                  &lt;div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary"&gt;
-                    {log.actor.fullName.charAt(0)}
-                  &lt;/div&gt;
-                  &lt;div className="min-w-0"&gt;
-                    &lt;p className="text-sm"&gt;
-                      &lt;span className="font-medium"&gt;{log.actor.fullName}&lt;/span&gt;{" "}
-                      &lt;span className="text-muted-foreground"&gt;
-                        {log.action.replaceAll("_", " ").toLowerCase()}
-                      &lt;/span&gt;
-                    &lt;/p&gt;
-                    &lt;p className="text-xs text-muted-foreground"&gt;{formatDateTime(log.createdAt)}&lt;/p&gt;
-                  &lt;/div&gt;
-                &lt;/div&gt;
-              ))
-            )}
-          &lt;/div&gt;
-        &lt;/div&gt;
-      &lt;/div&gt;
 
-      &lt;div className="grid grid-cols-1 gap-4 sm:grid-cols-3"&gt;
-        &lt;StatsCard
-          title="Total Staff"
-          value={totalStaff}
-          subtitle="All staff accounts"
-          icon={ClipboardList}
-          iconBg="bg-slate-100"
-          iconColor="text-slate-700"
-        /&gt;
-        &lt;StatsCard
-          title="Available Staff"
-          value={activeStaff}
-          subtitle="Ready to receive tasks"
-          icon={UserCheck}
-          iconBg="bg-green-50"
-          iconColor="text-green-700"
-        /&gt;
-        &lt;StatsCard
-          title="Unavailable Staff"
-          value={unavailableStaff}
-          subtitle="Not receiving new tasks"
-          icon={UserX}
-          iconBg="bg-amber-50"
-          iconColor="text-amber-700"
-        /&gt;
+          {recentAuditLogs.length === 0 ? (
+            &lt;p className="px-4 py-6 text-center text-xs text-slate-400"&gt;No activity logged yet.&lt;/p&gt;
+          ) : (
+            &lt;table className="w-full text-xs"&gt;
+              &lt;thead&gt;
+                &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                  &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Staff&lt;/th&gt;
+                  &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Action&lt;/th&gt;
+                  &lt;th className="px-4 py-2 text-right font-medium text-slate-400"&gt;Time&lt;/th&gt;
+                &lt;/tr&gt;
+              &lt;/thead&gt;
+              &lt;tbody className="divide-y divide-slate-100"&gt;
+                {recentAuditLogs.map((log) =&gt; (
+                  &lt;tr key={log.id} className="hover:bg-slate-50"&gt;
+                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{log.actor.fullName}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-500 capitalize"&gt;
+                      {log.action.replaceAll("_", " ").toLowerCase()}
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-right text-slate-400 whitespace-nowrap"&gt;
+                      {formatDateTime(log.createdAt)}
+                    &lt;/td&gt;
+                  &lt;/tr&gt;
+                ))}
+              &lt;/tbody&gt;
+            &lt;/table&gt;
+          )}
+        &lt;/div&gt;
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/release/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ReportWorkspace } from "@/components/reports/report-workspace";
@@ -2510,16 +2441,13 @@ export default async function AddStaffPage() {
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { UserPlus, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/index";
+import { UserPlus } from "lucide-react";
 import { ROLE_LABELS, DEPARTMENT_LABELS, formatDate } from "@/lib/utils";
 
 export default async function StaffListPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
-
   if (!["SUPER_ADMIN", "HRM"].includes(user.role)) redirect("/dashboard/hrm");
 
   const staff = await prisma.staff.findMany({
@@ -2541,84 +2469,91 @@ export default async function StaffListPage() {
   });
 
   return (
-    &lt;div className="space-y-6"&gt;
+    &lt;div className="space-y-4"&gt;
+      {/* Header */}
       &lt;div className="flex items-center justify-between"&gt;
         &lt;div&gt;
-          &lt;h1 className="text-2xl font-bold"&gt;Staff Management&lt;/h1&gt;
-          &lt;p className="text-sm text-muted-foreground mt-1"&gt;
-            {staff.length} staff member{staff.length !== 1 ? "s" : ""} in your organization
+          &lt;h1 className="text-base font-semibold text-slate-800"&gt;Staff Management&lt;/h1&gt;
+          &lt;p className="text-xs text-slate-400 mt-0.5"&gt;
+            {staff.length} member{staff.length !== 1 ? "s" : ""} in your organisation
           &lt;/p&gt;
         &lt;/div&gt;
-        &lt;Link href="/dashboard/hrm/staff/new"&gt;
-          &lt;Button className="gap-2"&gt;
-            &lt;UserPlus className="h-4 w-4" /&gt;
-            Add Staff
-          &lt;/Button&gt;
+        &lt;Link
+          href="/dashboard/hrm/staff/new"
+          className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+        &gt;
+          &lt;UserPlus className="h-3.5 w-3.5" /&gt;
+          Add Staff
         &lt;/Link&gt;
       &lt;/div&gt;
 
       {/* Table */}
-      &lt;div className="rounded-lg border bg-card shadow-sm overflow-hidden"&gt;
+      &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
         {staff.length === 0 ? (
-          &lt;div className="flex flex-col items-center justify-center py-16 text-center"&gt;
-            &lt;div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted"&gt;
-              &lt;UserPlus className="h-6 w-6 text-muted-foreground" /&gt;
-            &lt;/div&gt;
-            &lt;h3 className="font-semibold"&gt;No staff yet&lt;/h3&gt;
-            &lt;p className="mt-1 text-sm text-muted-foreground"&gt;
-              Add your first staff member to get started.
-            &lt;/p&gt;
-            &lt;Link href="/dashboard/hrm/staff/new" className="mt-4"&gt;
-              &lt;Button&gt;Add First Staff Member&lt;/Button&gt;
+          &lt;div className="py-16 text-center"&gt;
+            &lt;p className="text-sm text-slate-400"&gt;No staff yet.&lt;/p&gt;
+            &lt;Link
+              href="/dashboard/hrm/staff/new"
+              className="mt-2 inline-flex text-xs text-blue-600 hover:underline"
+            &gt;
+              Add first staff member â†’
             &lt;/Link&gt;
           &lt;/div&gt;
         ) : (
           &lt;div className="overflow-x-auto"&gt;
-            &lt;table className="w-full text-sm"&gt;
-              &lt;thead className="border-b bg-muted/40"&gt;
-                &lt;tr&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Name&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Role&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Department&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Status&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Availability&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Joined&lt;/th&gt;
-                  &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Actions&lt;/th&gt;
+            &lt;table className="w-full text-xs"&gt;
+              &lt;thead&gt;
+                &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Name&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Email&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Role&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Department&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Shift&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Status&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Availability&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Joined&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;&lt;/th&gt;
                 &lt;/tr&gt;
               &lt;/thead&gt;
-              &lt;tbody className="divide-y"&gt;
+              &lt;tbody className="divide-y divide-slate-100"&gt;
                 {staff.map((s) =&gt; (
-                  &lt;tr key={s.id} className="hover:bg-muted/20 transition-colors"&gt;
-                    &lt;td className="px-4 py-3"&gt;
-                      &lt;div className="flex items-center gap-3"&gt;
-                        &lt;div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary"&gt;
-                          {s.fullName.charAt(0)}
-                        &lt;/div&gt;
-                        &lt;div&gt;
-                          &lt;p className="font-medium"&gt;{s.fullName}&lt;/p&gt;
-                          &lt;p className="text-xs text-muted-foreground"&gt;{s.email}&lt;/p&gt;
-                        &lt;/div&gt;
-                      &lt;/div&gt;
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-3 text-muted-foreground"&gt;{ROLE_LABELS[s.role]}&lt;/td&gt;
-                    &lt;td className="px-4 py-3 text-muted-foreground"&gt;
+                  &lt;tr key={s.id} className="hover:bg-slate-50 transition-colors"&gt;
+                    &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{s.fullName}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;{s.email}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;{ROLE_LABELS[s.role]}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;
                       {DEPARTMENT_LABELS[s.department] ?? s.department}
                     &lt;/td&gt;
-                    &lt;td className="px-4 py-3"&gt;
-                      &lt;Badge variant={s.status === "ACTIVE" ? "success" : "destructive"}&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;{s.defaultShift}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      &lt;span
+                        className={`rounded px-1.5 py-0.5 font-medium ${
+                          s.status === "ACTIVE"
+                            ? "bg-green-50 text-green-700"
+                            : "bg-red-50 text-red-600"
+                        }`}
+                      &gt;
                         {s.status}
-                      &lt;/Badge&gt;
+                      &lt;/span&gt;
                     &lt;/td&gt;
-                    &lt;td className="px-4 py-3"&gt;
-                      &lt;Badge variant={s.availabilityStatus === "AVAILABLE" ? "info" : "secondary"}&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      &lt;span
+                        className={`rounded px-1.5 py-0.5 font-medium ${
+                          s.availabilityStatus === "AVAILABLE"
+                            ? "bg-blue-50 text-blue-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      &gt;
                         {s.availabilityStatus === "AVAILABLE" ? "Available" : "Away"}
-                      &lt;/Badge&gt;
+                      &lt;/span&gt;
                     &lt;/td&gt;
-                    &lt;td className="px-4 py-3 text-muted-foreground"&gt;{formatDate(s.dateJoined)}&lt;/td&gt;
-                    &lt;td className="px-4 py-3"&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
+                      {formatDate(s.dateJoined)}
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
                       &lt;Link
                         href={`/dashboard/hrm/staff/${s.id}`}
-                        className="text-primary text-xs hover:underline"
+                        className="text-blue-600 hover:underline"
                       &gt;
                         View â†’
                       &lt;/Link&gt;
@@ -2632,20 +2567,25 @@ export default async function StaffListPage() {
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/tests/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { FlaskConical, Scan, Clock, DollarSign } from "lucide-react";
-import { Badge } from "@/components/ui/index";
 import { formatCurrency } from "@/lib/utils";
+
+function turnaround(mins: number) {
+  if (mins &gt;= 60) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m &gt; 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+  return `${mins}m`;
+}
 
 export default async function TestCatalogPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
-
   if (!["SUPER_ADMIN", "HRM"].includes(user.role)) redirect("/dashboard/hrm");
 
   const tests = await prisma.diagnosticTest.findMany({
@@ -2659,132 +2599,124 @@ export default async function TestCatalogPage() {
 
   const labTests = tests.filter((t) =&gt; t.type === "LAB");
   const radioTests = tests.filter((t) =&gt; t.type === "RADIOLOGY");
+  const totalFields = tests.reduce((sum, t) =&gt; sum + t.resultFields.length, 0);
 
   return (
-    &lt;div className="space-y-6"&gt;
+    &lt;div className="space-y-4"&gt;
+      {/* Header */}
       &lt;div&gt;
-        &lt;h1 className="text-2xl font-bold flex items-center gap-2"&gt;
-          &lt;FlaskConical className="h-6 w-6" /&gt;
-          Test Catalog
-        &lt;/h1&gt;
-        &lt;p className="text-sm text-muted-foreground mt-1"&gt;
-          All diagnostic tests available in your organization ({tests.length} total)
-        &lt;/p&gt;
+        &lt;h1 className="text-base font-semibold text-slate-800"&gt;Test Catalog&lt;/h1&gt;
+        &lt;p className="text-xs text-slate-400 mt-0.5"&gt;{tests.length} active tests in your organisation&lt;/p&gt;
       &lt;/div&gt;
 
-      {/* Summary */}
-      &lt;div className="grid grid-cols-2 gap-4 sm:grid-cols-4"&gt;
-        &lt;div className="rounded-lg border bg-card p-4"&gt;
-          &lt;p className="text-xs text-muted-foreground"&gt;Total Tests&lt;/p&gt;
-          &lt;p className="text-2xl font-bold mt-1"&gt;{tests.length}&lt;/p&gt;
-        &lt;/div&gt;
-        &lt;div className="rounded-lg border bg-card p-4"&gt;
-          &lt;p className="text-xs text-muted-foreground"&gt;Lab Tests&lt;/p&gt;
-          &lt;p className="text-2xl font-bold mt-1 text-blue-600"&gt;{labTests.length}&lt;/p&gt;
-        &lt;/div&gt;
-        &lt;div className="rounded-lg border bg-card p-4"&gt;
-          &lt;p className="text-xs text-muted-foreground"&gt;Radiology Tests&lt;/p&gt;
-          &lt;p className="text-2xl font-bold mt-1 text-purple-600"&gt;{radioTests.length}&lt;/p&gt;
-        &lt;/div&gt;
-        &lt;div className="rounded-lg border bg-card p-4"&gt;
-          &lt;p className="text-xs text-muted-foreground"&gt;Result Templates&lt;/p&gt;
-          &lt;p className="text-2xl font-bold mt-1 text-green-600"&gt;
-            {tests.reduce((sum, t) =&gt; sum + t.resultFields.length, 0)}
-          &lt;/p&gt;
-        &lt;/div&gt;
+      {/* Stat strip */}
+      &lt;div className="grid grid-cols-4 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden"&gt;
+        {[
+          { label: "Total Tests", value: tests.length },
+          { label: "Lab Tests", value: labTests.length },
+          { label: "Radiology Tests", value: radioTests.length },
+          { label: "Total Result Fields", value: totalFields },
+        ].map((s) =&gt; (
+          &lt;div key={s.label} className="bg-white px-4 py-3"&gt;
+            &lt;p className="text-[11px] uppercase tracking-wide text-slate-400"&gt;{s.label}&lt;/p&gt;
+            &lt;p className="text-xl font-bold text-slate-800 mt-0.5"&gt;{s.value}&lt;/p&gt;
+          &lt;/div&gt;
+        ))}
       &lt;/div&gt;
 
       {/* Lab Tests */}
-      &lt;section&gt;
-        &lt;h2 className="text-lg font-semibold flex items-center gap-2 mb-3"&gt;
-          &lt;FlaskConical className="h-5 w-5 text-blue-600" /&gt;
-          Laboratory Tests
-          &lt;Badge variant="info" className="ml-1"&gt;{labTests.length}&lt;/Badge&gt;
-        &lt;/h2&gt;
-        &lt;div className="rounded-lg border overflow-hidden"&gt;
-          &lt;table className="w-full text-sm"&gt;
-            &lt;thead className="bg-muted/40 border-b"&gt;
-              &lt;tr&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Test Name&lt;/th&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Code&lt;/th&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Category&lt;/th&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Sample&lt;/th&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;
-                  &lt;Clock className="h-3.5 w-3.5 inline mr-1" /&gt;Target
-                &lt;/th&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;
-                  &lt;DollarSign className="h-3.5 w-3.5 inline" /&gt;Price
-                &lt;/th&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Fields&lt;/th&gt;
+      &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+        &lt;div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5"&gt;
+          &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;
+            Laboratory Tests
+          &lt;/span&gt;
+          &lt;span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs font-semibold text-blue-600"&gt;
+            {labTests.length}
+          &lt;/span&gt;
+        &lt;/div&gt;
+        {labTests.length === 0 ? (
+          &lt;p className="px-4 py-6 text-xs text-slate-400"&gt;No lab tests.&lt;/p&gt;
+        ) : (
+          &lt;table className="w-full text-xs"&gt;
+            &lt;thead&gt;
+              &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Test Name&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Code&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Category&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Sample&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Turnaround&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Price&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Fields&lt;/th&gt;
               &lt;/tr&gt;
             &lt;/thead&gt;
-            &lt;tbody className="divide-y"&gt;
+            &lt;tbody className="divide-y divide-slate-100"&gt;
               {labTests.map((test) =&gt; (
-                &lt;tr key={test.id} className="hover:bg-muted/20 transition-colors"&gt;
-                  &lt;td className="px-4 py-3 font-medium"&gt;{test.name}&lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;
-                    &lt;Badge variant="secondary" className="font-mono text-xs"&gt;{test.code}&lt;/Badge&gt;
+                &lt;tr key={test.id} className="hover:bg-slate-50 transition-colors"&gt;
+                  &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{test.name}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5"&gt;
+                    &lt;span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-600"&gt;
+                      {test.code}
+                    &lt;/span&gt;
                   &lt;/td&gt;
-                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;{test.category?.name ?? "â€”"}&lt;/td&gt;
-                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;{test.sampleType ?? "â€”"}&lt;/td&gt;
-                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;
-                    {test.turnaroundMinutes &gt;= 60
-                      ? `${Math.floor(test.turnaroundMinutes / 60)}h ${test.turnaroundMinutes % 60 &gt; 0 ? `${test.turnaroundMinutes % 60}m` : ""}`
-                      : `${test.turnaroundMinutes}m`}
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{test.category?.name ?? "â€”"}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{test.sampleType ?? "â€”"}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{turnaround(test.turnaroundMinutes)}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 font-medium text-slate-700"&gt;
+                    {formatCurrency(Number(test.price))}
                   &lt;/td&gt;
-                  &lt;td className="px-4 py-3 font-medium"&gt;{formatCurrency(Number(test.price))}&lt;/td&gt;
-                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;{test.resultFields.length} fields&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-400"&gt;{test.resultFields.length}&lt;/td&gt;
                 &lt;/tr&gt;
               ))}
             &lt;/tbody&gt;
           &lt;/table&gt;
-        &lt;/div&gt;
-      &lt;/section&gt;
+        )}
+      &lt;/div&gt;
 
       {/* Radiology Tests */}
-      &lt;section&gt;
-        &lt;h2 className="text-lg font-semibold flex items-center gap-2 mb-3"&gt;
-          &lt;Scan className="h-5 w-5 text-purple-600" /&gt;
-          Radiology Tests
-          &lt;Badge variant="secondary" className="ml-1"&gt;{radioTests.length}&lt;/Badge&gt;
-        &lt;/h2&gt;
-        &lt;div className="rounded-lg border overflow-hidden"&gt;
-          &lt;table className="w-full text-sm"&gt;
-            &lt;thead className="bg-muted/40 border-b"&gt;
-              &lt;tr&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Test Name&lt;/th&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Code&lt;/th&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Category&lt;/th&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;
-                  &lt;Clock className="h-3.5 w-3.5 inline mr-1" /&gt;Target
-                &lt;/th&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;
-                  &lt;DollarSign className="h-3.5 w-3.5 inline" /&gt;Price
-                &lt;/th&gt;
-                &lt;th className="px-4 py-3 text-left font-medium text-muted-foreground"&gt;Fields&lt;/th&gt;
+      &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+        &lt;div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5"&gt;
+          &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;
+            Radiology Tests
+          &lt;/span&gt;
+          &lt;span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600"&gt;
+            {radioTests.length}
+          &lt;/span&gt;
+        &lt;/div&gt;
+        {radioTests.length === 0 ? (
+          &lt;p className="px-4 py-6 text-xs text-slate-400"&gt;No radiology tests.&lt;/p&gt;
+        ) : (
+          &lt;table className="w-full text-xs"&gt;
+            &lt;thead&gt;
+              &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Test Name&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Code&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Category&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Turnaround&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Price&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Fields&lt;/th&gt;
               &lt;/tr&gt;
             &lt;/thead&gt;
-            &lt;tbody className="divide-y"&gt;
+            &lt;tbody className="divide-y divide-slate-100"&gt;
               {radioTests.map((test) =&gt; (
-                &lt;tr key={test.id} className="hover:bg-muted/20 transition-colors"&gt;
-                  &lt;td className="px-4 py-3 font-medium"&gt;{test.name}&lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;
-                    &lt;Badge variant="secondary" className="font-mono text-xs"&gt;{test.code}&lt;/Badge&gt;
+                &lt;tr key={test.id} className="hover:bg-slate-50 transition-colors"&gt;
+                  &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{test.name}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5"&gt;
+                    &lt;span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-600"&gt;
+                      {test.code}
+                    &lt;/span&gt;
                   &lt;/td&gt;
-                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;{test.category?.name ?? "â€”"}&lt;/td&gt;
-                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;
-                    {test.turnaroundMinutes &gt;= 60
-                      ? `${Math.floor(test.turnaroundMinutes / 60)}h ${test.turnaroundMinutes % 60 &gt; 0 ? `${test.turnaroundMinutes % 60}m` : ""}`
-                      : `${test.turnaroundMinutes}m`}
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{test.category?.name ?? "â€”"}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{turnaround(test.turnaroundMinutes)}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 font-medium text-slate-700"&gt;
+                    {formatCurrency(Number(test.price))}
                   &lt;/td&gt;
-                  &lt;td className="px-4 py-3 font-medium"&gt;{formatCurrency(Number(test.price))}&lt;/td&gt;
-                  &lt;td className="px-4 py-3 text-muted-foreground"&gt;{test.resultFields.length} fields&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-400"&gt;{test.resultFields.length}&lt;/td&gt;
                 &lt;/tr&gt;
               ))}
             &lt;/tbody&gt;
           &lt;/table&gt;
-        &lt;/div&gt;
-      &lt;/section&gt;
+        )}
+      &lt;/div&gt;
     &lt;/div&gt;
   );
 }</pre></div>
@@ -3383,15 +3315,7 @@ export default async function ReceptionistNotificationsPage() {
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  UserPlus,
-  Users,
-  Clock,
-  CreditCard,
-  FlaskConical,
-  ArrowRight,
-} from "lucide-react";
-import { StatsCard } from "@/components/shared/stats-card";
+import { UserPlus } from "lucide-react";
 import { formatDateTime, formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/index";
 
@@ -3409,198 +3333,186 @@ export default async function ReceptionistDashboard() {
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
 
-  const [todayPatients, unpaidVisits, recentPatients, totalToday] = await prisma.$transaction([
-    // Count registered today
-    prisma.patient.count({
-      where: {
-        organizationId: user.organizationId,
-        createdAt: { gte: todayStart, lte: todayEnd },
-      },
-    }),
-    // Count unpaid visits today
-    prisma.visit.count({
-      where: {
-        organizationId: user.organizationId,
-        paymentStatus: { in: ["PENDING", "PARTIAL"] },
-        registeredAt: { gte: todayStart, lte: todayEnd },
-      },
-    }),
-    // Recent patients
-    prisma.patient.findMany({
-      where: { organizationId: user.organizationId },
-      orderBy: { createdAt: "desc" },
-      take: 8,
-      include: {
-        visits: {
-          orderBy: { registeredAt: "desc" },
-          take: 1,
-          include: {
-            testOrders: {
-              include: { test: { select: { name: true, type: true } } },
+  const [todayPatients, unpaidVisits, recentPatients, totalPatients] =
+    await prisma.$transaction([
+      prisma.patient.count({
+        where: {
+          organizationId: user.organizationId,
+          createdAt: { gte: todayStart, lte: todayEnd },
+        },
+      }),
+      prisma.visit.count({
+        where: {
+          organizationId: user.organizationId,
+          paymentStatus: { in: ["PENDING", "PARTIAL"] },
+          registeredAt: { gte: todayStart, lte: todayEnd },
+        },
+      }),
+      prisma.patient.findMany({
+        where: { organizationId: user.organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        include: {
+          visits: {
+            orderBy: { registeredAt: "desc" },
+            take: 1,
+            include: {
+              testOrders: {
+                include: { test: { select: { name: true, type: true } } },
+              },
             },
           },
         },
-      },
-    }),
-    // Total patients in org
-    prisma.patient.count({
-      where: { organizationId: user.organizationId },
-    }),
-  ]);
+      }),
+      prisma.patient.count({ where: { organizationId: user.organizationId } }),
+    ]);
 
-  const priorityColor: Record&lt;string, "destructive" | "warning" | "secondary"&gt; = {
-    EMERGENCY: "destructive",
-    URGENT: "warning",
-    ROUTINE: "secondary",
+  const priorityBadge: Record&lt;string, string&gt; = {
+    EMERGENCY: "bg-red-100 text-red-700",
+    URGENT: "bg-amber-100 text-amber-700",
+    ROUTINE: "bg-slate-100 text-slate-600",
   };
 
-  const paymentColor: Record&lt;string, "success" | "warning" | "destructive" | "secondary"&gt; = {
-    PAID: "success",
-    PARTIAL: "warning",
-    PENDING: "destructive",
-    WAIVED: "secondary",
+  const paymentBadge: Record&lt;string, string&gt; = {
+    PAID: "bg-green-100 text-green-700",
+    PARTIAL: "bg-amber-100 text-amber-700",
+    PENDING: "bg-red-100 text-red-700",
+    WAIVED: "bg-slate-100 text-slate-600",
   };
 
   return (
-    &lt;div className="space-y-6"&gt;
+    &lt;div className="space-y-4"&gt;
       {/* Header */}
       &lt;div className="flex items-center justify-between"&gt;
         &lt;div&gt;
-          &lt;h1 className="text-2xl font-bold"&gt;Reception Dashboard&lt;/h1&gt;
-          &lt;p className="text-sm text-muted-foreground mt-1"&gt;
-            Welcome back, {user.fullName}
-          &lt;/p&gt;
+          &lt;h1 className="text-base font-semibold text-slate-800"&gt;Reception&lt;/h1&gt;
+          &lt;p className="text-xs text-slate-400 mt-0.5"&gt;{new Date().toDateString()}&lt;/p&gt;
         &lt;/div&gt;
         &lt;Link
           href="/dashboard/receptionist/new-patient"
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
         &gt;
-          &lt;UserPlus className="h-4 w-4" /&gt;
+          &lt;UserPlus className="h-3.5 w-3.5" /&gt;
           New Patient
         &lt;/Link&gt;
       &lt;/div&gt;
 
-      {/* Stats */}
-      &lt;div className="grid grid-cols-2 gap-4 sm:grid-cols-4"&gt;
-        &lt;StatsCard
-          title="Registered Today"
-          value={todayPatients}
-          icon={Users}
-          iconColor="text-blue-600"
-          iconBg="bg-blue-100"
-        /&gt;
-        &lt;StatsCard
-          title="Awaiting Payment"
-          value={unpaidVisits}
-          icon={CreditCard}
-          iconColor="text-orange-600"
-          iconBg="bg-orange-100"
-        /&gt;
-        &lt;StatsCard
-          title="Total Patients"
-          value={totalToday}
-          icon={FlaskConical}
-          iconColor="text-green-600"
-          iconBg="bg-green-100"
-        /&gt;
-        &lt;StatsCard
-          title="Active Today"
-          value={todayPatients}
-          icon={Clock}
-          iconColor="text-purple-600"
-          iconBg="bg-purple-100"
-        /&gt;
+      {/* Stat strip */}
+      &lt;div className="grid grid-cols-4 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden"&gt;
+        {[
+          { label: "Registered Today", value: todayPatients },
+          { label: "Awaiting Payment", value: unpaidVisits, alert: unpaidVisits &gt; 0 },
+          { label: "Active Today", value: todayPatients },
+          { label: "Total Patients", value: totalPatients },
+        ].map((s) =&gt; (
+          &lt;div key={s.label} className="bg-white px-4 py-3"&gt;
+            &lt;p className="text-[11px] uppercase tracking-wide text-slate-400"&gt;{s.label}&lt;/p&gt;
+            &lt;p className={`text-xl font-bold mt-0.5 ${s.alert ? "text-red-600" : "text-slate-800"}`}&gt;
+              {s.value}
+            &lt;/p&gt;
+          &lt;/div&gt;
+        ))}
       &lt;/div&gt;
 
-      {/* Recent Patients */}
-      &lt;div className="rounded-lg border bg-card"&gt;
-        &lt;div className="flex items-center justify-between p-5 border-b"&gt;
-          &lt;h2 className="font-semibold text-base"&gt;Recent Registrations&lt;/h2&gt;
+      {/* Patients table */}
+      &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+        &lt;div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5"&gt;
+          &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;
+            Recent Registrations
+          &lt;/span&gt;
           &lt;Link
             href="/dashboard/receptionist/patients"
-            className="flex items-center gap-1 text-sm text-primary hover:underline"
+            className="text-xs text-blue-600 hover:underline"
           &gt;
-            View all &lt;ArrowRight className="h-3.5 w-3.5" /&gt;
+            View all â†’
           &lt;/Link&gt;
         &lt;/div&gt;
 
         {recentPatients.length === 0 ? (
-          &lt;div className="p-10 text-center text-muted-foreground"&gt;
-            &lt;Users className="h-8 w-8 mx-auto mb-3 opacity-40" /&gt;
-            &lt;p className="text-sm"&gt;No patients registered yet today.&lt;/p&gt;
+          &lt;div className="px-4 py-10 text-center"&gt;
+            &lt;p className="text-sm text-slate-400"&gt;No patients registered yet.&lt;/p&gt;
             &lt;Link
               href="/dashboard/receptionist/new-patient"
-              className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+              className="mt-2 inline-flex text-xs text-blue-600 hover:underline"
             &gt;
-              Register first patient &lt;ArrowRight className="h-3.5 w-3.5" /&gt;
+              Register first patient â†’
             &lt;/Link&gt;
           &lt;/div&gt;
         ) : (
-          &lt;div className="divide-y"&gt;
-            {recentPatients.map((patient) =&gt; {
-              const latestVisit = patient.visits[0];
-              return (
-                &lt;div key={patient.id} className="flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors"&gt;
-                  {/* Avatar */}
-                  &lt;div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary"&gt;
-                    {patient.fullName.charAt(0)}
-                  &lt;/div&gt;
-
-                  {/* Patient info */}
-                  &lt;div className="flex-1 min-w-0"&gt;
-                    &lt;p className="font-medium text-sm truncate"&gt;{patient.fullName}&lt;/p&gt;
-                    &lt;p className="text-xs text-muted-foreground"&gt;
-                      {patient.patientId} Â· {patient.age}y Â· {patient.sex}
-                    &lt;/p&gt;
-                  &lt;/div&gt;
-
-                  {/* Tests */}
-                  &lt;div className="hidden sm:flex flex-col items-end gap-1 min-w-0"&gt;
-                    &lt;div className="flex flex-wrap gap-1 justify-end"&gt;
-                      {latestVisit?.testOrders.slice(0, 2).map((order) =&gt; (
+          &lt;table className="w-full text-xs"&gt;
+            &lt;thead&gt;
+              &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Patient&lt;/th&gt;
+                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;ID&lt;/th&gt;
+                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Age / Sex&lt;/th&gt;
+                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Tests&lt;/th&gt;
+                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Priority&lt;/th&gt;
+                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Payment&lt;/th&gt;
+                &lt;th className="px-4 py-2 text-right font-medium text-slate-400"&gt;Registered&lt;/th&gt;
+              &lt;/tr&gt;
+            &lt;/thead&gt;
+            &lt;tbody className="divide-y divide-slate-100"&gt;
+              {recentPatients.map((patient) =&gt; {
+                const visit = patient.visits[0];
+                return (
+                  &lt;tr key={patient.id} className="hover:bg-slate-50 transition-colors"&gt;
+                    &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{patient.fullName}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-400 font-mono"&gt;{patient.patientId}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;
+                      {patient.age}y Â· {patient.sex}
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      &lt;div className="flex flex-wrap gap-1"&gt;
+                        {visit?.testOrders.slice(0, 2).map((o) =&gt; (
+                          &lt;span
+                            key={o.id}
+                            className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700"
+                          &gt;
+                            {o.test.name}
+                          &lt;/span&gt;
+                        ))}
+                        {(visit?.testOrders.length ?? 0) &gt; 2 &amp;&amp; (
+                          &lt;span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-500"&gt;
+                            +{(visit?.testOrders.length ?? 0) - 2}
+                          &lt;/span&gt;
+                        )}
+                      &lt;/div&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      {visit &amp;&amp; (
                         &lt;span
-                          key={order.id}
-                          className="inline-block rounded bg-secondary px-1.5 py-0.5 text-xs text-muted-foreground"
+                          className={`rounded px-1.5 py-0.5 font-medium ${
+                            priorityBadge[visit.priority] ?? "bg-slate-100 text-slate-500"
+                          }`}
                         &gt;
-                          {order.test.name}
-                        &lt;/span&gt;
-                      ))}
-                      {(latestVisit?.testOrders.length ?? 0) &gt; 2 &amp;&amp; (
-                        &lt;span className="inline-block rounded bg-secondary px-1.5 py-0.5 text-xs text-muted-foreground"&gt;
-                          +{(latestVisit?.testOrders.length ?? 0) - 2} more
+                          {visit.priority}
                         &lt;/span&gt;
                       )}
-                    &lt;/div&gt;
-                  &lt;/div&gt;
-
-                  {/* Badges */}
-                  &lt;div className="flex items-center gap-2 shrink-0"&gt;
-                    {latestVisit &amp;&amp; (
-                      &lt;&gt;
-                        &lt;Badge variant={priorityColor[latestVisit.priority] ?? "secondary"} className="text-xs"&gt;
-                          {latestVisit.priority}
-                        &lt;/Badge&gt;
-                        &lt;Badge variant={paymentColor[latestVisit.paymentStatus] ?? "secondary"} className="text-xs"&gt;
-                          {latestVisit.paymentStatus}
-                        &lt;/Badge&gt;
-                      &lt;/&gt;
-                    )}
-                  &lt;/div&gt;
-
-                  {/* Time */}
-                  &lt;p className="text-xs text-muted-foreground shrink-0 hidden lg:block"&gt;
-                    {formatDateTime(patient.createdAt)}
-                  &lt;/p&gt;
-                &lt;/div&gt;
-              );
-            })}
-          &lt;/div&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      {visit &amp;&amp; (
+                        &lt;span
+                          className={`rounded px-1.5 py-0.5 font-medium ${
+                            paymentBadge[visit.paymentStatus] ?? "bg-slate-100 text-slate-500"
+                          }`}
+                        &gt;
+                          {visit.paymentStatus}
+                        &lt;/span&gt;
+                      )}
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-right text-slate-400 whitespace-nowrap"&gt;
+                      {formatDateTime(patient.createdAt)}
+                    &lt;/td&gt;
+                  &lt;/tr&gt;
+                );
+              })}
+            &lt;/tbody&gt;
+          &lt;/table&gt;
         )}
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/receptionist/patients/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
@@ -3838,6 +3750,32 @@ export default async function PatientsListPage({
     &lt;/div&gt;
   );
 }
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/receptionist/release/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { ReportWorkspace } from "@/components/reports/report-workspace";
+
+export default async function ReceptionistDispatchPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const user = session.user as any;
+  if (user.role !== "RECEPTIONIST" &amp;&amp; user.role !== "SUPER_ADMIN") {
+    redirect("/dashboard");
+  }
+
+  return (
+    &lt;div className="space-y-6"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-2xl font-bold"&gt;Dispatch Center&lt;/h1&gt;
+        &lt;p className="mt-1 text-sm text-muted-foreground"&gt;
+          Handle released reports for print, download, and WhatsApp dispatch.
+        &lt;/p&gt;
+      &lt;/div&gt;
+      &lt;ReportWorkspace role={user.role} /&gt;
+    &lt;/div&gt;
+  );
+}
+
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/layout.tsx</div><pre>import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -5648,8 +5586,7 @@ export function AddStaffForm() {
 <div class='file-block'><div class='file-header'>src/components/hrm/hrm-operations-board.tsx</div><pre>"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Badge, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
-import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { formatDateTime } from "@/lib/utils";
 
 type TaskRow = {
@@ -5682,6 +5619,19 @@ type StaffOption = {
   department: string;
 };
 
+const statusStyle: Record&lt;string, string&gt; = {
+  PENDING: "bg-slate-100 text-slate-600",
+  IN_PROGRESS: "bg-blue-50 text-blue-700",
+  COMPLETED: "bg-green-50 text-green-700",
+  CANCELLED: "bg-red-50 text-red-600",
+};
+
+const priorityStyle: Record&lt;string, string&gt; = {
+  ROUTINE: "bg-slate-100 text-slate-600",
+  URGENT: "bg-amber-50 text-amber-700",
+  EMERGENCY: "bg-red-50 text-red-600",
+};
+
 export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption[] }) {
   const [tasks, setTasks] = useState&lt;TaskRow[]&gt;([]);
   const [staffPerf, setStaffPerf] = useState&lt;StaffPerf[]&gt;([]);
@@ -5693,6 +5643,7 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
   const [busyTaskId, setBusyTaskId] = useState&lt;string | null&gt;(null);
   const [reassign, setReassign] = useState&lt;Record&lt;string, string&gt;&gt;({});
   const [reason, setReason] = useState&lt;Record&lt;string, string&gt;&gt;({});
+  const [expandedTask, setExpandedTask] = useState&lt;string | null&gt;(null);
 
   async function loadData() {
     setLoading(true);
@@ -5705,16 +5656,8 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
       ]);
       const taskJson = await taskRes.json();
       const perfJson = await perfRes.json();
-
-      if (!taskJson.success) {
-        setError(taskJson.error ?? "Failed to load tasks");
-        return;
-      }
-      if (!perfJson.success) {
-        setError(perfJson.error ?? "Failed to load staff performance");
-        return;
-      }
-
+      if (!taskJson.success) { setError(taskJson.error ?? "Failed to load tasks"); return; }
+      if (!perfJson.success) { setError(perfJson.error ?? "Failed to load staff performance"); return; }
       setTasks(taskJson.data);
       setStaffPerf(perfJson.data);
     } catch {
@@ -5724,38 +5667,26 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
     }
   }
 
-  useEffect(() =&gt; {
-    void loadData();
-  }, [department, status, priority]);
+  useEffect(() =&gt; { void loadData(); }, [department, status, priority]);
 
   const delayedCount = useMemo(() =&gt; tasks.filter((t) =&gt; t.delayed).length, [tasks]);
 
   async function onReassign(task: TaskRow) {
     const newStaffId = reassign[task.taskId];
-    if (!newStaffId) {
-      setError("Select a staff member to reassign.");
-      return;
-    }
+    if (!newStaffId) { setError("Select a staff member to reassign."); return; }
     setBusyTaskId(task.taskId);
     setError("");
     try {
       const res = await fetch(`/api/hrm/tasks/${task.taskId}/reassign`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          newStaffId,
-          reason: reason[task.taskId] ?? "",
-        }),
+        body: JSON.stringify({ newStaffId, reason: reason[task.taskId] ?? "" }),
       });
       const json = await res.json();
-      if (!json.success) {
-        setError(json.error ?? "Reassignment failed");
-        return;
-      }
+      if (!json.success) { setError(json.error ?? "Reassignment failed"); return; }
+      setExpandedTask(null);
       await loadData();
-    } finally {
-      setBusyTaskId(null);
-    }
+    } finally { setBusyTaskId(null); }
   }
 
   async function onOverride(taskId: string, action: "RELEASE_TO_PENDING" | "FORCE_COMPLETE") {
@@ -5768,21 +5699,20 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
         body: JSON.stringify({ action, reason: reason[taskId] ?? "" }),
       });
       const json = await res.json();
-      if (!json.success) {
-        setError(json.error ?? "Override failed");
-        return;
-      }
+      if (!json.success) { setError(json.error ?? "Override failed"); return; }
+      setExpandedTask(null);
       await loadData();
-    } finally {
-      setBusyTaskId(null);
-    }
+    } finally { setBusyTaskId(null); }
   }
 
   return (
     &lt;div className="space-y-4"&gt;
-      &lt;div className="grid gap-3 md:grid-cols-4"&gt;
+      {/* Filters */}
+      &lt;div className="flex flex-wrap items-center gap-2"&gt;
         &lt;Select value={department} onValueChange={setDepartment}&gt;
-          &lt;SelectTrigger&gt;&lt;SelectValue placeholder="Department" /&gt;&lt;/SelectTrigger&gt;
+          &lt;SelectTrigger className="h-8 w-40 text-xs"&gt;
+            &lt;SelectValue placeholder="Department" /&gt;
+          &lt;/SelectTrigger&gt;
           &lt;SelectContent&gt;
             &lt;SelectItem value="ALL"&gt;All Departments&lt;/SelectItem&gt;
             &lt;SelectItem value="LABORATORY"&gt;Laboratory&lt;/SelectItem&gt;
@@ -5791,7 +5721,9 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
         &lt;/Select&gt;
 
         &lt;Select value={status} onValueChange={setStatus}&gt;
-          &lt;SelectTrigger&gt;&lt;SelectValue placeholder="Status" /&gt;&lt;/SelectTrigger&gt;
+          &lt;SelectTrigger className="h-8 w-36 text-xs"&gt;
+            &lt;SelectValue placeholder="Status" /&gt;
+          &lt;/SelectTrigger&gt;
           &lt;SelectContent&gt;
             &lt;SelectItem value="ALL"&gt;All Statuses&lt;/SelectItem&gt;
             &lt;SelectItem value="PENDING"&gt;Pending&lt;/SelectItem&gt;
@@ -5802,7 +5734,9 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
         &lt;/Select&gt;
 
         &lt;Select value={priority} onValueChange={setPriority}&gt;
-          &lt;SelectTrigger&gt;&lt;SelectValue placeholder="Priority" /&gt;&lt;/SelectTrigger&gt;
+          &lt;SelectTrigger className="h-8 w-36 text-xs"&gt;
+            &lt;SelectValue placeholder="Priority" /&gt;
+          &lt;/SelectTrigger&gt;
           &lt;SelectContent&gt;
             &lt;SelectItem value="ALL"&gt;All Priorities&lt;/SelectItem&gt;
             &lt;SelectItem value="EMERGENCY"&gt;Emergency&lt;/SelectItem&gt;
@@ -5811,152 +5745,225 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
           &lt;/SelectContent&gt;
         &lt;/Select&gt;
 
-        &lt;div className="rounded-md border bg-card px-3 py-2 text-sm"&gt;
-          Delayed tasks: &lt;span className="font-semibold"&gt;{delayedCount}&lt;/span&gt;
-        &lt;/div&gt;
+        {delayedCount &gt; 0 &amp;&amp; (
+          &lt;span className="rounded bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600"&gt;
+            {delayedCount} delayed
+          &lt;/span&gt;
+        )}
+
+        &lt;button
+          onClick={loadData}
+          className="ml-auto rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+        &gt;
+          Refresh
+        &lt;/button&gt;
       &lt;/div&gt;
 
       {error &amp;&amp; (
-        &lt;div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"&gt;
+        &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;
           {error}
         &lt;/div&gt;
       )}
 
-      &lt;div className="rounded-lg border bg-card overflow-x-auto"&gt;
-        &lt;table className="min-w-full text-sm"&gt;
-          &lt;thead className="bg-muted/50"&gt;
-            &lt;tr&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Patient&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Department&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Tests&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Assigned Staff&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Status&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Priority&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Created&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Updated&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Control&lt;/th&gt;
-            &lt;/tr&gt;
-          &lt;/thead&gt;
-          &lt;tbody&gt;
-            {loading ? (
-              &lt;tr&gt;&lt;td className="px-4 py-6 text-muted-foreground" colSpan={9}&gt;Loading tasks...&lt;/td&gt;&lt;/tr&gt;
-            ) : tasks.length === 0 ? (
-              &lt;tr&gt;&lt;td className="px-4 py-6 text-muted-foreground" colSpan={9}&gt;No tasks found.&lt;/td&gt;&lt;/tr&gt;
-            ) : (
-              tasks.map((task) =&gt; (
-                &lt;tr key={task.taskId} className="border-t align-top"&gt;
-                  &lt;td className="px-4 py-3"&gt;
-                    &lt;p className="font-medium"&gt;{task.visit.patient.fullName}&lt;/p&gt;
-                    &lt;p className="text-xs text-muted-foreground font-mono"&gt;{task.visit.patient.patientId}&lt;/p&gt;
-                  &lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;{task.department}&lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;
-                    &lt;div className="space-y-1"&gt;
-                      {task.testNames.map((name, idx) =&gt; (
-                        &lt;p key={`${task.taskId}-${idx}`}&gt;{name}&lt;/p&gt;
-                      ))}
-                    &lt;/div&gt;
-                  &lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;{task.assignedStaff?.fullName ?? "Unassigned"}&lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;
-                    &lt;Badge variant={task.status === "COMPLETED" ? "success" : task.status === "IN_PROGRESS" ? "info" : task.status === "CANCELLED" ? "destructive" : "secondary"}&gt;
-                      {task.status}
-                    &lt;/Badge&gt;
-                    {task.delayed &amp;&amp; &lt;Badge variant="warning" className="ml-2"&gt;Delayed&lt;/Badge&gt;}
-                  &lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;
-                    &lt;Badge variant={task.priority === "EMERGENCY" ? "destructive" : task.priority === "URGENT" ? "warning" : "secondary"}&gt;
-                      {task.priority}
-                    &lt;/Badge&gt;
-                  &lt;/td&gt;
-                  &lt;td className="px-4 py-3 whitespace-nowrap"&gt;{formatDateTime(task.createdAt)}&lt;/td&gt;
-                  &lt;td className="px-4 py-3 whitespace-nowrap"&gt;{formatDateTime(task.updatedAt)}&lt;/td&gt;
-                  &lt;td className="px-4 py-3 min-w-[260px] space-y-2"&gt;
-                    &lt;Select
-                      value={reassign[task.taskId] ?? ""}
-                      onValueChange={(v) =&gt; setReassign((p) =&gt; ({ ...p, [task.taskId]: v }))}
-                    &gt;
-                      &lt;SelectTrigger&gt;&lt;SelectValue placeholder="Select staff to reassign" /&gt;&lt;/SelectTrigger&gt;
-                      &lt;SelectContent&gt;
-                        {staffOptions
-                          .filter((s) =&gt; s.department === task.department)
-                          .map((s) =&gt; (
-                            &lt;SelectItem key={s.id} value={s.id}&gt;
-                              {s.fullName} ({s.role})
-                            &lt;/SelectItem&gt;
-                          ))}
-                      &lt;/SelectContent&gt;
-                    &lt;/Select&gt;
-                    &lt;textarea
-                      rows={2}
-                      placeholder="Reason (optional)"
-                      value={reason[task.taskId] ?? ""}
-                      onChange={(e) =&gt; setReason((p) =&gt; ({ ...p, [task.taskId]: e.target.value }))}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    /&gt;
-                    &lt;div className="grid grid-cols-1 gap-2 sm:grid-cols-3"&gt;
-                      &lt;Button
-                        size="sm"
-                        disabled={busyTaskId === task.taskId}
-                        onClick={() =&gt; onReassign(task)}
-                      &gt;
-                        Reassign
-                      &lt;/Button&gt;
-                      &lt;Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyTaskId === task.taskId}
-                        onClick={() =&gt; onOverride(task.taskId, "RELEASE_TO_PENDING")}
-                      &gt;
-                        Release
-                      &lt;/Button&gt;
-                      &lt;Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyTaskId === task.taskId}
-                        onClick={() =&gt; onOverride(task.taskId, "FORCE_COMPLETE")}
-                      &gt;
-                        Force Complete
-                      &lt;/Button&gt;
-                    &lt;/div&gt;
+      {/* Tasks Table */}
+      &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+        &lt;div className="border-b border-slate-100 px-4 py-2.5"&gt;
+          &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Tasks&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;div className="overflow-x-auto"&gt;
+          &lt;table className="w-full text-xs"&gt;
+            &lt;thead&gt;
+              &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Patient&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Dept&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Tests&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Assigned&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Status&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Priority&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Updated&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Actions&lt;/th&gt;
+              &lt;/tr&gt;
+            &lt;/thead&gt;
+            &lt;tbody className="divide-y divide-slate-100"&gt;
+              {loading ? (
+                &lt;tr&gt;
+                  &lt;td colSpan={8} className="px-4 py-6 text-center text-slate-400"&gt;
+                    Loading...
                   &lt;/td&gt;
                 &lt;/tr&gt;
-              ))
-            )}
-          &lt;/tbody&gt;
-        &lt;/table&gt;
+              ) : tasks.length === 0 ? (
+                &lt;tr&gt;
+                  &lt;td colSpan={8} className="px-4 py-6 text-center text-slate-400"&gt;
+                    No tasks found.
+                  &lt;/td&gt;
+                &lt;/tr&gt;
+              ) : (
+                tasks.map((task) =&gt; (
+                  &lt;&gt;
+                    &lt;tr key={task.taskId} className="hover:bg-slate-50 transition-colors"&gt;
+                      &lt;td className="px-4 py-2.5"&gt;
+                        &lt;p className="font-medium text-slate-800"&gt;{task.visit.patient.fullName}&lt;/p&gt;
+                        &lt;p className="font-mono text-slate-400"&gt;{task.visit.patient.patientId}&lt;/p&gt;
+                      &lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-500"&gt;{task.department}&lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-500"&gt;
+                        {task.testNames.join(", ")}
+                      &lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-500"&gt;
+                        {task.assignedStaff?.fullName ?? (
+                          &lt;span className="text-slate-300"&gt;Unassigned&lt;/span&gt;
+                        )}
+                      &lt;/td&gt;
+                      &lt;td className="px-4 py-2.5"&gt;
+                        &lt;span className={`rounded px-1.5 py-0.5 font-medium ${statusStyle[task.status] ?? "bg-slate-100 text-slate-500"}`}&gt;
+                          {task.status.replace("_", " ")}
+                        &lt;/span&gt;
+                        {task.delayed &amp;&amp; (
+                          &lt;span className="ml-1 rounded bg-red-50 px-1.5 py-0.5 font-medium text-red-600"&gt;
+                            DELAYED
+                          &lt;/span&gt;
+                        )}
+                      &lt;/td&gt;
+                      &lt;td className="px-4 py-2.5"&gt;
+                        &lt;span className={`rounded px-1.5 py-0.5 font-medium ${priorityStyle[task.priority] ?? "bg-slate-100 text-slate-500"}`}&gt;
+                          {task.priority}
+                        &lt;/span&gt;
+                      &lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
+                        {formatDateTime(task.updatedAt)}
+                      &lt;/td&gt;
+                      &lt;td className="px-4 py-2.5"&gt;
+                        &lt;button
+                          onClick={() =&gt;
+                            setExpandedTask(expandedTask === task.taskId ? null : task.taskId)
+                          }
+                          className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 transition-colors"
+                        &gt;
+                          {expandedTask === task.taskId ? "Close" : "Manage"}
+                        &lt;/button&gt;
+                      &lt;/td&gt;
+                    &lt;/tr&gt;
+
+                    {/* Inline expand row for actions */}
+                    {expandedTask === task.taskId &amp;&amp; (
+                      &lt;tr key={`${task.taskId}-expand`} className="bg-blue-50/40"&gt;
+                        &lt;td colSpan={8} className="px-4 py-3"&gt;
+                          &lt;div className="flex flex-wrap items-end gap-3"&gt;
+                            &lt;div className="flex flex-col gap-1"&gt;
+                              &lt;label className="text-[11px] font-medium text-slate-500 uppercase tracking-wide"&gt;
+                                Reassign to
+                              &lt;/label&gt;
+                              &lt;select
+                                value={reassign[task.taskId] ?? ""}
+                                onChange={(e) =&gt;
+                                  setReassign((p) =&gt; ({ ...p, [task.taskId]: e.target.value }))
+                                }
+                                className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"
+                              &gt;
+                                &lt;option value=""&gt;Select staff...&lt;/option&gt;
+                                {staffOptions
+                                  .filter((s) =&gt; s.department === task.department)
+                                  .map((s) =&gt; (
+                                    &lt;option key={s.id} value={s.id}&gt;
+                                      {s.fullName} ({s.role})
+                                    &lt;/option&gt;
+                                  ))}
+                              &lt;/select&gt;
+                            &lt;/div&gt;
+
+                            &lt;div className="flex flex-col gap-1"&gt;
+                              &lt;label className="text-[11px] font-medium text-slate-500 uppercase tracking-wide"&gt;
+                                Reason (optional)
+                              &lt;/label&gt;
+                              &lt;input
+                                type="text"
+                                placeholder="e.g. Staff unavailable"
+                                value={reason[task.taskId] ?? ""}
+                                onChange={(e) =&gt;
+                                  setReason((p) =&gt; ({ ...p, [task.taskId]: e.target.value }))
+                                }
+                                className="h-8 w-56 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 placeholder:text-slate-300"
+                              /&gt;
+                            &lt;/div&gt;
+
+                            &lt;div className="flex gap-2"&gt;
+                              &lt;button
+                                disabled={busyTaskId === task.taskId}
+                                onClick={() =&gt; onReassign(task)}
+                                className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                              &gt;
+                                Reassign
+                              &lt;/button&gt;
+                              &lt;button
+                                disabled={busyTaskId === task.taskId}
+                                onClick={() =&gt; onOverride(task.taskId, "RELEASE_TO_PENDING")}
+                                className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                              &gt;
+                                Release
+                              &lt;/button&gt;
+                              &lt;button
+                                disabled={busyTaskId === task.taskId}
+                                onClick={() =&gt; onOverride(task.taskId, "FORCE_COMPLETE")}
+                                className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                              &gt;
+                                Force Complete
+                              &lt;/button&gt;
+                            &lt;/div&gt;
+                          &lt;/div&gt;
+                        &lt;/td&gt;
+                      &lt;/tr&gt;
+                    )}
+                  &lt;/&gt;
+                ))
+              )}
+            &lt;/tbody&gt;
+          &lt;/table&gt;
+        &lt;/div&gt;
       &lt;/div&gt;
 
-      &lt;div className="rounded-lg border bg-card overflow-x-auto"&gt;
-        &lt;div className="px-4 py-3 border-b font-semibold"&gt;Staff Monitoring&lt;/div&gt;
-        &lt;table className="min-w-full text-sm"&gt;
-          &lt;thead className="bg-muted/50"&gt;
-            &lt;tr&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Staff&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Role&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Assigned&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Active&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Completed&lt;/th&gt;
-              &lt;th className="px-4 py-3 text-left font-semibold"&gt;Workload&lt;/th&gt;
+      {/* Staff Monitoring */}
+      &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+        &lt;div className="border-b border-slate-100 px-4 py-2.5"&gt;
+          &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;
+            Staff Monitoring
+          &lt;/span&gt;
+        &lt;/div&gt;
+        &lt;table className="w-full text-xs"&gt;
+          &lt;thead&gt;
+            &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+              &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Staff&lt;/th&gt;
+              &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Role&lt;/th&gt;
+              &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Assigned&lt;/th&gt;
+              &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Active&lt;/th&gt;
+              &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Completed&lt;/th&gt;
+              &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Workload&lt;/th&gt;
             &lt;/tr&gt;
           &lt;/thead&gt;
-          &lt;tbody&gt;
+          &lt;tbody className="divide-y divide-slate-100"&gt;
             {staffPerf.length === 0 ? (
-              &lt;tr&gt;&lt;td className="px-4 py-6 text-muted-foreground" colSpan={6}&gt;No staff performance data.&lt;/td&gt;&lt;/tr&gt;
+              &lt;tr&gt;
+                &lt;td colSpan={6} className="px-4 py-6 text-center text-slate-400"&gt;
+                  No staff performance data.
+                &lt;/td&gt;
+              &lt;/tr&gt;
             ) : (
               staffPerf.map((s) =&gt; (
-                &lt;tr key={s.id} className="border-t"&gt;
-                  &lt;td className="px-4 py-3 font-medium"&gt;{s.fullName}&lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;{s.role}&lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;{s.assigned}&lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;{s.active}&lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;{s.completed}&lt;/td&gt;
-                  &lt;td className="px-4 py-3"&gt;
-                    {s.overloaded ? (
-                      &lt;Badge variant="warning"&gt;Overloaded&lt;/Badge&gt;
-                    ) : (
-                      &lt;Badge variant="success"&gt;Normal&lt;/Badge&gt;
-                    )}
+                &lt;tr key={s.id} className="hover:bg-slate-50 transition-colors"&gt;
+                  &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{s.fullName}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{s.role}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-700"&gt;{s.assigned}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-700"&gt;{s.active}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-700"&gt;{s.completed}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5"&gt;
+                    &lt;span
+                      className={`rounded px-1.5 py-0.5 font-medium ${
+                        s.overloaded
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-green-50 text-green-700"
+                      }`}
+                    &gt;
+                      {s.overloaded ? "Overloaded" : "Normal"}
+                    &lt;/span&gt;
                   &lt;/td&gt;
                 &lt;/tr&gt;
               ))
@@ -5966,9 +5973,7 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/components/hrm/lab-settings-form.tsx</div><pre>"use client";
 
 import { useEffect, useState } from "react";
@@ -6719,7 +6724,6 @@ export function LabTaskBoard() {
 
 import { useState } from "react";
 import { Switch } from "@/components/ui/index";
-import { Badge } from "@/components/ui/index";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 
@@ -6741,7 +6745,6 @@ export function HeaderBar({
   const [isAvailable, setIsAvailable] = useState(initialAvailability);
   const [loading, setLoading] = useState(false);
 
-  // Only operational roles have the availability toggle
   const operationalRoles = ["LAB_SCIENTIST", "RADIOGRAPHER", "MD", "RECEPTIONIST"];
   const showToggle = showAvailabilityToggle &amp;&amp; operationalRoles.includes(role);
 
@@ -6751,14 +6754,10 @@ export function HeaderBar({
       const res = await fetch(`/api/staff/${staffId}/availability`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: checked ? "AVAILABLE" : "UNAVAILABLE",
-        }),
+        body: JSON.stringify({ status: checked ? "AVAILABLE" : "UNAVAILABLE" }),
       });
       const data = await res.json();
-      if (data.success) {
-        setIsAvailable(checked);
-      }
+      if (data.success) setIsAvailable(checked);
     } catch (error) {
       console.error("Failed to update availability:", error);
     } finally {
@@ -6767,25 +6766,24 @@ export function HeaderBar({
   }
 
   return (
-    &lt;header className="flex h-16 items-center justify-between border-b bg-background px-6"&gt;
-      &lt;div className="flex items-center gap-2"&gt;
-        &lt;h2 className="text-sm font-medium text-muted-foreground"&gt;
-          Good {getTimeOfDay()},{" "}
-          &lt;span className="text-foreground font-semibold"&gt;{staffName.split(" ")[0]}&lt;/span&gt;
-        &lt;/h2&gt;
-      &lt;/div&gt;
+    &lt;header className="flex h-12 items-center justify-between border-b border-slate-200 bg-white px-5"&gt;
+      &lt;p className="text-sm text-slate-500"&gt;
+        {getTimeOfDay()},{" "}
+        &lt;span className="font-semibold text-slate-800"&gt;{staffName.split(" ")[0]}&lt;/span&gt;
+      &lt;/p&gt;
 
       &lt;div className="flex items-center gap-4"&gt;
-        {/* Availability Toggle */}
         {showToggle &amp;&amp; (
           &lt;div className="flex items-center gap-2"&gt;
-            &lt;span className="text-sm text-muted-foreground"&gt;Status:&lt;/span&gt;
-            &lt;Badge
-              variant={isAvailable ? "success" : "secondary"}
-              className={cn("text-xs", loading &amp;&amp; "opacity-60")}
-            &gt;
-              {isAvailable ? "â— Available" : "â—‹ Unavailable"}
-            &lt;/Badge&gt;
+            &lt;span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                isAvailable ? "bg-green-500" : "bg-slate-300"
+              )}
+            /&gt;
+            &lt;span className="text-xs text-slate-500"&gt;
+              {isAvailable ? "Available" : "Unavailable"}
+            &lt;/span&gt;
             &lt;Switch
               checked={isAvailable}
               onCheckedChange={handleAvailabilityToggle}
@@ -6794,7 +6792,6 @@ export function HeaderBar({
             /&gt;
           &lt;/div&gt;
         )}
-
         &lt;NotificationBell role={role} /&gt;
       &lt;/div&gt;
     &lt;/header&gt;
@@ -6803,11 +6800,10 @@ export function HeaderBar({
 
 function getTimeOfDay() {
   const hour = new Date().getHours();
-  if (hour &lt; 12) return "morning";
-  if (hour &lt; 17) return "afternoon";
-  return "evening";
-}
-</pre></div>
+  if (hour &lt; 12) return "Good morning";
+  if (hour &lt; 17) return "Good afternoon";
+  return "Good evening";
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/components/layout/sidebar.tsx</div><pre>"use client";
 
 import Link from "next/link";
@@ -6825,14 +6821,12 @@ import {
   BarChart3,
   Bell,
   LogOut,
-  ChevronRight,
   Activity,
   TestTube2,
   Settings2,
 } from "lucide-react";
 import { cn, ROLE_LABELS } from "@/lib/utils";
 import { Role } from "@prisma/client";
-import { Button } from "@/components/ui/button";
 
 interface NavItem {
   label: string;
@@ -6866,6 +6860,7 @@ const navByRole: Record&lt;string, NavItem[]&gt; = {
     { label: "Dashboard", href: "/dashboard/receptionist", icon: LayoutDashboard },
     { label: "New Patient", href: "/dashboard/receptionist/new-patient", icon: UserPlus },
     { label: "Today's Patients", href: "/dashboard/receptionist/patients", icon: Users },
+    { label: "Dispatch Center", href: "/dashboard/receptionist/release", icon: ClipboardList },
   ],
   LAB_SCIENTIST: [
     { label: "Dashboard", href: "/dashboard/lab-scientist", icon: LayoutDashboard },
@@ -6907,26 +6902,34 @@ export function Sidebar({ user }: SidebarProps) {
   const navItems = navByRole[user.role] ?? [];
 
   return (
-    &lt;aside className="flex h-screen w-64 flex-col border-r bg-card"&gt;
-      {/* Logo / Org name */}
-      &lt;div className="flex h-16 items-center border-b px-6"&gt;
-        &lt;div className="flex items-center gap-2"&gt;
-          &lt;Image src="/diagsync-logo.png" alt="Diagsync logo" width={32} height={32} className="h-8 w-8 rounded-md object-cover" /&gt;
-          &lt;div className="min-w-0"&gt;
-            &lt;p className="truncate text-sm font-semibold"&gt;Diagsync&lt;/p&gt;
-            {user.organizationName &amp;&amp; (
-              &lt;p className="truncate text-xs text-muted-foreground"&gt;{user.organizationName}&lt;/p&gt;
-            )}
-          &lt;/div&gt;
+    &lt;aside className="flex h-screen w-56 flex-col border-r border-slate-200 bg-white"&gt;
+      {/* Logo */}
+      &lt;div className="flex h-14 items-center gap-2.5 border-b border-slate-200 px-4"&gt;
+        &lt;Image
+          src="/diagsync-logo.png"
+          alt="Diagsync"
+          width={28}
+          height={28}
+          className="h-7 w-7 rounded object-cover"
+        /&gt;
+        &lt;div className="min-w-0"&gt;
+          &lt;p className="truncate text-sm font-bold text-slate-800"&gt;Diagsync&lt;/p&gt;
+          {user.organizationName &amp;&amp; (
+            &lt;p className="truncate text-[11px] text-slate-400"&gt;{user.organizationName}&lt;/p&gt;
+          )}
         &lt;/div&gt;
       &lt;/div&gt;
 
-      {/* Nav */}
-      &lt;nav className="flex-1 overflow-y-auto px-3 py-4"&gt;
-        &lt;div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground"&gt;
+      {/* Role label */}
+      &lt;div className="px-4 pt-4 pb-1"&gt;
+        &lt;span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400"&gt;
           {ROLE_LABELS[user.role]}
-        &lt;/div&gt;
-        &lt;ul className="space-y-1"&gt;
+        &lt;/span&gt;
+      &lt;/div&gt;
+
+      {/* Nav */}
+      &lt;nav className="flex-1 overflow-y-auto px-2 pb-2"&gt;
+        &lt;ul className="space-y-0.5"&gt;
           {navItems.map((item) =&gt; {
             const Icon = item.icon;
             const isActive =
@@ -6936,15 +6939,14 @@ export function Sidebar({ user }: SidebarProps) {
                 &lt;Link
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    "flex items-center gap-2.5 rounded px-3 py-2 text-sm transition-colors",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      ? "bg-blue-600 text-white font-medium"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   )}
                 &gt;
                   &lt;Icon className="h-4 w-4 shrink-0" /&gt;
-                  &lt;span className="flex-1"&gt;{item.label}&lt;/span&gt;
-                  {isActive &amp;&amp; &lt;ChevronRight className="h-3 w-3" /&gt;}
+                  &lt;span&gt;{item.label}&lt;/span&gt;
                 &lt;/Link&gt;
               &lt;/li&gt;
             );
@@ -6952,37 +6954,35 @@ export function Sidebar({ user }: SidebarProps) {
         &lt;/ul&gt;
       &lt;/nav&gt;
 
-      {/* Notifications link */}
-      &lt;div className="border-t px-3 py-2"&gt;
+      {/* Notifications */}
+      &lt;div className="border-t border-slate-200 px-2 py-1"&gt;
         &lt;Link
           href={notificationPathForRole(user.role)}
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          className="flex items-center gap-2.5 rounded px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
         &gt;
           &lt;Bell className="h-4 w-4" /&gt;
           Notifications
         &lt;/Link&gt;
       &lt;/div&gt;
 
-      {/* User info + logout */}
-      &lt;div className="border-t p-4"&gt;
-        &lt;div className="mb-3 flex items-center gap-3"&gt;
-          &lt;div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-semibold"&gt;
+      {/* User + Sign out */}
+      &lt;div className="border-t border-slate-200 p-3"&gt;
+        &lt;div className="mb-2 flex items-center gap-2"&gt;
+          &lt;div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700"&gt;
             {user.fullName.charAt(0)}
           &lt;/div&gt;
           &lt;div className="min-w-0 flex-1"&gt;
-            &lt;p className="truncate text-sm font-medium"&gt;{user.fullName}&lt;/p&gt;
-            &lt;p className="truncate text-xs text-muted-foreground"&gt;{user.email}&lt;/p&gt;
+            &lt;p className="truncate text-xs font-semibold text-slate-800"&gt;{user.fullName}&lt;/p&gt;
+            &lt;p className="truncate text-[11px] text-slate-400"&gt;{user.email}&lt;/p&gt;
           &lt;/div&gt;
         &lt;/div&gt;
-        &lt;Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2"
+        &lt;button
           onClick={() =&gt; signOut({ callbackUrl: "/login" })}
+          className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
         &gt;
           &lt;LogOut className="h-3.5 w-3.5" /&gt;
-          Sign Out
-        &lt;/Button&gt;
+          Sign out
+        &lt;/button&gt;
       &lt;/div&gt;
     &lt;/aside&gt;
   );
@@ -9150,7 +9150,8 @@ function toNumberPrice(value: number | string): number {
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/reports/report-workspace.tsx</div><pre>"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import html2canvas from "html2canvas";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/index";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/utils";
@@ -9196,7 +9197,7 @@ type ReportDetails = ReportListItem &amp; {
 };
 
 type Props = {
-  role: "MD" | "HRM" | "SUPER_ADMIN";
+  role: "MD" | "HRM" | "SUPER_ADMIN" | "RECEPTIONIST";
 };
 
 function reportLabel(reportType: ReportType) {
@@ -9226,9 +9227,12 @@ export function ReportWorkspace({ role }: Props) {
 
   const [releaseMethod, setReleaseMethod] = useState&lt;"PRINT" | "DOWNLOAD" | "WHATSAPP"&gt;("PRINT");
   const [receptionInstruction, setReceptionInstruction] = useState("");
+  const [previewLoaded, setPreviewLoaded] = useState(false);
+  const previewRef = useRef&lt;HTMLIFrameElement | null&gt;(null);
 
   const canMdEdit = role === "MD" || role === "SUPER_ADMIN";
-  const canHrmRelease = role === "HRM";
+  const canHrmRelease = role === "HRM" || role === "SUPER_ADMIN";
+  const canReceptionDispatch = role === "RECEPTIONIST";
 
   const activeVersion = useMemo(() =&gt; {
     if (!details) return null;
@@ -9292,6 +9296,7 @@ export function ReportWorkspace({ role }: Props) {
 
   useEffect(() =&gt; {
     if (!selectedId) return;
+    setPreviewLoaded(false);
     void loadDetails(selectedId);
   }, [selectedId]);
 
@@ -9390,9 +9395,85 @@ export function ReportWorkspace({ role }: Props) {
     window.open(`/api/reports/${details.id}/preview`, "_blank", "noopener,noreferrer");
   }
 
+  async function captureReportPng(): Promise&lt;{ blob: Blob; fileName: string } | null&gt; {
+    if (!details) return null;
+    const iframe = previewRef.current;
+    if (!iframe?.contentDocument) {
+      setError("Preview is not ready yet. Please wait a second and retry.");
+      return null;
+    }
+    const doc = iframe.contentDocument;
+    const target =
+      (doc.body as HTMLElement | null) ??
+      (doc.querySelector(".page") as HTMLElement | null);
+    if (!target) {
+      setError("Preview content is unavailable.");
+      return null;
+    }
+
+    try {
+      const previewWindow = iframe.contentWindow;
+      if (previewWindow) {
+        previewWindow.scrollTo(0, 0);
+      }
+      const width = Math.max(
+        doc.documentElement?.scrollWidth ?? 0,
+        doc.body?.scrollWidth ?? 0,
+        target.scrollWidth ?? 0
+      );
+      const height = Math.max(
+        doc.documentElement?.scrollHeight ?? 0,
+        doc.body?.scrollHeight ?? 0,
+        target.scrollHeight ?? 0
+      );
+      const canvas = await html2canvas(target, {
+        useCORS: true,
+        allowTaint: false,
+        scale: 2,
+        backgroundColor: "#ffffff",
+        scrollX: 0,
+        scrollY: 0,
+        width: width || target.clientWidth,
+        height: height || target.clientHeight,
+        windowWidth: width || target.clientWidth,
+        windowHeight: height || target.clientHeight,
+      });
+      const blob = await new Promise&lt;Blob | null&gt;((resolve) =&gt;
+        canvas.toBlob((nextBlob) =&gt; resolve(nextBlob), "image/png", 1)
+      );
+      if (!blob) {
+        setError("Could not generate image file.");
+        return null;
+      }
+      const safePatient = details.visit.patient.fullName.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
+      const safeVisit = details.visit.visitNumber.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
+      return {
+        blob,
+        fileName: `${safePatient}-${safeVisit}-${details.reportType}-report.png`,
+      };
+    } catch {
+      setError(
+        "Image export failed. Check letterhead/image CORS settings in Cloudinary, then retry."
+      );
+      return null;
+    }
+  }
+
   async function downloadReport() {
     if (!details) return;
     setError("");
+    const captured = await captureReportPng();
+    if (!captured) return;
+
+    const objectUrl = URL.createObjectURL(captured.blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = captured.fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+
     const res = await fetch(`/api/reports/${details.id}/action`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -9400,10 +9481,10 @@ export function ReportWorkspace({ role }: Props) {
     });
     const json = await res.json().catch(() =&gt; ({ success: false }));
     if (!json.success) {
-      setError(json.error ?? "Download tracking failed");
+      setError(json.error ?? "Download logged locally but tracking failed");
       return;
     }
-    window.open(`/api/reports/${details.id}/preview`, "_blank", "noopener,noreferrer");
+    setMessage("Report image downloaded.");
   }
 
   async function sendWhatsapp() {
@@ -9422,9 +9503,40 @@ export function ReportWorkspace({ role }: Props) {
         setError(json.error ?? "WhatsApp handoff failed");
         return;
       }
-      setMessage("WhatsApp handoff opened.");
+
+      const captured = await captureReportPng();
+      const canUseFileShare =
+        Boolean(captured) &amp;&amp;
+        typeof navigator !== "undefined" &amp;&amp;
+        typeof navigator.share === "function" &amp;&amp;
+        typeof navigator.canShare === "function";
+
+      if (captured &amp;&amp; canUseFileShare) {
+        const file = new File([captured.blob], captured.fileName, { type: "image/png" });
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: "Diagnostic Report",
+              text: `Report for ${details.visit.patient.fullName}`,
+            });
+            setMessage("Report image shared. Choose WhatsApp if prompted.");
+            return;
+          } catch (error) {
+            if (!(error instanceof DOMException &amp;&amp; error.name === "AbortError")) {
+              setError("Image share failed. Falling back to WhatsApp link handoff.");
+            } else {
+              return;
+            }
+          }
+        }
+      }
+
       if (json.data?.waUrl) {
+        setMessage("WhatsApp opened. Your report link has been prepared.");
         window.open(json.data.waUrl, "_blank", "noopener,noreferrer");
+      } else {
+        setError("No WhatsApp destination was returned.");
       }
     } finally {
       setBusy(false);
@@ -9516,7 +9628,9 @@ export function ReportWorkspace({ role }: Props) {
 
               &lt;iframe
                 title="Report preview"
+                ref={previewRef}
                 src={`/api/reports/${details.id}/preview`}
+                onLoad={() =&gt; setPreviewLoaded(true)}
                 className="h-[420px] w-full rounded-md border"
               /&gt;
 
@@ -9611,9 +9725,10 @@ export function ReportWorkspace({ role }: Props) {
                 &lt;/div&gt;
               ) : null}
 
-              {canHrmRelease ? (
+              {canHrmRelease || canReceptionDispatch ? (
                 &lt;div className="space-y-3 rounded-md border p-3"&gt;
-                  &lt;p className="font-medium"&gt;HRM Release Controls&lt;/p&gt;
+                  &lt;p className="font-medium"&gt;{canReceptionDispatch ? "Reception Dispatch Controls" : "HRM Release Controls"}&lt;/p&gt;
+                  {!canReceptionDispatch ? (
                   &lt;label className="block text-sm"&gt;
                     &lt;span className="mb-1 block"&gt;Instruction for receptionist (optional)&lt;/span&gt;
                     &lt;textarea
@@ -9623,7 +9738,9 @@ export function ReportWorkspace({ role }: Props) {
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     /&gt;
                   &lt;/label&gt;
+                  ) : null}
 
+                  {!canReceptionDispatch ? (
                   &lt;label className="block text-sm"&gt;
                     &lt;span className="mb-1 block"&gt;Release method&lt;/span&gt;
                     &lt;select
@@ -9636,20 +9753,23 @@ export function ReportWorkspace({ role }: Props) {
                       &lt;option value="WHATSAPP"&gt;WhatsApp&lt;/option&gt;
                     &lt;/select&gt;
                   &lt;/label&gt;
+                  ) : null}
 
                   &lt;div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"&gt;
                     &lt;Button variant="outline" disabled={busy} onClick={printReport}&gt;
                       Print Preview
                     &lt;/Button&gt;
-                    &lt;Button variant="outline" disabled={busy || !details.isReleased} onClick={downloadReport}&gt;
+                    &lt;Button variant="outline" disabled={busy || !details.isReleased || !previewLoaded} onClick={downloadReport}&gt;
                       Download
                     &lt;/Button&gt;
-                    &lt;Button variant="outline" disabled={busy || !details.isReleased} onClick={sendWhatsapp}&gt;
+                    &lt;Button variant="outline" disabled={busy || !details.isReleased || !previewLoaded} onClick={sendWhatsapp}&gt;
                       Send WhatsApp
                     &lt;/Button&gt;
-                    &lt;Button disabled={busy || details.isReleased} onClick={releaseReport}&gt;
-                      {details.isReleased ? "Already Released" : "Release Report"}
-                    &lt;/Button&gt;
+                    {!canReceptionDispatch ? (
+                      &lt;Button disabled={busy || details.isReleased} onClick={releaseReport}&gt;
+                        {details.isReleased ? "Already Released" : "Release Report"}
+                      &lt;/Button&gt;
+                    ) : null}
                   &lt;/div&gt;
                 &lt;/div&gt;
               ) : null}
@@ -13411,11 +13531,13 @@ type RenderArgs = {
 };
 
 export function renderReportHtml(args: RenderArgs) {
+  const hasLetterhead = Boolean(args.organization.letterheadUrl);
   const patient = args.content.patient ?? {};
   const meta = args.content.meta ?? {};
   const tests = Array.isArray(args.content.tests) ? args.content.tests : [];
   const safeLabTests = tests.filter((test: any) =&gt; Array.isArray(test?.rows));
   const safeRadiologyTests = tests.filter((test: any) =&gt; !Array.isArray(test?.rows));
+  const imagingFiles = Array.isArray(args.content.imagingFiles) ? args.content.imagingFiles : [];
 
   const testsHtml =
     args.department === Department.LABORATORY
@@ -13465,9 +13587,7 @@ export function renderReportHtml(args: RenderArgs) {
           )
           .join("");
 
-  const letterheadBackground = args.organization.letterheadUrl
-    ? `background-image:url('${args.organization.letterheadUrl}');background-size:cover;background-position:center top;`
-    : "background:#ffffff;";
+  const effectiveWatermarkUrl = args.watermarkUrl || null;
 
   return `
 &lt;!doctype html&gt;
@@ -13477,32 +13597,72 @@ export function renderReportHtml(args: RenderArgs) {
   &lt;title&gt;${escapeHtml(args.organization.name)} - ${args.department === Department.LABORATORY ? "Lab Report" : "Radiology Report"}&lt;/title&gt;
   &lt;style&gt;
     @page { size: A4; margin: 0; }
-    body { font-family: Arial, sans-serif; margin: 0; color: #111827; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      color: #111827;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
     .page {
       position: relative;
+      width: 794px;
+      max-width: 794px;
       min-height: 1123px;
-      padding: 120px 44px 90px;
-      ${letterheadBackground}
+      margin: 0 auto;
+      box-sizing: border-box;
+      padding: ${hasLetterhead ? "340px 44px 90px" : "120px 44px 90px"};
+      background: #ffffff;
+    }
+    .letterhead-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .letterhead-layer img {
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      display: block;
     }
     .watermark {
       position: fixed;
       inset: 0;
       display: flex;
-      align-items: center;
-      justify-content: center;
+      align-items: flex-end;
+      justify-content: flex-start;
       pointer-events: none;
       z-index: 0;
-      opacity: 0.05;
+      opacity: 0.08;
+      padding: 0 0 28px 28px;
     }
-    .watermark img { width: 300px; height: auto; }
+    .watermark img { width: 110px; height: auto; }
     .content-shell {
       position: relative;
       z-index: 2;
       max-width: 760px;
       margin: 0 auto;
       padding: 18px 22px;
-      background: rgba(255, 255, 255, 0.93);
+      background: ${hasLetterhead ? "#ffffff" : "rgba(255, 255, 255, 0.93)"};
       border-radius: 8px;
+    }
+    .shell-watermark {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-start;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.1;
+      padding: 0 0 18px 18px;
+    }
+    .shell-watermark img {
+      width: 95px;
+      height: auto;
+      max-width: 24%;
     }
     .content { position: relative; z-index: 2; }
     .header { margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
@@ -13517,21 +13677,74 @@ export function renderReportHtml(args: RenderArgs) {
     th { background: #f3f4f6; }
     .footer-note { margin-top: 18px; font-size: 12px; }
     .muted { color: #6b7280; }
+    .imaging-section { margin-bottom: 16px; }
+    .imaging-grid { display:grid; grid-template-columns: 1fr; gap: 14px; }
+    .imaging-card { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px; background: #fff; break-inside: avoid; }
+    .imaging-card img { width: 100%; max-height: 560px; object-fit: contain; display:block; margin:0 auto; border-radius: 6px; }
+    .imaging-caption { font-size: 11px; color: #6b7280; margin-top: 6px; word-break: break-all; }
+    .preview-actions {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 20;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .preview-print-btn {
+      border: 1px solid #1d4ed8;
+      background: #1d4ed8;
+      color: #ffffff;
+      font-size: 13px;
+      line-height: 1;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    }
+    .preview-print-btn:hover {
+      background: #1e40af;
+      border-color: #1e40af;
+    }
+    .preview-print-btn:active {
+      transform: translateY(1px);
+    }
+    @media print {
+      .preview-actions { display: none !important; }
+    }
   &lt;/style&gt;
 &lt;/head&gt;
 &lt;body&gt;
+  &lt;div class="preview-actions"&gt;
+    &lt;button class="preview-print-btn" onclick="window.print()" type="button"&gt;Print Report&lt;/button&gt;
+  &lt;/div&gt;
   ${
-    args.watermarkUrl
-      ? `&lt;div class="watermark"&gt;&lt;img src="${args.watermarkUrl}" alt="watermark" /&gt;&lt;/div&gt;`
+    effectiveWatermarkUrl
+      ? `&lt;div class="watermark"&gt;&lt;img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /&gt;&lt;/div&gt;`
       : ""
   }
   &lt;main class="page"&gt;
+    ${
+      hasLetterhead &amp;&amp; args.organization.letterheadUrl
+        ? `&lt;div class="letterhead-layer"&gt;&lt;img src="${escapeHtml(args.organization.letterheadUrl)}" alt="letterhead" crossorigin="anonymous" /&gt;&lt;/div&gt;`
+        : ""
+    }
     &lt;div class="content-shell"&gt;
+    ${
+      effectiveWatermarkUrl
+        ? `&lt;div class="shell-watermark"&gt;&lt;img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /&gt;&lt;/div&gt;`
+        : ""
+    }
     &lt;div class="content"&gt;
-      &lt;div class="header"&gt;
+      ${
+        hasLetterhead
+          ? ""
+          : `&lt;div class="header"&gt;
         &lt;h1&gt;${escapeHtml(args.organization.name)}&lt;/h1&gt;
         &lt;p class="muted"&gt;${escapeHtml(args.organization.address)} | ${escapeHtml(args.organization.phone)} | ${escapeHtml(args.organization.email)}&lt;/p&gt;
-      &lt;/div&gt;
+      &lt;/div&gt;`
+      }
       &lt;h2&gt;${args.department === Department.LABORATORY ? "Laboratory Report" : "Radiology Report"}&lt;/h2&gt;
       &lt;div class="meta-grid"&gt;
         &lt;p&gt;&lt;strong&gt;Patient:&lt;/strong&gt; ${escapeHtml(String(patient.fullName ?? "-"))}&lt;/p&gt;
@@ -13542,6 +13755,25 @@ export function renderReportHtml(args: RenderArgs) {
         &lt;p&gt;&lt;strong&gt;Report Date:&lt;/strong&gt; ${escapeHtml(String(meta.reportDate ?? "-"))}&lt;/p&gt;
         &lt;p&gt;&lt;strong&gt;Referring Doctor:&lt;/strong&gt; ${escapeHtml(String(meta.referringDoctor ?? "-"))}&lt;/p&gt;
       &lt;/div&gt;
+      ${
+        args.department === Department.RADIOLOGY &amp;&amp; imagingFiles.length
+          ? `&lt;section class="imaging-section"&gt;
+          &lt;h3&gt;Imaging Preview&lt;/h3&gt;
+          &lt;div class="imaging-grid"&gt;
+            ${imagingFiles
+              .map((img: any) =&gt; {
+                const isImage = String(img.fileType ?? "").startsWith("image/");
+                if (!isImage || !img.url) return "";
+                return `&lt;div class="imaging-card"&gt;
+                  &lt;img src="${escapeHtml(String(img.url))}" alt="${escapeHtml(String(img.name ?? "Radiology Image"))}" crossorigin="anonymous" /&gt;
+                  &lt;p class="imaging-caption"&gt;${escapeHtml(String(img.name ?? ""))}&lt;/p&gt;
+                &lt;/div&gt;`;
+              })
+              .join("")}
+          &lt;/div&gt;
+        &lt;/section&gt;`
+          : ""
+      }
       ${testsHtml || `&lt;p&gt;No reportable items.&lt;/p&gt;`}
       ${
         args.comments
@@ -13571,6 +13803,7 @@ import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
 import {
   assertReportTypeMatchesDepartment,
+  canDispatchReleasedReport,
   canHrmReleaseReport,
   canMdEditReport,
   canPreviewReport,
@@ -13640,6 +13873,13 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
           versions: { where: { isActive: true }, orderBy: { version: "desc" }, take: 1 },
         },
       },
+      imagingFiles: {
+        select: {
+          fileUrl: true,
+          fileName: true,
+          fileType: true,
+        },
+      },
     },
   });
 
@@ -13700,7 +13940,12 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
     impression: activeReportVersion?.impression ?? report?.impression ?? "",
     notes: activeReportVersion?.notes ?? report?.notes ?? "",
   }));
-  return { department: task.department, reportType, content: { ...common, tests } };
+  const imagingFiles = task.imagingFiles.map((file) =&gt; ({
+    url: file.fileUrl,
+    name: file.fileName,
+    fileType: file.fileType,
+  }));
+  return { department: task.department, reportType, content: { ...common, tests, imagingFiles } };
 }
 
 export async function ensureDraftReportForTask(taskId: string, actor: ReportActor) {
@@ -13789,6 +14034,7 @@ export async function listReports(
   const reports = await prisma.diagnosticReport.findMany({
     where: {
       organizationId: actor.organizationId,
+      ...(actor.role === "RECEPTIONIST" ? { isReleased: true } : {}),
       ...(opts?.department &amp;&amp; opts.department !== "ALL" ? { department: opts.department } : {}),
       ...(opts?.status &amp;&amp; opts.status !== "ALL" ? { status: opts.status } : {}),
       ...(opts?.reportType &amp;&amp; opts.reportType !== "ALL" ? { reportType: opts.reportType } : {}),
@@ -13818,6 +14064,9 @@ export async function getReportDetails(actor: ReportActor, reportId: string) {
   });
   if (!report) throw new Error("REPORT_NOT_FOUND");
   if (!isReportDepartment(report.department)) throw new Error("INVALID_REPORT_DEPARTMENT");
+  if (actor.role === "RECEPTIONIST" &amp;&amp; !report.isReleased) {
+    throw new Error("FORBIDDEN_UNRELEASED_REPORT");
+  }
   const expectedType = reportTypeForDepartment(report.department);
   if (report.reportType !== expectedType) {
     await prisma.diagnosticReport.update({
@@ -14013,6 +14262,7 @@ export async function releaseReport(
       method: input.method,
       instructions: input.instructions ?? null,
       activeVersion: activeVersion.version,
+      effectiveRole: "HRM",
     },
     notes: `Report released via ${input.method}`,
     ...actor.auditMeta,
@@ -14047,6 +14297,25 @@ export async function releaseReport(
       });
     }
   }
+
+  const receptionists = await prisma.staff.findMany({
+    where: { organizationId: actor.organizationId, role: Role.RECEPTIONIST, status: "ACTIVE" },
+    select: { id: true },
+  });
+  for (const r of receptionists) {
+    await sendNotification({
+      organizationId: actor.organizationId,
+      userId: r.id,
+      type: NotificationType.SYSTEM,
+      title: "Result ready for dispatch",
+      message: input.instructions?.trim()
+        ? `A released report is ready. Instruction: ${input.instructions}`
+        : "A released report is ready for dispatch actions (print, download, WhatsApp).",
+      entityId: report.id,
+      entityType: "DiagnosticReport",
+      dedupeKey: `reception-dispatch-ready:${report.id}:${r.id}`,
+    });
+  }
 }
 
 export async function trackReportAction(
@@ -14057,7 +14326,7 @@ export async function trackReportAction(
     notes?: string;
   }
 ) {
-  if (!canHrmReleaseReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
+  if (!canDispatchReleasedReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
   const report = await getReportDetails(actor, input.reportId);
   if (!report.isReleased &amp;&amp; input.action !== "PRINT") {
     throw new Error("REPORT_NOT_RELEASED");
@@ -14078,6 +14347,10 @@ export async function trackReportAction(
     action: auditAction,
     entityType: "DiagnosticReport",
     entityId: report.id,
+    changes: {
+      action: input.action,
+      effectiveRole: "HRM",
+    },
     notes: input.notes ?? undefined,
     ...actor.auditMeta,
   });
@@ -14155,11 +14428,15 @@ export function canMdEditReport(role: string) {
 }
 
 export function canHrmReleaseReport(role: string) {
-  return role === "HRM";
+  return role === "HRM" || role === "SUPER_ADMIN";
 }
 
 export function canPreviewReport(role: string) {
-  return role === "MD" || role === "HRM" || role === "SUPER_ADMIN";
+  return role === "MD" || role === "HRM" || role === "SUPER_ADMIN" || role === "RECEPTIONIST";
+}
+
+export function canDispatchReleasedReport(role: string) {
+  return role === "HRM" || role === "SUPER_ADMIN" || role === "RECEPTIONIST";
 }
 
 export function canRelease(reportStatus: ReportStatus, isReleased: boolean) {

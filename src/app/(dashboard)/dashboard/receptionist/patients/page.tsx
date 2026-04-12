@@ -2,8 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { UserPlus, ArrowLeft } from "lucide-react";
-import { Badge } from "@/components/ui/index";
+import { UserPlus } from "lucide-react";
 import { formatDateTime, formatCurrency } from "@/lib/utils";
 
 export default async function PatientsListPage({
@@ -14,7 +13,6 @@ export default async function PatientsListPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
-
   if (!["RECEPTIONIST", "SUPER_ADMIN", "HRM", "MD"].includes(user.role)) {
     redirect("/dashboard/hrm");
   }
@@ -24,10 +22,8 @@ export default async function PatientsListPage({
   const pageSize = 20;
   const todayOnly = searchParams.today === "true";
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
 
   const where: any = {
     organizationId: user.organizationId,
@@ -38,9 +34,7 @@ export default async function PatientsListPage({
         { phone: { contains: search, mode: "insensitive" } },
       ],
     }),
-    ...(todayOnly && {
-      createdAt: { gte: todayStart, lte: todayEnd },
-    }),
+    ...(todayOnly && { createdAt: { gte: todayStart, lte: todayEnd } }),
   };
 
   const [patients, total] = await prisma.$transaction([
@@ -51,9 +45,7 @@ export default async function PatientsListPage({
           orderBy: { registeredAt: "desc" },
           take: 1,
           include: {
-            testOrders: {
-              include: { test: { select: { name: true, type: true, department: true } } },
-            },
+            testOrders: { include: { test: { select: { name: true, type: true } } } },
           },
         },
         registeredBy: { select: { fullName: true } },
@@ -67,136 +59,130 @@ export default async function PatientsListPage({
 
   const totalPages = Math.ceil(total / pageSize);
 
-  const priorityColor: Record<string, string> = {
-    EMERGENCY: "destructive",
-    URGENT: "warning",
-    ROUTINE: "secondary",
+  const priorityStyle: Record<string, string> = {
+    EMERGENCY: "bg-red-50 text-red-600",
+    URGENT: "bg-amber-50 text-amber-700",
+    ROUTINE: "bg-slate-100 text-slate-600",
   };
-
-  const paymentColor: Record<string, string> = {
-    PAID: "success",
-    PARTIAL: "warning",
-    PENDING: "destructive",
-    WAIVED: "secondary",
+  const paymentStyle: Record<string, string> = {
+    PAID: "bg-green-50 text-green-700",
+    PARTIAL: "bg-amber-50 text-amber-700",
+    PENDING: "bg-red-50 text-red-600",
+    WAIVED: "bg-slate-100 text-slate-600",
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard/receptionist"
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Dashboard
-          </Link>
-          <span className="text-muted-foreground">/</span>
-          <h1 className="text-xl font-bold">All Patients</h1>
+        <div>
+          <h1 className="text-base font-semibold text-slate-800">Patients</h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {total} patient{total !== 1 ? "s" : ""} total
+          </p>
         </div>
         <Link
           href="/dashboard/receptionist/new-patient"
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
         >
-          <UserPlus className="h-4 w-4" />
+          <UserPlus className="h-3.5 w-3.5" />
           New Patient
         </Link>
       </div>
 
       {/* Filter bar */}
-      <form method="GET" className="flex flex-wrap items-center gap-3">
+      <form method="GET" className="flex flex-wrap items-center gap-2">
         <input
           name="search"
           defaultValue={search}
           placeholder="Search name, ID, phone..."
-          className="flex h-10 w-64 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-8 w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
           <input
             type="checkbox"
             name="today"
             value="true"
             defaultChecked={todayOnly}
-            className="rounded border"
+            className="rounded border-slate-300"
           />
           Today only
         </label>
         <button
           type="submit"
-          className="rounded-md bg-secondary px-4 py-2 text-sm font-medium hover:bg-secondary/80 transition-colors"
+          className="rounded bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors"
         >
           Search
         </button>
+        {(search || todayOnly) && (
+          <a href="/dashboard/receptionist/patients" className="text-xs text-slate-400 hover:text-slate-600">
+            Clear
+          </a>
+        )}
+        <span className="ml-auto text-xs text-slate-400">
+          {patients.length} of {total} shown
+        </span>
       </form>
 
-      {/* Count */}
-      <p className="text-sm text-muted-foreground">
-        Showing {patients.length} of {total} patient{total !== 1 ? "s" : ""}
-      </p>
-
       {/* Table */}
-      <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
         {patients.length === 0 ? (
-          <div className="p-12 text-center text-muted-foreground">
-            <p>No patients found.</p>
-          </div>
+          <p className="px-4 py-10 text-center text-xs text-slate-400">No patients found.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-muted/30">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Patient</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">ID</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden sm:table-cell">Tests</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">Amount</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Priority</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">Payment</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden xl:table-cell">Registered</th>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">ID</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Age/Sex</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Tests</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Amount</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Priority</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Payment</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Registered</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-slate-100">
                 {patients.map((patient) => {
                   const visit = patient.visits[0];
                   return (
-                    <tr key={patient.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3">
-                        <div>
-                          <p className="font-medium">{patient.fullName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {patient.age}y · {patient.sex}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{patient.patientId}</td>
-                      <td className="px-4 py-3 hidden sm:table-cell">
+                    <tr key={patient.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-2.5 font-medium text-slate-800">{patient.fullName}</td>
+                      <td className="px-4 py-2.5 font-mono text-slate-400">{patient.patientId}</td>
+                      <td className="px-4 py-2.5 text-slate-500">{patient.age}y · {patient.sex}</td>
+                      <td className="px-4 py-2.5">
                         <div className="flex flex-wrap gap-1">
                           {visit?.testOrders.slice(0, 2).map((o) => (
-                            <span key={o.id} className="rounded bg-secondary px-1.5 py-0.5 text-xs">
+                            <span key={o.id} className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">
                               {o.test.name}
                             </span>
                           ))}
                           {(visit?.testOrders.length ?? 0) > 2 && (
-                            <span className="rounded bg-secondary px-1.5 py-0.5 text-xs text-muted-foreground">
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-500">
                               +{(visit?.testOrders.length ?? 0) - 2}
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 hidden md:table-cell font-medium">
+                      <td className="px-4 py-2.5 font-medium text-slate-700">
                         {visit ? formatCurrency(Number(visit.totalAmount)) : "—"}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         {visit && (
-                          <Badge variant={priorityColor[visit.priority] as any}>{visit.priority}</Badge>
+                          <span className={`rounded px-1.5 py-0.5 font-medium ${priorityStyle[visit.priority] ?? "bg-slate-100 text-slate-500"}`}>
+                            {visit.priority}
+                          </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 hidden lg:table-cell">
+                      <td className="px-4 py-2.5">
                         {visit && (
-                          <Badge variant={paymentColor[visit.paymentStatus] as any}>{visit.paymentStatus}</Badge>
+                          <span className={`rounded px-1.5 py-0.5 font-medium ${paymentStyle[visit.paymentStatus] ?? "bg-slate-100 text-slate-500"}`}>
+                            {visit.paymentStatus}
+                          </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 hidden xl:table-cell text-xs text-muted-foreground">
+                      <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">
                         {formatDateTime(patient.createdAt)}
                       </td>
                     </tr>
@@ -210,13 +196,13 @@ export default async function PatientsListPage({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Page {page} of {totalPages}</span>
+        <div className="flex items-center justify-between text-xs text-slate-500">
+          <span>Page {page} of {totalPages}</span>
           <div className="flex gap-2">
             {page > 1 && (
               <Link
                 href={`?search=${search}&today=${todayOnly}&page=${page - 1}`}
-                className="rounded-md border px-3 py-1.5 hover:bg-muted transition-colors"
+                className="rounded border border-slate-200 px-3 py-1.5 hover:bg-slate-50 transition-colors"
               >
                 Previous
               </Link>
@@ -224,7 +210,7 @@ export default async function PatientsListPage({
             {page < totalPages && (
               <Link
                 href={`?search=${search}&today=${todayOnly}&page=${page + 1}`}
-                className="rounded-md border px-3 py-1.5 hover:bg-muted transition-colors"
+                className="rounded border border-slate-200 px-3 py-1.5 hover:bg-slate-50 transition-colors"
               >
                 Next
               </Link>

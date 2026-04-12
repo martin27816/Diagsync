@@ -7,9 +7,7 @@ export default async function RadiologyReportsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
-  if (!["RADIOGRAPHER", "SUPER_ADMIN"].includes(user.role)) {
-    redirect("/dashboard");
-  }
+  if (!["RADIOGRAPHER", "SUPER_ADMIN"].includes(user.role)) redirect("/dashboard");
 
   const reports = await prisma.radiologyReport.findMany({
     where: {
@@ -18,79 +16,68 @@ export default async function RadiologyReportsPage() {
       ...(user.role === "RADIOGRAPHER" ? { staffId: user.id } : {}),
     },
     include: {
-      task: {
-        include: {
-          visit: { include: { patient: true } },
-          imagingFiles: true,
-        },
-      },
+      task: { include: { visit: { include: { patient: true } }, imagingFiles: true } },
     },
     orderBy: { submittedAt: "desc" },
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Submitted Radiology Reports</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Completed imaging reports submitted for MD review.
+        <h1 className="text-base font-semibold text-slate-800">Submitted Radiology Reports</h1>
+        <p className="text-xs text-slate-400 mt-0.5">
+          {reports.length} report{reports.length !== 1 ? "s" : ""} submitted for MD review
         </p>
       </div>
 
-      {reports.length === 0 ? (
-        <div className="rounded-lg border bg-card p-10 text-center text-muted-foreground">
-          No submitted radiology reports yet.
-        </div>
-      ) : (
-        <div className="rounded-lg border bg-card overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">Patient</th>
-                <th className="px-4 py-3 text-left font-semibold">Findings</th>
-                <th className="px-4 py-3 text-left font-semibold">Impression</th>
-                <th className="px-4 py-3 text-left font-semibold">Images</th>
-                <th className="px-4 py-3 text-left font-semibold">Submitted At</th>
+      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        {reports.length === 0 ? (
+          <p className="px-4 py-10 text-center text-xs text-slate-400">No submitted radiology reports yet.</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50">
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Findings</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Impression</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Images</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Submitted</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {reports.map((report) => (
-                <tr key={report.id} className="border-t align-top">
-                  <td className="px-4 py-3">
-                    <p className="font-medium">{report.task.visit.patient.fullName}</p>
-                    <p className="text-xs text-muted-foreground font-mono">
+                <tr key={report.id} className="hover:bg-slate-50 transition-colors align-top">
+                  <td className="px-4 py-2.5">
+                    <p className="font-medium text-slate-800">{report.task.visit.patient.fullName}</p>
+                    <p className="font-mono text-slate-400">
                       {report.task.visit.patient.patientId} · {report.task.visit.visitNumber}
                     </p>
                   </td>
-                  <td className="px-4 py-3">{report.findings}</td>
-                  <td className="px-4 py-3">{report.impression}</td>
-                  <td className="px-4 py-3">
-                    <div className="space-y-1">
-                      {report.task.imagingFiles.length === 0 ? (
-                        <p className="text-muted-foreground">No files</p>
-                      ) : (
-                        report.task.imagingFiles.map((img) => (
-                          <a
-                            key={img.id}
-                            href={img.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block text-primary hover:underline"
-                          >
+                  <td className="px-4 py-2.5 text-slate-500 max-w-[200px]">{report.findings}</td>
+                  <td className="px-4 py-2.5 text-slate-500 max-w-[200px]">{report.impression}</td>
+                  <td className="px-4 py-2.5">
+                    {report.task.imagingFiles.length === 0 ? (
+                      <span className="text-slate-300">None</span>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {report.task.imagingFiles.map((img) => (
+                          <a key={img.id} href={img.fileUrl} target="_blank" rel="noreferrer"
+                            className="block text-blue-600 hover:underline truncate max-w-[140px]">
                             {img.fileName}
                           </a>
-                        ))
-                      )}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </td>
-                  <td className="px-4 py-3">{report.submittedAt ? formatDateTime(report.submittedAt) : "-"}</td>
+                  <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">
+                    {report.submittedAt ? formatDateTime(report.submittedAt) : "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
-

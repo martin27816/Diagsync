@@ -1,7 +1,5 @@
 "use client";
 
-import { Badge } from "@/components/ui/index";
-import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -18,11 +16,18 @@ type Row = {
   updatedAt: Date;
 };
 
-function priorityVariant(priority: Row["priority"]) {
-  if (priority === "EMERGENCY") return "destructive";
-  if (priority === "URGENT") return "warning";
-  return "secondary";
-}
+const priorityStyle: Record<string, string> = {
+  EMERGENCY: "bg-red-50 text-red-600",
+  URGENT: "bg-amber-50 text-amber-700",
+  ROUTINE: "bg-slate-100 text-slate-600",
+};
+
+const statusStyle: Record<string, string> = {
+  PENDING: "bg-slate-100 text-slate-600",
+  IN_PROGRESS: "bg-blue-50 text-blue-700",
+  COMPLETED: "bg-green-50 text-green-700",
+  CANCELLED: "bg-red-50 text-red-600",
+};
 
 export function RadiologyQueueTable({ rows }: { rows: Row[] }) {
   const router = useRouter();
@@ -30,86 +35,76 @@ export function RadiologyQueueTable({ rows }: { rows: Row[] }) {
   const [error, setError] = useState("");
 
   async function startTask(taskId: string) {
-    setBusy(taskId);
-    setError("");
+    setBusy(taskId); setError("");
     try {
       const res = await fetch(`/api/radiology/tasks/${taskId}/start`, { method: "PATCH" });
       const json = await res.json();
-      if (!json.success) {
-        setError(json.error ?? "Unable to start task");
-        return;
-      }
+      if (!json.success) { setError(json.error ?? "Unable to start task"); return; }
       router.push("/dashboard/radiographer");
       router.refresh();
-    } finally {
-      setBusy(null);
-    }
+    } finally { setBusy(null); }
   }
 
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-lg border bg-card p-10 text-center text-muted-foreground">
-        No radiology queue items yet.
-      </div>
-    );
-  }
+  if (rows.length === 0) return (
+    <div className="rounded-lg border border-slate-200 bg-white p-10 text-center text-xs text-slate-400">
+      No radiology queue items yet.
+    </div>
+  );
 
   return (
     <div className="space-y-3">
       {error && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
+        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>
       )}
-      <div className="rounded-lg border bg-card overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="px-4 py-3 text-left font-semibold">Patient</th>
-              <th className="px-4 py-3 text-left font-semibold">Requested Tests</th>
-              <th className="px-4 py-3 text-left font-semibold">Priority</th>
-              <th className="px-4 py-3 text-left font-semibold">Status</th>
-              <th className="px-4 py-3 text-left font-semibold">Assigned At</th>
-              <th className="px-4 py-3 text-left font-semibold">Updated At</th>
-              <th className="px-4 py-3 text-left font-semibold">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.taskId} className="border-t align-top">
-                <td className="px-4 py-3">
-                  <p className="font-medium">{row.patientName}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{row.patientId}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{row.visitNumber}</p>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="space-y-1">
-                    {row.tests.map((t, idx) => (
-                      <p key={`${row.taskId}-${idx}`}>{t}</p>
-                    ))}
-                  </div>
-                </td>
-                <td className="px-4 py-3"><Badge variant={priorityVariant(row.priority)}>{row.priority}</Badge></td>
-                <td className="px-4 py-3"><Badge variant={row.taskStatus === "COMPLETED" ? "success" : row.taskStatus === "IN_PROGRESS" ? "info" : row.taskStatus === "CANCELLED" ? "destructive" : "secondary"}>{row.taskStatus}</Badge></td>
-                <td className="px-4 py-3">{formatDateTime(row.assignedAt)}</td>
-                <td className="px-4 py-3">{formatDateTime(row.updatedAt)}</td>
-                <td className="px-4 py-3">
-                  {row.taskStatus === "PENDING" ? (
-                    <Button size="sm" disabled={busy === row.taskId} onClick={() => startTask(row.taskId)}>
-                      {busy === row.taskId ? "Starting..." : "Start Task"}
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="outline" onClick={() => router.push("/dashboard/radiographer")}>
-                      Open Dashboard
-                    </Button>
-                  )}
-                </td>
+      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50">
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Tests</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Priority</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Status</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Assigned</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Updated</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((row) => (
+                <tr key={row.taskId} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-2.5">
+                    <p className="font-medium text-slate-800">{row.patientName}</p>
+                    <p className="font-mono text-slate-400">{row.patientId} · {row.visitNumber}</p>
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-500">{row.tests.join(", ")}</td>
+                  <td className="px-4 py-2.5">
+                    <span className={`rounded px-1.5 py-0.5 font-medium ${priorityStyle[row.priority]}`}>{row.priority}</span>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className={`rounded px-1.5 py-0.5 font-medium ${statusStyle[row.taskStatus]}`}>{row.taskStatus.replace("_", " ")}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(row.assignedAt)}</td>
+                  <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(row.updatedAt)}</td>
+                  <td className="px-4 py-2.5">
+                    {row.taskStatus === "PENDING" ? (
+                      <button disabled={busy === row.taskId} onClick={() => startTask(row.taskId)}
+                        className="rounded bg-blue-600 px-2.5 py-1 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                        {busy === row.taskId ? "Starting..." : "Start"}
+                      </button>
+                    ) : (
+                      <button onClick={() => router.push("/dashboard/radiographer")}
+                        className="rounded border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50 transition-colors">
+                        Open
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 }
-
