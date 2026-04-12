@@ -5,17 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/index";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { ROLE_LABELS, DEPARTMENT_LABELS } from "@/lib/utils";
 import { Role, Department, Shift } from "@prisma/client";
 
@@ -36,26 +26,19 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-const ROLES_FOR_FORM = Object.entries(ROLE_LABELS).filter(
-  ([key]) => key !== "SUPER_ADMIN"
-);
+const ROLES_FOR_FORM = Object.entries(ROLE_LABELS).filter(([key]) => key !== "SUPER_ADMIN");
+
+const inputCls = "h-8 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
+const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
+const errCls = "text-[11px] text-red-500 mt-0.5";
 
 export function AddStaffForm() {
   const router = useRouter();
   const [serverError, setServerError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: { defaultShift: Shift.MORNING },
-  });
+  const { register, handleSubmit, setValue, reset, formState: { errors, isSubmitting } } =
+    useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { defaultShift: Shift.MORNING } });
 
   async function onSubmit(data: FormData) {
     setServerError("");
@@ -66,10 +49,7 @@ export function AddStaffForm() {
         body: JSON.stringify(data),
       });
       const json = await res.json();
-      if (!json.success) {
-        setServerError(json.error ?? "Something went wrong");
-        return;
-      }
+      if (!json.success) { setServerError(json.error ?? "Something went wrong"); return; }
       setSuccess(true);
       reset();
       setTimeout(() => router.push("/dashboard/hrm/staff"), 1500);
@@ -79,146 +59,121 @@ export function AddStaffForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      {serverError && (
-        <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">
-          {serverError}
-        </div>
-      )}
-      {success && (
-        <div className="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
-          Staff member created successfully! Redirecting...
-        </div>
-      )}
+    <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+      <div className="border-b border-slate-100 px-4 py-3">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">New Staff Member</span>
+      </div>
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        {/* Full Name */}
-        <div className="space-y-1.5">
-          <Label htmlFor="fullName">Full Name *</Label>
-          <Input id="fullName" placeholder="e.g. Jane Okafor" {...register("fullName")} />
-          {errors.fullName && <p className="text-xs text-destructive">{errors.fullName.message}</p>}
+      <form onSubmit={handleSubmit(onSubmit)} className="p-4 space-y-4">
+        {serverError && (
+          <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{serverError}</div>
+        )}
+        {success && (
+          <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+            Staff member created! Redirecting...
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <label className={labelCls}>Full Name *</label>
+            <input placeholder="e.g. Jane Okafor" {...register("fullName")} className={inputCls} />
+            {errors.fullName && <p className={errCls}>{errors.fullName.message}</p>}
+          </div>
+
+          <div>
+            <label className={labelCls}>Email Address *</label>
+            <input type="email" placeholder="jane@lab.com" {...register("email")} className={inputCls} />
+            {errors.email && <p className={errCls}>{errors.email.message}</p>}
+          </div>
+
+          <div>
+            <label className={labelCls}>Phone Number *</label>
+            <input placeholder="+234..." {...register("phone")} className={inputCls} />
+            {errors.phone && <p className={errCls}>{errors.phone.message}</p>}
+          </div>
+
+          <div>
+            <label className={labelCls}>Gender</label>
+            <Select onValueChange={(v) => setValue("gender", v)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select gender" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Male">Male</SelectItem>
+                <SelectItem value="Female">Female</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className={labelCls}>Role *</label>
+            <Select onValueChange={(v) => setValue("role", v as Role)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select role" /></SelectTrigger>
+              <SelectContent>
+                {ROLES_FOR_FORM.map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.role && <p className={errCls}>{errors.role.message}</p>}
+          </div>
+
+          <div>
+            <label className={labelCls}>Department *</label>
+            <Select onValueChange={(v) => setValue("department", v as Department)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select department" /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(DEPARTMENT_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.department && <p className={errCls}>{errors.department.message}</p>}
+          </div>
+
+          <div>
+            <label className={labelCls}>Default Shift *</label>
+            <Select defaultValue={Shift.MORNING} onValueChange={(v) => setValue("defaultShift", v as Shift)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MORNING">Morning</SelectItem>
+                <SelectItem value="AFTERNOON">Afternoon</SelectItem>
+                <SelectItem value="NIGHT">Night</SelectItem>
+                <SelectItem value="FULL_DAY">Full Day</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className={labelCls}>Password *</label>
+            <input type="password" placeholder="Min 8 characters" {...register("password")} className={inputCls} />
+            {errors.password && <p className={errCls}>{errors.password.message}</p>}
+          </div>
+
+          <div>
+            <label className={labelCls}>Confirm Password *</label>
+            <input type="password" placeholder="Repeat password" {...register("confirmPassword")} className={inputCls} />
+            {errors.confirmPassword && <p className={errCls}>{errors.confirmPassword.message}</p>}
+          </div>
         </div>
 
-        {/* Email */}
-        <div className="space-y-1.5">
-          <Label htmlFor="email">Email Address *</Label>
-          <Input id="email" type="email" placeholder="jane@lab.com" {...register("email")} />
-          {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-        </div>
-
-        {/* Phone */}
-        <div className="space-y-1.5">
-          <Label htmlFor="phone">Phone Number *</Label>
-          <Input id="phone" placeholder="+234..." {...register("phone")} />
-          {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
-        </div>
-
-        {/* Gender */}
-        <div className="space-y-1.5">
-          <Label htmlFor="gender">Gender</Label>
-          <Select onValueChange={(v) => setValue("gender", v)}>
-            <SelectTrigger id="gender">
-              <SelectValue placeholder="Select gender" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Male">Male</SelectItem>
-              <SelectItem value="Female">Female</SelectItem>
-              <SelectItem value="Other">Other</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Role */}
-        <div className="space-y-1.5">
-          <Label>Role *</Label>
-          <Select onValueChange={(v) => setValue("role", v as Role)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select role" />
-            </SelectTrigger>
-            <SelectContent>
-              {ROLES_FOR_FORM.map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {errors.role && <p className="text-xs text-destructive">{errors.role.message}</p>}
-        </div>
-
-        {/* Department */}
-        <div className="space-y-1.5">
-          <Label>Department *</Label>
-          <Select onValueChange={(v) => setValue("department", v as Department)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select department" />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(DEPARTMENT_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {errors.department && <p className="text-xs text-destructive">{errors.department.message}</p>}
-        </div>
-
-        {/* Default Shift */}
-        <div className="space-y-1.5">
-          <Label>Default Shift *</Label>
-          <Select
-            defaultValue={Shift.MORNING}
-            onValueChange={(v) => setValue("defaultShift", v as Shift)}
+        <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="rounded bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Select shift" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="MORNING">Morning</SelectItem>
-              <SelectItem value="AFTERNOON">Afternoon</SelectItem>
-              <SelectItem value="NIGHT">Night</SelectItem>
-              <SelectItem value="FULL_DAY">Full Day</SelectItem>
-            </SelectContent>
-          </Select>
+            {isSubmitting ? "Creating..." : "Create Staff Member"}
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard/hrm/staff")}
+            className="rounded border border-slate-200 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
         </div>
-
-        {/* Password */}
-        <div className="space-y-1.5">
-          <Label htmlFor="password">Password *</Label>
-          <Input id="password" type="password" placeholder="Min 8 characters" {...register("password")} />
-          {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-        </div>
-
-        {/* Confirm Password */}
-        <div className="space-y-1.5">
-          <Label htmlFor="confirmPassword">Confirm Password *</Label>
-          <Input id="confirmPassword" type="password" placeholder="Repeat password" {...register("confirmPassword")} />
-          {errors.confirmPassword && (
-            <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
-          )}
-        </div>
-      </div>
-
-      <div className="flex gap-3 pt-2">
-        <Button type="submit" disabled={isSubmitting} className="min-w-[140px]">
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creating...
-            </>
-          ) : (
-            "Create Staff Member"
-          )}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/dashboard/hrm/staff")}
-        >
-          Cancel
-        </Button>
-      </div>
-    </form>
+      </form>
+    </div>
   );
 }

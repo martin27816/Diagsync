@@ -80,7 +80,17 @@ async function main() {
   }) {
     const test = await prisma.diagnosticTest.upsert({
       where: { organizationId_code: { organizationId: orgId, code: data.code } },
-      update: { name: data.name, price: data.price },
+      update: {
+        categoryId: data.categoryId,
+        name: data.name,
+        type: data.type,
+        department: data.department,
+        price: data.price,
+        turnaroundMinutes: data.turnaroundMinutes,
+        sampleType: data.sampleType ?? null,
+        description: data.description ?? null,
+        isActive: true,
+      },
       create: {
         organizationId: orgId,
         categoryId: data.categoryId,
@@ -112,6 +122,14 @@ async function main() {
     });
 
     return test;
+  }
+
+  function makeRadiologyWorkflowFields() {
+    return [
+      { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+      { label: "Notes", fieldKey: "notes", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ];
   }
 
   // ── LAB TESTS ────────────────────────────────────────────────────────────
@@ -362,16 +380,7 @@ async function main() {
     price: 5000,
     turnaroundMinutes: 45,
     description: "Plain chest radiograph (PA view)",
-    fields: [
-      { label: "Projection / View", fieldKey: "projection", fieldType: FieldType.DROPDOWN, options: "PA,AP,Lateral,AP + Lateral", sortOrder: 1 },
-      { label: "Lung Fields", fieldKey: "lung_fields", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
-      { label: "Heart Size", fieldKey: "heart_size", fieldType: FieldType.DROPDOWN, options: "Normal,Mildly Enlarged,Moderately Enlarged,Markedly Enlarged", sortOrder: 3 },
-      { label: "Mediastinum", fieldKey: "mediastinum", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
-      { label: "Diaphragm", fieldKey: "diaphragm", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
-      { label: "Costophrenic Angles", fieldKey: "costophrenic", fieldType: FieldType.DROPDOWN, options: "Sharp bilaterally,Blunted on right,Blunted on left,Blunted bilaterally", sortOrder: 6 },
-      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 7 },
-      { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
-    ],
+    fields: makeRadiologyWorkflowFields(),
   });
 
   // 13. Abdominal Ultrasound
@@ -384,19 +393,7 @@ async function main() {
     price: 8000,
     turnaroundMinutes: 60,
     description: "Comprehensive abdominal ultrasound scan",
-    fields: [
-      { label: "Liver", fieldKey: "liver", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
-      { label: "Gallbladder", fieldKey: "gallbladder", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
-      { label: "Spleen", fieldKey: "spleen", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
-      { label: "Pancreas", fieldKey: "pancreas", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
-      { label: "Kidneys", fieldKey: "kidneys", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
-      { label: "Urinary Bladder", fieldKey: "bladder", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
-      { label: "Aorta / IVC", fieldKey: "aorta", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 7 },
-      { label: "Free Fluid / Ascites", fieldKey: "free_fluid", fieldType: FieldType.DROPDOWN, options: "None detected,Minimal,Moderate,Gross", sortOrder: 8 },
-      { label: "Other Findings", fieldKey: "other_findings", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
-      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 10 },
-      { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 11 },
-    ],
+    fields: makeRadiologyWorkflowFields(),
   });
 
   // 14. Pelvic Ultrasound
@@ -408,16 +405,7 @@ async function main() {
     categoryId: "cat-imaging",
     price: 7000,
     turnaroundMinutes: 60,
-    fields: [
-      { label: "Uterus", fieldKey: "uterus", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
-      { label: "Ovaries", fieldKey: "ovaries", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
-      { label: "Endometrium", fieldKey: "endometrium", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
-      { label: "Adnexa", fieldKey: "adnexa", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
-      { label: "Pouch of Douglas", fieldKey: "pod", fieldType: FieldType.DROPDOWN, options: "Clear,Fluid noted", sortOrder: 5 },
-      { label: "Other Findings", fieldKey: "other_findings", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
-      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 7 },
-      { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
-    ],
+    fields: makeRadiologyWorkflowFields(),
   });
 
   // 15. Obstetric Ultrasound
@@ -429,23 +417,7 @@ async function main() {
     categoryId: "cat-imaging",
     price: 8000,
     turnaroundMinutes: 60,
-    fields: [
-      { label: "Gestational Age (LMP)", fieldKey: "ga_lmp", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 1 },
-      { label: "Gestational Age (Scan)", fieldKey: "ga_scan", fieldType: FieldType.TEXT, sortOrder: 2 },
-      { label: "Number of Fetuses", fieldKey: "fetus_count", fieldType: FieldType.DROPDOWN, options: "Singleton,Twins,Triplets", sortOrder: 3 },
-      { label: "Fetal Lie", fieldKey: "fetal_lie", fieldType: FieldType.DROPDOWN, options: "Longitudinal,Transverse,Oblique", sortOrder: 4 },
-      { label: "Fetal Presentation", fieldKey: "presentation", fieldType: FieldType.DROPDOWN, options: "Cephalic,Breech,Shoulder", sortOrder: 5 },
-      { label: "Fetal Heart Rate", fieldKey: "fhr", fieldType: FieldType.NUMBER, unit: "bpm", normalMin: 110, normalMax: 160, sortOrder: 6 },
-      { label: "Placenta Location", fieldKey: "placenta", fieldType: FieldType.TEXT, sortOrder: 7 },
-      { label: "Amniotic Fluid", fieldKey: "amniotic_fluid", fieldType: FieldType.DROPDOWN, options: "Adequate,Reduced (Oligohydramnios),Increased (Polyhydramnios)", sortOrder: 8 },
-      { label: "BPD", fieldKey: "bpd", fieldType: FieldType.NUMBER, unit: "cm", isRequired: false, sortOrder: 9 },
-      { label: "HC", fieldKey: "hc", fieldType: FieldType.NUMBER, unit: "cm", isRequired: false, sortOrder: 10 },
-      { label: "AC", fieldKey: "ac", fieldType: FieldType.NUMBER, unit: "cm", isRequired: false, sortOrder: 11 },
-      { label: "FL", fieldKey: "fl", fieldType: FieldType.NUMBER, unit: "cm", isRequired: false, sortOrder: 12 },
-      { label: "EFW", fieldKey: "efw", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 13 },
-      { label: "EDD", fieldKey: "edd", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 14 },
-      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 15 },
-    ],
+    fields: makeRadiologyWorkflowFields(),
   });
 
   // 16. Skull X-Ray
@@ -457,14 +429,7 @@ async function main() {
     categoryId: "cat-imaging",
     price: 5000,
     turnaroundMinutes: 45,
-    fields: [
-      { label: "Projection / View", fieldKey: "projection", fieldType: FieldType.DROPDOWN, options: "AP,Lateral,Towne's,Submentovertex", sortOrder: 1 },
-      { label: "Skull Vault", fieldKey: "skull_vault", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
-      { label: "Sella Turcica", fieldKey: "sella", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
-      { label: "Pineal Gland", fieldKey: "pineal", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
-      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
-      { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
-    ],
+    fields: makeRadiologyWorkflowFields(),
   });
 
   // 17. Bulk catalog expansion (Lab + Radiology master list)
@@ -739,82 +704,788 @@ async function main() {
     return "cat-chemistry";
   }
 
+  
+  const LAB_FIELD_LIBRARY: Record<string, { label: string; fieldKey: string; fieldType: FieldType; unit?: string; normalMin?: number; normalMax?: number; options?: string; isRequired?: boolean; sortOrder: number; }[]> = {
+  "ALKALINE PHOSPHATASE (ALP)": [
+    { label: "Alkaline Phosphatase (ALP)", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 44, normalMax: 147, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "B10 CHEMISTRY PANEL HBA1C": [
+    { label: "HbA1c", fieldKey: "hba1c", fieldType: FieldType.NUMBER, unit: "%", sortOrder: 1 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.DROPDOWN, options: "Normal (<5.7%),Prediabetes (5.7-6.4%),Diabetes (>=6.5%)", isRequired: false, sortOrder: 2 },
+    { label: "Estimated Average Glucose", fieldKey: "eag", fieldType: FieldType.NUMBER, unit: "mg/dL", isRequired: false, sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ],
+  "LIPID PROFILE": [
+    { label: "Cholesterol (Total)", fieldKey: "cholesterol_total", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 200, sortOrder: 1 },
+    { label: "Triglyceride", fieldKey: "triglyceride", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 150, sortOrder: 2 },
+    { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 40, normalMax: 80, sortOrder: 3 },
+    { label: "LDL-C", fieldKey: "ldl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 100, sortOrder: 4 },
+    { label: "VLDL-C", fieldKey: "vldl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 5, normalMax: 30, isRequired: false, sortOrder: 5 },
+    { label: "Risk Comment", fieldKey: "risk_comment", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "TRIGLYCERIDE": [
+    { label: "Triglyceride", fieldKey: "triglyceride", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 150, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CHOLESTEROL (TOTAL)": [
+    { label: "Total Cholesterol", fieldKey: "cholesterol_total", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 200, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HDL-C": [
+    { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 40, normalMax: 80, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "AST (SGOT)": [
+    { label: "AST (SGOT)", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 8, normalMax: 48, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ALT (SGPT)": [
+    { label: "ALT (SGPT)", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 7, normalMax: 55, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "GGT": [
+    { label: "GGT", fieldKey: "ggt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 8, normalMax: 61, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "TOTAL BILIRUBIN": [
+    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 2, normalMax: 21, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "DIRECT BILIRUBIN": [
+    { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 5, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "LDL-C": [
+    { label: "LDL-C", fieldKey: "ldl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 100, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "PROTEIN (TOTAL)": [
+    { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 60, normalMax: 83, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "VLDL-C": [
+    { label: "VLDL-C", fieldKey: "vldl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 5, normalMax: 30, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ALBUMIN": [
+    { label: "Albumin", fieldKey: "albumin", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 35, normalMax: 50, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "THYROID STIMULATING HORMONE (TSH)": [
+    { label: "TSH", fieldKey: "tsh", fieldType: FieldType.NUMBER, unit: "µIU/mL", normalMin: 0.5, normalMax: 5.0, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "THYROXINE (T4 FREE)": [
+    { label: "Free T4", fieldKey: "free_t4", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 0.8, normalMax: 1.9, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "THYROXINE (T4 TOTAL)": [
+    { label: "Total T4", fieldKey: "total_t4", fieldType: FieldType.NUMBER, unit: "µg/dL", normalMin: 5.0, normalMax: 12.0, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "TRIIODOTHYRONINE (T3 TOTAL)": [
+    { label: "Total T3", fieldKey: "total_t3", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 60, normalMax: 180, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "TRIIODOTHYRONINE (T3 FREE)": [
+    { label: "Free T3", fieldKey: "free_t3", fieldType: FieldType.NUMBER, unit: "pg/dL", normalMin: 130, normalMax: 450, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ELECTROLYTES": [
+    { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 135, normalMax: 145, sortOrder: 1 },
+    { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.5, normalMax: 5.2, sortOrder: 2 },
+    { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 98, normalMax: 106, sortOrder: 3 },
+    { label: "Bicarbonate", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 22, normalMax: 28, sortOrder: 4 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+  ],
+  "UREA": [
+    { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.1, normalMax: 8.0, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CREATININE": [
+    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 53, normalMax: 115, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "BLOOD GASES": [
+    { label: "pH", fieldKey: "ph", fieldType: FieldType.NUMBER, unit: "pH", normalMin: 7.35, normalMax: 7.45, sortOrder: 1 },
+    { label: "pO2", fieldKey: "po2", fieldType: FieldType.NUMBER, unit: "mmHg", normalMin: 75, normalMax: 100, sortOrder: 2 },
+    { label: "pCO2", fieldKey: "pco2", fieldType: FieldType.NUMBER, unit: "mmHg", normalMin: 35, normalMax: 45, sortOrder: 3 },
+    { label: "HCO3-", fieldKey: "hco3", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 22, normalMax: 26, sortOrder: 4 },
+    { label: "Base Excess", fieldKey: "base_excess", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: -2, normalMax: 2, isRequired: false, sortOrder: 5 },
+    { label: "O2 Saturation", fieldKey: "o2_sat", fieldType: FieldType.NUMBER, unit: "%", normalMin: 95, normalMax: 100, isRequired: false, sortOrder: 6 },
+    { label: "Lactate", fieldKey: "lactate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.5, normalMax: 2.2, isRequired: false, sortOrder: 7 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
+  ],
+  "BLOOD PH": [
+    { label: "Blood pH", fieldKey: "blood_ph", fieldType: FieldType.NUMBER, unit: "pH", normalMin: 7.35, normalMax: 7.45, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "OXYGEN (O2)": [
+    { label: "pO2", fieldKey: "po2", fieldType: FieldType.NUMBER, unit: "mmHg", normalMin: 75, normalMax: 100, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CARBON DIOXIDE (CO2)": [
+    { label: "pCO2", fieldKey: "pco2", fieldType: FieldType.NUMBER, unit: "mmHg", normalMin: 35, normalMax: 45, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CALCIUM (TOTAL)": [
+    { label: "Total Calcium", fieldKey: "total_calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.12, normalMax: 2.62, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "IONIZED CALCIUM": [
+    { label: "Ionized Calcium", fieldKey: "ionized_calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 1.12, normalMax: 1.32, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "LACTATE": [
+    { label: "Lactate", fieldKey: "lactate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.5, normalMax: 2.2, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "URIC ACID": [
+    { label: "Uric Acid", fieldKey: "uric_acid", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 155, normalMax: 400, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "PREGNANCY TEST": [
+    { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Indeterminate", sortOrder: 1 },
+    { label: "Method", fieldKey: "method", fieldType: FieldType.DROPDOWN, options: "Urine hCG,Serum Qualitative hCG", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "CRP": [
+    { label: "CRP", fieldKey: "crp", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 0, normalMax: 1.0, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CREATINE KINASE": [
+    { label: "Creatine Kinase", fieldKey: "ck_total", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 22, normalMax: 198, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "PROCALCITONIN": [
+    { label: "Procalcitonin", fieldKey: "procalcitonin", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 0.1, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "AMYLASE": [
+    { label: "Amylase", fieldKey: "amylase", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 40, normalMax: 140, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "COMPREHENSIVE METABOLIC PANEL (CMP)": [
+    { label: "Glucose", fieldKey: "glucose", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.9, normalMax: 5.6, sortOrder: 1 },
+    { label: "Calcium", fieldKey: "calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.12, normalMax: 2.62, sortOrder: 2 },
+    { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 135, normalMax: 145, sortOrder: 3 },
+    { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.7, normalMax: 5.2, sortOrder: 4 },
+    { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 98, normalMax: 106, sortOrder: 5 },
+    { label: "Bicarbonate / CO2", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 22, normalMax: 28, sortOrder: 6 },
+    { label: "Albumin", fieldKey: "albumin", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 35, normalMax: 50, sortOrder: 7 },
+    { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 60, normalMax: 83, sortOrder: 8 },
+    { label: "ALP", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 40, normalMax: 129, sortOrder: 9 },
+    { label: "ALT", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 7, normalMax: 55, sortOrder: 10 },
+    { label: "AST", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 8, normalMax: 48, sortOrder: 11 },
+    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 2, normalMax: 21, sortOrder: 12 },
+    { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.1, normalMax: 8.0, sortOrder: 13 },
+    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 53, normalMax: 115, sortOrder: 14 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 15 },
+  ],
+  "PROTEIN ELECTROPHORESIS": [
+    { label: "Albumin Fraction", fieldKey: "albumin_fraction", fieldType: FieldType.NUMBER, unit: "%", normalMin: 54, normalMax: 65, isRequired: false, sortOrder: 1 },
+    { label: "Alpha 1", fieldKey: "alpha1", fieldType: FieldType.NUMBER, unit: "%", normalMin: 2, normalMax: 5, isRequired: false, sortOrder: 2 },
+    { label: "Alpha 2", fieldKey: "alpha2", fieldType: FieldType.NUMBER, unit: "%", normalMin: 7, normalMax: 13, isRequired: false, sortOrder: 3 },
+    { label: "Beta", fieldKey: "beta", fieldType: FieldType.NUMBER, unit: "%", normalMin: 8, normalMax: 14, isRequired: false, sortOrder: 4 },
+    { label: "Gamma", fieldKey: "gamma", fieldType: FieldType.NUMBER, unit: "%", normalMin: 12, normalMax: 22, isRequired: false, sortOrder: 5 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
+  ],
+  "PROSTATE SPECIFIC ANTIGEN (PSA)": [
+    { label: "Total PSA", fieldKey: "psa_total", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 4.0, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "PROSTATE SPECIFIC ANTIGEN (FREE)": [
+    { label: "Free PSA", fieldKey: "psa_free", fieldType: FieldType.NUMBER, unit: "ng/mL", sortOrder: 1 },
+    { label: "Free/Total PSA Ratio", fieldKey: "free_total_ratio", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "CARCINOEMBRYONIC ANTIGEN (CEA)": [
+    { label: "CEA", fieldKey: "cea", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 5.0, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ALPHA-FETOPROTEIN (AFP)": [
+    { label: "AFP", fieldKey: "afp", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 10.0, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CA-125 TEST": [
+    { label: "CA-125", fieldKey: "ca125", fieldType: FieldType.NUMBER, unit: "U/mL", normalMin: 0, normalMax: 35, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CD4 T CELL COUNT": [
+    { label: "CD4 Count", fieldKey: "cd4_count", fieldType: FieldType.NUMBER, unit: "cells/µL", normalMin: 500, normalMax: 1500, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CD4 T CELL PERCENTAGE": [
+    { label: "CD4 Percentage", fieldKey: "cd4_percent", fieldType: FieldType.NUMBER, unit: "%", normalMin: 25, normalMax: 65, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CD8 T CELL COUNT": [
+    { label: "CD8 Count", fieldKey: "cd8_count", fieldType: FieldType.NUMBER, unit: "cells/µL", normalMin: 150, normalMax: 1000, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HIV 1 & II CONFIRMATORY TEST": [
+    { label: "Screening Assay", fieldKey: "screening_assay", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Confirmatory Assay", fieldKey: "confirmatory_assay", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Indeterminate", sortOrder: 2 },
+    { label: "Final Interpretation", fieldKey: "interpretation", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ],
+  "HUMAN CHORIONIC GONADOTROPIN (B-HCG)": [
+    { label: "Beta hCG", fieldKey: "beta_hcg", fieldType: FieldType.NUMBER, unit: "mIU/mL", normalMin: 0, normalMax: 5, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "PROGESTERONE": [
+    { label: "Progesterone", fieldKey: "progesterone", fieldType: FieldType.NUMBER, unit: "ng/mL", sortOrder: 1 },
+    { label: "Phase / Context", fieldKey: "phase", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "FOLLICLE STIMULATING HORMONE (FSH)": [
+    { label: "FSH", fieldKey: "fsh", fieldType: FieldType.NUMBER, unit: "IU/L", normalMin: 1, normalMax: 9, sortOrder: 1 },
+    { label: "Sex / Cycle Phase", fieldKey: "sex_phase", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "LUTEINIZING HORMONE (LH)": [
+    { label: "LH", fieldKey: "lh", fieldType: FieldType.NUMBER, unit: "IU/L", normalMin: 1, normalMax: 9, sortOrder: 1 },
+    { label: "Sex / Cycle Phase", fieldKey: "sex_phase", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "PROLACTIN": [
+    { label: "Prolactin", fieldKey: "prolactin", fieldType: FieldType.NUMBER, unit: "mIU/L", normalMin: 41, normalMax: 520, sortOrder: 1 },
+    { label: "Sex", fieldKey: "sex", fieldType: FieldType.DROPDOWN, options: "Male,Female", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "OESTROGEN (E2)": [
+    { label: "Estradiol (E2)", fieldKey: "estradiol", fieldType: FieldType.NUMBER, unit: "pmol/L", sortOrder: 1 },
+    { label: "Cycle Phase / Sex", fieldKey: "phase", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "VITAMIN B12": [
+    { label: "Vitamin B12", fieldKey: "vitamin_b12", fieldType: FieldType.NUMBER, unit: "pg/mL", normalMin: 160, normalMax: 950, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "VITAMIN D": [
+    { label: "Vitamin D (25-OH)", fieldKey: "vitamin_d", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 30, normalMax: 100, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "FERRITIN": [
+    { label: "Ferritin", fieldKey: "ferritin", fieldType: FieldType.NUMBER, unit: "ng/mL", sortOrder: 1 },
+    { label: "Sex", fieldKey: "sex", fieldType: FieldType.DROPDOWN, options: "Male,Female", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "PARATHYROID HORMONE (PTH)": [
+    { label: "PTH", fieldKey: "pth", fieldType: FieldType.NUMBER, unit: "pg/mL", normalMin: 10, normalMax: 65, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "DEHYDROEPIANDROSTERONE SULFATE (DHEA-S)": [
+    { label: "DHEA-S", fieldKey: "dhea_s", fieldType: FieldType.NUMBER, unit: "µg/dL", sortOrder: 1 },
+    { label: "Sex / Age Group", fieldKey: "sex_age_group", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "CORTISOL": [
+    { label: "Cortisol", fieldKey: "cortisol", fieldType: FieldType.NUMBER, unit: "nmol/L", sortOrder: 1 },
+    { label: "Collection Time", fieldKey: "collection_time", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "TESTOSTERONE": [
+    { label: "Total Testosterone", fieldKey: "testosterone", fieldType: FieldType.NUMBER, unit: "ng/dL", sortOrder: 1 },
+    { label: "Sex", fieldKey: "sex", fieldType: FieldType.DROPDOWN, options: "Male,Female", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "MICROALBUMIN": [
+    { label: "Urine Albumin", fieldKey: "microalbumin", fieldType: FieldType.NUMBER, unit: "mg/L", normalMin: 0, normalMax: 20, sortOrder: 1 },
+    { label: "Albumin/Creatinine Ratio", fieldKey: "acr", fieldType: FieldType.NUMBER, unit: "mg/g", normalMin: 0, normalMax: 30, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "ADRENOCORTICOTROPIC HORMONE (ACTH)": [
+    { label: "ACTH", fieldKey: "acth", fieldType: FieldType.NUMBER, unit: "pg/mL", normalMin: 10, normalMax: 60, sortOrder: 1 },
+    { label: "Collection Time", fieldKey: "collection_time", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "HBsAg-QUANTITATIVE": [
+    { label: "HBsAg Quantitative", fieldKey: "hbsag_quant", fieldType: FieldType.NUMBER, unit: "IU/mL", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HUMAN GROWTH HORMONE": [
+    { label: "Growth Hormone", fieldKey: "growth_hormone", fieldType: FieldType.NUMBER, unit: "ng/mL", sortOrder: 1 },
+    { label: "Interpretation Note", fieldKey: "interpretation_note", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ANTI NUCLEAR ANTIBODY (ANA)": [
+    { label: "ANA Result", fieldKey: "ana_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Borderline", sortOrder: 1 },
+    { label: "Titre", fieldKey: "titre", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Pattern", fieldKey: "pattern", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ],
+  "DOUBLE STRANDED DNA TEST (ds-DNA)": [
+    { label: "dsDNA", fieldKey: "dsdna", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 30, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "BRAIN NATRIURETIC PEPTIDE (NT-proBNP)": [
+    { label: "NT-proBNP", fieldKey: "ntprobnp", fieldType: FieldType.NUMBER, unit: "pg/mL", normalMin: 0, normalMax: 300, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CK-MB": [
+    { label: "CK-MB", fieldKey: "ck_mb", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 5, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "TROPONIN T": [
+    { label: "Troponin T", fieldKey: "troponin_t", fieldType: FieldType.NUMBER, unit: "µg/L", normalMin: 0, normalMax: 0.1, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "TROPONIN I": [
+    { label: "Troponin I", fieldKey: "troponin_i", fieldType: FieldType.NUMBER, unit: "ng/L", normalMin: 0, normalMax: 45, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HBV 5 PANEL TEST": [
+    { label: "HBsAg", fieldKey: "hbsag", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "HBsAb", fieldKey: "hbsab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 2 },
+    { label: "HBeAg", fieldKey: "hbeag", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 3 },
+    { label: "HBeAb", fieldKey: "hbeab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 4 },
+    { label: "HBcAb", fieldKey: "hbcab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 5 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "HBsAb-QUANTITATIVE": [
+    { label: "HBsAb Quantitative", fieldKey: "hbsab_quant", fieldType: FieldType.NUMBER, unit: "mIU/mL", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HBeAg-QUANTITATIVE": [
+    { label: "HBeAg Quantitative", fieldKey: "hbeag_quant", fieldType: FieldType.NUMBER, unit: "PEI U/mL", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HBeAb-QUANTITATIVE": [
+    { label: "HBeAb Quantitative", fieldKey: "hbeab_quant", fieldType: FieldType.NUMBER, unit: "PEI U/mL", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HBcAb-QUANTITATIVE": [
+    { label: "HBcAb Quantitative", fieldKey: "hbcab_quant", fieldType: FieldType.NUMBER, unit: "PEI U/mL", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HBV DNA PANEL": [
+    { label: "HBV DNA Viral Load", fieldKey: "hbv_dna", fieldType: FieldType.NUMBER, unit: "IU/mL", sortOrder: 1 },
+    { label: "Log10 Viral Load", fieldKey: "hbv_dna_log", fieldType: FieldType.NUMBER, unit: "log10 IU/mL", isRequired: false, sortOrder: 2 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "HBsAg-QUALITATIVE": [
+    { label: "HBsAg", fieldKey: "hbsag", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HBsAb-QUALITATIVE": [
+    { label: "HBsAb", fieldKey: "hbsab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HBeAg-QUALITATIVE": [
+    { label: "HBeAg", fieldKey: "hbeag", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HBeAb-QUALITATIVE": [
+    { label: "HBeAb", fieldKey: "hbeab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HBcAb-QUALITATIVE": [
+    { label: "HBcAb", fieldKey: "hbcab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "SEMEN ANALYSIS": [
+    { label: "Volume", fieldKey: "volume", fieldType: FieldType.NUMBER, unit: "mL", normalMin: 1.4, sortOrder: 1 },
+    { label: "pH", fieldKey: "ph", fieldType: FieldType.NUMBER, unit: "pH", normalMin: 7.2, normalMax: 8.0, sortOrder: 2 },
+    { label: "Sperm Concentration", fieldKey: "sperm_concentration", fieldType: FieldType.NUMBER, unit: "million/mL", normalMin: 15, sortOrder: 3 },
+    { label: "Total Motility", fieldKey: "motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 40, normalMax: 100, sortOrder: 4 },
+    { label: "Progressive Motility", fieldKey: "progressive_motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 32, normalMax: 100, isRequired: false, sortOrder: 5 },
+    { label: "Morphology", fieldKey: "morphology", fieldType: FieldType.NUMBER, unit: "%", normalMin: 4, normalMax: 100, isRequired: false, sortOrder: 6 },
+    { label: "Liquefaction Time", fieldKey: "liquefaction_time", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 7 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
+  ],
+  "BLOOD GROUP": [
+    { label: "ABO Group", fieldKey: "abo_group", fieldType: FieldType.DROPDOWN, options: "A,B,AB,O", sortOrder: 1 },
+    { label: "Rh Type", fieldKey: "rh_type", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "GENOTYPE": [
+    { label: "Genotype", fieldKey: "genotype", fieldType: FieldType.DROPDOWN, options: "AA,AS,AC,SS,SC,CC", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "DIRECT COOMBS TEST": [
+    { label: "Direct Coombs Result", fieldKey: "direct_coombs", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "INDIRECT COOMBS TEST": [
+    { label: "Indirect Coombs Result", fieldKey: "indirect_coombs", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CROSS MATCHING": [
+    { label: "Donor Unit Number", fieldKey: "donor_unit", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 1 },
+    { label: "Crossmatch Result", fieldKey: "crossmatch_result", fieldType: FieldType.DROPDOWN, options: "Compatible,Incompatible", sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "HB ELECTROPHORESIS": [
+    { label: "HbA", fieldKey: "hb_a", fieldType: FieldType.NUMBER, unit: "%", normalMin: 95, normalMax: 99, isRequired: false, sortOrder: 1 },
+    { label: "HbA2", fieldKey: "hb_a2", fieldType: FieldType.NUMBER, unit: "%", normalMin: 2, normalMax: 3.5, isRequired: false, sortOrder: 2 },
+    { label: "HbF", fieldKey: "hb_f", fieldType: FieldType.NUMBER, unit: "%", normalMin: 0, normalMax: 1, isRequired: false, sortOrder: 3 },
+    { label: "Pattern", fieldKey: "pattern", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+  ],
+  "GENOTYPING (CONFIRMATORY)": [
+    { label: "Confirmed Genotype", fieldKey: "confirmed_genotype", fieldType: FieldType.DROPDOWN, options: "AA,AS,AC,SS,SC,CC", sortOrder: 1 },
+    { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "PROTHROMBIN TIME": [
+    { label: "PT", fieldKey: "pt", fieldType: FieldType.NUMBER, unit: "seconds", normalMin: 11, normalMax: 13.5, sortOrder: 1 },
+    { label: "INR", fieldKey: "inr", fieldType: FieldType.NUMBER, unit: "ratio", normalMin: 0.8, normalMax: 1.1, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "APTT": [
+    { label: "aPTT", fieldKey: "aptt", fieldType: FieldType.NUMBER, unit: "seconds", normalMin: 25, normalMax: 35, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "FIBRINOGEN": [
+    { label: "Fibrinogen", fieldKey: "fibrinogen", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 200, normalMax: 400, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ESR": [
+    { label: "ESR", fieldKey: "esr", fieldType: FieldType.NUMBER, unit: "mm/hr", normalMin: 0, normalMax: 20, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HAEMOGLOBIN (HB)": [
+    { label: "Haemoglobin", fieldKey: "haemoglobin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 12, normalMax: 17, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "DNA PATERNITY TEST": [
+    { label: "Result Summary", fieldKey: "result_summary", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Probability of Paternity", fieldKey: "probability", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "HBV DNA VIRAL LOAD": [
+    { label: "HBV DNA Viral Load", fieldKey: "hbv_dna_viral_load", fieldType: FieldType.NUMBER, unit: "IU/mL", sortOrder: 1 },
+    { label: "Log10 Viral Load", fieldKey: "hbv_dna_log", fieldType: FieldType.NUMBER, unit: "log10 IU/mL", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "HBV RNA BY RT-PCR": [
+    { label: "HBV RNA", fieldKey: "hbv_rna", fieldType: FieldType.NUMBER, unit: "copies/mL", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HCV RNA VIRAL LOAD": [
+    { label: "HCV RNA Viral Load", fieldKey: "hcv_rna_viral_load", fieldType: FieldType.NUMBER, unit: "IU/mL", sortOrder: 1 },
+    { label: "Log10 Viral Load", fieldKey: "hcv_rna_log", fieldType: FieldType.NUMBER, unit: "log10 IU/mL", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "HCV GENOTYPING": [
+    { label: "HCV Genotype", fieldKey: "hcv_genotype", fieldType: FieldType.TEXT, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "TUBERCULOSIS ANTIGEN TEST": [
+    { label: "TB Antigen Result", fieldKey: "tb_antigen_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Indeterminate", sortOrder: 1 },
+    { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "HBV QUALITATIVE (CONFIRMATORY TEST)": [
+    { label: "HBV Confirmatory Result", fieldKey: "hbv_confirm_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Indeterminate", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HCV QUALITATIVE (CONFIRMATORY TEST)": [
+    { label: "HCV Confirmatory Result", fieldKey: "hcv_confirm_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Indeterminate", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HEPATITIS B SCREENING": [
+    { label: "HBsAg Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HEPATITIS C SCREENING": [
+    { label: "Anti-HCV Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CHLAMYDIA": [
+    { label: "Chlamydia Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
+    { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "VDRL": [
+    { label: "VDRL Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Titre", fieldKey: "titre", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "BRUCELLA SCREENING": [
+    { label: "Brucella Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
+    { label: "Titre", fieldKey: "titre", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "URINE M/C/S": [
+    { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+    { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
+    { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "STOOL M/C/S": [
+    { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+    { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
+    { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "SPUTUM M/C/S": [
+    { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+    { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
+    { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "BLOOD CULTURE/SENSITIVITY": [
+    { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+    { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
+    { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "HIGH VAGINAL SWAB (HVS) M/C/S": [
+    { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+    { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
+    { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "ENDOCERVICAL SWAB (ECS) M/C/S": [
+    { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+    { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
+    { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "URETHRAL SWAB M/C/S": [
+    { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+    { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
+    { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "SEMEN M/C/S": [
+    { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+    { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
+    { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "SKIN/NAIL SCRAPING M/C/S": [
+    { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+    { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
+    { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "OTHER SWABS/FLUID M/C/S": [
+    { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+    { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
+    { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+  ],
+  "GRAM STAINING": [
+    { label: "Gram Stain Result", fieldKey: "gram_stain_result", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "H. PYLORI SCREENING": [
+    { label: "H. pylori Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
+    { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "ASO TITRE": [
+    { label: "ASO Titre", fieldKey: "aso_titre", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 200, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "RHEUMATOID FACTOR": [
+    { label: "Rheumatoid Factor", fieldKey: "rf", fieldType: FieldType.NUMBER, unit: "kIU/L", normalMin: 0, normalMax: 20, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HEPATITIS A SCREENING": [
+    { label: "HAV Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "BLOOD FILM": [
+    { label: "Film Findings", fieldKey: "film_findings", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "MALARIA PARASITES (MP)": [
+    { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+    { label: "Species", fieldKey: "species", fieldType: FieldType.DROPDOWN, options: "Plasmodium falciparum,Plasmodium vivax,Plasmodium malariae,Mixed,Not Applicable", isRequired: false, sortOrder: 2 },
+    { label: "Parasitaemia", fieldKey: "parasitaemia", fieldType: FieldType.DROPDOWN, options: "+,++,+++,++++,Not Applicable", isRequired: false, sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ],
+  "HIV SCREENING": [
+    { label: "Determine Result", fieldKey: "determine", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Unigold Result", fieldKey: "unigold", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive,Not Done", isRequired: false, sortOrder: 2 },
+    { label: "Final Interpretation", fieldKey: "interpretation", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ],
+  "MANTOUX TEST": [
+    { label: "Induration Size", fieldKey: "induration", fieldType: FieldType.NUMBER, unit: "mm", normalMin: 0, sortOrder: 1 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "SKIN SCRAPING ANALYSIS": [
+    { label: "Microscopy Findings", fieldKey: "microscopy_findings", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Organism Seen", fieldKey: "organism_seen", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "SPUTUM AFB (X2)": [
+    { label: "AFB Smear 1", fieldKey: "afb1", fieldType: FieldType.DROPDOWN, options: "Negative,Scanty,1+,2+,3+", sortOrder: 1 },
+    { label: "AFB Smear 2", fieldKey: "afb2", fieldType: FieldType.DROPDOWN, options: "Negative,Scanty,1+,2+,3+", sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+};
+
+  const RADIOLOGY_FIELD_LIBRARY: Record<string, { label: string; fieldKey: string; fieldType: FieldType; unit?: string; normalMin?: number; normalMax?: number; options?: string; isRequired?: boolean; sortOrder: number; }[]> = {
+  "ABDOMINAL SCAN": [
+    { label: "Liver", fieldKey: "liver", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Gallbladder", fieldKey: "gallbladder", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Spleen", fieldKey: "spleen", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+    { label: "Pancreas", fieldKey: "pancreas", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Kidneys", fieldKey: "kidneys", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+    { label: "Urinary Bladder", fieldKey: "bladder", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
+    { label: "Free Fluid", fieldKey: "free_fluid", fieldType: FieldType.DROPDOWN, options: "None,Minimal,Moderate,Gross", isRequired: false, sortOrder: 7 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 8 },
+  ],
+  "PELVIC SCAN": [
+    { label: "Uterus", fieldKey: "uterus", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Ovaries", fieldKey: "ovaries", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Endometrium", fieldKey: "endometrium", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Pouch of Douglas", fieldKey: "pod", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+  ],
+  "OBSTETRIC/FETAL ULTRASOUND": [
+    { label: "Gestational Age", fieldKey: "gestational_age", fieldType: FieldType.TEXT, sortOrder: 1 },
+    { label: "Fetal Number", fieldKey: "fetal_number", fieldType: FieldType.DROPDOWN, options: "Singleton,Twins,Triplets", sortOrder: 2 },
+    { label: "Presentation", fieldKey: "presentation", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 3 },
+    { label: "Fetal Heart Rate", fieldKey: "fhr", fieldType: FieldType.NUMBER, unit: "bpm", normalMin: 110, normalMax: 160, sortOrder: 4 },
+    { label: "Placenta", fieldKey: "placenta", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Liquor", fieldKey: "liquor", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 6 },
+    { label: "Biometry", fieldKey: "biometry", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 7 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 8 },
+  ],
+  "BREAST SCAN": [
+    { label: "Right Breast", fieldKey: "right_breast", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Left Breast", fieldKey: "left_breast", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Axillae", fieldKey: "axillae", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+  ],
+  "OCCULAR SCAN": [
+    { label: "Right Eye", fieldKey: "right_eye", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Left Eye", fieldKey: "left_eye", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+  ],
+  "TRANSRECTAL/PROSTATE SCAN": [
+    { label: "Prostate", fieldKey: "prostate", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Seminal Vesicles", fieldKey: "seminal_vesicles", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Bladder", fieldKey: "bladder", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+  ],
+  "FOLLICULOMETRY": [
+    { label: "Day of Cycle", fieldKey: "day_of_cycle", fieldType: FieldType.TEXT, sortOrder: 1 },
+    { label: "Right Ovary", fieldKey: "right_ovary", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Left Ovary", fieldKey: "left_ovary", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+    { label: "Endometrium", fieldKey: "endometrium", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+  ],
+  "SONO-HSG": [
+    { label: "Uterus", fieldKey: "uterus", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Right Tube", fieldKey: "right_tube", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Left Tube", fieldKey: "left_tube", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+    { label: "Spillage", fieldKey: "spillage", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+  ],
+  "ECHOCARDIOGRAM": [
+    { label: "Cardiac Chambers", fieldKey: "chambers", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Valves", fieldKey: "valves", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Ejection Fraction", fieldKey: "ejection_fraction", fieldType: FieldType.NUMBER, unit: "%", normalMin: 50, normalMax: 70, isRequired: false, sortOrder: 3 },
+    { label: "Pericardium", fieldKey: "pericardium", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+  ],
+  "DOPPLER STUDY": [
+    { label: "Vessel / Region", fieldKey: "vessel_region", fieldType: FieldType.TEXT, sortOrder: 1 },
+    { label: "Spectral / Flow Findings", fieldKey: "flow_findings", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+  ],
+  "MAMMOGRAPHY": [
+    { label: "Breast Density", fieldKey: "breast_density", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 1 },
+    { label: "Right Breast", fieldKey: "right_breast", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Left Breast", fieldKey: "left_breast", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+    { label: "BI-RADS", fieldKey: "birads", fieldType: FieldType.DROPDOWN, options: "0,1,2,3,4,5,6", isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+  ],
+  "REST ECG": [
+    { label: "Rhythm", fieldKey: "rhythm", fieldType: FieldType.TEXT, sortOrder: 1 },
+    { label: "Rate", fieldKey: "rate", fieldType: FieldType.NUMBER, unit: "bpm", normalMin: 60, normalMax: 100, sortOrder: 2 },
+    { label: "Axis", fieldKey: "axis", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 3 },
+    { label: "Intervals", fieldKey: "intervals", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "ST-T Changes", fieldKey: "st_t_changes", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
+  ],
+  "STRESS ECG": [
+    { label: "Protocol", fieldKey: "protocol", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 1 },
+    { label: "Rhythm", fieldKey: "rhythm", fieldType: FieldType.TEXT, sortOrder: 2 },
+    { label: "Max Heart Rate", fieldKey: "max_heart_rate", fieldType: FieldType.NUMBER, unit: "bpm", isRequired: false, sortOrder: 3 },
+    { label: "ST Changes", fieldKey: "st_changes", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Symptoms", fieldKey: "symptoms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
+  ],
+  "AMBULATORY ECG (HOLTER)": [
+    { label: "Duration", fieldKey: "duration", fieldType: FieldType.TEXT, sortOrder: 1 },
+    { label: "Underlying Rhythm", fieldKey: "underlying_rhythm", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Arrhythmias", fieldKey: "arrhythmias", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Heart Rate Summary", fieldKey: "heart_rate_summary", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+  ],
+  "UPPER GI ENDOSCOPY": [
+    { label: "Esophagus", fieldKey: "esophagus", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Stomach", fieldKey: "stomach", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Duodenum", fieldKey: "duodenum", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+  ],
+  "SIGMOIDOSCOPY/COLONOSCOPY": [
+    { label: "Preparation", fieldKey: "preparation", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 1 },
+    { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Biopsy Taken", fieldKey: "biopsy_taken", fieldType: FieldType.DROPDOWN, options: "Yes,No", isRequired: false, sortOrder: 3 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+  ],
+  "PROCTOSCOPY": [
+    { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+  ],
+};
+
   function inferMainUnit(testName: string) {
+    const mapped = LAB_FIELD_LIBRARY[testName];
+    if (mapped && mapped[0]?.unit) return mapped[0].unit ?? "";
     const n = testName.toLowerCase();
-    if (n.includes("glucose")) return "mmol/L";
-    if (n.includes("cholesterol") || n.includes("triglyceride") || n.includes("ldl") || n.includes("hdl") || n.includes("vldl")) return "mg/dL";
-    if (n.includes("bilirubin")) return "µmol/L";
-    if (n.includes("protein") || n.includes("albumin")) return "g/L";
-    if (n.includes("calcium")) return "mmol/L";
-    if (n.includes("urea")) return "mmol/L";
-    if (n.includes("creatinine")) return "µmol/L";
-    if (n.includes("uric acid")) return "mmol/L";
-    if (n.includes("hba1c")) return "%";
-    if (n.includes("ast") || n.includes("alt") || n.includes("alp") || n.includes("ggt") || n.includes("amylase") || n.includes("ck") || n.includes("troponin")) return "U/L";
-    if (n.includes("ph")) return "pH";
-    if (n.includes("oxygen") || n.includes("carbon dioxide")) return "mmHg";
-    if (n.includes("lactate")) return "mmol/L";
-    if (n.includes("psa") || n.includes("cea") || n.includes("afp") || n.includes("ca-125") || n.includes("ferritin")) return "ng/mL";
-    if (n.includes("vitamin d")) return "ng/mL";
-    if (n.includes("vitamin b12")) return "pg/mL";
-    if (n.includes("hormone") || n.includes("tsh") || n.includes("t3") || n.includes("t4") || n.includes("fsh") || n.includes("lh") || n.includes("acth") || n.includes("hcg") || n.includes("prolactin") || n.includes("progesterone") || n.includes("oestrogen") || n.includes("testosterone") || n.includes("cortisol") || n.includes("pth")) return "mIU/mL";
+    if (n.includes("viral load")) return "IU/mL";
+    if (n.includes("dna") || n.includes("rna")) return "copies/mL";
+    if (n.includes("culture") || n.includes("screening") || n.includes("analysis")) return "";
     return "";
   }
 
   function buildLabMainFields(testName: string) {
+    const mapped = LAB_FIELD_LIBRARY[testName];
+    if (mapped) return mapped;
+
+    if (testName.includes("M/C/S") || testName.includes("CULTURE")) {
+      return [
+        { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+        { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+        { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
+        { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+        { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+      ];
+    }
+
     const n = testName.toLowerCase();
-    if (n.includes("lipid profile")) {
-      return [
-        { label: "Cholesterol (Total)", fieldKey: "cholesterol_total", fieldType: FieldType.NUMBER, unit: "mg/dL", sortOrder: 1 },
-        { label: "Triglyceride", fieldKey: "triglyceride", fieldType: FieldType.NUMBER, unit: "mg/dL", sortOrder: 2 },
-        { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", sortOrder: 3 },
-        { label: "LDL-C", fieldKey: "ldl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", sortOrder: 4 },
-        { label: "VLDL-C", fieldKey: "vldl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", sortOrder: 5 },
-        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
-      ];
-    }
-
-    if (n.includes("electrolytes")) {
-      return [
-        { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", sortOrder: 1 },
-        { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", sortOrder: 2 },
-        { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", sortOrder: 3 },
-        { label: "Bicarbonate", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", sortOrder: 4 },
-        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
-      ];
-    }
-
-    if (n.includes("blood gases")) {
-      return [
-        { label: "Blood pH", fieldKey: "blood_ph", fieldType: FieldType.NUMBER, unit: "pH", sortOrder: 1 },
-        { label: "Oxygen (O2)", fieldKey: "oxygen_o2", fieldType: FieldType.NUMBER, unit: "mmHg", sortOrder: 2 },
-        { label: "Carbon Dioxide (CO2)", fieldKey: "carbon_dioxide_co2", fieldType: FieldType.NUMBER, unit: "mmHg", sortOrder: 3 },
-        { label: "Lactate", fieldKey: "lactate", fieldType: FieldType.NUMBER, unit: "mmol/L", sortOrder: 4 },
-        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
-      ];
-    }
-
-    if (n.includes("hbv 5 panel")) {
-      return [
-        { label: "HBsAg", fieldKey: "hbsag", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
-        { label: "HBsAb", fieldKey: "hbsab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 2 },
-        { label: "HBeAg", fieldKey: "hbeag", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 3 },
-        { label: "HBeAb", fieldKey: "hbeab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 4 },
-        { label: "HBcAb", fieldKey: "hbcab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 5 },
-        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
-      ];
-    }
-
-    if (
-      n.includes("screening") ||
-      n.includes("qualitative") ||
-      n.includes("confirmatory") ||
-      n.includes("culture") ||
-      n.includes("m/c/s") ||
-      n.includes("swab") ||
-      n.includes("analysis") ||
-      n.includes("test")
-    ) {
+    if (n.includes("screening") || n.includes("qualitative") || n.includes("confirmatory")) {
       return [
         { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
         { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
@@ -829,31 +1500,42 @@ async function main() {
       .slice(0, 48);
 
     return [
-      { label: testName, fieldKey: key || "result_value", fieldType: FieldType.NUMBER, unit: inferMainUnit(testName), sortOrder: 1 },
+      { label: testName, fieldKey: key || "result_value", fieldType: FieldType.TEXT, sortOrder: 1 },
       { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
     ];
   }
 
   function buildRadiologyMainFields(testName: string) {
-    const n = testName.toLowerCase();
-    if (n.includes("ecg")) {
-      return [
-        { label: "Rhythm", fieldKey: "rhythm", fieldType: FieldType.TEXT, sortOrder: 1 },
-        { label: "Rate", fieldKey: "rate", fieldType: FieldType.NUMBER, unit: "bpm", sortOrder: 2 },
-        { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
-        { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
-      ];
-    }
-    return [
-      { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
-      { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
-      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
-      { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
-    ];
+    void RADIOLOGY_FIELD_LIBRARY[testName];
+    return makeRadiologyWorkflowFields();
   }
 
-  const dedupedLab = Array.from(new Set(rawLabTests.map(normalizeName).filter(Boolean)));
-  const dedupedRadiology = Array.from(new Set(rawRadiologyTests.map(normalizeName).filter(Boolean)));
+
+  const existingLabNames = new Set(
+    (
+      await prisma.diagnosticTest.findMany({
+        where: { organizationId: orgId, type: TestType.LAB },
+        select: { name: true },
+      })
+    ).map((test) => normalizeName(test.name).toUpperCase())
+  );
+
+  const existingRadiologyNames = new Set(
+    (
+      await prisma.diagnosticTest.findMany({
+        where: { organizationId: orgId, type: TestType.RADIOLOGY },
+        select: { name: true },
+      })
+    ).map((test) => normalizeName(test.name).toUpperCase())
+  );
+
+  const dedupedLab = Array.from(
+    new Set(rawLabTests.map(normalizeName).filter(Boolean))
+  ).filter((name) => !existingLabNames.has(name.toUpperCase()));
+
+  const dedupedRadiology = Array.from(
+    new Set(rawRadiologyTests.map(normalizeName).filter(Boolean))
+  ).filter((name) => !existingRadiologyNames.has(name.toUpperCase()));
 
   for (let i = 0; i < dedupedLab.length; i += 1) {
     const testName = dedupedLab[i];
