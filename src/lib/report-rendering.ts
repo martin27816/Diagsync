@@ -83,9 +83,6 @@ export function renderReportHtml(args: RenderArgs) {
           )
           .join("");
 
-  const letterheadBackground = hasLetterhead
-    ? `background-image:url('${args.organization.letterheadUrl}');background-size:100% 100%;background-position:left top;background-repeat:no-repeat;`
-    : "background:#ffffff;";
   const effectiveWatermarkUrl = args.watermarkUrl || null;
 
   return `
@@ -96,7 +93,13 @@ export function renderReportHtml(args: RenderArgs) {
   <title>${escapeHtml(args.organization.name)} - ${args.department === Department.LABORATORY ? "Lab Report" : "Radiology Report"}</title>
   <style>
     @page { size: A4; margin: 0; }
-    body { font-family: Arial, sans-serif; margin: 0; color: #111827; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      color: #111827;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
     .page {
       position: relative;
       width: 794px;
@@ -105,7 +108,20 @@ export function renderReportHtml(args: RenderArgs) {
       margin: 0 auto;
       box-sizing: border-box;
       padding: ${hasLetterhead ? "340px 44px 90px" : "120px 44px 90px"};
-      ${letterheadBackground}
+      background: #ffffff;
+    }
+    .letterhead-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .letterhead-layer img {
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      display: block;
     }
     .watermark {
       position: fixed;
@@ -205,6 +221,11 @@ export function renderReportHtml(args: RenderArgs) {
       : ""
   }
   <main class="page">
+    ${
+      hasLetterhead && args.organization.letterheadUrl
+        ? `<div class="letterhead-layer"><img src="${escapeHtml(args.organization.letterheadUrl)}" alt="letterhead" crossorigin="anonymous" /></div>`
+        : ""
+    }
     <div class="content-shell">
     ${
       effectiveWatermarkUrl
