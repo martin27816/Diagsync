@@ -1,179 +1,292 @@
 "use client";
 
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useRouter } from "next/navigation";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
-import { ROLE_LABELS, DEPARTMENT_LABELS } from "@/lib/utils";
-import { Role, Department, Shift } from "@prisma/client";
+import { useEffect, useMemo, useState } from "react";
 
-const schema = z.object({
-  fullName: z.string().min(2, "Full name is required"),
-  email: z.string().email("Enter a valid email"),
-  phone: z.string().min(7, "Phone number required"),
-  role: z.nativeEnum(Role),
-  department: z.nativeEnum(Department),
-  gender: z.string().optional(),
-  defaultShift: z.nativeEnum(Shift),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string(),
-}).refine((d) => d.password === d.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
-
-type FormData = z.infer<typeof schema>;
-
-const ROLES_FOR_FORM = Object.entries(ROLE_LABELS).filter(([key]) => key !== "SUPER_ADMIN");
+type OrgSettings = {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  contactInfo: string;
+  logo: string;
+  letterheadUrl: string;
+};
 
 const inputCls = "h-8 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
 const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
-const errCls = "text-[11px] text-red-500 mt-0.5";
+const areaCls = "w-full rounded border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
-export function AddStaffForm() {
-  const router = useRouter();
-  const [serverError, setServerError] = useState("");
-  const [success, setSuccess] = useState(false);
+const emptySettings: OrgSettings = {
+  name: "",
+  email: "",
+  phone: "",
+  address: "",
+  contactInfo: "",
+  logo: "",
+  letterheadUrl: "",
+};
 
-  const { register, handleSubmit, setValue, reset, formState: { errors, isSubmitting } } =
-    useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { defaultShift: Shift.MORNING } });
+export function LabSettingsForm() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingLetterhead, setUploadingLetterhead] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [settings, setSettings] = useState<OrgSettings>(emptySettings);
+  const [initialSettings, setInitialSettings] = useState<OrgSettings>(emptySettings);
 
-  async function onSubmit(data: FormData) {
-    setServerError("");
+  const hasChanges = useMemo(
+    () => JSON.stringify(settings) !== JSON.stringify(initialSettings),
+    [initialSettings, settings]
+  );
+
+  useEffect(() => {
+    void loadSettings();
+  }, []);
+
+  async function loadSettings() {
+    setLoading(true);
+    setError("");
     try {
-      const res = await fetch("/api/staff", {
-        method: "POST",
+      const res = await fetch("/api/organization/settings");
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error ?? "Failed to load settings");
+        return;
+      }
+      const next: OrgSettings = {
+        name: json.data?.name ?? "",
+        email: json.data?.email ?? "",
+        phone: json.data?.phone ?? "",
+        address: json.data?.address ?? "",
+        contactInfo: json.data?.contactInfo ?? "",
+        logo: json.data?.logo ?? "",
+        letterheadUrl: json.data?.letterheadUrl ?? "",
+      };
+      setSettings(next);
+      setInitialSettings(next);
+    } catch {
+      setError("Network error while loading settings");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function uploadBranding(file: File, folder: string, kind: "logo" | "letterhead") {
+    if (kind === "logo") setUploadingLogo(true);
+    else setUploadingLetterhead(true);
+    setError("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("folder", folder);
+      const res = await fetch("/api/uploads/branding", { method: "POST", body: form });
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error ?? "Branding upload failed");
+        return;
+      }
+      const url = json.data?.fileUrl as string;
+      if (!url) return;
+      setSettings((prev) => ({
+        ...prev,
+        [kind === "logo" ? "logo" : "letterheadUrl"]: url,
+      }));
+    } catch {
+      setError("Branding upload failed");
+    } finally {
+      if (kind === "logo") setUploadingLogo(false);
+      else setUploadingLetterhead(false);
+    }
+  }
+
+  async function onSave() {
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const payload = {
+        name: settings.name.trim(),
+        email: settings.email.trim(),
+        phone: settings.phone.trim(),
+        address: settings.address.trim(),
+        contactInfo: settings.contactInfo.trim() || null,
+        logo: settings.logo.trim() || null,
+        letterheadUrl: settings.letterheadUrl.trim() || null,
+      };
+      const res = await fetch("/api/organization/settings", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
-      if (!json.success) { setServerError(json.error ?? "Something went wrong"); return; }
-      setSuccess(true);
-      reset();
-      setTimeout(() => router.push("/dashboard/hrm/staff"), 1500);
+      if (!json.success) {
+        setError(json.error ?? "Unable to save settings");
+        return;
+      }
+      const next = {
+        name: json.data?.name ?? payload.name,
+        email: json.data?.email ?? payload.email,
+        phone: json.data?.phone ?? payload.phone,
+        address: json.data?.address ?? payload.address,
+        contactInfo: json.data?.contactInfo ?? payload.contactInfo ?? "",
+        logo: json.data?.logo ?? payload.logo ?? "",
+        letterheadUrl: json.data?.letterheadUrl ?? payload.letterheadUrl ?? "",
+      };
+      setSettings(next);
+      setInitialSettings(next);
+      setMessage("Settings updated successfully.");
     } catch {
-      setServerError("Network error. Please try again.");
+      setError("Network error while saving settings");
+    } finally {
+      setSaving(false);
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <p className="text-xs text-slate-400">Loading settings...</p>
+      </div>
+    );
   }
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
       <div className="border-b border-slate-100 px-4 py-3">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">New Staff Member</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lab Branding & Report Setup</span>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="p-4 space-y-4">
-        {serverError && (
-          <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{serverError}</div>
-        )}
-        {success && (
-          <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
-            Staff member created! Redirecting...
-          </div>
-        )}
+      <div className="p-4 space-y-4">
+        {error ? <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div> : null}
+        {message ? <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">{message}</div> : null}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>Full Name *</label>
-            <input placeholder="e.g. Jane Okafor" {...register("fullName")} className={inputCls} />
-            {errors.fullName && <p className={errCls}>{errors.fullName.message}</p>}
+            <label className={labelCls}>Organization Name *</label>
+            <input
+              value={settings.name}
+              onChange={(e) => setSettings((prev) => ({ ...prev, name: e.target.value }))}
+              className={inputCls}
+              placeholder="e.g. Reene Medical Diagnostics"
+            />
           </div>
 
           <div>
-            <label className={labelCls}>Email Address *</label>
-            <input type="email" placeholder="jane@lab.com" {...register("email")} className={inputCls} />
-            {errors.email && <p className={errCls}>{errors.email.message}</p>}
+            <label className={labelCls}>Email *</label>
+            <input
+              type="email"
+              value={settings.email}
+              onChange={(e) => setSettings((prev) => ({ ...prev, email: e.target.value }))}
+              className={inputCls}
+              placeholder="info@lab.com"
+            />
           </div>
 
           <div>
-            <label className={labelCls}>Phone Number *</label>
-            <input placeholder="+234..." {...register("phone")} className={inputCls} />
-            {errors.phone && <p className={errCls}>{errors.phone.message}</p>}
+            <label className={labelCls}>Phone *</label>
+            <input
+              value={settings.phone}
+              onChange={(e) => setSettings((prev) => ({ ...prev, phone: e.target.value }))}
+              className={inputCls}
+              placeholder="+234..."
+            />
           </div>
 
           <div>
-            <label className={labelCls}>Gender</label>
-            <Select onValueChange={(v) => setValue("gender", v)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select gender" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Male">Male</SelectItem>
-                <SelectItem value="Female">Female</SelectItem>
-                <SelectItem value="Other">Other</SelectItem>
-              </SelectContent>
-            </Select>
+            <label className={labelCls}>Address *</label>
+            <input
+              value={settings.address}
+              onChange={(e) => setSettings((prev) => ({ ...prev, address: e.target.value }))}
+              className={inputCls}
+              placeholder="Full lab address"
+            />
           </div>
 
-          <div>
-            <label className={labelCls}>Role *</label>
-            <Select onValueChange={(v) => setValue("role", v as Role)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select role" /></SelectTrigger>
-              <SelectContent>
-                {ROLES_FOR_FORM.map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.role && <p className={errCls}>{errors.role.message}</p>}
-          </div>
-
-          <div>
-            <label className={labelCls}>Department *</label>
-            <Select onValueChange={(v) => setValue("department", v as Department)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select department" /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(DEPARTMENT_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.department && <p className={errCls}>{errors.department.message}</p>}
-          </div>
-
-          <div>
-            <label className={labelCls}>Default Shift *</label>
-            <Select defaultValue={Shift.MORNING} onValueChange={(v) => setValue("defaultShift", v as Shift)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="MORNING">Morning</SelectItem>
-                <SelectItem value="AFTERNOON">Afternoon</SelectItem>
-                <SelectItem value="NIGHT">Night</SelectItem>
-                <SelectItem value="FULL_DAY">Full Day</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <label className={labelCls}>Password *</label>
-            <input type="password" placeholder="Min 8 characters" {...register("password")} className={inputCls} />
-            {errors.password && <p className={errCls}>{errors.password.message}</p>}
-          </div>
-
-          <div>
-            <label className={labelCls}>Confirm Password *</label>
-            <input type="password" placeholder="Repeat password" {...register("confirmPassword")} className={inputCls} />
-            {errors.confirmPassword && <p className={errCls}>{errors.confirmPassword.message}</p>}
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Contact Info (optional)</label>
+            <textarea
+              rows={2}
+              value={settings.contactInfo}
+              onChange={(e) => setSettings((prev) => ({ ...prev, contactInfo: e.target.value }))}
+              className={areaCls}
+              placeholder="Website, alternate phone, business hours, etc."
+            />
           </div>
         </div>
 
-        <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="rounded border border-slate-100 p-3 space-y-2">
+            <label className={labelCls}>Logo</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                await uploadBranding(file, "diagsync/branding/logo", "logo");
+                e.target.value = "";
+              }}
+              className="text-xs"
+            />
+            {uploadingLogo ? <p className="text-[11px] text-slate-400">Uploading logo...</p> : null}
+            {settings.logo ? (
+              <div className="space-y-1">
+                <img src={settings.logo} alt="Lab logo" className="h-16 w-auto rounded border border-slate-200 bg-white p-1" />
+                <p className="text-[11px] text-slate-400 break-all">{settings.logo}</p>
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-400">No logo uploaded.</p>
+            )}
+          </div>
+
+          <div className="rounded border border-slate-100 p-3 space-y-2">
+            <label className={labelCls}>Letterhead Template</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                await uploadBranding(file, "diagsync/branding/letterhead", "letterhead");
+                e.target.value = "";
+              }}
+              className="text-xs"
+            />
+            {uploadingLetterhead ? <p className="text-[11px] text-slate-400">Uploading letterhead...</p> : null}
+            {settings.letterheadUrl ? (
+              <div className="space-y-1">
+                <img src={settings.letterheadUrl} alt="Lab letterhead" className="h-16 w-full rounded border border-slate-200 bg-white object-contain p-1" />
+                <p className="text-[11px] text-slate-400 break-all">{settings.letterheadUrl}</p>
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-400">No letterhead uploaded.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 border-t border-slate-100 pt-3">
           <button
-            type="submit"
-            disabled={isSubmitting}
+            onClick={() => void onSave()}
+            disabled={saving || uploadingLogo || uploadingLetterhead || !hasChanges}
             className="rounded bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {isSubmitting ? "Creating..." : "Create Staff Member"}
+            {saving ? "Saving..." : "Save Settings"}
           </button>
           <button
-            type="button"
-            onClick={() => router.push("/dashboard/hrm/staff")}
-            className="rounded border border-slate-200 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+            onClick={() => {
+              setSettings(initialSettings);
+              setError("");
+              setMessage("");
+            }}
+            disabled={saving || !hasChanges}
+            className="rounded border border-slate-200 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
           >
-            Cancel
+            Reset
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
-} 
+}
