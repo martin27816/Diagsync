@@ -26,6 +26,18 @@ const emptySettings: OrgSettings = {
   letterheadUrl: "",
 };
 
+function getFriendlyFileName(url: string) {
+  if (!url) return "";
+  try {
+    const pathname = new URL(url).pathname;
+    const value = pathname.split("/").pop() ?? "";
+    return decodeURIComponent(value);
+  } catch {
+    const value = url.split("/").pop() ?? "";
+    return decodeURIComponent(value);
+  }
+}
+
 export function LabSettingsForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -234,7 +246,7 @@ export function LabSettingsForm() {
             {settings.logo ? (
               <div className="space-y-1">
                 <img src={settings.logo} alt="Lab logo" className="h-16 w-auto rounded border border-slate-200 bg-white p-1" />
-                <p className="text-[11px] text-slate-400 break-all">{settings.logo}</p>
+                <p className="text-[11px] text-slate-500">Uploaded: {getFriendlyFileName(settings.logo)}</p>
               </div>
             ) : (
               <p className="text-[11px] text-slate-400">No logo uploaded.</p>
@@ -258,7 +270,7 @@ export function LabSettingsForm() {
             {settings.letterheadUrl ? (
               <div className="space-y-1">
                 <img src={settings.letterheadUrl} alt="Lab letterhead" className="h-16 w-full rounded border border-slate-200 bg-white object-contain p-1" />
-                <p className="text-[11px] text-slate-400 break-all">{settings.letterheadUrl}</p>
+                <p className="text-[11px] text-slate-500">Uploaded: {getFriendlyFileName(settings.letterheadUrl)}</p>
               </div>
             ) : (
               <p className="text-[11px] text-slate-400">No letterhead uploaded.</p>

@@ -32,6 +32,18 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+function getFriendlyFileName(url: string) {
+  if (!url) return "";
+  try {
+    const pathname = new URL(url).pathname;
+    const value = pathname.split("/").pop() ?? "";
+    return decodeURIComponent(value);
+  } catch {
+    const value = url.split("/").pop() ?? "";
+    return decodeURIComponent(value);
+  }
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState("");
@@ -171,7 +183,7 @@ export default function RegisterPage() {
                   />
                   {uploadingLogo ? <span className="text-xs text-muted-foreground">Uploading...</span> : null}
                 </div>
-                {watch("orgLogo") ? <p className="text-xs text-muted-foreground break-all">{watch("orgLogo")}</p> : null}
+                {watch("orgLogo") ? <p className="text-xs text-muted-foreground">Uploaded: {getFriendlyFileName(watch("orgLogo") ?? "")}</p> : null}
               </div>
               <div className="sm:col-span-2 space-y-2">
                 <Label>Letterhead Template (optional)</Label>
@@ -188,7 +200,7 @@ export default function RegisterPage() {
                   />
                   {uploadingLetterhead ? <span className="text-xs text-muted-foreground">Uploading...</span> : null}
                 </div>
-                {watch("orgLetterheadUrl") ? <p className="text-xs text-muted-foreground break-all">{watch("orgLetterheadUrl")}</p> : null}
+                {watch("orgLetterheadUrl") ? <p className="text-xs text-muted-foreground">Uploaded: {getFriendlyFileName(watch("orgLetterheadUrl") ?? "")}</p> : null}
               </div>
             </div>
           </div>
