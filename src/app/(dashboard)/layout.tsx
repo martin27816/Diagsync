@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/layout/sidebar";
 import { HeaderBar } from "@/components/layout/header-bar";
 import { OfflineStatusBar } from "@/components/shared/offline-status-bar";
+import { AppWarmup } from "@/components/shared/app-warmup";
 import { Role } from "@prisma/client";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -36,6 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         }}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
+        <AppWarmup />
         <HeaderBar
           staffId={staff.id}
           staffName={staff.fullName}
