@@ -93,6 +93,10 @@ export function renderReportHtml(args: RenderArgs) {
   <title>${escapeHtml(args.organization.name)} - ${args.department === Department.LABORATORY ? "Lab Report" : "Radiology Report"}</title>
   <style>
     @page { size: A4; margin: 0; }
+    html, body {
+      width: 210mm;
+      min-height: 297mm;
+    }
     body {
       font-family: Arial, sans-serif;
       margin: 0;
@@ -102,9 +106,9 @@ export function renderReportHtml(args: RenderArgs) {
     }
     .page {
       position: relative;
-      width: 794px;
-      max-width: 794px;
-      min-height: 1123px;
+      width: 210mm;
+      max-width: 210mm;
+      min-height: 297mm;
       margin: 0 auto;
       box-sizing: border-box;
       padding: ${hasLetterhead ? "340px 44px 90px" : "120px 44px 90px"};
@@ -118,8 +122,8 @@ export function renderReportHtml(args: RenderArgs) {
       overflow: hidden;
     }
     .letterhead-layer img {
-      width: 100%;
-      height: 100%;
+      width: 210mm;
+      height: 297mm;
       object-fit: fill;
       display: block;
     }
