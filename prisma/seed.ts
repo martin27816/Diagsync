@@ -739,6 +739,119 @@ async function main() {
     return "cat-chemistry";
   }
 
+  function inferMainUnit(testName: string) {
+    const n = testName.toLowerCase();
+    if (n.includes("glucose")) return "mmol/L";
+    if (n.includes("cholesterol") || n.includes("triglyceride") || n.includes("ldl") || n.includes("hdl") || n.includes("vldl")) return "mg/dL";
+    if (n.includes("bilirubin")) return "µmol/L";
+    if (n.includes("protein") || n.includes("albumin")) return "g/L";
+    if (n.includes("calcium")) return "mmol/L";
+    if (n.includes("urea")) return "mmol/L";
+    if (n.includes("creatinine")) return "µmol/L";
+    if (n.includes("uric acid")) return "mmol/L";
+    if (n.includes("hba1c")) return "%";
+    if (n.includes("ast") || n.includes("alt") || n.includes("alp") || n.includes("ggt") || n.includes("amylase") || n.includes("ck") || n.includes("troponin")) return "U/L";
+    if (n.includes("ph")) return "pH";
+    if (n.includes("oxygen") || n.includes("carbon dioxide")) return "mmHg";
+    if (n.includes("lactate")) return "mmol/L";
+    if (n.includes("psa") || n.includes("cea") || n.includes("afp") || n.includes("ca-125") || n.includes("ferritin")) return "ng/mL";
+    if (n.includes("vitamin d")) return "ng/mL";
+    if (n.includes("vitamin b12")) return "pg/mL";
+    if (n.includes("hormone") || n.includes("tsh") || n.includes("t3") || n.includes("t4") || n.includes("fsh") || n.includes("lh") || n.includes("acth") || n.includes("hcg") || n.includes("prolactin") || n.includes("progesterone") || n.includes("oestrogen") || n.includes("testosterone") || n.includes("cortisol") || n.includes("pth")) return "mIU/mL";
+    return "";
+  }
+
+  function buildLabMainFields(testName: string) {
+    const n = testName.toLowerCase();
+    if (n.includes("lipid profile")) {
+      return [
+        { label: "Cholesterol (Total)", fieldKey: "cholesterol_total", fieldType: FieldType.NUMBER, unit: "mg/dL", sortOrder: 1 },
+        { label: "Triglyceride", fieldKey: "triglyceride", fieldType: FieldType.NUMBER, unit: "mg/dL", sortOrder: 2 },
+        { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", sortOrder: 3 },
+        { label: "LDL-C", fieldKey: "ldl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", sortOrder: 4 },
+        { label: "VLDL-C", fieldKey: "vldl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", sortOrder: 5 },
+        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+      ];
+    }
+
+    if (n.includes("electrolytes")) {
+      return [
+        { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", sortOrder: 1 },
+        { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", sortOrder: 2 },
+        { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", sortOrder: 3 },
+        { label: "Bicarbonate", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", sortOrder: 4 },
+        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+      ];
+    }
+
+    if (n.includes("blood gases")) {
+      return [
+        { label: "Blood pH", fieldKey: "blood_ph", fieldType: FieldType.NUMBER, unit: "pH", sortOrder: 1 },
+        { label: "Oxygen (O2)", fieldKey: "oxygen_o2", fieldType: FieldType.NUMBER, unit: "mmHg", sortOrder: 2 },
+        { label: "Carbon Dioxide (CO2)", fieldKey: "carbon_dioxide_co2", fieldType: FieldType.NUMBER, unit: "mmHg", sortOrder: 3 },
+        { label: "Lactate", fieldKey: "lactate", fieldType: FieldType.NUMBER, unit: "mmol/L", sortOrder: 4 },
+        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+      ];
+    }
+
+    if (n.includes("hbv 5 panel")) {
+      return [
+        { label: "HBsAg", fieldKey: "hbsag", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+        { label: "HBsAb", fieldKey: "hbsab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 2 },
+        { label: "HBeAg", fieldKey: "hbeag", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 3 },
+        { label: "HBeAb", fieldKey: "hbeab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 4 },
+        { label: "HBcAb", fieldKey: "hbcab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 5 },
+        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+      ];
+    }
+
+    if (
+      n.includes("screening") ||
+      n.includes("qualitative") ||
+      n.includes("confirmatory") ||
+      n.includes("culture") ||
+      n.includes("m/c/s") ||
+      n.includes("swab") ||
+      n.includes("analysis") ||
+      n.includes("test")
+    ) {
+      return [
+        { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
+        { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+      ];
+    }
+
+    const key = testName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 48);
+
+    return [
+      { label: testName, fieldKey: key || "result_value", fieldType: FieldType.NUMBER, unit: inferMainUnit(testName), sortOrder: 1 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    ];
+  }
+
+  function buildRadiologyMainFields(testName: string) {
+    const n = testName.toLowerCase();
+    if (n.includes("ecg")) {
+      return [
+        { label: "Rhythm", fieldKey: "rhythm", fieldType: FieldType.TEXT, sortOrder: 1 },
+        { label: "Rate", fieldKey: "rate", fieldType: FieldType.NUMBER, unit: "bpm", sortOrder: 2 },
+        { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+        { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+      ];
+    }
+    return [
+      { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
+      { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+      { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    ];
+  }
+
   const dedupedLab = Array.from(new Set(rawLabTests.map(normalizeName).filter(Boolean)));
   const dedupedRadiology = Array.from(new Set(rawRadiologyTests.map(normalizeName).filter(Boolean)));
 
@@ -755,11 +868,7 @@ async function main() {
       turnaroundMinutes: 180,
       sampleType: "Lab Sample",
       description: "Added from expanded catalog list",
-      fields: [
-        { label: "Result", fieldKey: "result", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
-        { label: "Reference Range", fieldKey: "reference_range", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
-        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
-      ],
+      fields: buildLabMainFields(testName),
     });
   }
 
@@ -775,11 +884,7 @@ async function main() {
       price: 12000,
       turnaroundMinutes: 120,
       description: "Added from expanded catalog list",
-      fields: [
-        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
-        { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
-        { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
-      ],
+      fields: buildRadiologyMainFields(testName),
     });
   }
 

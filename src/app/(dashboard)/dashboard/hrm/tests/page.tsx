@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
+import { TestCatalogForm } from "@/components/hrm/test-catalog-form";
 
 function turnaround(mins: number) {
   if (mins >= 60) {
@@ -26,6 +27,10 @@ export default async function TestCatalogPage() {
     },
     orderBy: [{ type: "asc" }, { name: "asc" }],
   });
+  const categories = await prisma.testCategory.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   const labTests = tests.filter((t) => t.type === "LAB");
   const radioTests = tests.filter((t) => t.type === "RADIOLOGY");
@@ -38,6 +43,8 @@ export default async function TestCatalogPage() {
         <h1 className="text-base font-semibold text-slate-800">Test Catalog</h1>
         <p className="text-xs text-slate-400 mt-0.5">{tests.length} active tests in your organisation</p>
       </div>
+
+      <TestCatalogForm categories={categories} />
 
       {/* Stat strip */}
       <div className="grid grid-cols-4 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden">
