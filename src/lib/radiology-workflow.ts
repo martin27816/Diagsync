@@ -44,9 +44,18 @@ async function assertOwnership(taskId: string, actor: RadiologyActor) {
       department: Department.RADIOLOGY,
     },
     include: {
-      visit: { include: { patient: true } },
-      radiologyReport: true,
-      imagingFiles: true,
+      visit: { include: { patient: { select: { fullName: true } } } },
+      radiologyReport: {
+        select: {
+          id: true,
+          findings: true,
+          impression: true,
+          notes: true,
+          isSubmitted: true,
+          submittedAt: true,
+        },
+      },
+      imagingFiles: { select: { id: true } },
     },
   });
 
@@ -76,13 +85,25 @@ export async function getRadiologyTasks(
       ...(opts?.status && opts.status !== "ALL" ? { status: opts.status } : {}),
     },
     include: {
-      visit: {
-        include: {
-          patient: true,
+      visit: { include: { patient: true } },
+      imagingFiles: {
+        select: {
+          id: true,
+          fileUrl: true,
+          fileType: true,
+          fileName: true,
+          fileSizeBytes: true,
+          createdAt: true,
         },
       },
-      imagingFiles: true,
-      radiologyReport: true,
+      radiologyReport: {
+        select: {
+          findings: true,
+          impression: true,
+          notes: true,
+          isSubmitted: true,
+        },
+      },
     },
     orderBy: { createdAt: opts?.sort === "oldest" ? "asc" : "desc" },
   });

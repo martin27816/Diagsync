@@ -413,6 +413,8 @@ model RoutingTask {
   review Review?
 
   @@index([organizationId, department, status, priority])
+  @@index([organizationId, department, staffId, status, createdAt])
+  @@index([organizationId, department, staffId, createdAt])
   @@index([visitId, department])
   @@map("routing_tasks")
 }
@@ -581,6 +583,7 @@ model DiagnosticReport {
   @@unique([visitId, department])
   @@index([organizationId, department, status, updatedAt])
   @@index([organizationId, reportType, status, updatedAt])
+  @@index([organizationId, isReleased, updatedAt])
   @@index([sourceTaskId])
   @@map("diagnostic_reports")
 }

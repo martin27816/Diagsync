@@ -55,7 +55,6 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
     where: { id: taskId, organizationId },
     include: {
       visit: { include: { patient: true } },
-      staff: { select: { fullName: true } },
       results: {
         include: {
           testOrder: {
@@ -239,10 +238,7 @@ export async function listReports(
       ...(opts?.status && opts.status !== "ALL" ? { status: opts.status } : {}),
       ...(opts?.reportType && opts.reportType !== "ALL" ? { reportType: opts.reportType } : {}),
     },
-    include: {
-      visit: { include: { patient: true } },
-      releasedBy: { select: { fullName: true } },
-    },
+    include: { visit: { include: { patient: true } } },
     orderBy: { updatedAt: "desc" },
   });
   return reports;
@@ -259,7 +255,6 @@ export async function getReportDetails(actor: ReportActor, reportId: string) {
         include: { editedBy: { select: { id: true, fullName: true } } },
         orderBy: { version: "desc" },
       },
-      releasedBy: { select: { id: true, fullName: true } },
     },
   });
   if (!report) throw new Error("REPORT_NOT_FOUND");

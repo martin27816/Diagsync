@@ -79,16 +79,31 @@ async function getTaskForReview(taskId: string, actor: MdActor) {
 export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pending") {
   assertMd(actor);
 
+  const baseWhere: Prisma.RoutingTaskWhereInput = {
+    organizationId: actor.organizationId,
+    department: { in: [Department.LABORATORY, Department.RADIOLOGY] },
+  };
+
+  const reviewFilter: Prisma.RoutingTaskWhereInput | null =
+    filter === "approved"
+      ? { review: { is: { status: ReviewStatus.APPROVED } } }
+      : filter === "rejected"
+      ? { review: { is: { status: ReviewStatus.REJECTED } } }
+      : null;
+
+  const where: Prisma.RoutingTaskWhereInput =
+    filter === "pending"
+      ? {
+          ...baseWhere,
+          testOrderIds: { isEmpty: false },
+          OR: [{ review: { is: null } }, { review: { is: { status: ReviewStatus.PENDING } } }],
+        }
+      : reviewFilter
+      ? { ...baseWhere, ...reviewFilter }
+      : baseWhere;
+
   const tasks = await prisma.routingTask.findMany({
-    where: {
-      organizationId: actor.organizationId,
-      department: { in: [Department.LABORATORY, Department.RADIOLOGY] },
-      ...(filter === "pending"
-        ? {
-            testOrderIds: { isEmpty: false },
-          }
-        : {}),
-    },
+    where,
     include: {
       visit: { include: { patient: true } },
       review: true,
@@ -115,20 +130,29 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
     orderBy: { updatedAt: "desc" },
   });
 
-  const filtered = tasks.filter((task) => {
-    const status = task.review?.status ?? ReviewStatus.PENDING;
-    if (filter === "all") return true;
-    if (filter === "pending") return status === ReviewStatus.PENDING;
-    if (filter === "approved") return status === ReviewStatus.APPROVED;
-    if (filter === "rejected") return status === ReviewStatus.REJECTED;
-    return true;
-  });
+  const [pendingCount, approvedCount, rejectedCount] = await Promise.all([
+    prisma.routingTask.count({
+      where: {
+        ...baseWhere,
+        testOrderIds: { isEmpty: false },
+        OR: [{ review: { is: null } }, { review: { is: { status: ReviewStatus.PENDING } } }],
+      },
+    }),
+    prisma.routingTask.count({
+      where: {
+        ...baseWhere,
+        review: { is: { status: ReviewStatus.APPROVED } },
+      },
+    }),
+    prisma.routingTask.count({
+      where: {
+        ...baseWhere,
+        review: { is: { status: ReviewStatus.REJECTED } },
+      },
+    }),
+  ]);
 
-  const counts = {
-    pending: tasks.filter((t) => (t.review?.status ?? ReviewStatus.PENDING) === ReviewStatus.PENDING).length,
-    approved: tasks.filter((t) => t.review?.status === ReviewStatus.APPROVED).length,
-    rejected: tasks.filter((t) => t.review?.status === ReviewStatus.REJECTED).length,
-  };
+  const counts = { pending: pendingCount, approved: approvedCount, rejected: rejectedCount };
 
   const patientIds = Array.from(new Set(tasks.map((task) => task.visit.patient.id)));
   const visitCounts = patientIds.length
@@ -190,7 +214,7 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
     historyMap.set(patientId, existing);
   }
 
-  const items = filtered.map((task) => {
+  const items = tasks.map((task) => {
     const results = task.results.map((result) => {
       const activeVersion = pickActiveVersion(result.versions) ?? result.versions[0] ?? null;
       return {

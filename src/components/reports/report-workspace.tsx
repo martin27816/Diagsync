@@ -18,7 +18,10 @@ type ReportDetails = ReportListItem & {
   versions: Array<{ id: string; version: number; isActive: boolean; content: any; comments?: string | null; prescription?: string | null; editReason: string; createdAt: string; editedBy: { id: string; fullName: string } }>;
 };
 
-function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)); }
+function deepCopy<T>(value: T): T {
+  if (typeof structuredClone === "function") return structuredClone(value);
+  return JSON.parse(JSON.stringify(value)) as T;
+}
 
 const inputCls = "h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500";
 const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
@@ -41,7 +44,10 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const [releaseMethod, setReleaseMethod] = useState<"PRINT" | "DOWNLOAD" | "WHATSAPP">("PRINT");
   const [receptionInstruction, setReceptionInstruction] = useState("");
   const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const previewRef = useRef<HTMLIFrameElement | null>(null);
+  const loadReportsSeqRef = useRef(0);
+  const loadDetailsSeqRef = useRef(0);
 
   const canMdEdit = role === "MD" || role === "SUPER_ADMIN";
   const canHrmRelease = role === "HRM" || role === "SUPER_ADMIN";
@@ -52,45 +58,82 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     return details.versions.find((v) => v.isActive) ?? details.versions[0] ?? null;
   }, [details]);
 
-  async function loadReports() {
+  async function loadReports(opts?: { signal?: AbortSignal }) {
+    const requestId = ++loadReportsSeqRef.current;
     setLoading(true); setError("");
     try {
-      const res = await fetch(`/api/reports?${new URLSearchParams({ status: filterStatus, reportType: filterType })}`);
+      const res = await fetch(`/api/reports?${new URLSearchParams({ status: filterStatus, reportType: filterType })}`, { signal: opts?.signal });
       const json = await res.json();
+      if (requestId !== loadReportsSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success) { setError(json.error ?? "Failed to load reports"); return; }
       const items = json.data as ReportListItem[];
       setRows(items);
       if (items.length === 0) { setSelectedId(""); setDetails(null); return; }
       const nextId = selectedId && items.some((r) => r.id === selectedId) ? selectedId : items[0].id;
       setSelectedId(nextId);
-    } catch { setError("Network error"); }
-    finally { setLoading(false); }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setError("Network error");
+    } finally {
+      if (requestId !== loadReportsSeqRef.current || opts?.signal?.aborted) return;
+      setLoading(false);
+    }
   }
 
-  async function loadDetails(reportId: string) {
+  async function loadDetails(reportId: string, opts?: { signal?: AbortSignal }) {
+    const requestId = ++loadDetailsSeqRef.current;
     setError("");
     try {
-      const res = await fetch(`/api/reports/${reportId}`);
+      const res = await fetch(`/api/reports/${reportId}`, { signal: opts?.signal });
       const json = await res.json();
+      if (requestId !== loadDetailsSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success) { setError(json.error ?? "Failed to load report details"); return; }
       const data = json.data as ReportDetails;
       setDetails(data);
       const cur = data.versions.find((v) => v.isActive) ?? data.versions[0];
-      setEditableContent(clone(cur?.content ?? {}));
+      setEditableContent(deepCopy(cur?.content ?? {}));
       setEditComments(cur?.comments ?? data.comments ?? "");
       setEditPrescription(cur?.prescription ?? data.prescription ?? "");
       setReceptionInstruction(data.releaseInstructions ?? "");
-    } catch { setError("Network error while loading report details"); }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setError("Network error while loading report details");
+    }
   }
 
-  useEffect(() => { void loadReports(); }, [filterStatus, filterType]);
-  useEffect(() => { if (!selectedId) return; setPreviewLoaded(false); void loadDetails(selectedId); }, [selectedId]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadReports({ signal: controller.signal });
+    return () => controller.abort();
+  }, [filterStatus, filterType]);
+  useEffect(() => {
+    if (!selectedId) return;
+    setPreviewLoaded(false);
+    const controller = new AbortController();
+    void loadDetails(selectedId, { signal: controller.signal });
+    return () => controller.abort();
+  }, [selectedId]);
+  useEffect(() => { setShowVersionHistory(false); }, [selectedId]);
 
   function updateLabField(tIdx: number, rIdx: number, value: string) {
-    setEditableContent((prev: any) => { const next = clone(prev); if (!Array.isArray(next?.tests) || !Array.isArray(next.tests[tIdx]?.rows)) return prev; next.tests[tIdx].rows[rIdx].value = value; return next; });
+    setEditableContent((prev: any) => {
+      if (!Array.isArray(prev?.tests) || !Array.isArray(prev.tests[tIdx]?.rows)) return prev;
+      const tests = [...prev.tests];
+      const test = { ...tests[tIdx] };
+      const rows = [...test.rows];
+      rows[rIdx] = { ...rows[rIdx], value };
+      test.rows = rows;
+      tests[tIdx] = test;
+      return { ...prev, tests };
+    });
   }
   function updateRadField(tIdx: number, key: "findings" | "impression" | "notes", value: string) {
-    setEditableContent((prev: any) => { const next = clone(prev); if (!Array.isArray(next?.tests)) return prev; next.tests[tIdx][key] = value; return next; });
+    setEditableContent((prev: any) => {
+      if (!Array.isArray(prev?.tests) || !prev.tests[tIdx]) return prev;
+      const tests = [...prev.tests];
+      tests[tIdx] = { ...tests[tIdx], [key]: value };
+      return { ...prev, tests };
+    });
   }
 
   async function saveMdEdits() {
@@ -340,27 +383,39 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
 
               {/* Version history */}
               <div className="p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Version History</p>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-100">
-                      <th className="pb-1.5 text-left font-medium text-slate-400">Version</th>
-                      <th className="pb-1.5 text-left font-medium text-slate-400">By</th>
-                      <th className="pb-1.5 text-left font-medium text-slate-400">Reason</th>
-                      <th className="pb-1.5 text-right font-medium text-slate-400">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {details.versions.map((v) => (
-                      <tr key={v.id}>
-                        <td className="py-1.5 font-mono text-slate-700">v{v.version} {v.isActive && <span className="text-blue-600">(active)</span>}</td>
-                        <td className="py-1.5 text-slate-600">{v.editedBy.fullName}</td>
-                        <td className="py-1.5 text-slate-400">{v.editReason}</td>
-                        <td className="py-1.5 text-right text-slate-400 whitespace-nowrap">{formatDateTime(v.createdAt)}</td>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Version History</p>
+                  <button
+                    onClick={() => setShowVersionHistory((prev) => !prev)}
+                    className="rounded border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    {showVersionHistory ? "Hide" : "Show"}
+                  </button>
+                </div>
+                {showVersionHistory ? (
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="pb-1.5 text-left font-medium text-slate-400">Version</th>
+                        <th className="pb-1.5 text-left font-medium text-slate-400">By</th>
+                        <th className="pb-1.5 text-left font-medium text-slate-400">Reason</th>
+                        <th className="pb-1.5 text-right font-medium text-slate-400">Time</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {details.versions.map((v) => (
+                        <tr key={v.id}>
+                          <td className="py-1.5 font-mono text-slate-700">v{v.version} {v.isActive && <span className="text-blue-600">(active)</span>}</td>
+                          <td className="py-1.5 text-slate-600">{v.editedBy.fullName}</td>
+                          <td className="py-1.5 text-slate-400">{v.editReason}</td>
+                          <td className="py-1.5 text-right text-slate-400 whitespace-nowrap">{formatDateTime(v.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-[11px] text-slate-400">Version history is collapsed to keep this view fast.</p>
+                )}
               </div>
             </div>
           )}

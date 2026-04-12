@@ -80,22 +80,16 @@ export async function getLabTasks(actor: LabActor, opts?: {
     },
     include: {
       visit: {
-        include: {
-          patient: true,
-          testOrders: {
-            where: { id: { in: [] } },
-          },
-        },
+        include: { patient: true },
       },
       sample: true,
-      results: true,
       review: true,
       staff: { select: { id: true, fullName: true } },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  const allOrderIds = rows.flatMap((task) => task.testOrderIds);
+  const allOrderIds = Array.from(new Set(rows.flatMap((task) => task.testOrderIds)));
   const testOrders = allOrderIds.length
     ? await prisma.testOrder.findMany({
         where: { id: { in: allOrderIds }, organizationId: actor.organizationId },
@@ -105,7 +99,14 @@ export async function getLabTasks(actor: LabActor, opts?: {
               resultFields: { orderBy: { sortOrder: "asc" } },
             },
           },
-          labResults: true,
+          labResults: {
+            select: {
+              id: true,
+              resultData: true,
+              notes: true,
+              isSubmitted: true,
+            },
+          },
         },
       })
     : [];

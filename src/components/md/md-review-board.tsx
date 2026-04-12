@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { ResultInsightBox } from "@/components/results/result-insight-box";
 import { buildResultInsights } from "@/lib/result-insights";
@@ -77,12 +77,15 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
   const [labEdits, setLabEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});
   const [labEditNotes, setLabEditNotes] = useState<Record<string, Record<string, string>>>({});
   const [radiologyEdits, setRadiologyEdits] = useState<Record<string, { findings: string; impression: string; notes: string }>>({});
+  const loadDataSeqRef = useRef(0);
 
-  async function loadData() {
+  async function loadData(opts?: { signal?: AbortSignal }) {
+    const requestId = ++loadDataSeqRef.current;
     setLoading(true); setError("");
     try {
-      const res = await fetch(`/api/md/reviews?status=${status}`);
+      const res = await fetch(`/api/md/reviews?status=${status}`, { signal: opts?.signal });
       const json = await res.json() as { success: boolean; error?: string; data: { items: Item[]; counts: { pending: number; approved: number; rejected: number } } };
+      if (requestId !== loadDataSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success) { setError(json.error ?? "Failed to load review queue"); return; }
       setItems(json.data.items);
       setCounts(json.data.counts);
@@ -102,11 +105,20 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
         }
       }
       setLabEdits(nextLabEdits); setLabEditNotes(nextLabNotes); setRadiologyEdits(nextRadEdits);
-    } catch { setError("Network error while loading reviews"); }
-    finally { setLoading(false); }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setError("Network error while loading reviews");
+    } finally {
+      if (requestId !== loadDataSeqRef.current || opts?.signal?.aborted) return;
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { void loadData(); }, [status]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadData({ signal: controller.signal });
+    return () => controller.abort();
+  }, [status]);
 
   function applyOptimisticReview(taskId: string, nextStatus: ReviewStatus, reason?: string) {
     const current = items.find((item) => item.id === taskId)?.review?.status ?? "PENDING";
@@ -195,7 +207,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
             <SelectItem value="all">All</SelectItem>
           </SelectContent>
         </Select>
-        <button onClick={loadData} className="rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">Refresh</button>
+        <button onClick={() => void loadData()} className="rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">Refresh</button>
       </div>
 
       {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
@@ -222,8 +234,17 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
               {items.map((item) => {
                 const reviewStatus = item.review?.status ?? "PENDING";
                 const highlightFields = getHighlightFields(item.review);
-                const insights = analyzePatientInsights({ visitCount: item.patientVisitCount, currentTestNames: item.department === "LABORATORY" ? item.results.map((r) => r.testOrder.test.name) : ["Radiology follow-up"], history: item.patientHistory });
                 const isExpanded = expandedId === item.id;
+                const insights = isExpanded
+                  ? analyzePatientInsights({
+                      visitCount: item.patientVisitCount,
+                      currentTestNames:
+                        item.department === "LABORATORY"
+                          ? item.results.map((r) => r.testOrder.test.name)
+                          : ["Radiology follow-up"],
+                      history: item.patientHistory,
+                    })
+                  : null;
 
                 return (
                   <>
@@ -266,7 +287,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                             {/* Left: submitted output */}
                             <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
                               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Submitted Output</p>
-                              <PatientInsights insights={insights} />
+                              {insights ? <PatientInsights insights={insights} /> : null}
                               {item.department === "LABORATORY" ? (
                                 <div className="space-y-2">
                                   {item.results.map((result) => (

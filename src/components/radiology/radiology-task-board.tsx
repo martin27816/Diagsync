@@ -35,12 +35,19 @@ export function RadiologyTaskBoard() {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const loadTasksSeqRef = useRef(0);
 
-  async function loadTasks() {
+  function patchTask(taskId: string, patch: Partial<Task>) {
+    setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, ...patch } : task)));
+  }
+
+  async function loadTasks(opts?: { signal?: AbortSignal }) {
+    const requestId = ++loadTasksSeqRef.current;
     setLoading(true); setError("");
     try {
-      const res = await fetch(`/api/radiology/tasks?${new URLSearchParams({ status: statusFilter, sort })}`);
+      const res = await fetch(`/api/radiology/tasks?${new URLSearchParams({ status: statusFilter, sort })}`, { signal: opts?.signal });
       const json = await res.json();
+      if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success) { setError(json.error ?? "Failed to load tasks"); return; }
       const rows = json.data.tasks as Task[];
       setTasks(rows);
@@ -49,11 +56,20 @@ export function RadiologyTaskBoard() {
         nextDrafts[task.id] = { findings: task.radiologyReport?.findings ?? "", impression: task.radiologyReport?.impression ?? "", notes: task.radiologyReport?.notes ?? "" };
       }
       setDrafts(nextDrafts);
-    } catch { setError("Network error while loading radiology tasks"); }
-    finally { setLoading(false); }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setError("Network error while loading radiology tasks");
+    } finally {
+      if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { void loadTasks(); }, [statusFilter, sort]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadTasks({ signal: controller.signal });
+    return () => controller.abort();
+  }, [statusFilter, sort]);
 
   const filtered = useMemo(() => tasks.filter((t) => priorityFilter === "ALL" || t.priority === priorityFilter), [tasks, priorityFilter]);
   const counts = useMemo(() => ({ pending: filtered.filter((t) => t.status === "PENDING").length, inProgress: filtered.filter((t) => t.status === "IN_PROGRESS").length, completed: filtered.filter((t) => t.status === "COMPLETED").length }), [filtered]);
@@ -71,7 +87,7 @@ export function RadiologyTaskBoard() {
     try {
       const json = await (await fetch(`/api/radiology/tasks/${taskId}/start`, { method: "PATCH" })).json();
       if (!json.success) { setError(json.error ?? "Unable to start task"); return; }
-      await loadTasks();
+      patchTask(taskId, { status: "IN_PROGRESS" });
     } finally { setBusyTaskId(null); }
   }
 
@@ -81,7 +97,14 @@ export function RadiologyTaskBoard() {
       const d = drafts[taskId] ?? { findings: "", impression: "", notes: "" };
       const json = await (await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })).json();
       if (!json.success) { setError(json.error ?? "Unable to save report"); return; }
-      await loadTasks();
+      patchTask(taskId, {
+        radiologyReport: {
+          findings: d.findings,
+          impression: d.impression,
+          notes: d.notes,
+          isSubmitted: false,
+        },
+      });
     } finally { setBusyTaskId(null); }
   }
 
@@ -94,7 +117,7 @@ export function RadiologyTaskBoard() {
       const json = await (await fetch(`/api/radiology/tasks/${taskId}/submit`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requireImaging: true }) })).json();
       if (!json.success) { setError(json.error ?? "Unable to submit report"); return; }
       setExpandedTask(null);
-      await loadTasks();
+      patchTask(taskId, { status: "COMPLETED" });
     } finally { setBusyTaskId(null); }
   }
 
@@ -103,9 +126,15 @@ export function RadiologyTaskBoard() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const json = await (await fetch(`/api/radiology/tasks/${taskId}/imaging`, { method: "POST", body: formData })).json();
+      const json = await (await fetch(`/api/radiology/tasks/${taskId}/upload`, { method: "POST", body: formData })).json();
       if (!json.success) { setError(json.error ?? "Upload failed"); return; }
-      await loadTasks();
+      if (json.data) {
+        setTasks((prev) =>
+          prev.map((task) =>
+            task.id === taskId ? { ...task, imagingFiles: [...task.imagingFiles, json.data as ImagingFile] } : task
+          )
+        );
+      }
     } finally { setBusyTaskId(null); setProgress((p) => { const n = { ...p }; delete n[taskId]; return n; }); }
   }
 
@@ -152,7 +181,7 @@ export function RadiologyTaskBoard() {
             <SelectItem value="oldest">Oldest first</SelectItem>
           </SelectContent>
         </Select>
-        <button onClick={loadTasks} className="ml-auto rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">Refresh</button>
+        <button onClick={() => void loadTasks()} className="ml-auto rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">Refresh</button>
       </div>
 
       {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}

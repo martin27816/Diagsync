@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { formatDateTime } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -69,6 +69,123 @@ function getHighlightFields(task: LabTask) {
   return data.highlightFields.filter((row): row is string => typeof row === "string");
 }
 
+type OrderResultCardProps = {
+  task: LabTask;
+  order: TestOrder;
+  draft: Draft;
+  highlightFields: string[];
+  isReady: boolean;
+  onPersist: (task: LabTask) => Promise<void>;
+  onSetFieldValue: (testOrderId: string, fieldKey: string, value: unknown) => void;
+  onSetNotes: (testOrderId: string, value: string) => void;
+};
+
+const OrderResultCard = memo(function OrderResultCard({
+  task,
+  order,
+  draft,
+  highlightFields,
+  isReady,
+  onPersist,
+  onSetFieldValue,
+  onSetNotes,
+}: OrderResultCardProps) {
+  const insightMessages = useMemo(() => buildResultInsights(draft.values ?? {}), [draft.values]);
+  const highlightKey = useMemo(() => new Set(highlightFields), [highlightFields]);
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-xs font-semibold text-slate-800">{order.test.name}</p>
+          <p className="text-[11px] font-mono text-slate-400">{order.test.code}{order.test.sampleType ? ` - ${order.test.sampleType}` : ""}</p>
+        </div>
+        <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${isReady ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-600"}`}>
+          {isReady ? "Ready" : "Incomplete"}
+        </span>
+      </div>
+
+      <ResultInsightBox messages={insightMessages} />
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 mt-3">
+        {order.test.resultFields.map((field) => {
+          const value = draft.values?.[field.fieldKey];
+          const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
+          const highlight = highlightKey.has(field.fieldKey);
+
+          if (field.fieldType === "TEXTAREA") return (
+            <div key={field.id} className="col-span-2 md:col-span-3 lg:col-span-4">
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>
+              <textarea
+                rows={2}
+                value={typeof value === "string" ? value : ""}
+                onBlur={() => void onPersist(task).catch(() => undefined)}
+                onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.value)}
+                className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
+              />
+            </div>
+          );
+
+          if (field.fieldType === "DROPDOWN") {
+            const options = (field.options ?? "").split(",").map((row) => row.trim()).filter(Boolean);
+            return (
+              <div key={field.id}>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>
+                <select
+                  value={typeof value === "string" ? value : ""}
+                  onBlur={() => void onPersist(task).catch(() => undefined)}
+                  onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.value)}
+                  className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
+                >
+                  <option value="">Select...</option>
+                  {options.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+            );
+          }
+
+          if (field.fieldType === "CHECKBOX") return (
+            <div key={field.id} className={`flex items-center gap-2 pt-4 rounded ${highlight ? "bg-amber-50 px-2" : ""}`}>
+              <input
+                type="checkbox"
+                checked={Boolean(value)}
+                onBlur={() => void onPersist(task).catch(() => undefined)}
+                onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.checked)}
+                className="rounded border-slate-300"
+              />
+              <label className="text-[11px] font-medium text-slate-500">{field.label}</label>
+            </div>
+          );
+
+          return (
+            <div key={field.id}>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>
+              <input
+                type={field.fieldType === "NUMBER" ? "number" : "text"}
+                value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
+                onBlur={() => void onPersist(task).catch(() => undefined)}
+                onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.value)}
+                className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-3">
+        <label className="block text-[11px] font-medium text-slate-500 mb-1">Notes</label>
+        <textarea
+          rows={1}
+          value={draft.notes ?? ""}
+          onBlur={() => void onPersist(task).catch(() => undefined)}
+          onChange={(e) => onSetNotes(order.id, e.target.value)}
+          className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
+    </div>
+  );
+});
+
 export function LabTaskBoard() {
   const [tasks, setTasks] = useState<LabTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,14 +198,19 @@ export function LabTaskBoard() {
   const [sampleStatusByTask, setSampleStatusByTask] = useState<Record<string, SampleStatus>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
+  const draftsRef = useRef<Record<string, Draft>>({});
+  const tasksRef = useRef<LabTask[]>([]);
+  const loadTasksSeqRef = useRef(0);
 
-  const loadTasks = useCallback(async () => {
+  const loadTasks = useCallback(async (opts?: { signal?: AbortSignal }) => {
+    const requestId = ++loadTasksSeqRef.current;
     setLoading(true);
     setError("");
     try {
       const query = new URLSearchParams({ status: statusFilter, sort });
-      const res = await fetch(`/api/lab/tasks?${query.toString()}`);
+      const res = await fetch(`/api/lab/tasks?${query.toString()}`, { signal: opts?.signal });
       const json = (await res.json()) as { success: boolean; error?: string; data?: { tasks: LabTask[] } };
+      if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success || !json.data) {
         setError(json.error ?? "Failed to load tasks");
         return;
@@ -109,6 +231,7 @@ export function LabTaskBoard() {
             }
           }
         }
+        draftsRef.current = next;
         return next;
       });
       setSampleStatusByTask((prev) => {
@@ -120,15 +243,19 @@ export function LabTaskBoard() {
         }
         return next;
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       setError("Network error while loading tasks");
     } finally {
+      if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
       setLoading(false);
     }
   }, [sort, statusFilter]);
 
   useEffect(() => {
-    void loadTasks();
+    const controller = new AbortController();
+    void loadTasks({ signal: controller.signal });
+    return () => controller.abort();
   }, [loadTasks]);
 
   useEffect(() => {
@@ -164,6 +291,14 @@ export function LabTaskBoard() {
     if (!isOnline) return;
     void syncOfflineDrafts();
   }, [isOnline, syncOfflineDrafts]);
+
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
 
   const filtered = useMemo(() => {
     const base = statusFilter === "ALL" ? tasks.filter((task) => task.status !== "COMPLETED") : tasks;
@@ -224,20 +359,30 @@ export function LabTaskBoard() {
   function updateDraft(testOrderId: string, updater: (prev: Draft) => Draft) {
     setDrafts((prev) => {
       const current = prev[testOrderId] ?? { values: {}, notes: "" };
-      return { ...prev, [testOrderId]: updater(current) };
+      const next = { ...prev, [testOrderId]: updater(current) };
+      draftsRef.current = next;
+      return next;
     });
   }
 
-  function collectTaskDraftResults(task: LabTask) {
+  const setDraftFieldValue = useCallback((testOrderId: string, fieldKey: string, value: unknown) => {
+    updateDraft(testOrderId, (prev) => ({ ...prev, values: { ...prev.values, [fieldKey]: value } }));
+  }, []);
+
+  const setDraftNotesValue = useCallback((testOrderId: string, value: string) => {
+    updateDraft(testOrderId, (prev) => ({ ...prev, notes: value }));
+  }, []);
+
+  function collectTaskDraftResults(task: LabTask, draftsSnapshot: Record<string, Draft> = draftsRef.current) {
     return task.testOrders.map((order) => ({
       testOrderId: order.id,
-      resultData: drafts[order.id]?.values ?? {},
-      notes: drafts[order.id]?.notes ?? "",
+      resultData: draftsSnapshot[order.id]?.values ?? {},
+      notes: draftsSnapshot[order.id]?.notes ?? "",
     }));
   }
 
-  async function persistDraft(task: LabTask) {
-    const results = collectTaskDraftResults(task);
+  async function persistDraft(task: LabTask, draftsSnapshot: Record<string, Draft> = draftsRef.current) {
+    const results = collectTaskDraftResults(task, draftsSnapshot);
     upsertOfflineLabDraft({ taskId: task.id, results });
     if (!navigator.onLine) return;
 
@@ -256,14 +401,15 @@ export function LabTaskBoard() {
 
   useEffect(() => {
     if (!expandedTask) return;
-    const task = tasks.find((row) => row.id === expandedTask);
-    if (!task || !showResultForm(task) || task.status === "COMPLETED") return;
+    const taskId = expandedTask;
 
     const timer = window.setInterval(() => {
-      void persistDraft(task).catch(() => undefined);
+      const task = tasksRef.current.find((row) => row.id === taskId);
+      if (!task || !showResultForm(task) || task.status === "COMPLETED") return;
+      void persistDraft(task, draftsRef.current).catch(() => undefined);
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [drafts, expandedTask, tasks]);
+  }, [expandedTask]);
 
   async function onWorkflowClick(task: LabTask) {
     if (task.status === "COMPLETED") return;
@@ -470,95 +616,17 @@ export function LabTaskBoard() {
                               </div>
                             ) : null}
                             {task.testOrders.map((order) => (
-                              <div key={order.id} className="rounded-lg border border-slate-200 bg-white p-4">
-                                <div className="flex items-center justify-between mb-3">
-                                  <div>
-                                    <p className="text-xs font-semibold text-slate-800">{order.test.name}</p>
-                                    <p className="text-[11px] font-mono text-slate-400">{order.test.code}{order.test.sampleType ? ` - ${order.test.sampleType}` : ""}</p>
-                                  </div>
-                                  <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${isOrderReady(order) ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-600"}`}>
-                                    {isOrderReady(order) ? "Ready" : "Incomplete"}
-                                  </span>
-                                </div>
-
-                                <ResultInsightBox messages={buildResultInsights(drafts[order.id]?.values ?? {})} />
-
-                                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 mt-3">
-                                  {order.test.resultFields.map((field) => {
-                                    const value = drafts[order.id]?.values?.[field.fieldKey];
-                                    const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
-                                    const highlight = highlightFields.includes(field.fieldKey);
-
-                                    if (field.fieldType === "TEXTAREA") return (
-                                      <div key={field.id} className="col-span-2 md:col-span-3 lg:col-span-4">
-                                        <label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>
-                                        <textarea
-                                          rows={2}
-                                          value={typeof value === "string" ? value : ""}
-                                          onBlur={() => void persistDraft(task).catch(() => undefined)}
-                                          onChange={(e) => updateDraft(order.id, (prev) => ({ ...prev, values: { ...prev.values, [field.fieldKey]: e.target.value } }))}
-                                          className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
-                                        />
-                                      </div>
-                                    );
-
-                                    if (field.fieldType === "DROPDOWN") {
-                                      const options = (field.options ?? "").split(",").map((row) => row.trim()).filter(Boolean);
-                                      return (
-                                        <div key={field.id}>
-                                          <label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>
-                                          <select
-                                            value={typeof value === "string" ? value : ""}
-                                            onBlur={() => void persistDraft(task).catch(() => undefined)}
-                                            onChange={(e) => updateDraft(order.id, (prev) => ({ ...prev, values: { ...prev.values, [field.fieldKey]: e.target.value } }))}
-                                            className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
-                                          >
-                                            <option value="">Select...</option>
-                                            {options.map((option) => <option key={option} value={option}>{option}</option>)}
-                                          </select>
-                                        </div>
-                                      );
-                                    }
-
-                                    if (field.fieldType === "CHECKBOX") return (
-                                      <div key={field.id} className={`flex items-center gap-2 pt-4 rounded ${highlight ? "bg-amber-50 px-2" : ""}`}>
-                                        <input
-                                          type="checkbox"
-                                          checked={Boolean(value)}
-                                          onBlur={() => void persistDraft(task).catch(() => undefined)}
-                                          onChange={(e) => updateDraft(order.id, (prev) => ({ ...prev, values: { ...prev.values, [field.fieldKey]: e.target.checked } }))}
-                                          className="rounded border-slate-300"
-                                        />
-                                        <label className="text-[11px] font-medium text-slate-500">{field.label}</label>
-                                      </div>
-                                    );
-
-                                    return (
-                                      <div key={field.id}>
-                                        <label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>
-                                        <input
-                                          type={field.fieldType === "NUMBER" ? "number" : "text"}
-                                          value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
-                                          onBlur={() => void persistDraft(task).catch(() => undefined)}
-                                          onChange={(e) => updateDraft(order.id, (prev) => ({ ...prev, values: { ...prev.values, [field.fieldKey]: e.target.value } }))}
-                                          className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
-                                        />
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-
-                                <div className="mt-3">
-                                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Notes</label>
-                                  <textarea
-                                    rows={1}
-                                    value={drafts[order.id]?.notes ?? ""}
-                                    onBlur={() => void persistDraft(task).catch(() => undefined)}
-                                    onChange={(e) => updateDraft(order.id, (prev) => ({ ...prev, notes: e.target.value }))}
-                                    className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  />
-                                </div>
-                              </div>
+                              <OrderResultCard
+                                key={order.id}
+                                task={task}
+                                order={order}
+                                draft={drafts[order.id] ?? { values: {}, notes: "" }}
+                                highlightFields={highlightFields}
+                                isReady={isOrderReady(order)}
+                                onPersist={persistDraft}
+                                onSetFieldValue={setDraftFieldValue}
+                                onSetNotes={setDraftNotesValue}
+                              />
                             ))}
 
                             {task.status !== "COMPLETED" ? (
