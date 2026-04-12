@@ -63,6 +63,7 @@ function getHighlightFields(review: Item["review"]) {
 }
 
 export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "pending" | "approved" | "rejected" | "all" }) {
+  const REVIEW_CACHE_TTL_MS = 20_000;
   const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "all">(initialStatus);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -78,8 +79,43 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
   const [labEditNotes, setLabEditNotes] = useState<Record<string, Record<string, string>>>({});
   const [radiologyEdits, setRadiologyEdits] = useState<Record<string, { findings: string; impression: string; notes: string }>>({});
   const loadDataSeqRef = useRef(0);
+  const reviewCacheRef = useRef<Map<string, { at: number; items: Item[]; counts: { pending: number; approved: number; rejected: number } }>>(new Map());
 
-  async function loadData(opts?: { signal?: AbortSignal }) {
+  function applyLoadedData(data: { items: Item[]; counts: { pending: number; approved: number; rejected: number } }) {
+    setItems(data.items);
+    setCounts(data.counts);
+    const nextLabEdits: Record<string, Record<string, Record<string, string>>> = {};
+    const nextLabNotes: Record<string, Record<string, string>> = {};
+    const nextRadEdits: Record<string, { findings: string; impression: string; notes: string }> = {};
+    for (const item of data.items) {
+      if (item.department === "LABORATORY") {
+        nextLabEdits[item.id] = {};
+        nextLabNotes[item.id] = {};
+        for (const result of item.results) {
+          nextLabEdits[item.id][result.testOrderId] = normalizeResultData(result.resultData);
+          nextLabNotes[item.id][result.testOrderId] = result.notes ?? "";
+        }
+      } else {
+        nextRadEdits[item.id] = { findings: item.radiologyReport?.findings ?? "", impression: item.radiologyReport?.impression ?? "", notes: item.radiologyReport?.notes ?? "" };
+      }
+    }
+    setLabEdits(nextLabEdits);
+    setLabEditNotes(nextLabNotes);
+    setRadiologyEdits(nextRadEdits);
+  }
+
+  async function loadData(opts?: { signal?: AbortSignal; force?: boolean }) {
+    const cacheKey = status;
+    if (!opts?.force) {
+      const cached = reviewCacheRef.current.get(cacheKey);
+      if (cached && Date.now() - cached.at < REVIEW_CACHE_TTL_MS) {
+        setError("");
+        setLoading(false);
+        applyLoadedData({ items: cached.items, counts: cached.counts });
+        return;
+      }
+    }
+
     const requestId = ++loadDataSeqRef.current;
     setLoading(true); setError("");
     try {
@@ -87,24 +123,8 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
       const json = await res.json() as { success: boolean; error?: string; data: { items: Item[]; counts: { pending: number; approved: number; rejected: number } } };
       if (requestId !== loadDataSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success) { setError(json.error ?? "Failed to load review queue"); return; }
-      setItems(json.data.items);
-      setCounts(json.data.counts);
-      const nextLabEdits: Record<string, Record<string, Record<string, string>>> = {};
-      const nextLabNotes: Record<string, Record<string, string>> = {};
-      const nextRadEdits: Record<string, { findings: string; impression: string; notes: string }> = {};
-      for (const item of json.data.items) {
-        if (item.department === "LABORATORY") {
-          nextLabEdits[item.id] = {};
-          nextLabNotes[item.id] = {};
-          for (const result of item.results) {
-            nextLabEdits[item.id][result.testOrderId] = normalizeResultData(result.resultData);
-            nextLabNotes[item.id][result.testOrderId] = result.notes ?? "";
-          }
-        } else {
-          nextRadEdits[item.id] = { findings: item.radiologyReport?.findings ?? "", impression: item.radiologyReport?.impression ?? "", notes: item.radiologyReport?.notes ?? "" };
-        }
-      }
-      setLabEdits(nextLabEdits); setLabEditNotes(nextLabNotes); setRadiologyEdits(nextRadEdits);
+      reviewCacheRef.current.set(cacheKey, { at: Date.now(), items: json.data.items, counts: json.data.counts });
+      applyLoadedData(json.data);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setError("Network error while loading reviews");
@@ -131,9 +151,13 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
       }));
     }
   }
+  function invalidateReviewCache() {
+    reviewCacheRef.current.clear();
+  }
 
   async function approve(taskId: string) {
     setBusyTaskId(taskId); setError("");
+    invalidateReviewCache();
     applyOptimisticReview(taskId, "APPROVED");
     try {
       const res = await fetch(`/api/md/reviews/${taskId}/approve`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ comments: approveComments[taskId] ?? "" }) });
@@ -147,6 +171,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
     const reason = rejectReasons[taskId]?.trim();
     if (!reason) { setError("Rejection reason is required."); return; }
     setBusyTaskId(taskId); setError("");
+    invalidateReviewCache();
     applyOptimisticReview(taskId, "REJECTED", reason);
     try {
       const highlightFields = (rejectFieldHints[taskId] ?? "").split(",").map((v) => v.trim()).filter(Boolean);
@@ -171,6 +196,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
       payload = { report: current };
     }
     setBusyTaskId(taskId); setError("");
+    invalidateReviewCache();
     applyOptimisticReview(taskId, "PENDING");
     try {
       const res = await fetch(`/api/md/reviews/${taskId}/edit`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason, comments: "Controlled edit created and sent for re-approval", editedData: payload }) });
@@ -207,7 +233,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
             <SelectItem value="all">All</SelectItem>
           </SelectContent>
         </Select>
-        <button onClick={() => void loadData()} className="rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">Refresh</button>
+        <button onClick={() => void loadData({ force: true })} className="rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">Refresh</button>
       </div>
 
       {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}

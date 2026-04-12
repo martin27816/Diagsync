@@ -28,6 +28,8 @@ const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
 const areaCls = "w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
 export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" | "RECEPTIONIST" }) {
+  const REPORT_LIST_CACHE_TTL_MS = 20_000;
+  const REPORT_DETAILS_CACHE_TTL_MS = 20_000;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -48,6 +50,8 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const previewRef = useRef<HTMLIFrameElement | null>(null);
   const loadReportsSeqRef = useRef(0);
   const loadDetailsSeqRef = useRef(0);
+  const reportListCacheRef = useRef<Map<string, { at: number; rows: ReportListItem[] }>>(new Map());
+  const reportDetailsCacheRef = useRef<Map<string, { at: number; details: ReportDetails }>>(new Map());
 
   const canMdEdit = role === "MD" || role === "SUPER_ADMIN";
   const canHrmRelease = role === "HRM" || role === "SUPER_ADMIN";
@@ -58,7 +62,34 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     return details.versions.find((v) => v.isActive) ?? details.versions[0] ?? null;
   }, [details]);
 
-  async function loadReports(opts?: { signal?: AbortSignal }) {
+  function invalidateReportCache(reportId?: string) {
+    reportListCacheRef.current.clear();
+    if (reportId) {
+      reportDetailsCacheRef.current.delete(reportId);
+      return;
+    }
+    reportDetailsCacheRef.current.clear();
+  }
+
+  async function loadReports(opts?: { signal?: AbortSignal; force?: boolean }) {
+    const cacheKey = `${filterStatus}:${filterType}`;
+    if (!opts?.force) {
+      const cached = reportListCacheRef.current.get(cacheKey);
+      if (cached && Date.now() - cached.at < REPORT_LIST_CACHE_TTL_MS) {
+        setError("");
+        setLoading(false);
+        setRows(cached.rows);
+        if (cached.rows.length === 0) {
+          setSelectedId("");
+          setDetails(null);
+        } else {
+          const nextId = selectedId && cached.rows.some((r) => r.id === selectedId) ? selectedId : cached.rows[0].id;
+          setSelectedId(nextId);
+        }
+        return;
+      }
+    }
+
     const requestId = ++loadReportsSeqRef.current;
     setLoading(true); setError("");
     try {
@@ -67,6 +98,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       if (requestId !== loadReportsSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success) { setError(json.error ?? "Failed to load reports"); return; }
       const items = json.data as ReportListItem[];
+      reportListCacheRef.current.set(cacheKey, { at: Date.now(), rows: items });
       setRows(items);
       if (items.length === 0) { setSelectedId(""); setDetails(null); return; }
       const nextId = selectedId && items.some((r) => r.id === selectedId) ? selectedId : items[0].id;
@@ -80,7 +112,22 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     }
   }
 
-  async function loadDetails(reportId: string, opts?: { signal?: AbortSignal }) {
+  async function loadDetails(reportId: string, opts?: { signal?: AbortSignal; force?: boolean }) {
+    if (!opts?.force) {
+      const cached = reportDetailsCacheRef.current.get(reportId);
+      if (cached && Date.now() - cached.at < REPORT_DETAILS_CACHE_TTL_MS) {
+        setError("");
+        const data = cached.details;
+        setDetails(data);
+        const cur = data.versions.find((v) => v.isActive) ?? data.versions[0];
+        setEditableContent(deepCopy(cur?.content ?? {}));
+        setEditComments(cur?.comments ?? data.comments ?? "");
+        setEditPrescription(cur?.prescription ?? data.prescription ?? "");
+        setReceptionInstruction(data.releaseInstructions ?? "");
+        return;
+      }
+    }
+
     const requestId = ++loadDetailsSeqRef.current;
     setError("");
     try {
@@ -89,6 +136,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       if (requestId !== loadDetailsSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success) { setError(json.error ?? "Failed to load report details"); return; }
       const data = json.data as ReportDetails;
+      reportDetailsCacheRef.current.set(reportId, { at: Date.now(), details: data });
       setDetails(data);
       const cur = data.versions.find((v) => v.isActive) ?? data.versions[0];
       setEditableContent(deepCopy(cur?.content ?? {}));
@@ -142,8 +190,9 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     try {
       const json = await (await fetch(`/api/reports/${details.id}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportContent: editableContent, comments: editComments || null, prescription: editPrescription || null, reason: editReason.trim() }) })).json();
       if (!json.success) { setError(json.error ?? "Unable to save edits"); return; }
+      invalidateReportCache(details.id);
       setMessage("Draft updated."); setEditReason("");
-      await loadDetails(details.id); await loadReports();
+      await loadDetails(details.id, { force: true }); await loadReports({ force: true });
     } finally { setBusy(false); }
   }
 
@@ -153,8 +202,9 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     try {
       const json = await (await fetch(`/api/reports/${details.id}/release`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: releaseMethod, instructions: receptionInstruction || undefined }) })).json();
       if (!json.success) { setError(json.error ?? "Release failed"); return; }
+      invalidateReportCache(details.id);
       setMessage("Report released.");
-      await loadDetails(details.id); await loadReports();
+      await loadDetails(details.id, { force: true }); await loadReports({ force: true });
     } finally { setBusy(false); }
   }
 

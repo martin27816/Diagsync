@@ -187,6 +187,7 @@ const OrderResultCard = memo(function OrderResultCard({
 });
 
 export function LabTaskBoard() {
+  const TASK_CACHE_TTL_MS = 20_000;
   const [tasks, setTasks] = useState<LabTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -201,8 +202,53 @@ export function LabTaskBoard() {
   const draftsRef = useRef<Record<string, Draft>>({});
   const tasksRef = useRef<LabTask[]>([]);
   const loadTasksSeqRef = useRef(0);
+  const taskCacheRef = useRef<Map<string, { at: number; tasks: LabTask[] }>>(new Map());
+  function invalidateTaskCache() {
+    taskCacheRef.current.clear();
+  }
 
-  const loadTasks = useCallback(async (opts?: { signal?: AbortSignal }) => {
+  const applyLoadedRows = useCallback((rows: LabTask[]) => {
+    setTasks(rows);
+
+    setDrafts((prev) => {
+      const next = { ...prev };
+      for (const task of rows) {
+        for (const order of task.testOrders) {
+          if (!next[order.id]) {
+            const existing = order.labResults[0];
+            next[order.id] = {
+              values: (existing?.resultData as Record<string, unknown>) ?? {},
+              notes: existing?.notes ?? "",
+            };
+          }
+        }
+      }
+      draftsRef.current = next;
+      return next;
+    });
+    setSampleStatusByTask((prev) => {
+      const next = { ...prev };
+      for (const task of rows) {
+        if (!next[task.id]) {
+          next[task.id] = task.sample?.status ?? "PENDING";
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const loadTasks = useCallback(async (opts?: { signal?: AbortSignal; force?: boolean }) => {
+    const cacheKey = `${statusFilter}:${sort}`;
+    if (!opts?.force) {
+      const cached = taskCacheRef.current.get(cacheKey);
+      if (cached && Date.now() - cached.at < TASK_CACHE_TTL_MS) {
+        setError("");
+        setLoading(false);
+        applyLoadedRows(cached.tasks);
+        return;
+      }
+    }
+
     const requestId = ++loadTasksSeqRef.current;
     setLoading(true);
     setError("");
@@ -216,33 +262,8 @@ export function LabTaskBoard() {
         return;
       }
       const rows = json.data.tasks;
-      setTasks(rows);
-
-      setDrafts((prev) => {
-        const next = { ...prev };
-        for (const task of rows) {
-          for (const order of task.testOrders) {
-            if (!next[order.id]) {
-              const existing = order.labResults[0];
-              next[order.id] = {
-                values: (existing?.resultData as Record<string, unknown>) ?? {},
-                notes: existing?.notes ?? "",
-              };
-            }
-          }
-        }
-        draftsRef.current = next;
-        return next;
-      });
-      setSampleStatusByTask((prev) => {
-        const next = { ...prev };
-        for (const task of rows) {
-          if (!next[task.id]) {
-            next[task.id] = task.sample?.status ?? "PENDING";
-          }
-        }
-        return next;
-      });
+      taskCacheRef.current.set(cacheKey, { at: Date.now(), tasks: rows });
+      applyLoadedRows(rows);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setError("Network error while loading tasks");
@@ -250,7 +271,7 @@ export function LabTaskBoard() {
       if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
       setLoading(false);
     }
-  }, [sort, statusFilter]);
+  }, [TASK_CACHE_TTL_MS, applyLoadedRows, sort, statusFilter]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -415,6 +436,7 @@ export function LabTaskBoard() {
     if (task.status === "COMPLETED") return;
     setSavingTaskId(task.id);
     setError("");
+    invalidateTaskCache();
     try {
       if (task.status === "PENDING") {
         setTasks((prev) => prev.map((row) => (row.id === task.id ? { ...row, status: "IN_PROGRESS" } : row)));
@@ -543,7 +565,7 @@ export function LabTaskBoard() {
             <SelectItem value="oldest">Oldest first</SelectItem>
           </SelectContent>
         </Select>
-        <button onClick={() => void loadTasks()} className="ml-auto rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
+        <button onClick={() => void loadTasks({ force: true })} className="ml-auto rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
           Refresh
         </button>
       </div>

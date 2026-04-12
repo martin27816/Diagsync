@@ -24,6 +24,7 @@ function isImageFile(file: ImagingFile) {
 }
 
 export function RadiologyTaskBoard() {
+  const TASK_CACHE_TTL_MS = 20_000;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -36,12 +37,45 @@ export function RadiologyTaskBoard() {
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const loadTasksSeqRef = useRef(0);
-
-  function patchTask(taskId: string, patch: Partial<Task>) {
-    setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, ...patch } : task)));
+  const taskCacheRef = useRef<Map<string, { at: number; tasks: Task[] }>>(new Map());
+  function invalidateTaskCache() {
+    taskCacheRef.current.clear();
   }
 
-  async function loadTasks(opts?: { signal?: AbortSignal }) {
+  function patchTask(taskId: string, patch: Partial<Task>) {
+    setTasks((prev) => {
+      const next = prev.map((task) => (task.id === taskId ? { ...task, ...patch } : task));
+      taskCacheRef.current.forEach((cached, key) => {
+        taskCacheRef.current.set(key, {
+          ...cached,
+          tasks: cached.tasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task)),
+        });
+      });
+      return next;
+    });
+  }
+
+  function applyLoadedRows(rows: Task[]) {
+    setTasks(rows);
+    const nextDrafts: Record<string, Draft> = {};
+    for (const task of rows) {
+      nextDrafts[task.id] = { findings: task.radiologyReport?.findings ?? "", impression: task.radiologyReport?.impression ?? "", notes: task.radiologyReport?.notes ?? "" };
+    }
+    setDrafts(nextDrafts);
+  }
+
+  async function loadTasks(opts?: { signal?: AbortSignal; force?: boolean }) {
+    const cacheKey = `${statusFilter}:${sort}`;
+    if (!opts?.force) {
+      const cached = taskCacheRef.current.get(cacheKey);
+      if (cached && Date.now() - cached.at < TASK_CACHE_TTL_MS) {
+        setError("");
+        setLoading(false);
+        applyLoadedRows(cached.tasks);
+        return;
+      }
+    }
+
     const requestId = ++loadTasksSeqRef.current;
     setLoading(true); setError("");
     try {
@@ -50,12 +84,8 @@ export function RadiologyTaskBoard() {
       if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success) { setError(json.error ?? "Failed to load tasks"); return; }
       const rows = json.data.tasks as Task[];
-      setTasks(rows);
-      const nextDrafts: Record<string, Draft> = {};
-      for (const task of rows) {
-        nextDrafts[task.id] = { findings: task.radiologyReport?.findings ?? "", impression: task.radiologyReport?.impression ?? "", notes: task.radiologyReport?.notes ?? "" };
-      }
-      setDrafts(nextDrafts);
+      taskCacheRef.current.set(cacheKey, { at: Date.now(), tasks: rows });
+      applyLoadedRows(rows);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setError("Network error while loading radiology tasks");
@@ -84,6 +114,7 @@ export function RadiologyTaskBoard() {
 
   async function startTask(taskId: string) {
     setBusyTaskId(taskId); setError("");
+    invalidateTaskCache();
     try {
       const json = await (await fetch(`/api/radiology/tasks/${taskId}/start`, { method: "PATCH" })).json();
       if (!json.success) { setError(json.error ?? "Unable to start task"); return; }
@@ -93,6 +124,7 @@ export function RadiologyTaskBoard() {
 
   async function saveReport(taskId: string) {
     setBusyTaskId(taskId); setError("");
+    invalidateTaskCache();
     try {
       const d = drafts[taskId] ?? { findings: "", impression: "", notes: "" };
       const json = await (await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })).json();
@@ -110,6 +142,7 @@ export function RadiologyTaskBoard() {
 
   async function submitTask(taskId: string) {
     setBusyTaskId(taskId); setError("");
+    invalidateTaskCache();
     try {
       const d = drafts[taskId] ?? { findings: "", impression: "", notes: "" };
       if (!d.findings.trim() || !d.impression.trim()) { setError("Findings and impression are required before submission."); return; }
@@ -123,6 +156,7 @@ export function RadiologyTaskBoard() {
 
   async function uploadImaging(taskId: string, file: File) {
     setBusyTaskId(taskId); setProgress((p) => ({ ...p, [taskId]: 0 }));
+    invalidateTaskCache();
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -181,7 +215,7 @@ export function RadiologyTaskBoard() {
             <SelectItem value="oldest">Oldest first</SelectItem>
           </SelectContent>
         </Select>
-        <button onClick={() => void loadTasks()} className="ml-auto rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">Refresh</button>
+        <button onClick={() => void loadTasks({ force: true })} className="ml-auto rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">Refresh</button>
       </div>
 
       {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
