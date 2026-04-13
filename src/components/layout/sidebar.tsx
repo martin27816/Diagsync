@@ -55,6 +55,7 @@ const navByRole: Record<string, NavItem[]> = {
   RECEPTIONIST: [
     { label: "Dashboard", href: "/dashboard/receptionist", icon: LayoutDashboard },
     { label: "New Patient", href: "/dashboard/receptionist/new-patient", icon: UserPlus },
+    { label: "Consultation Queue", href: "/dashboard/receptionist/consultation", icon: Stethoscope },
     { label: "Today's Patients", href: "/dashboard/receptionist/patients", icon: Users },
     { label: "Dispatch Center", href: "/dashboard/receptionist/release", icon: ClipboardList },
   ],
@@ -70,6 +71,7 @@ const navByRole: Record<string, NavItem[]> = {
   ],
   MD: [
     { label: "Dashboard", href: "/dashboard/md", icon: LayoutDashboard },
+    { label: "Consultation Queue", href: "/dashboard/md/consultation", icon: Users },
     { label: "Review Queue", href: "/dashboard/md/review", icon: Stethoscope },
     { label: "Approved", href: "/dashboard/md/approved", icon: ClipboardList },
     { label: "Report Drafts", href: "/dashboard/md/reports", icon: ClipboardList },

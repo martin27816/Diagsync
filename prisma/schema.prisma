@@ -144,6 +144,13 @@ enum ReportType {
   radiology
 }
 
+enum ConsultationStatus {
+  WAITING
+  CALLED
+  CONSULTED
+  CANCELLED
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String
@@ -160,6 +167,7 @@ model Organization {
   patients Patient[]
   tests    DiagnosticTest[]
   reports  DiagnosticReport[]
+  consultationQueueEntries ConsultationQueue[]
 
   @@map("organizations")
 }
@@ -204,8 +212,39 @@ model Staff {
   generatedReports  DiagnosticReport[] @relation("ReportGeneratedBy")
   releasedReports   DiagnosticReport[] @relation("ReportReleasedBy")
   editedReportVersions DiagnosticReportVersion[]
+  createdConsultationQueueEntries ConsultationQueue[] @relation("ConsultationCreatedBy")
+  calledConsultationQueueEntries ConsultationQueue[] @relation("ConsultationCalledBy")
+  acknowledgedConsultationQueueEntries ConsultationQueue[] @relation("ConsultationAcknowledgedBy")
 
   @@map("staff")
+}
+
+model ConsultationQueue {
+  id             String             @id @default(cuid())
+  organizationId String
+  fullName       String
+  age            Int
+  contact        String
+  vitalsNote     String?
+  status         ConsultationStatus @default(WAITING)
+  arrivalAt      DateTime           @default(now())
+  calledAt       DateTime?
+  calledById     String?
+  acknowledgedAt DateTime?
+  acknowledgedById String?
+  consultedAt    DateTime?
+  createdById    String
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    Staff        @relation("ConsultationCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  calledBy     Staff?       @relation("ConsultationCalledBy", fields: [calledById], references: [id], onDelete: SetNull)
+  acknowledgedBy Staff?     @relation("ConsultationAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, arrivalAt])
+  @@index([organizationId, consultedAt])
+  @@map("consultation_queue")
 }
 
 model Session {
