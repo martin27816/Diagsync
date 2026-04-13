@@ -33,6 +33,12 @@ export type SaveResultInput = {
   notes?: string;
 };
 
+function isFilledValue(value: unknown) {
+  if (typeof value === "boolean") return true;
+  if (value === 0) return true;
+  return value !== undefined && value !== null && `${value}`.trim() !== "";
+}
+
 function assertLabScientist(actor: LabActor) {
   if (actor.role !== "LAB_SCIENTIST") {
     throw new Error("FORBIDDEN_ROLE");
@@ -292,10 +298,43 @@ export async function saveLabResults(taskId: string, actor: LabActor, inputs: Sa
       })),
     ])
   );
+  const sensitivityEnabledOrderIds = new Set(
+    testOrders
+      .filter((order) =>
+        order.test.resultFields.some((field) => field.fieldKey.trim().toLowerCase() === "sensitivity")
+      )
+      .map((order) => order.id)
+  );
+  const normalizedInputs: Array<SaveResultInput & { resultData: Prisma.InputJsonObject }> = inputs.map((input) => {
+    const raw = input.resultData;
+    const resultData =
+      raw && typeof raw === "object" && !Array.isArray(raw)
+        ? ({ ...(raw as Record<string, Prisma.InputJsonValue>) } as Prisma.InputJsonObject)
+        : ({} as Prisma.InputJsonObject);
+    return { ...input, resultData };
+  });
+  const sharedSensitivity = normalizedInputs
+    .filter((input) => sensitivityEnabledOrderIds.has(input.testOrderId))
+    .map((input) => input.resultData.sensitivity)
+    .find((value) => isFilledValue(value));
+  const finalInputs = normalizedInputs.map((input) => {
+    if (!sensitivityEnabledOrderIds.has(input.testOrderId)) return input;
+    if (!isFilledValue(sharedSensitivity)) return input;
+    if (isFilledValue(input.resultData.sensitivity)) return input;
+    const nextResultData = Object.assign(
+      {},
+      input.resultData as Record<string, Prisma.InputJsonValue>,
+      { sensitivity: sharedSensitivity as Prisma.InputJsonValue }
+    ) as Prisma.InputJsonObject;
+    return {
+      ...input,
+      resultData: nextResultData,
+    };
+  });
   const abnormalSummaries: string[] = [];
 
   await prisma.$transaction(async (tx) => {
-    for (const input of inputs) {
+    for (const input of finalInputs) {
       const flags = computeAbnormalFlags(
         orderFieldMap.get(input.testOrderId) ?? [],
         (input.resultData ?? {}) as Record<string, unknown>
@@ -348,8 +387,8 @@ export async function saveLabResults(taskId: string, actor: LabActor, inputs: Sa
     entityId: task.id,
     notes:
       abnormalSummaries.length > 0
-        ? `Draft results saved for ${inputs.length} test(s). System flags: ${abnormalSummaries.join(" | ")}`
-        : `Draft results saved for ${inputs.length} test(s)`,
+        ? `Draft results saved for ${finalInputs.length} test(s). System flags: ${abnormalSummaries.join(" | ")}`
+        : `Draft results saved for ${finalInputs.length} test(s)`,
     ...actor.auditMeta,
   });
 }

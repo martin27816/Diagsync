@@ -41,6 +41,12 @@ function assertMd(actor: MdActor) {
   }
 }
 
+function normalizeJsonForInput(value: Prisma.JsonValue | null | undefined) {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return value as Prisma.InputJsonValue;
+}
+
 async function getTaskForReview(taskId: string, actor: MdActor) {
   const task = await prisma.routingTask.findFirst({
     where: {
@@ -246,6 +252,7 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
           findings: activeReportVersion?.findings ?? task.radiologyReport.findings,
           impression: activeReportVersion?.impression ?? task.radiologyReport.impression,
           notes: activeReportVersion?.notes ?? task.radiologyReport.notes,
+          extraFields: activeReportVersion?.extraFields ?? task.radiologyReport.extraFields,
           versionHistory: task.radiologyReport.versions.map((version) => ({
             id: version.id,
             version: version.version,
@@ -254,6 +261,7 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
             findings: version.findings,
             impression: version.impression,
             notes: version.notes,
+            extraFields: version.extraFields,
             editReason: version.editReason,
             editedBy: version.editedBy,
             createdAt: version.createdAt,
@@ -540,6 +548,7 @@ export async function editMdReview(
               findings: report.findings,
               impression: report.impression,
               notes: report.notes,
+              extraFields: normalizeJsonForInput(report.extraFields),
               isActive: true,
               parentId: null,
               editedById: report.staffId,
@@ -560,6 +569,11 @@ export async function editMdReview(
         if (!activeVersion) throw new Error("INVALID_VERSION_CHAIN");
 
         const nextVersion = nextVersionNumber(latestVersion ? [latestVersion.version] : [1]);
+        const versionExtraFields =
+          data.report.extraFields ??
+          activeVersion.extraFields ??
+          latestVersion?.extraFields ??
+          report.extraFields;
 
         await tx.radiologyReportVersion.updateMany({
           where: { reportId: report.id, isActive: true },
@@ -573,6 +587,7 @@ export async function editMdReview(
             findings: data.report.findings ?? activeVersion.findings ?? latestVersion?.findings ?? report.findings,
             impression: data.report.impression ?? activeVersion.impression ?? latestVersion?.impression ?? report.impression,
             notes: data.report.notes ?? activeVersion.notes ?? latestVersion?.notes ?? report.notes,
+            extraFields: normalizeJsonForInput(versionExtraFields as Prisma.JsonValue | null | undefined),
             isActive: true,
             parentId: activeVersion.id,
             editedById: actor.id,

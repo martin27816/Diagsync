@@ -49,6 +49,19 @@ type LabTask = {
 
 type Draft = { values: Record<string, unknown>; notes: string };
 
+function toFieldKey(label: string) {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 64);
+}
+
+function isSensitivityFieldKey(fieldKey: string) {
+  return fieldKey.trim().toLowerCase() === "sensitivity";
+}
+
 const priorityStyle: Record<string, string> = {
   EMERGENCY: "bg-red-50 text-red-600",
   URGENT: "bg-amber-50 text-amber-700",
@@ -83,6 +96,8 @@ type OrderResultCardProps = {
   onPersist: (task: LabTask) => Promise<void>;
   onSetFieldValue: (testOrderId: string, fieldKey: string, value: unknown) => void;
   onSetNotes: (testOrderId: string, value: string) => void;
+  onAddCustomField: (testOrderId: string, label: string, value: string) => void;
+  onRemoveCustomField: (testOrderId: string, fieldKey: string) => void;
 };
 
 const OrderResultCard = memo(function OrderResultCard({
@@ -94,9 +109,19 @@ const OrderResultCard = memo(function OrderResultCard({
   onPersist,
   onSetFieldValue,
   onSetNotes,
+  onAddCustomField,
+  onRemoveCustomField,
 }: OrderResultCardProps) {
   const insightMessages = useMemo(() => buildResultInsights(draft.values ?? {}), [draft.values]);
   const highlightKey = useMemo(() => new Set(highlightFields), [highlightFields]);
+  const [customLabel, setCustomLabel] = useState("");
+  const [customValue, setCustomValue] = useState("");
+  const defaultFieldKeys = useMemo(() => new Set(order.test.resultFields.map((field) => field.fieldKey)), [order.test.resultFields]);
+  const customEntries = useMemo(
+    () =>
+      Object.entries(draft.values ?? {}).filter(([key]) => !defaultFieldKeys.has(key)),
+    [defaultFieldKeys, draft.values]
+  );
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -217,6 +242,64 @@ const OrderResultCard = memo(function OrderResultCard({
           onChange={(e) => onSetNotes(order.id, e.target.value)}
           className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
+      </div>
+
+      <div className="mt-3 rounded border border-slate-200 p-3">
+        <p className="text-[11px] font-medium text-slate-500 mb-2">Extra Fields</p>
+        <div className="space-y-2">
+          {customEntries.length === 0 ? (
+            <p className="text-[11px] text-slate-400">No extra fields added.</p>
+          ) : (
+            customEntries.map(([fieldKey, fieldValue]) => (
+              <div key={fieldKey} className="grid grid-cols-12 gap-2 items-center">
+                <input
+                  value={fieldKey}
+                  readOnly
+                  className="col-span-4 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-500"
+                />
+                <input
+                  value={typeof fieldValue === "string" || typeof fieldValue === "number" ? String(fieldValue) : ""}
+                  onBlur={() => void onPersist(task).catch(() => undefined)}
+                  onChange={(e) => onSetFieldValue(order.id, fieldKey, e.target.value)}
+                  className="col-span-6 rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => onRemoveCustomField(order.id, fieldKey)}
+                  className="col-span-2 rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                >
+                  Remove
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="mt-2 grid grid-cols-12 gap-2">
+          <input
+            value={customLabel}
+            onChange={(e) => setCustomLabel(e.target.value)}
+            placeholder="Field name (e.g. colony_count)"
+            className="col-span-4 rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <input
+            value={customValue}
+            onChange={(e) => setCustomValue(e.target.value)}
+            placeholder="Value"
+            className="col-span-6 rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (!customLabel.trim()) return;
+              onAddCustomField(order.id, customLabel, customValue);
+              setCustomLabel("");
+              setCustomValue("");
+            }}
+            className="col-span-2 rounded border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
+          >
+            Add
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -399,13 +482,32 @@ export function LabTaskBoard() {
     return value !== undefined && value !== null && `${value}`.trim() !== "";
   }
 
-  function isOrderReady(order: TestOrder) {
+  function findTaskForOrder(testOrderId: string) {
+    return tasksRef.current.find((task) => task.testOrders.some((order) => order.id === testOrderId));
+  }
+
+  function getSharedSensitivity(task: LabTask, draftsSnapshot: Record<string, Draft> = draftsRef.current) {
+    for (const order of task.testOrders) {
+      if (!order.test.resultFields.some((field) => isSensitivityFieldKey(field.fieldKey))) continue;
+      const value = draftsSnapshot[order.id]?.values?.sensitivity;
+      if (isValueFilled(value)) return value;
+    }
+    return undefined;
+  }
+
+  function isOrderReady(task: LabTask, order: TestOrder) {
     const draft = drafts[order.id] ?? { values: {}, notes: "" };
     const required = order.test.resultFields.filter((field) => field.isRequired);
     if (required.length === 0) {
       return Object.values(draft.values).some(isValueFilled) || draft.notes.trim().length > 0;
     }
-    return required.every((field) => isValueFilled(draft.values[field.fieldKey]));
+    const sharedSensitivity = getSharedSensitivity(task);
+    return required.every((field) => {
+      const localValue = draft.values[field.fieldKey];
+      if (isValueFilled(localValue)) return true;
+      if (isSensitivityFieldKey(field.fieldKey)) return isValueFilled(sharedSensitivity);
+      return false;
+    });
   }
 
   function showResultForm(task: LabTask) {
@@ -423,17 +525,65 @@ export function LabTaskBoard() {
   }
 
   const setDraftFieldValue = useCallback((testOrderId: string, fieldKey: string, value: unknown) => {
-    updateDraft(testOrderId, (prev) => ({ ...prev, values: { ...prev.values, [fieldKey]: value } }));
+    const task = findTaskForOrder(testOrderId);
+    const shouldSyncSensitivity = Boolean(task && isSensitivityFieldKey(fieldKey));
+    const sensitivityOrderIds = shouldSyncSensitivity
+      ? task!.testOrders
+          .filter((order) => order.test.resultFields.some((field) => isSensitivityFieldKey(field.fieldKey)))
+          .map((order) => order.id)
+      : [];
+
+    setDrafts((prev) => {
+      const next = { ...prev };
+      const targetOrderIds = sensitivityOrderIds.length > 0 ? sensitivityOrderIds : [testOrderId];
+      for (const orderId of targetOrderIds) {
+        const current = next[orderId] ?? { values: {}, notes: "" };
+        next[orderId] = { ...current, values: { ...current.values, [fieldKey]: value } };
+      }
+      draftsRef.current = next;
+      return next;
+    });
   }, []);
 
   const setDraftNotesValue = useCallback((testOrderId: string, value: string) => {
     updateDraft(testOrderId, (prev) => ({ ...prev, notes: value }));
   }, []);
 
+  const addCustomField = useCallback((testOrderId: string, label: string, value: string) => {
+    const baseKey = toFieldKey(label);
+    if (!baseKey) return;
+    updateDraft(testOrderId, (prev) => {
+      const nextValues = { ...prev.values };
+      let fieldKey = baseKey;
+      let counter = 2;
+      while (Object.prototype.hasOwnProperty.call(nextValues, fieldKey)) {
+        fieldKey = `${baseKey}_${counter}`;
+        counter += 1;
+      }
+      nextValues[fieldKey] = value;
+      return { ...prev, values: nextValues };
+    });
+  }, []);
+
+  const removeCustomField = useCallback((testOrderId: string, fieldKey: string) => {
+    updateDraft(testOrderId, (prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev.values, fieldKey)) return prev;
+      const nextValues = { ...prev.values };
+      delete nextValues[fieldKey];
+      return { ...prev, values: nextValues };
+    });
+  }, []);
+
   function collectTaskDraftResults(task: LabTask, draftsSnapshot: Record<string, Draft> = draftsRef.current) {
+    const sharedSensitivity = getSharedSensitivity(task, draftsSnapshot);
     return task.testOrders.map((order) => ({
       testOrderId: order.id,
-      resultData: draftsSnapshot[order.id]?.values ?? {},
+      resultData:
+        order.test.resultFields.some((field) => isSensitivityFieldKey(field.fieldKey)) &&
+        isValueFilled(sharedSensitivity) &&
+        !isValueFilled((draftsSnapshot[order.id]?.values ?? {}).sensitivity)
+          ? { ...(draftsSnapshot[order.id]?.values ?? {}), sensitivity: sharedSensitivity }
+          : draftsSnapshot[order.id]?.values ?? {},
       notes: draftsSnapshot[order.id]?.notes ?? "",
     }));
   }
@@ -516,7 +666,7 @@ export function LabTaskBoard() {
         return;
       }
 
-      if (task.testOrders.some((order) => !isOrderReady(order))) {
+      if (task.testOrders.some((order) => !isOrderReady(task, order))) {
         setError("Complete all required result fields before submitting.");
         return;
       }
@@ -680,10 +830,12 @@ export function LabTaskBoard() {
                                 order={order}
                                 draft={drafts[order.id] ?? { values: {}, notes: "" }}
                                 highlightFields={highlightFields}
-                                isReady={isOrderReady(order)}
+                                isReady={isOrderReady(task, order)}
                                 onPersist={persistDraft}
                                 onSetFieldValue={setDraftFieldValue}
                                 onSetNotes={setDraftNotesValue}
+                                onAddCustomField={addCustomField}
+                                onRemoveCustomField={removeCustomField}
                               />
                             ))}
 

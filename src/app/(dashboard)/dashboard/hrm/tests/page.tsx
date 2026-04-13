@@ -18,22 +18,28 @@ export default async function TestCatalogPage() {
   const user = session.user as any;
   if (!["SUPER_ADMIN", "HRM"].includes(user.role)) redirect("/dashboard/hrm");
 
-  const tests = await prisma.diagnosticTest.findMany({
-    where: { organizationId: user.organizationId, isActive: true },
-    include: {
-      category: { select: { name: true } },
-      resultFields: { orderBy: { sortOrder: "asc" } },
-    },
-    orderBy: [{ type: "asc" }, { name: "asc" }],
-  });
-  const categories = await prisma.testCategory.findMany({
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
-  });
+  // OPTIMISED: use _count instead of include: { resultFields: [...] }
+  // The page only displays the field count, not the field data itself.
+  // Before: fetched 500-1000+ field rows just to count them.
+  // After: a single COUNT(*) per test in the same query — no extra rows.
+  const [tests, categories] = await Promise.all([
+    prisma.diagnosticTest.findMany({
+      where: { organizationId: user.organizationId, isActive: true },
+      include: {
+        category: { select: { name: true } },
+        _count: { select: { resultFields: true } },
+      },
+      orderBy: [{ type: "asc" }, { name: "asc" }],
+    }),
+    prisma.testCategory.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   const labTests = tests.filter((t) => t.type === "LAB");
   const radioTests = tests.filter((t) => t.type === "RADIOLOGY");
-  const totalFields = tests.reduce((sum, t) => sum + t.resultFields.length, 0);
+  const totalFields = tests.reduce((sum, t) => sum + t._count.resultFields, 0);
 
   return (
     <div className="space-y-4">
@@ -96,7 +102,7 @@ export default async function TestCatalogPage() {
                   <td className="px-4 py-2.5 text-slate-500">{test.category?.name ?? "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500">{test.sampleType ?? "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500">{turnaround(test.turnaroundMinutes)}</td>
-                  <td className="px-4 py-2.5 text-slate-400">{test.resultFields.length}</td>
+                  <td className="px-4 py-2.5 text-slate-400">{test._count.resultFields}</td>
                 </tr>
               ))}
             </tbody>
@@ -138,7 +144,7 @@ export default async function TestCatalogPage() {
                   </td>
                   <td className="px-4 py-2.5 text-slate-500">{test.category?.name ?? "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500">{turnaround(test.turnaroundMinutes)}</td>
-                  <td className="px-4 py-2.5 text-slate-400">{test.resultFields.length}</td>
+                  <td className="px-4 py-2.5 text-slate-400">{test._count.resultFields}</td>
                 </tr>
               ))}
             </tbody>

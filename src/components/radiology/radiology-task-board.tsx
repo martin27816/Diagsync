@@ -7,9 +7,24 @@ import { formatDateTime } from "@/lib/utils";
 type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
 type ImagingFile = { id: string; fileUrl: string; fileType: string; fileName: string; fileSizeBytes: number; createdAt: string };
-type Report = { findings: string; impression: string; notes?: string | null; isSubmitted: boolean };
+type Report = {
+  findings: string;
+  impression: string;
+  notes?: string | null;
+  extraFields?: Record<string, string> | null;
+  isSubmitted: boolean;
+};
 type Task = { id: string; status: TaskStatus; priority: Priority; createdAt: string; updatedAt: string; visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } }; imagingFiles: ImagingFile[]; radiologyReport: Report | null };
-type Draft = { findings: string; impression: string; notes: string };
+type Draft = { findings: string; impression: string; notes: string; extraFields: Record<string, string> };
+
+function toFieldKey(label: string) {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 64);
+}
 
 const priorityStyle: Record<string, string> = {
   EMERGENCY: "bg-red-50 text-red-600", URGENT: "bg-amber-50 text-amber-700", ROUTINE: "bg-slate-100 text-slate-600",
@@ -33,6 +48,8 @@ export function RadiologyTaskBoard() {
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [newExtraFieldLabel, setNewExtraFieldLabel] = useState<Record<string, string>>({});
+  const [newExtraFieldValue, setNewExtraFieldValue] = useState<Record<string, string>>({});
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -59,7 +76,12 @@ export function RadiologyTaskBoard() {
     setTasks(rows);
     const nextDrafts: Record<string, Draft> = {};
     for (const task of rows) {
-      nextDrafts[task.id] = { findings: task.radiologyReport?.findings ?? "", impression: task.radiologyReport?.impression ?? "", notes: task.radiologyReport?.notes ?? "" };
+      nextDrafts[task.id] = {
+        findings: task.radiologyReport?.findings ?? "",
+        impression: task.radiologyReport?.impression ?? "",
+        notes: task.radiologyReport?.notes ?? "",
+        extraFields: task.radiologyReport?.extraFields ?? {},
+      };
     }
     setDrafts(nextDrafts);
   }
@@ -105,11 +127,40 @@ export function RadiologyTaskBoard() {
   const counts = useMemo(() => ({ pending: filtered.filter((t) => t.status === "PENDING").length, inProgress: filtered.filter((t) => t.status === "IN_PROGRESS").length, completed: filtered.filter((t) => t.status === "COMPLETED").length }), [filtered]);
 
   function updateDraft(taskId: string, patch: Partial<Draft>) {
-    setDrafts((prev) => ({ ...prev, [taskId]: { ...(prev[taskId] ?? { findings: "", impression: "", notes: "" }), ...patch } }));
+    setDrafts((prev) => ({
+      ...prev,
+      [taskId]: { ...(prev[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} }), ...patch },
+    }));
   }
   function reportReady(taskId: string) {
     const d = drafts[taskId];
     return Boolean(d?.findings?.trim()) && Boolean(d?.impression?.trim());
+  }
+
+  function setExtraFieldValue(taskId: string, fieldKey: string, value: string) {
+    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
+    updateDraft(taskId, { extraFields: { ...current.extraFields, [fieldKey]: value } });
+  }
+
+  function removeExtraField(taskId: string, fieldKey: string) {
+    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
+    if (!Object.prototype.hasOwnProperty.call(current.extraFields, fieldKey)) return;
+    const next = { ...current.extraFields };
+    delete next[fieldKey];
+    updateDraft(taskId, { extraFields: next });
+  }
+
+  function addExtraField(taskId: string, label: string, value: string) {
+    const baseKey = toFieldKey(label);
+    if (!baseKey) return;
+    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
+    let key = baseKey;
+    let counter = 2;
+    while (Object.prototype.hasOwnProperty.call(current.extraFields, key)) {
+      key = `${baseKey}_${counter}`;
+      counter += 1;
+    }
+    updateDraft(taskId, { extraFields: { ...current.extraFields, [key]: value } });
   }
 
   async function startTask(taskId: string) {
@@ -126,7 +177,7 @@ export function RadiologyTaskBoard() {
     setBusyTaskId(taskId); setError("");
     invalidateTaskCache();
     try {
-      const d = drafts[taskId] ?? { findings: "", impression: "", notes: "" };
+      const d = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
       const json = await (await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })).json();
       if (!json.success) { setError(json.error ?? "Unable to save report"); return; }
       patchTask(taskId, {
@@ -134,6 +185,7 @@ export function RadiologyTaskBoard() {
           findings: d.findings,
           impression: d.impression,
           notes: d.notes,
+          extraFields: d.extraFields,
           isSubmitted: false,
         },
       });
@@ -144,7 +196,7 @@ export function RadiologyTaskBoard() {
     setBusyTaskId(taskId); setError("");
     invalidateTaskCache();
     try {
-      const d = drafts[taskId] ?? { findings: "", impression: "", notes: "" };
+      const d = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
       if (!d.findings.trim() || !d.impression.trim()) { setError("Findings and impression are required before submission."); return; }
       await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) });
       const json = await (await fetch(`/api/radiology/tasks/${taskId}/submit`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requireImaging: true }) })).json();
@@ -330,6 +382,64 @@ export function RadiologyTaskBoard() {
                                 <label className="block text-[11px] font-medium text-slate-500 mb-1">Notes (optional)</label>
                                 <input value={drafts[task.id]?.notes ?? ""} onChange={(e) => updateDraft(task.id, { notes: e.target.value })}
                                   className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                              </div>
+                              <div className="rounded border border-slate-200 bg-white p-3">
+                                <p className="text-[11px] font-medium text-slate-500 mb-2">Extra Fields</p>
+                                <div className="space-y-2">
+                                  {Object.entries(drafts[task.id]?.extraFields ?? {}).length === 0 ? (
+                                    <p className="text-[11px] text-slate-400">No extra fields added.</p>
+                                  ) : (
+                                    Object.entries(drafts[task.id]?.extraFields ?? {}).map(([fieldKey, fieldValue]) => (
+                                      <div key={fieldKey} className="grid grid-cols-12 gap-2 items-center">
+                                        <input
+                                          value={fieldKey}
+                                          readOnly
+                                          className="col-span-4 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-500"
+                                        />
+                                        <input
+                                          value={fieldValue}
+                                          onChange={(e) => setExtraFieldValue(task.id, fieldKey, e.target.value)}
+                                          className="col-span-6 rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => removeExtraField(task.id, fieldKey)}
+                                          className="col-span-2 rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                                <div className="mt-2 grid grid-cols-12 gap-2">
+                                  <input
+                                    value={newExtraFieldLabel[task.id] ?? ""}
+                                    onChange={(e) => setNewExtraFieldLabel((prev) => ({ ...prev, [task.id]: e.target.value }))}
+                                    placeholder="Field name"
+                                    className="col-span-4 rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  <input
+                                    value={newExtraFieldValue[task.id] ?? ""}
+                                    onChange={(e) => setNewExtraFieldValue((prev) => ({ ...prev, [task.id]: e.target.value }))}
+                                    placeholder="Value"
+                                    className="col-span-6 rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const label = newExtraFieldLabel[task.id] ?? "";
+                                      const value = newExtraFieldValue[task.id] ?? "";
+                                      if (!label.trim()) return;
+                                      addExtraField(task.id, label, value);
+                                      setNewExtraFieldLabel((prev) => ({ ...prev, [task.id]: "" }));
+                                      setNewExtraFieldValue((prev) => ({ ...prev, [task.id]: "" }));
+                                    }}
+                                    className="col-span-2 rounded border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
+                                  >
+                                    Add
+                                  </button>
+                                </div>
                               </div>
                               <div className="flex gap-2 pt-1">
                                 <button disabled={busyTaskId === task.id} onClick={() => saveReport(task.id)}

@@ -536,6 +536,7 @@ model RadiologyReport {
   findings       String
   impression     String
   notes          String?
+  extraFields    Json?
   isSubmitted    Boolean  @default(false)
   submittedAt    DateTime?
   createdAt      DateTime @default(now())
@@ -689,6 +690,7 @@ model RadiologyReportVersion {
   findings   String
   impression String
   notes      String?
+  extraFields Json?
   isActive   Boolean  @default(true)
   parentId   String?
   editedById String

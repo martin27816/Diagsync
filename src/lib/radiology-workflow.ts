@@ -101,6 +101,7 @@ export async function getRadiologyTasks(
           findings: true,
           impression: true,
           notes: true,
+          extraFields: true,
           isSubmitted: true,
         },
       },
@@ -188,7 +189,12 @@ export async function addImagingFile(taskId: string, actor: RadiologyActor, inpu
 export async function saveRadiologyReport(
   taskId: string,
   actor: RadiologyActor,
-  input: { findings: string; impression: string; notes?: string }
+  input: {
+    findings: string;
+    impression: string;
+    notes?: string;
+    extraFields?: Prisma.InputJsonObject;
+  }
 ) {
   assertRadiographer(actor);
   const task = await assertOwnership(taskId, actor);
@@ -202,11 +208,13 @@ export async function saveRadiologyReport(
       findings: input.findings,
       impression: input.impression,
       notes: input.notes,
+      extraFields: input.extraFields,
     },
     update: {
       findings: input.findings,
       impression: input.impression,
       notes: input.notes,
+      extraFields: input.extraFields,
     },
   });
 

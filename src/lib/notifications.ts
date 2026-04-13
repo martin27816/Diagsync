@@ -30,7 +30,9 @@ type SendNotificationInput = {
   dedupeKey?: string;
 };
 
-function toCreateData(input: SendNotificationInput): Prisma.NotificationCreateInput {
+function toCreateData(
+  input: SendNotificationInput
+): Prisma.NotificationCreateManyInput {
   return {
     type: input.type,
     title: input.title,
@@ -43,15 +45,30 @@ function toCreateData(input: SendNotificationInput): Prisma.NotificationCreateIn
       entityId: input.entityId,
       key: input.dedupeKey,
     }),
-    user: { connect: { id: input.userId } },
+    userId: input.userId,
     organizationId: input.organizationId,
   };
 }
 
+// Single notification — kept for one-off sends
 export async function sendNotification(input: SendNotificationInput) {
   try {
     const created = await prisma.notification.create({
-      data: toCreateData(input),
+      data: {
+        type: input.type,
+        title: input.title,
+        message: input.message,
+        entityId: input.entityId,
+        entityType: input.entityType,
+        dedupeKey: buildNotificationDedupeKey({
+          userId: input.userId,
+          type: input.type,
+          entityId: input.entityId,
+          key: input.dedupeKey,
+        }),
+        user: { connect: { id: input.userId } },
+        organizationId: input.organizationId,
+      },
     });
     return created;
   } catch (error: any) {
@@ -60,6 +77,7 @@ export async function sendNotification(input: SendNotificationInput) {
   }
 }
 
+// OPTIMISED: replaces sequential for-loop with a single batch insert
 export async function sendNotificationToRoles(input: {
   organizationId: string;
   roles: Role[];
@@ -80,9 +98,8 @@ export async function sendNotificationToRoles(input: {
   });
   if (users.length === 0) return 0;
 
-  let sent = 0;
-  for (const user of users) {
-    const created = await sendNotification({
+  const data = users.map((user) =>
+    toCreateData({
       organizationId: input.organizationId,
       userId: user.id,
       type: input.type,
@@ -93,31 +110,40 @@ export async function sendNotificationToRoles(input: {
       dedupeKey: input.dedupeKeyPrefix
         ? `${input.dedupeKeyPrefix}:${user.id}`
         : undefined,
-    });
-    if (created) sent += 1;
-  }
-  return sent;
+    })
+  );
+
+  const result = await prisma.notification.createMany({
+    data,
+    skipDuplicates: true, // handles dedupeKey unique constraint
+  });
+
+  return result.count;
 }
 
-export async function listNotifications(actor: NotificationActor, opts?: { limit?: number; cursor?: string }) {
+// OPTIMISED: parallel queries instead of sequential
+export async function listNotifications(
+  actor: NotificationActor,
+  opts?: { limit?: number; cursor?: string }
+) {
   const limit = Math.min(Math.max(opts?.limit ?? 20, 1), 50);
-  const rows = await prisma.notification.findMany({
-    where: {
-      organizationId: actor.organizationId,
-      userId: actor.id,
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit + 1,
-    ...(opts?.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
-  });
+  const baseWhere = {
+    organizationId: actor.organizationId,
+    userId: actor.id,
+  };
 
-  const unreadCount = await prisma.notification.count({
-    where: {
-      organizationId: actor.organizationId,
-      userId: actor.id,
-      isRead: false,
-    },
-  });
+  // Run both queries in parallel instead of sequentially
+  const [rows, unreadCount] = await Promise.all([
+    prisma.notification.findMany({
+      where: baseWhere,
+      orderBy: { createdAt: "desc" },
+      take: limit + 1,
+      ...(opts?.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+    }),
+    prisma.notification.count({
+      where: { ...baseWhere, isRead: false },
+    }),
+  ]);
 
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
@@ -126,13 +152,17 @@ export async function listNotifications(actor: NotificationActor, opts?: { limit
   return { items, unreadCount, nextCursor };
 }
 
-export async function markNotificationAsRead(actor: NotificationActor, notificationId: string) {
+export async function markNotificationAsRead(
+  actor: NotificationActor,
+  notificationId: string
+) {
   const notification = await prisma.notification.findFirst({
     where: { id: notificationId, organizationId: actor.organizationId },
     select: { id: true, userId: true, isRead: true },
   });
   if (!notification) throw new Error("NOTIFICATION_NOT_FOUND");
-  if (!canAccessNotification(notification.userId, actor.id)) throw new Error("FORBIDDEN_NOTIFICATION");
+  if (!canAccessNotification(notification.userId, actor.id))
+    throw new Error("FORBIDDEN_NOTIFICATION");
   if (notification.isRead) return null;
 
   return prisma.notification.update({
@@ -154,26 +184,28 @@ export async function markAllNotificationsAsRead(actor: NotificationActor) {
 }
 
 export async function emitDelayedTaskNotifications(organizationId: string) {
-  const privileged = await prisma.staff.findMany({
-    where: {
-      organizationId,
-      status: "ACTIVE",
-      role: { in: ["HRM", "SUPER_ADMIN"] },
-    },
-    select: { id: true },
-  });
-  if (privileged.length === 0) return 0;
+  // OPTIMISED: fetch privileged staff and tasks in parallel
+  const [privileged, tasks] = await Promise.all([
+    prisma.staff.findMany({
+      where: {
+        organizationId,
+        status: "ACTIVE",
+        role: { in: ["HRM", "SUPER_ADMIN"] },
+      },
+      select: { id: true },
+    }),
+    prisma.routingTask.findMany({
+      where: {
+        organizationId,
+        status: { in: [RoutingTaskStatus.PENDING, RoutingTaskStatus.IN_PROGRESS] },
+      },
+      include: {
+        visit: { include: { patient: true } },
+      },
+    }),
+  ]);
 
-  const tasks = await prisma.routingTask.findMany({
-    where: {
-      organizationId,
-      status: { in: [RoutingTaskStatus.PENDING, RoutingTaskStatus.IN_PROGRESS] },
-    },
-    include: {
-      visit: { include: { patient: true } },
-    },
-  });
-  if (tasks.length === 0) return 0;
+  if (privileged.length === 0 || tasks.length === 0) return 0;
 
   const orderIds = tasks.flatMap((task) => task.testOrderIds);
   const orders = orderIds.length
@@ -184,7 +216,8 @@ export async function emitDelayedTaskNotifications(organizationId: string) {
     : [];
   const orderMap = new Map(orders.map((order) => [order.id, order]));
 
-  let sent = 0;
+  const notificationsToCreate: Prisma.NotificationCreateManyInput[] = [];
+
   for (const task of tasks) {
     const taskOrders = task.testOrderIds
       .map((id) => orderMap.get(id))
@@ -208,7 +241,8 @@ export async function emitDelayedTaskNotifications(organizationId: string) {
     if (!delayed) continue;
 
     for (const user of privileged) {
-      const created = await sendNotification({
+      const dedupeKey = `delayed:${task.id}:${user.id}`;
+      notificationsToCreate.push({
         organizationId,
         userId: user.id,
         type: NotificationType.TASK_DELAYED,
@@ -216,12 +250,19 @@ export async function emitDelayedTaskNotifications(organizationId: string) {
         message: `${task.department} task for ${task.visit.patient.fullName} exceeded target turnaround.`,
         entityId: task.id,
         entityType: "RoutingTask",
-        dedupeKey: `delayed:${task.id}:${user.id}`,
+        dedupeKey,
       });
-      if (created) sent += 1;
     }
   }
-  return sent;
+
+  if (notificationsToCreate.length === 0) return 0;
+
+  // OPTIMISED: single batch insert instead of N×M sequential writes
+  const result = await prisma.notification.createMany({
+    data: notificationsToCreate,
+    skipDuplicates: true,
+  });
+  return result.count;
 }
 
 export async function notifyStaffForTaskAssignment(input: {
@@ -250,29 +291,51 @@ export async function notifyMdResultSubmitted(input: {
   department: string;
   submittedByName?: string | null;
 }) {
-  const mdSent = await sendNotificationToRoles({
-    organizationId: input.organizationId,
-    roles: [Role.MD],
-    type: NotificationType.RESULT_SUBMITTED,
-    title: "Result ready for review",
-    message: `${input.patientName} (${input.department}) submitted${input.submittedByName ? ` by ${input.submittedByName}` : ""}.`,
-    entityId: input.taskId,
-    entityType: "RoutingTask",
-    dedupeKeyPrefix: `submitted:${input.taskId}`,
-  });
+  // OPTIMISED: fetch MD and HRM staff in parallel, then batch-insert
+  const [mdUsers, hrmUsers] = await Promise.all([
+    prisma.staff.findMany({
+      where: { organizationId: input.organizationId, role: Role.MD, status: "ACTIVE" },
+      select: { id: true },
+    }),
+    prisma.staff.findMany({
+      where: {
+        organizationId: input.organizationId,
+        role: { in: [Role.HRM, Role.SUPER_ADMIN] },
+        status: "ACTIVE",
+      },
+      select: { id: true },
+    }),
+  ]);
 
-  const hrmSent = await sendNotificationToRoles({
-    organizationId: input.organizationId,
-    roles: [Role.HRM, Role.SUPER_ADMIN],
-    type: NotificationType.RESULT_SUBMITTED,
-    title: "Result submitted to MD queue",
-    message: `${input.patientName} (${input.department}) has entered MD review queue.`,
-    entityId: input.taskId,
-    entityType: "RoutingTask",
-    dedupeKeyPrefix: `submitted-ops:${input.taskId}`,
-  });
+  const mdMsg = `${input.patientName} (${input.department}) submitted${input.submittedByName ? ` by ${input.submittedByName}` : ""}.`;
+  const hrmMsg = `${input.patientName} (${input.department}) has entered MD review queue.`;
 
-  return mdSent + hrmSent;
+  const data: Prisma.NotificationCreateManyInput[] = [
+    ...mdUsers.map((u) => ({
+      organizationId: input.organizationId,
+      userId: u.id,
+      type: NotificationType.RESULT_SUBMITTED,
+      title: "Result ready for review",
+      message: mdMsg,
+      entityId: input.taskId,
+      entityType: "RoutingTask",
+      dedupeKey: `submitted:${input.taskId}:${u.id}`,
+    })),
+    ...hrmUsers.map((u) => ({
+      organizationId: input.organizationId,
+      userId: u.id,
+      type: NotificationType.RESULT_SUBMITTED,
+      title: "Result submitted to MD queue",
+      message: hrmMsg,
+      entityId: input.taskId,
+      entityType: "RoutingTask",
+      dedupeKey: `submitted-ops:${input.taskId}:${u.id}`,
+    })),
+  ];
+
+  if (data.length === 0) return 0;
+  const result = await prisma.notification.createMany({ data, skipDuplicates: true });
+  return result.count;
 }
 
 export async function notifyTaskReviewOutcome(input: {
@@ -283,41 +346,56 @@ export async function notifyTaskReviewOutcome(input: {
   approved: boolean;
   reason?: string;
 }) {
-  const type = input.approved ? NotificationType.RESULT_APPROVED : NotificationType.RESULT_REJECTED;
+  const type = input.approved
+    ? NotificationType.RESULT_APPROVED
+    : NotificationType.RESULT_REJECTED;
   const title = input.approved ? "Result approved" : "Edit requested by MD";
   const message = input.approved
     ? `${input.patientName} result approved by MD.`
     : `${input.patientName} result returned by MD${input.reason ? `: ${input.reason}` : "."}`;
 
-  let count = 0;
-  if (input.performerId) {
-    const created = await sendNotification({
+  const hrmUsers = await prisma.staff.findMany({
+    where: {
       organizationId: input.organizationId,
-      userId: input.performerId,
+      role: { in: [Role.HRM, Role.SUPER_ADMIN] },
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+
+  const data: Prisma.NotificationCreateManyInput[] = [
+    ...(input.performerId
+      ? [
+          {
+            organizationId: input.organizationId,
+            userId: input.performerId,
+            type,
+            title,
+            message,
+            entityId: input.taskId,
+            entityType: "RoutingTask",
+            dedupeKey: `${type}:${input.taskId}:${input.performerId}`,
+          },
+        ]
+      : []),
+    ...hrmUsers.map((u) => ({
+      organizationId: input.organizationId,
+      userId: u.id,
       type,
       title,
       message,
       entityId: input.taskId,
       entityType: "RoutingTask",
-      dedupeKey: `${type}:${input.taskId}:${input.performerId}`,
-    });
-    if (created) count += 1;
-  }
+      dedupeKey: `${type}:${input.taskId}:${u.id}`,
+    })),
+  ];
 
-  count += await sendNotificationToRoles({
-    organizationId: input.organizationId,
-    roles: [Role.HRM, Role.SUPER_ADMIN],
-    type,
-    title,
-    message,
-    entityId: input.taskId,
-    entityType: "RoutingTask",
-    dedupeKeyPrefix: `${type}:${input.taskId}`,
-  });
-
-  return count;
+  if (data.length === 0) return 0;
+  const result = await prisma.notification.createMany({ data, skipDuplicates: true });
+  return result.count;
 }
 
+// OPTIMISED: batch insert instead of sequential loop
 export async function notifyResultEdited(input: {
   organizationId: string;
   taskId: string;
@@ -332,27 +410,20 @@ export async function notifyResultEdited(input: {
     mdIds: input.mdIds,
     performerIds: input.performerIds,
   });
-  let sent = 0;
-  for (const userId of targets) {
-    const created = await sendNotification({
-      organizationId: input.organizationId,
-      userId,
-      type: NotificationType.RESULT_EDITED,
-      title: "Result Updated",
-      message: `${input.patientName} result was modified and requires review.`,
-      entityId: input.taskId,
-      entityType: "RoutingTask",
-      dedupeKey: `edited:${input.taskId}:${input.dedupeSeed}:${userId}`,
-    });
-    if (created) sent += 1;
-  }
-  return sent;
-}
 
-export function canManageNotifications(role: string) {
-  return Boolean(role);
-}
+  if (targets.length === 0) return 0;
 
-export function canReceiveOperationsNotifications(role: string) {
-  return isPrivilegedOpsRole(role);
+  const data: Prisma.NotificationCreateManyInput[] = targets.map((userId) => ({
+    organizationId: input.organizationId,
+    userId,
+    type: NotificationType.RESULT_EDITED,
+    title: "Result Updated",
+    message: `${input.patientName} result was modified and requires review.`,
+    entityId: input.taskId,
+    entityType: "RoutingTask",
+    dedupeKey: `edited:${input.taskId}:${input.dedupeSeed}:${userId}`,
+  }));
+
+  const result = await prisma.notification.createMany({ data, skipDuplicates: true });
+  return result.count;
 }

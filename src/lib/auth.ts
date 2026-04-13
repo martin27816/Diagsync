@@ -50,9 +50,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const { email, password } = parsed.data;
 
+        // OPTIMISED: select only required fields — removed `include: { organization: true }`
+        // which was doing an unnecessary JOIN on every login. We only need organizationId (the FK),
+        // not the full org record. The JWT stores the ID, not org details.
         const staff = await prisma.staff.findUnique({
           where: { email },
-          include: { organization: true },
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            passwordHash: true,
+            role: true,
+            department: true,
+            organizationId: true,
+            status: true,
+          },
         });
 
         if (!staff) return null;

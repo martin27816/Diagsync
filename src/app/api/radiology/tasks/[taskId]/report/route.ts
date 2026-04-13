@@ -10,6 +10,7 @@ const reportSchema = z.object({
   findings: z.string().max(10000).default(""),
   impression: z.string().max(10000).default(""),
   notes: z.string().max(10000).optional(),
+  extraFields: z.record(z.string().max(80), z.string().max(10000)).optional(),
 });
 
 export async function POST(

@@ -79,6 +79,18 @@ export function renderReportHtml(args: RenderArgs) {
                     ? `<p><strong>Notes:</strong> ${escapeHtml(String(test.notes))}</p>`
                     : ""
                 }
+                ${
+                  test.extraFields && typeof test.extraFields === "object"
+                    ? Object.entries(test.extraFields as Record<string, unknown>)
+                        .map(([key, value]) => {
+                          const k = String(key ?? "").trim();
+                          const v = value === null || value === undefined ? "" : String(value);
+                          if (!k) return "";
+                          return `<p><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</p>`;
+                        })
+                        .join("")
+                    : ""
+                }
               </section>
             `
           )

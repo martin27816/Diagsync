@@ -36,6 +36,11 @@ function ensurePreviewAccess(actor: ReportActor) {
   if (!canPreviewReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
 }
 
+function pickExtraFields(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
 function assertContentMatchesDepartment(content: unknown, department: Department) {
   if (!content || typeof content !== "object") {
     throw new Error("INVALID_REPORT_CONTENT");
@@ -139,11 +144,24 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
   });
   const activeReportVersion = task.radiologyReport?.versions?.[0] ?? null;
   const report = task.radiologyReport;
+  const activeVersionExtraFields = activeReportVersion
+    ? (activeReportVersion as Record<string, unknown>)["extraFields"]
+    : null;
+  const reportExtraFields = report ? (report as Record<string, unknown>)["extraFields"] : null;
+  const rawExtraFields = pickExtraFields(activeVersionExtraFields ?? reportExtraFields);
+  const extraFields = rawExtraFields
+    ? Object.fromEntries(
+        Object.entries(rawExtraFields)
+          .map(([key, value]) => [key, value === null || value === undefined ? "" : String(value)])
+          .filter(([key]) => key.trim().length > 0)
+      )
+    : {};
   const tests = radiologyTests.map((order) => ({
     name: order.test.name,
     findings: activeReportVersion?.findings ?? report?.findings ?? "",
     impression: activeReportVersion?.impression ?? report?.impression ?? "",
     notes: activeReportVersion?.notes ?? report?.notes ?? "",
+    extraFields,
   }));
   const imagingFiles = task.imagingFiles.map((file) => ({
     url: file.fileUrl,
