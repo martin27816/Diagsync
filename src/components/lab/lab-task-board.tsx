@@ -567,25 +567,6 @@ export function LabTaskBoard() {
     tasksRef.current = tasks;
   }, [tasks]);
 
-  useEffect(() => {
-    let next = signatureLibrary;
-    let changed = false;
-    for (const signOff of Object.values(signOffByTask)) {
-      const res = upsertSignaturePreset(next, {
-        name: signOff.signatureName ?? "",
-        image: signOff.signatureImage ?? "",
-      });
-      if (res.changed) {
-        next = res.items;
-        changed = true;
-      }
-    }
-    if (changed) {
-      setSignatureLibrary(next);
-      saveSignaturePresets("reporting", next);
-    }
-  }, [signOffByTask, signatureLibrary]);
-
   const filtered = useMemo(() => {
     const base = statusFilter === "ALL" ? tasks.filter((task) => task.status !== "COMPLETED") : tasks;
     return base.filter((task) => priorityFilter === "ALL" || task.priority === priorityFilter);

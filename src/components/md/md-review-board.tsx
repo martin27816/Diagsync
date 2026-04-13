@@ -7,6 +7,7 @@ import { buildResultInsights } from "@/lib/result-insights";
 import { PatientInsights } from "@/components/patients/patient-insights";
 import { analyzePatientInsights, type PatientHistoryRow } from "@/lib/patient-insights";
 import { toCustomFieldKey } from "@/lib/custom-fields-core";
+import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY, isDataImageUrl } from "@/lib/report-signoff";
 
 type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 type TaskDepartment = "LABORATORY" | "RADIOLOGY";
@@ -61,6 +62,25 @@ function getHighlightFields(review: Item["review"]) {
   const data = review.editedData as { highlightFields?: unknown };
   if (!Array.isArray(data.highlightFields)) return [];
   return data.highlightFields.filter((row): row is string => typeof row === "string");
+}
+
+function getRadiologySignature(extraFields?: Record<string, string> | null) {
+  const signatureName = extraFields?.[SIGNOFF_NAME_KEY]?.trim() ?? "";
+  const signatureImage = extraFields?.[SIGNOFF_IMAGE_KEY]?.trim() ?? "";
+  if (!signatureName || !signatureImage) return null;
+  if (!isDataImageUrl(signatureImage)) return null;
+  return { signatureName, signatureImage };
+}
+
+function getVisibleRadiologyExtraFields(extraFields?: Record<string, string> | null) {
+  return Object.entries(extraFields ?? {}).filter(
+    ([key, value]) =>
+      key !== SIGNOFF_IMAGE_KEY &&
+      key !== SIGNOFF_NAME_KEY &&
+      value !== null &&
+      value !== undefined &&
+      String(value).trim() !== ""
+  );
 }
 
 export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "pending" | "approved" | "rejected" | "all" }) {
@@ -322,6 +342,10 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                 const reviewStatus = item.review?.status ?? "PENDING";
                 const highlightFields = getHighlightFields(item.review);
                 const isExpanded = expandedId === item.id;
+                const submittedRadSignature = getRadiologySignature(item.radiologyReport?.extraFields);
+                const submittedRadExtraFields = getVisibleRadiologyExtraFields(item.radiologyReport?.extraFields);
+                const editRadSignature = getRadiologySignature(radiologyEdits[item.id]?.extraFields);
+                const editRadExtraFields = getVisibleRadiologyExtraFields(radiologyEdits[item.id]?.extraFields);
                 const insights = isExpanded
                   ? analyzePatientInsights({
                       visitCount: item.patientVisitCount,
@@ -392,11 +416,22 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                                 <div className="space-y-1.5">
                                   <p className="text-slate-700"><span className="font-medium">Findings:</span> {item.radiologyReport?.findings ?? "â€”"}</p>
                                   <p className="text-slate-700"><span className="font-medium">Impression:</span> {item.radiologyReport?.impression ?? "â€”"}</p>
-                                  {Object.entries(item.radiologyReport?.extraFields ?? {}).map(([key, value]) => (
+                                  {submittedRadExtraFields.map(([key, value]) => (
                                     <p key={key} className="text-slate-700">
                                       <span className="font-medium">{key}:</span> {value}
                                     </p>
                                   ))}
+                                  {submittedRadSignature ? (
+                                    <div className="rounded border border-slate-200 bg-slate-50 p-2">
+                                      <p className="text-[11px] font-medium text-slate-600 mb-1">Signature</p>
+                                      <img
+                                        src={submittedRadSignature.signatureImage}
+                                        alt={submittedRadSignature.signatureName}
+                                        className="h-14 w-auto max-w-[220px] object-contain border border-slate-200 rounded bg-white p-1"
+                                      />
+                                      <p className="text-[11px] text-slate-700 mt-1">{submittedRadSignature.signatureName}</p>
+                                    </div>
+                                  ) : null}
                                   <p className="font-mono text-slate-400 text-[11px]">v{item.radiologyReport?.currentVersion ?? 1}</p>
                                   <div className="space-y-0.5">
                                     {item.imagingFiles.length === 0
@@ -497,7 +532,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                                         </button>
                                       </div>
                                       <div className="space-y-1.5">
-                                        {Object.entries(radiologyEdits[item.id]?.extraFields ?? {}).map(([key, value]) => (
+                                        {editRadExtraFields.map(([key, value]) => (
                                           <div key={key} className="grid grid-cols-12 gap-1.5 items-center">
                                             <input value={key} readOnly className="col-span-4 h-7 rounded border border-slate-200 bg-slate-50 px-2 text-xs text-slate-500" />
                                             <input
@@ -517,6 +552,17 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                                             </button>
                                           </div>
                                         ))}
+                                        {editRadSignature ? (
+                                          <div className="rounded border border-slate-200 bg-slate-50 p-2">
+                                            <p className="text-[11px] font-medium text-slate-600 mb-1">Signature Preview</p>
+                                            <img
+                                              src={editRadSignature.signatureImage}
+                                              alt={editRadSignature.signatureName}
+                                              className="h-14 w-auto max-w-[220px] object-contain border border-slate-200 rounded bg-white p-1"
+                                            />
+                                            <p className="text-[11px] text-slate-700 mt-1">{editRadSignature.signatureName}</p>
+                                          </div>
+                                        ) : null}
                                       </div>
                                       <div className="mt-2 grid grid-cols-12 gap-1.5">
                                         <input

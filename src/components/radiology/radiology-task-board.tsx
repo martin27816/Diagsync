@@ -139,25 +139,6 @@ export function RadiologyTaskBoard() {
     setSignatureLibrary(loadSignaturePresets("reporting"));
   }, []);
 
-  useEffect(() => {
-    let next = signatureLibrary;
-    let changed = false;
-    for (const draft of Object.values(drafts)) {
-      const res = upsertSignaturePreset(next, {
-        name: draft.signatureName ?? "",
-        image: draft.signatureImage ?? "",
-      });
-      if (res.changed) {
-        next = res.items;
-        changed = true;
-      }
-    }
-    if (changed) {
-      setSignatureLibrary(next);
-      saveSignaturePresets("reporting", next);
-    }
-  }, [drafts, signatureLibrary]);
-
   const filtered = useMemo(() => tasks.filter((t) => priorityFilter === "ALL" || t.priority === priorityFilter), [tasks, priorityFilter]);
   const counts = useMemo(() => ({ pending: filtered.filter((t) => t.status === "PENDING").length, inProgress: filtered.filter((t) => t.status === "IN_PROGRESS").length, completed: filtered.filter((t) => t.status === "COMPLETED").length }), [filtered]);
 
