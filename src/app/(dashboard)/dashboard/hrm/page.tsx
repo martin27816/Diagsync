@@ -54,15 +54,23 @@ export default async function HRMDashboardPage() {
           <h1 className="text-base font-semibold text-slate-800">Operations Overview</h1>
           <p className="text-xs text-slate-400 mt-0.5">Live workflow across your lab</p>
         </div>
-        {user.role === "SUPER_ADMIN" && (
+        <div className="flex items-center gap-2">
           <Link
-            href="/dashboard/hrm/settings"
+            href="/dashboard/hrm/consultation"
             className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
           >
-            <Settings2 className="h-3.5 w-3.5" />
-            Settings
+            Consultation Monitor
           </Link>
-        )}
+          {user.role === "SUPER_ADMIN" && (
+            <Link
+              href="/dashboard/hrm/settings"
+              className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              Settings
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Metrics strip */}

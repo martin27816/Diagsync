@@ -33,6 +33,7 @@ const navByRole: Record<string, NavItem[]> = {
     { label: "Overview", href: "/dashboard/hrm", icon: LayoutDashboard },
     { label: "Lab Settings", href: "/dashboard/hrm/settings", icon: Settings2 },
     { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
+    { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
     { label: "Staff Management", href: "/dashboard/hrm/staff", icon: Users },
     { label: "Add Staff", href: "/dashboard/hrm/staff/new", icon: UserPlus },
     { label: "Test Catalog", href: "/dashboard/hrm/tests", icon: TestTube2 },
@@ -44,6 +45,7 @@ const navByRole: Record<string, NavItem[]> = {
   HRM: [
     { label: "Overview", href: "/dashboard/hrm", icon: LayoutDashboard },
     { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
+    { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
     { label: "Staff Management", href: "/dashboard/hrm/staff", icon: Users },
     { label: "Add Staff", href: "/dashboard/hrm/staff/new", icon: UserPlus },
     { label: "Test Catalog", href: "/dashboard/hrm/tests", icon: TestTube2 },

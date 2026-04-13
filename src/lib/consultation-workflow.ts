@@ -32,7 +32,7 @@ function dayKeyToRangeUtc(dayKey: string) {
 }
 
 function assertReceptionOrMd(role: string) {
-  if (!["RECEPTIONIST", "MD", "SUPER_ADMIN"].includes(role)) {
+  if (!["RECEPTIONIST", "MD", "HRM", "SUPER_ADMIN"].includes(role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
 }

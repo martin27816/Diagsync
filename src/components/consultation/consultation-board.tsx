@@ -34,7 +34,7 @@ const statusStyle: Record<ConsultationStatus, string> = {
   CANCELLED: "bg-red-50 text-red-700",
 };
 
-export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "SUPER_ADMIN" }) {
+export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM" | "SUPER_ADMIN" }) {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
