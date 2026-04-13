@@ -15,11 +15,10 @@ export default async function ReceptionistConsultationPage() {
       <div>
         <h1 className="text-base font-semibold text-slate-800">Consultation Queue</h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Register walk-in consultation patients and mark them consulted when called in by MD.
+          Register walk-in consultation patients and mark them in-room after MD calls.
         </p>
       </div>
       <ConsultationBoard role={user.role} />
     </div>
   );
 }
-

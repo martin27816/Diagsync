@@ -26,7 +26,7 @@ export async function listConsultationQueue(actor: ConsultationActor) {
   assertReceptionOrMd(actor.role);
   const { start, end } = dayRange();
 
-  const [active, consultedToday] = await Promise.all([
+  const [active, consultedToday, history] = await Promise.all([
     prisma.consultationQueue.findMany({
       where: {
         organizationId: actor.organizationId,
@@ -36,6 +36,8 @@ export async function listConsultationQueue(actor: ConsultationActor) {
       include: {
         createdBy: { select: { fullName: true } },
         calledBy: { select: { fullName: true } },
+        acknowledgedBy: { select: { fullName: true } },
+        consultedBy: { select: { fullName: true } },
       },
     }),
     prisma.consultationQueue.findMany({
@@ -48,11 +50,25 @@ export async function listConsultationQueue(actor: ConsultationActor) {
       take: 30,
       include: {
         acknowledgedBy: { select: { fullName: true } },
+        consultedBy: { select: { fullName: true } },
+      },
+    }),
+    prisma.consultationQueue.findMany({
+      where: {
+        organizationId: actor.organizationId,
+      },
+      orderBy: [{ createdAt: "desc" }],
+      take: 200,
+      include: {
+        createdBy: { select: { fullName: true } },
+        calledBy: { select: { fullName: true } },
+        acknowledgedBy: { select: { fullName: true } },
+        consultedBy: { select: { fullName: true } },
       },
     }),
   ]);
 
-  return { active, consultedToday };
+  return { active, consultedToday, history };
 }
 
 export async function addConsultationPatient(
@@ -111,7 +127,7 @@ export async function callConsultationPatient(actor: ConsultationActor, queueId:
 }
 
 export async function markConsultationAsConsulted(actor: ConsultationActor, queueId: string) {
-  if (!["RECEPTIONIST", "SUPER_ADMIN"].includes(actor.role)) {
+  if (!["MD", "SUPER_ADMIN"].includes(actor.role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
 
@@ -126,9 +142,8 @@ export async function markConsultationAsConsulted(actor: ConsultationActor, queu
     where: { id: existing.id },
     data: {
       status: "CONSULTED",
-      acknowledgedAt: new Date(),
-      acknowledgedById: actor.id,
       consultedAt: new Date(),
+      consultedById: actor.id,
     },
   });
 
@@ -157,3 +172,47 @@ export async function markConsultationAsConsulted(actor: ConsultationActor, queu
   return updated;
 }
 
+export async function markConsultationPatientIn(actor: ConsultationActor, queueId: string) {
+  if (!["RECEPTIONIST", "SUPER_ADMIN"].includes(actor.role)) {
+    throw new Error("FORBIDDEN_ROLE");
+  }
+
+  const existing = await prisma.consultationQueue.findFirst({
+    where: { id: queueId, organizationId: actor.organizationId },
+  });
+  if (!existing) throw new Error("QUEUE_NOT_FOUND");
+  if (existing.status === "CONSULTED") throw new Error("ALREADY_CONSULTED");
+  if (existing.status === "CANCELLED") throw new Error("QUEUE_CANCELLED");
+
+  const updated = await prisma.consultationQueue.update({
+    where: { id: existing.id },
+    data: {
+      acknowledgedAt: new Date(),
+      acknowledgedById: actor.id,
+      status: "CALLED",
+    },
+  });
+
+  const mdUsers = await prisma.staff.findMany({
+    where: {
+      organizationId: actor.organizationId,
+      role: "MD",
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+  for (const md of mdUsers) {
+    await sendNotification({
+      organizationId: actor.organizationId,
+      userId: md.id,
+      type: NotificationType.SYSTEM,
+      title: "Patient Is In",
+      message: `${updated.fullName} has been brought in by reception.`,
+      entityId: updated.id,
+      entityType: "ConsultationQueue",
+      dedupeKey: `consultation-in:${updated.id}:${md.id}:${updated.acknowledgedAt?.toISOString() ?? Date.now()}`,
+    });
+  }
+
+  return updated;
+}

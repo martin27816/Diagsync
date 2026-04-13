@@ -18,11 +18,13 @@ type QueueItem = {
   createdBy?: { fullName: string } | null;
   calledBy?: { fullName: string } | null;
   acknowledgedBy?: { fullName: string } | null;
+  consultedBy?: { fullName: string } | null;
 };
 
 type QueueResponse = {
   active: QueueItem[];
   consultedToday: QueueItem[];
+  history: QueueItem[];
 };
 
 const statusStyle: Record<ConsultationStatus, string> = {
@@ -37,7 +39,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "SUP
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [data, setData] = useState<QueueResponse>({ active: [], consultedToday: [] });
+  const [data, setData] = useState<QueueResponse>({ active: [], consultedToday: [], history: [] });
   const [form, setForm] = useState({ fullName: "", age: "", contact: "", vitalsNote: "" });
 
   const isReception = role === "RECEPTIONIST" || role === "SUPER_ADMIN";
@@ -145,6 +147,26 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "SUP
     }
   }
 
+  async function markPatientIn(id: string) {
+    setBusyId(id);
+    setError("");
+    setMessage("");
+    try {
+      const res = await fetch(`/api/consultations/${id}/in`, { method: "PATCH" });
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error ?? "Unable to mark patient in");
+        return;
+      }
+      setMessage("Patient marked in and MD notified.");
+      await loadQueue();
+    } catch {
+      setError("Network error while updating queue");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const waitingCount = useMemo(() => data.active.filter((item) => item.status === "WAITING").length, [data.active]);
   const calledCount = useMemo(() => data.active.filter((item) => item.status === "CALLED").length, [data.active]);
 
@@ -229,6 +251,8 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "SUP
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Contact</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Vitals / Note</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Status</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Receptionist</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Doctor</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Arrival Time</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Action</th>
               </tr>
@@ -244,24 +268,40 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "SUP
                   <td className="px-4 py-2.5">
                     <span className={`rounded px-1.5 py-0.5 font-medium ${statusStyle[row.status]}`}>{row.status}</span>
                   </td>
+                  <td className="px-4 py-2.5 text-slate-500">
+                    {row.createdBy?.fullName ?? "—"}
+                    {row.acknowledgedBy?.fullName ? ` / In: ${row.acknowledgedBy.fullName}` : ""}
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-500">
+                    {row.consultedBy?.fullName ?? row.calledBy?.fullName ?? "—"}
+                  </td>
                   <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(row.arrivalAt)}</td>
                   <td className="px-4 py-2.5">
                     {isMd ? (
-                      <button
-                        disabled={busyId === row.id || row.status === "CONSULTED"}
-                        onClick={() => void callPatient(row.id)}
-                        className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                      >
-                        {busyId === row.id ? "Calling..." : "Call Patient"}
-                      </button>
+                      <div className="flex gap-1.5">
+                        <button
+                          disabled={busyId === row.id || row.status === "CONSULTED"}
+                          onClick={() => void callPatient(row.id)}
+                          className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                          {busyId === row.id ? "Calling..." : "Call Patient"}
+                        </button>
+                        <button
+                          disabled={busyId === row.id || row.status !== "CALLED"}
+                          onClick={() => void markConsulted(row.id)}
+                          className="rounded bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                        >
+                          {busyId === row.id ? "Updating..." : "Finish Consultation"}
+                        </button>
+                      </div>
                     ) : null}
                     {isReception ? (
                       <button
-                        disabled={busyId === row.id || row.status === "CONSULTED"}
-                        onClick={() => void markConsulted(row.id)}
-                        className="rounded bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                        disabled={busyId === row.id || row.status !== "CALLED"}
+                        onClick={() => void markPatientIn(row.id)}
+                        className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                       >
-                        {busyId === row.id ? "Updating..." : "Mark Consulted"}
+                        {busyId === row.id ? "Updating..." : "Patient In"}
                       </button>
                     ) : null}
                   </td>
@@ -271,7 +311,47 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "SUP
           </table>
         )}
       </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <div className="border-b border-slate-100 px-4 py-2.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Consultation History</span>
+        </div>
+        {loading ? (
+          <p className="px-4 py-6 text-xs text-slate-400">Loading history...</p>
+        ) : data.history.length === 0 ? (
+          <p className="px-4 py-6 text-xs text-slate-400">No consultation records yet.</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50">
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Status</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Receptionist</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Doctor Consulted</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Arrival</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Finished</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {data.history.map((row) => (
+                <tr key={`history-${row.id}`} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-2.5">
+                    <p className="font-medium text-slate-800">{row.fullName}</p>
+                    <p className="text-slate-400">{row.age}y · {row.contact}</p>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className={`rounded px-1.5 py-0.5 font-medium ${statusStyle[row.status]}`}>{row.status}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-500">{row.createdBy?.fullName ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{row.consultedBy?.fullName ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(row.arrivalAt)}</td>
+                  <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{row.consultedAt ? formatDateTime(row.consultedAt) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
-

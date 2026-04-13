@@ -215,6 +215,7 @@ model Staff {
   createdConsultationQueueEntries ConsultationQueue[] @relation("ConsultationCreatedBy")
   calledConsultationQueueEntries ConsultationQueue[] @relation("ConsultationCalledBy")
   acknowledgedConsultationQueueEntries ConsultationQueue[] @relation("ConsultationAcknowledgedBy")
+  consultedConsultationQueueEntries ConsultationQueue[] @relation("ConsultationConsultedBy")
 
   @@map("staff")
 }
@@ -233,6 +234,7 @@ model ConsultationQueue {
   acknowledgedAt DateTime?
   acknowledgedById String?
   consultedAt    DateTime?
+  consultedById  String?
   createdById    String
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -241,6 +243,7 @@ model ConsultationQueue {
   createdBy    Staff        @relation("ConsultationCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
   calledBy     Staff?       @relation("ConsultationCalledBy", fields: [calledById], references: [id], onDelete: SetNull)
   acknowledgedBy Staff?     @relation("ConsultationAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  consultedBy  Staff?       @relation("ConsultationConsultedBy", fields: [consultedById], references: [id], onDelete: SetNull)
 
   @@index([organizationId, status, arrivalAt])
   @@index([organizationId, consultedAt])

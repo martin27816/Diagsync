@@ -15,11 +15,10 @@ export default async function MdConsultationPage() {
       <div>
         <h1 className="text-base font-semibold text-slate-800">Consultation Queue</h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Call patients in arrival order. Reception receives notification immediately.
+          Call patients in arrival order, then finish consultation so doctor attribution is recorded.
         </p>
       </div>
       <ConsultationBoard role={user.role} />
     </div>
   );
 }
-

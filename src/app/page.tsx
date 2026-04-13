@@ -69,10 +69,47 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen bg-white text-slate-800">
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            @media (prefers-reduced-motion: no-preference) {
+              .reveal {
+                opacity: 0;
+                transform: translateY(14px);
+                animation: fadeUp 700ms ease forwards;
+              }
+              .delay-1 { animation-delay: 100ms; }
+              .delay-2 { animation-delay: 200ms; }
+              .delay-3 { animation-delay: 300ms; }
+              .delay-4 { animation-delay: 400ms; }
+              .float-card {
+                animation: floatY 4.2s ease-in-out infinite;
+              }
+              .hover-lift {
+                transition: transform 250ms ease, box-shadow 250ms ease;
+              }
+              .hover-lift:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+              }
+            }
+            @keyframes fadeUp {
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+            @keyframes floatY {
+              0%, 100% { transform: translateY(0); }
+              50% { transform: translateY(-6px); }
+            }
+          `,
+        }}
+      />
 
       {/* Nav */}
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4 reveal">
           <div className="flex items-center gap-2.5">
             <Image src="/diagsync-logo.png" alt="Diagsync" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
             <div>
@@ -94,7 +131,7 @@ export default async function HomePage() {
       {/* Hero */}
       <section className="mx-auto max-w-5xl px-6 py-16 lg:py-24">
         <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-          <div>
+          <div className="reveal delay-1">
             <span className="inline-block rounded border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 mb-5">
               Built for multi-role diagnostic labs
             </span>
@@ -117,13 +154,13 @@ export default async function HomePage() {
           </div>
 
           {/* Workflow preview */}
-          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm">
+          <div className="reveal delay-2 rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm float-card">
             <div className="border-b border-slate-100 px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Patient Workflow</p>
             </div>
             <div className="divide-y divide-slate-100">
               {workflow.map((step, idx) => (
-                <div key={step} className="flex items-center justify-between px-4 py-3">
+                <div key={step} className="flex items-center justify-between px-4 py-3 hover-lift">
                   <div className="flex items-center gap-3">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-600">
                       {idx + 1}
@@ -149,15 +186,38 @@ export default async function HomePage() {
       {/* Divider */}
       <div className="border-t border-slate-100" />
 
+      {/* Proof strip */}
+      <section className="mx-auto max-w-5xl px-6 py-12">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { label: "Workflow Stages", value: "12+" },
+            { label: "Role Dashboards", value: "6" },
+            { label: "Audit Events", value: "100%" },
+            { label: "Realtime Alerts", value: "Instant" },
+          ].map((item, idx) => (
+            <div
+              key={item.label}
+              className={`rounded-lg border border-slate-200 bg-white p-4 hover-lift reveal delay-${Math.min(idx + 1, 4)}`}
+            >
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">{item.label}</p>
+              <p className="mt-1 text-xl font-bold text-slate-800">{item.value}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div className="border-t border-slate-100" />
+
       {/* Features */}
       <section className="mx-auto max-w-5xl px-6 py-16">
-        <div className="mb-10 text-center">
+        <div className="mb-10 text-center reveal">
           <h2 className="text-xl font-semibold text-slate-800">Everything your lab needs to run properly</h2>
           <p className="mt-2 text-sm text-slate-400">No spreadsheets. No paper trails. Just a clean digital workflow.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {features.map((f) => (
-            <div key={f.title} className="rounded-lg border border-slate-200 bg-white p-5">
+          {features.map((f, idx) => (
+            <div key={f.title} className={`rounded-lg border border-slate-200 bg-white p-5 hover-lift reveal delay-${Math.min(idx + 1, 4)}`}>
               <div className="mb-3 h-1.5 w-8 rounded bg-blue-600" />
               <h3 className="text-sm font-semibold text-slate-800">{f.title}</h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{f.text}</p>
@@ -169,9 +229,38 @@ export default async function HomePage() {
       {/* Divider */}
       <div className="border-t border-slate-100" />
 
+      {/* Expanded workflow details */}
+      <section className="mx-auto max-w-5xl px-6 py-16">
+        <div className="grid gap-8 lg:grid-cols-2">
+          <div className="reveal">
+            <h2 className="text-xl font-semibold text-slate-800">How the workflow stays clean from day one</h2>
+            <p className="mt-2 text-sm text-slate-500 leading-relaxed">
+              Every patient movement is attached to time, role, and department. The system removes handoff ambiguity by
+              showing clear state transitions across reception, testing, review, and release.
+            </p>
+            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
+              Instead of depending on memory or verbal updates, each stage is visible as it happens. This reduces
+              missed tasks, duplicate work, and delayed reporting.
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 reveal delay-1 hover-lift">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Operational outcomes</p>
+            <ul className="mt-4 space-y-3 text-sm text-slate-600">
+              <li className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-600" /> Faster triage and routing at reception</li>
+              <li className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-600" /> Better accountability during test processing</li>
+              <li className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-600" /> Cleaner clinical review handoff to MD</li>
+              <li className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-600" /> Safer release process with complete audit history</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div className="border-t border-slate-100" />
+
       {/* Role dashboards */}
       <section className="mx-auto max-w-5xl px-6 py-16">
-        <div className="mb-8">
+        <div className="mb-8 reveal">
           <h2 className="text-xl font-semibold text-slate-800">A dashboard for every role</h2>
           <p className="mt-1.5 text-sm text-slate-400">
             Each staff member sees only what they need — nothing more.
@@ -200,9 +289,41 @@ export default async function HomePage() {
       {/* Divider */}
       <div className="border-t border-slate-100" />
 
+      {/* FAQ */}
+      <section className="mx-auto max-w-5xl px-6 py-16">
+        <div className="mb-8 reveal">
+          <h2 className="text-xl font-semibold text-slate-800">Frequently asked questions</h2>
+          <p className="mt-1.5 text-sm text-slate-400">Quick answers for teams moving from paper or spreadsheet workflows.</p>
+        </div>
+        <div className="space-y-3">
+          {[
+            {
+              q: "Can we start with one department first?",
+              a: "Yes. You can onboard reception and one diagnostic team first, then expand to full multi-role flow.",
+            },
+            {
+              q: "Does the system support strict result review before release?",
+              a: "Yes. Results can move through draft, MD review, approval, and release with full traceability.",
+            },
+            {
+              q: "Will staff only see what is relevant to their role?",
+              a: "Yes. Each role dashboard is scoped so staff focus on their assigned tasks and actions.",
+            },
+          ].map((faq, idx) => (
+            <div key={faq.q} className={`rounded-lg border border-slate-200 bg-white p-5 reveal delay-${Math.min(idx + 1, 4)} hover-lift`}>
+              <p className="text-sm font-semibold text-slate-800">{faq.q}</p>
+              <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">{faq.a}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div className="border-t border-slate-100" />
+
       {/* CTA */}
       <section className="mx-auto max-w-5xl px-6 py-16 text-center">
-        <div className="rounded-lg border border-blue-100 bg-blue-50 px-8 py-12">
+        <div className="rounded-lg border border-blue-100 bg-blue-50 px-8 py-12 reveal delay-1">
           <h2 className="text-xl font-semibold text-slate-800">Ready to digitise your lab?</h2>
           <p className="mt-2 text-sm text-slate-500 max-w-md mx-auto">
             Register your organisation in minutes. Add staff, set up your test catalog,
