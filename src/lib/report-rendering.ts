@@ -108,7 +108,7 @@ export function renderReportHtml(args: RenderArgs) {
       min-height: 1123px;
       margin: 0 auto;
       box-sizing: border-box;
-      padding: ${hasLetterhead ? "340px 44px 90px" : "120px 44px 90px"};
+      padding: ${hasLetterhead ? "340px 44px 90px" : "170px 44px 90px"};
       background: #ffffff;
       --wm-top-offset: ${hasLetterhead ? "160px" : "88px"};
       --wm-bottom-offset: 118px;
