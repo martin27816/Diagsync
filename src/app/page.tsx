@@ -4,104 +4,214 @@ import { auth } from "@/lib/auth";
 import { getDashboardPath } from "@/lib/utils";
 import { Role } from "@prisma/client";
 
+// ─────────────────────────────── DATA ────────────────────────────────
+
 const workflow = [
-  { step: "Patient Registered", desc: "Demographics, clinical notes, referring doctor captured" },
-  { step: "Tests Auto-Routed", desc: "Orders split by type and assigned to available staff instantly" },
-  { step: "Sample Collected", desc: "Lab scientist logs collection with timestamp and sample ID" },
-  { step: "Results Drafted", desc: "Structured entry with field validation and normal-range flags" },
-  { step: "Submitted for Review", desc: "Result moves to MD queue with full data snapshot" },
-  { step: "MD Reviews & Approves", desc: "Doctor may approve, request edits, or reject with notes" },
-  { step: "Report Released", desc: "Branded PDF dispatched — audit-logged instantly" },
+  { step: "Patient Registered", owner: "Receptionist", desc: "Full demographics, DOB, referring doctor, clinical notes. Test cart built from catalog, discounts applied, payment logged. Priority assigned: ROUTINE, URGENT, or EMERGENCY." },
+  { step: "Tests Auto-Routed", owner: "System", desc: "Orders grouped by department. Least-loaded AVAILABLE staff selected per department. Task created, test orders updated to ASSIGNED, task notification sent immediately." },
+  { step: "Sample Collected", owner: "Lab Scientist", desc: "Sample tracked through PENDING → COLLECTED → RECEIVED → PROCESSING → DONE with timestamps at each stage." },
+  { step: "Result Drafted", owner: "Lab / Radiographer", desc: "Structured result entry with AI insight box, normal-range flagging per field, custom field additions, offline draft autosave." },
+  { step: "Submitted for MD Review", owner: "Lab / Radiographer", desc: "Result moves to MD queue. MD and HRM/Ops notified simultaneously. Full data snapshot preserved as an active version." },
+  { step: "MD Reviews", owner: "Medical Doctor", desc: "Doctor approves, requests edits with highlighted correction fields and a reason, or rejects with mandatory reason. Guard rails prevent re-approving already-approved results." },
+  { step: "Resubmission Cycle", owner: "Lab Scientist", desc: "Edit-requested result corrected and resubmitted. MD reviews again. Every correction creates a new version chained to the previous one." },
+  { step: "Report Generated & Edited", owner: "MD / HRM", desc: "Branded PDF draft rendered with org letterhead, prescription field, comments, and all result data. MD can edit content, comments, prescription with version tracking." },
+  { step: "Report Released & Dispatched", owner: "HRM / Operations", desc: "HRM releases the approved report. Dispatch via print (with/without letterhead toggle), PNG download via html2canvas, or WhatsApp via Web Share API. Every dispatch action logged." },
 ];
 
 const orderStatuses = [
-  { key: "REGISTERED", label: "Registered", color: "bg-slate-100 text-slate-600" },
-  { key: "ASSIGNED", label: "Assigned", color: "bg-blue-50 text-blue-700" },
-  { key: "OPENED", label: "Opened", color: "bg-blue-100 text-blue-800" },
-  { key: "SAMPLE_PENDING", label: "Sample Pending", color: "bg-amber-50 text-amber-700" },
-  { key: "SAMPLE_COLLECTED", label: "Sample Collected", color: "bg-amber-100 text-amber-800" },
-  { key: "IN_PROGRESS", label: "In Progress", color: "bg-orange-50 text-orange-700" },
-  { key: "RESULT_DRAFTED", label: "Result Drafted", color: "bg-purple-50 text-purple-700" },
-  { key: "SUBMITTED_FOR_REVIEW", label: "Submitted", color: "bg-indigo-50 text-indigo-700" },
-  { key: "EDIT_REQUESTED", label: "Edit Requested", color: "bg-red-50 text-red-600" },
-  { key: "RESUBMITTED", label: "Resubmitted", color: "bg-violet-50 text-violet-700" },
-  { key: "APPROVED", label: "Approved", color: "bg-teal-50 text-teal-700" },
-  { key: "RELEASED", label: "Released", color: "bg-green-50 text-green-700" },
-  { key: "CANCELLED", label: "Cancelled", color: "bg-rose-50 text-rose-600" },
-];
-
-const features = [
-  {
-    title: "Automatic Task Routing",
-    text: "Test orders are instantly split by department (Lab vs Radiology) and assigned to available staff the moment a patient is registered. No manual handoff, no missed assignments.",
-  },
-  {
-    title: "Turnaround Time Tracking",
-    text: "Every test has a configurable turnaround target in minutes. The system tracks elapsed time per stage and flags orders approaching or exceeding their target.",
-  },
-  {
-    title: "Full Audit Trail",
-    text: "Every action is logged with actor identity, role, department, and timestamp. Nothing goes untracked — from first registration to final release.",
-  },
-  {
-    title: "Real-Time Notifications",
-    text: "Staff receive live alerts for task assignments, result submissions, approval decisions, report releases, and more — 15+ distinct notification event types.",
-  },
-  {
-    title: "Structured Result Templates",
-    text: "Custom result fields per test — number, text, textarea, dropdown, checkbox. Each field can carry units, normal ranges, reference notes, and is required or optional.",
-  },
-  {
-    title: "MD Edit Request Cycle",
-    text: "Doctors can approve results, request specific edits, or reject with annotated notes. Lab scientists receive edit requests and resubmit — every version is preserved.",
-  },
-  {
-    title: "Priority Triage",
-    text: "Every patient visit is tagged ROUTINE, URGENT, or EMERGENCY. Priority propagates to staff queues so critical cases are always visible and never buried.",
-  },
-  {
-    title: "Cloudinary Image Uploads",
-    text: "Radiographers upload imaging files directly into the platform using secure signed Cloudinary uploads. Images attach to the order and flow through the review pipeline.",
-  },
+  { label: "Registered", color: "bg-slate-100 text-slate-600" },
+  { label: "Assigned", color: "bg-blue-50 text-blue-700" },
+  { label: "Opened", color: "bg-blue-100 text-blue-800" },
+  { label: "Sample Pending", color: "bg-yellow-50 text-yellow-700" },
+  { label: "Sample Collected", color: "bg-amber-50 text-amber-700" },
+  { label: "In Progress", color: "bg-orange-50 text-orange-700" },
+  { label: "Result Drafted", color: "bg-purple-50 text-purple-700" },
+  { label: "Submitted for Review", color: "bg-indigo-50 text-indigo-700" },
+  { label: "Edit Requested", color: "bg-red-50 text-red-600" },
+  { label: "Resubmitted", color: "bg-violet-50 text-violet-700" },
+  { label: "Approved", color: "bg-teal-50 text-teal-700" },
+  { label: "Released", color: "bg-green-50 text-green-700" },
+  { label: "Cancelled", color: "bg-rose-50 text-rose-600" },
 ];
 
 const roles = [
   {
     name: "Receptionist",
     dept: "RECEPTION",
-    color: "bg-blue-50 text-blue-700",
-    text: "Patient registration with full demographic capture, test ordering with a live cart, payment entry (PENDING / PAID / WAIVED / PARTIAL), priority assignment, and visit management.",
+    pill: "bg-blue-50 text-blue-700",
+    points: [
+      "Register patients with demographics, DOB, referring doctor, and clinical notes",
+      "Build test cart from catalog with live price calculation and discounts",
+      "Log payments — PAID, PARTIAL, PENDING, WAIVED — with ledger entries per payment",
+      "Assign ROUTINE, URGENT, or EMERGENCY priority at registration",
+      "Manage visit statuses: ACTIVE, COMPLETED, CANCELLED, NO_SHOW with reasons",
+      "14-day rolling daily patient table with per-day revenue summaries",
+      "Offline registration queue — syncs automatically when back online",
+      "Dispatch released reports: print, download PNG, or send via WhatsApp",
+      "Manage consultation walk-in queue entries",
+    ],
   },
   {
     name: "Lab Scientist",
     dept: "LABORATORY",
-    color: "bg-amber-50 text-amber-700",
-    text: "Assigned task queue sorted by priority, sample tracking through PENDING → COLLECTED → PROCESSING → DONE stages, structured result entry with field validation, submission, and edit-request handling.",
+    pill: "bg-amber-50 text-amber-700",
+    points: [
+      "Priority-sorted task queue — EMERGENCY always surfaces first",
+      "Track sample: PENDING → COLLECTED → RECEIVED → PROCESSING → DONE",
+      "AI insight box analyses entered values and surfaces condition flags in real time",
+      "Normal-range HIGH / LOW badges per numeric field as values are typed",
+      "Add custom fields ad hoc without modifying the test template",
+      "Remove or restore default template fields per individual result",
+      "Save digital signature image + name as a reusable preset (up to 20)",
+      "Offline draft mode — results persisted locally, auto-synced on reconnect",
+      "Receive and action MD edit requests with highlighted correction fields",
+    ],
   },
   {
     name: "Radiographer",
     dept: "RADIOLOGY",
-    color: "bg-purple-50 text-purple-700",
-    text: "Imaging task queue, secure file uploads to Cloudinary, findings and impressions entry, report draft composition, and submission to MD review.",
+    pill: "bg-purple-50 text-purple-700",
+    points: [
+      "Priority-sorted imaging task queue",
+      "Upload multiple imaging files via secure signed Cloudinary upload",
+      "Record findings, impressions, and supplementary notes",
+      "Compose and submit radiology report draft to MD review",
+      "Handle edit requests from MD with version-tracked corrections",
+      "Full submission and resubmission workflow with version chain",
+    ],
   },
   {
     name: "Medical Doctor",
     dept: "MEDICAL_REVIEW",
-    color: "bg-teal-50 text-teal-700",
-    text: "Clinical review dashboard, approval with a single action, edit requests with structured notes sent back to the submitting scientist, resubmission review, and final sign-off before release.",
+    pill: "bg-teal-50 text-teal-700",
+    points: [
+      "Review queue of submitted lab and radiology results",
+      "Approve with one action — triggers report draft generation",
+      "Request edits with structured reason and optionally highlighted fields",
+      "Reject results with mandatory rejection reason",
+      "Edit report content, comments, and prescription in the report workspace",
+      "View full parent-child version history for every edit and resubmission",
+      "Guard rails prevent re-approving already-approved results",
+    ],
   },
   {
     name: "HRM / Operations",
     dept: "HR_OPERATIONS",
-    color: "bg-indigo-50 text-indigo-700",
-    text: "Live workflow monitoring across all departments, release center for dispatching approved reports, full audit event log, staff availability management, and operational analytics.",
+    pill: "bg-indigo-50 text-indigo-700",
+    points: [
+      "Live workflow monitoring dashboard across all departments",
+      "Release center — release approved reports for dispatch",
+      "Print, download PNG, or WhatsApp reports with letterhead toggle",
+      "Full immutable audit log with actor, role, action, entity, and IP address",
+      "30-day revenue intelligence: ordered vs billed vs collected",
+      "Unbilled and uncollected leakage detection",
+      "Profit-by-test-line breakdown with gross margin %",
+      "14-day daily profit chart and no-show/cancellation trend forecast",
+      "Automatic delayed-task notifications when turnaround targets are exceeded",
+    ],
   },
   {
     name: "Super Admin",
-    dept: "ALL",
-    color: "bg-slate-100 text-slate-700",
-    text: "Full system access — staff creation and suspension, shift assignment, test catalog management with custom result fields, test categories, org settings, letterhead upload, and logo management.",
+    dept: "ALL DEPTS",
+    pill: "bg-slate-100 text-slate-700",
+    points: [
+      "Full access across all role dashboards",
+      "Create, activate, deactivate, or suspend staff accounts",
+      "Assign roles, departments, shifts (MORNING/AFTERNOON/NIGHT/FULL_DAY), and availability",
+      "Build and manage the diagnostic test catalog with codes and categories",
+      "Configure custom result fields per test: type, units, normal ranges, options",
+      "Manage test categories: Haematology, Chemistry, Microbiology, Urinalysis, Imaging, Serology",
+      "Upload org logo and letterhead for all PDF reports",
+      "Set cost price per test to power HRM revenue intelligence",
+    ],
   },
+];
+
+const aiFeatures = [
+  {
+    title: "Real-Time Result Insight Box",
+    badge: "AI",
+    badgeColor: "bg-blue-600",
+    desc: "As a lab scientist fills in result fields, `buildResultInsights()` analyses the current values and surfaces a live insight panel inside the result card — showing condition-relevant messages before the result is submitted. This runs entirely client-side with zero API latency.",
+  },
+  {
+    title: "Field-Level Normal-Range Flagging",
+    badge: "AI",
+    badgeColor: "bg-blue-600",
+    desc: "`evaluateReferenceFlag()` checks every numeric field against its configured normalMin and normalMax the moment a value is entered. HIGH or LOW badges appear at the field level instantly. Dropdown fields are validated against normalText. `formatReferenceDisplay()` shows the range inline.",
+  },
+  {
+    title: "Patient History Trend Detection",
+    badge: "INSIGHTS",
+    badgeColor: "bg-purple-600",
+    desc: "`analyzePatientInsights()` scans a patient's full result history to detect repeated testing patterns, frequent monthly testing (3+ times), first-visit flags, and directional trends in Hemoglobin, Glucose, and WBC values across historical records.",
+  },
+  {
+    title: "No-Show & Cancellation Forecasting",
+    badge: "FORECAST",
+    badgeColor: "bg-teal-600",
+    desc: "Computes rolling 7-day no-show/cancellation rates, compares last 7 days vs prior 7 days to get trend direction (up/down/flat), and predicts next week's no-shows using average daily registrations × rate. Confidence level: high (150+ visits), medium (60+), low (<60).",
+  },
+  {
+    title: "Revenue Leakage Detection",
+    badge: "ANALYTICS",
+    badgeColor: "bg-amber-600",
+    desc: "Tracks ordered value (default prices), billed value (actual prices), and collected value (payment ledger) over 30 days. Unbilled leakage = ordered minus billed. Uncollected leakage = billed minus collected. Completion leakage rate = % of orders not yet completed.",
+  },
+  {
+    title: "Delayed Task Auto-Notification",
+    badge: "OPS",
+    badgeColor: "bg-red-600",
+    desc: "`isTaskDelayed()` compares each active routing task's creation time against the maximum turnaround target of its tests. Overdue tasks fire TASK_DELAYED notifications to all HRM and Super Admin users via a single batched insert — with deduplication to prevent repeat alerts per task.",
+  },
+];
+
+const testCategories = [
+  { name: "Haematology", examples: "FBC, ESR, MCHC, Peripheral Blood Film, HbA1c, Reticulocyte Count, Sickling Test, Genotype, Blood Group, HB Electrophoresis, Cross Matching, Coombs Tests…" },
+  { name: "Clinical Chemistry", examples: "LFT, RFT, Lipid Profile, CMP, Electrolytes, Uric Acid, Glucose, HbA1c, Creatinine, Urea, Albumin, Bilirubin, ALT, AST, ALP, Amylase, CK, CK-MB, Troponin T & I, NT-proBNP, CRP, Procalcitonin…" },
+  { name: "Microbiology", examples: "Culture & Sensitivity, Malaria RDT, WIDAL Test, VDRL, GeneXpert, AFB, Swab M/C/S, Stool M/C/S, Blood Culture, H. pylori Ag, Cryptococcal Ag…" },
+  { name: "Urinalysis", examples: "Urinalysis, Urine M/C/S, Microalbumin, ACR, HCG Urine, Urine Protein Electrophoresis…" },
+  { name: "Serology / Immunology", examples: "HIV I & II, HBsAg, HBV 5 Panel, HBV DNA, HCV Ab, CD4/CD8 Count & %, Troponin, PSA, Free PSA, AFP, CEA, CA-125, Vitamin B12 & D, Ferritin, Testosterone, FSH, LH, Prolactin, DHEA-S, Cortisol, ANA, dsDNA…" },
+  { name: "Imaging & Radiology", examples: "Chest X-Ray, Abdominal USS, Pelvic USS, Obstetric USS, CT Scan, MRI, Mammography, Thyroid USS, Echocardiography, Bone Scan…" },
+];
+
+const consultationStatuses = [
+  { status: "WAITING", color: "bg-slate-100 text-slate-600", desc: "Patient in queue, awaiting call" },
+  { status: "CALLED", color: "bg-blue-50 text-blue-700", desc: "Doctor called patient — calledAt and calledById logged" },
+  { status: "CONSULTED", color: "bg-green-50 text-green-700", desc: "Consultation complete — consultedAt and consultedById logged" },
+  { status: "CANCELLED", color: "bg-red-50 text-red-600", desc: "Queue entry cancelled before consultation" },
+];
+
+const reportFeatures = [
+  { title: "Branded PDF with Letterhead", desc: "Upload your org's letterhead once. Every released report is rendered with it. A toggle in the print dialog lets staff switch between 'with' and 'without' letterhead." },
+  { title: "PNG Download via html2canvas", desc: "Reports are captured as high-resolution PNG images using html2canvas at 2× scale. The filename is auto-generated from patient name + visit number + report type." },
+  { title: "WhatsApp Dispatch", desc: "Report PNG captured and shared via navigator.share() with the file. Falls back to a wa.me link if the Web Share API is unavailable. Every send attempt — success or fail — is logged." },
+  { title: "Prescription Field", desc: "Each report has an optional prescription field filled by the MD during review. It's tracked across version edits and appears prominently on the released report." },
+  { title: "Version Chain with Parent Link", desc: "Every edit creates a new version record with a `parentId` pointing to the previous version. A full version tree is visible in the report workspace for both MD and HRM." },
+  { title: "Public Share Token", desc: "Each diagnostic report has a unique `publicShareToken` — a one-time-generated UUID for patient-facing report access without authentication." },
+];
+
+const offlineFeatures = [
+  { title: "Offline Patient Registration Queue", desc: "Full patient registration payloads (demographics, tests, payment, priority) are saved to localStorage. When the device reconnects, they sync to the server sequentially." },
+  { title: "Offline Lab Draft Saves", desc: "Result drafts are persisted per task in localStorage as the scientist types. If connectivity drops, no data is lost. Upserts are keyed by taskId so only the latest draft is kept." },
+  { title: "Online / Offline Banner", desc: "The lab task board listens to `navigator.onLine` events. When online status is restored, `syncOfflineDrafts()` runs automatically, submitting all pending drafts to the server." },
+];
+
+const signatureFeatures = [
+  { title: "Signature Upload at Sign-Off", desc: "Lab scientists upload a signature image at result sign-off. The image is stored as a base64 data URL and embedded in the lab result data, then rendered on the PDF." },
+  { title: "Saved Signature Presets", desc: "Signatures are saved as presets in localStorage keyed by scope ('reporting'). Up to 20 presets per user. `normalizePresetList()` deduplicates exact matches and drops typing fragment entries automatically." },
+  { title: "Per-Task Sign-Off State", desc: "Each task maintains its own sign-off state: `signatureName` and `signatureImage`. Selecting a preset populates both fields. The sign-off is restored from saved result data on page reload." },
+];
+
+const hrmAnalytics = [
+  { metric: "Ordered Value", desc: "Total default price of all tests ordered in 30-day window" },
+  { metric: "Billed Value", desc: "Actual price charged after all overrides and discounts" },
+  { metric: "Collected Value", desc: "Cash received from payment ledger (refunds deducted)" },
+  { metric: "Unbilled Leakage", desc: "Ordered value minus billed — tests delivered below list price" },
+  { metric: "Uncollected Leakage", desc: "Billed value minus collected — outstanding balances" },
+  { metric: "Gross Margin %", desc: "Revenue minus cost price across top 12 test lines" },
+  { metric: "Completion Leakage Rate", desc: "% of ordered tests not yet completed (pending payment realisation)" },
+  { metric: "No-Show Forecast", desc: "Predicted no-shows next 7 days with trend direction and confidence level" },
 ];
 
 const notificationEvents = [
@@ -111,115 +221,31 @@ const notificationEvents = [
   "Report Send Failed", "Task Delayed", "Task Reassigned", "Task Overridden", "System Alert",
 ];
 
-const payments = [
-  { status: "PAID", color: "bg-green-50 text-green-700", desc: "Full payment received" },
-  { status: "PARTIAL", color: "bg-amber-50 text-amber-700", desc: "Partial payment, balance pending" },
-  { status: "PENDING", color: "bg-slate-100 text-slate-600", desc: "Payment not yet collected" },
-  { status: "WAIVED", color: "bg-blue-50 text-blue-700", desc: "Fee waived by authorised staff" },
-];
-
-const reportFeatures = [
-  {
-    title: "Branded PDF Reports",
-    text: "Every released report is rendered as a branded PDF carrying your organisation's logo and letterhead. Upload your letterhead once in org settings and it applies to all future reports.",
-  },
-  {
-    title: "Lab & Radiology Reports",
-    text: "Two distinct report types with purpose-built layouts. Lab reports surface structured field results with normal-range annotations. Radiology reports include imaging references, findings, and radiographer impressions.",
-  },
-  {
-    title: "Draft → Released Lifecycle",
-    text: "Reports move from DRAFT to RELEASED only after full MD approval. A report can never be released while an edit request is outstanding.",
-  },
-  {
-    title: "Report Dispatch Tracking",
-    text: "Every report action — sent, printed, downloaded, failed — is logged with timestamp and actor. HRM can view the complete dispatch history for any report.",
-  },
-];
-
-const catalogFeatures = [
-  {
-    title: "Test Categories",
-    text: "Group tests into categories (e.g. Haematology, Biochemistry, Imaging) for cleaner ordering at reception and faster filtering in staff queues.",
-  },
-  {
-    title: "Per-Test Turnaround Targets",
-    text: "Each test has its own turnaround target in minutes. The system uses this to calculate SLA health across your order pipeline.",
-  },
-  {
-    title: "Sample Type Tagging",
-    text: "Tag each lab test with the sample type required (blood, urine, swab, etc.). This information surfaces in the lab scientist's collection queue.",
-  },
-  {
-    title: "Custom Result Fields",
-    text: "Build result templates with any combination of field types — number with units and normal ranges, free text, dropdowns, multi-line notes, and checkboxes. Fully configurable per test.",
-  },
-];
-
-const staffFeatures = [
-  {
-    title: "Shift Management",
-    text: "Assign each staff member a default shift — MORNING, AFTERNOON, NIGHT, or FULL_DAY. Shift info is considered during task routing and queue display.",
-  },
-  {
-    title: "Availability Status",
-    text: "Staff can be toggled AVAILABLE or UNAVAILABLE. Unavailable staff are excluded from auto-routing, preventing tasks from landing in empty queues.",
-  },
-  {
-    title: "Active / Suspended Accounts",
-    text: "Super Admin can activate, deactivate, or suspend staff accounts. Suspended accounts cannot log in but their historical records are fully preserved.",
-  },
-  {
-    title: "Role-Scoped Dashboards",
-    text: "Every role gets a dashboard that shows exactly their responsibilities — nothing from other departments bleeds through.",
-  },
-];
-
 const proofStats = [
-  { label: "Order Status Stages", value: "13" },
-  { label: "Role Dashboards", value: "6" },
-  { label: "Notification Event Types", value: "16" },
-  { label: "Audit Events Logged", value: "100%" },
-  { label: "Payment States", value: "4" },
-  { label: "Priority Levels", value: "3" },
-  { label: "Report Types", value: "2" },
-  { label: "Field Types Supported", value: "5" },
+  { value: "13", label: "Order Statuses" },
+  { value: "6", label: "Role Dashboards" },
+  { value: "16", label: "Notification Types" },
+  { value: "6", label: "Test Categories" },
+  { value: "4", label: "Payment States" },
+  { value: "3", label: "Priority Levels" },
+  { value: "4", label: "Visit Statuses" },
+  { value: "5", label: "Result Field Types" },
 ];
 
 const faqs = [
-  {
-    q: "Can we onboard one department first?",
-    a: "Yes. You can start with reception and one diagnostic department, then expand to full multi-role flow without disrupting existing data.",
-  },
-  {
-    q: "Can the MD send a result back for corrections?",
-    a: "Yes. The MD can request edits with structured notes. The submitting scientist receives the request, makes corrections, and resubmits. Every version is preserved in the audit trail.",
-  },
-  {
-    q: "How does the system handle urgent patients?",
-    a: "Patients can be marked ROUTINE, URGENT, or EMERGENCY at registration. Priority propagates to every staff queue so critical cases are always surfaced first.",
-  },
-  {
-    q: "Can we upload radiology images?",
-    a: "Yes. Radiographers upload imaging files via secure signed Cloudinary uploads. Images attach to the order and are available throughout the review and release pipeline.",
-  },
-  {
-    q: "Do we get branded PDF reports?",
-    a: "Yes. Upload your organisation logo and letterhead once in settings. Every released report is rendered as a branded PDF with full patient, test, and result details.",
-  },
-  {
-    q: "Can we customise result fields per test?",
-    a: "Yes. Each test in your catalog can have its own result template — with any mix of number fields (with units and normal ranges), text fields, dropdowns, checkboxes, and multi-line notes.",
-  },
-  {
-    q: "Is payment tracking built in?",
-    a: "Yes. Each visit tracks total amount, amount paid, discount, payment method, and status (PAID / PARTIAL / PENDING / WAIVED). Partial payments show outstanding balances.",
-  },
-  {
-    q: "Will staff only see their own tasks?",
-    a: "Yes. Every role dashboard is scoped to the relevant department and responsibilities. Cross-department data never bleeds into another staff member's view.",
-  },
+  { q: "How does auto-routing decide who gets a task?", a: "The routing engine queries all ACTIVE + AVAILABLE staff in the relevant department, counts each person's workload (test orders in ASSIGNED through RESUBMITTED states), and assigns to the lowest-count staff. Ties broken alphabetically." },
+  { q: "Can an MD send a result back for corrections?", a: "Yes. The MD sends an edit request with a reason and optionally highlighted fields. The scientist makes corrections and resubmits. Every correction creates a new version chained via parentId. The MD reviews again from the resubmitted state." },
+  { q: "What happens if the lab scientist loses internet mid-entry?", a: "Result drafts are saved to localStorage per task as the scientist types. If connectivity drops, data is preserved. When the device comes back online, `syncOfflineDrafts()` runs automatically and submits all pending drafts." },
+  { q: "Does the AI flag abnormal results automatically?", a: "Yes. `evaluateReferenceFlag()` checks every numeric field against normalMin/normalMax as values are entered — showing HIGH/LOW badges at the field level instantly. `buildResultInsights()` also surfaces a condition insight panel above the fields." },
+  { q: "What is the Consultation Queue and how does it differ from the diagnostic workflow?", a: "The consultation queue is a completely separate module for outpatient walk-in patients. No test orders are required. Receptionist adds a patient to WAITING; the doctor calls (CALLED), acknowledges, and marks CONSULTED. Each action is timestamped and attributed to the staff member." },
+  { q: "Can we send reports via WhatsApp?", a: "Yes. The report is captured as a PNG using html2canvas and shared via navigator.share(). If the device supports file sharing, it opens the WhatsApp sheet. Otherwise it falls back to a wa.me link. Both success and failure are logged as report action events." },
+  { q: "How does the system track profit per test?", a: "Each test has a sell price and a cost price. HRM's revenue intelligence computes revenue, cost, and profit per test line across all orders in 30 days. The top 12 most profitable test lines are ranked and shown in the analytics dashboard." },
+  { q: "Can staff save and reuse their digital signature?", a: "Yes. Scientists upload a signature image and save it as a named preset. Up to 20 presets stored in localStorage, deduplicated by name + image. On any future task, they select from the preset library instead of re-uploading." },
+  { q: "What does the public share token on reports do?", a: "Each diagnostic report has a unique publicShareToken generated on creation. It enables a patient-facing report URL without authentication — useful for sending a direct link or integrating with external portals." },
+  { q: "How are delayed tasks handled?", a: "`isTaskDelayed()` compares each active routing task's creation time against the maximum turnaround target of its test orders. If overdue, a deduplicated TASK_DELAYED notification is batch-inserted for all HRM and Super Admin users." },
 ];
+
+// ─────────────────────────────── PAGE ────────────────────────────────
 
 export default async function HomePage() {
   const session = await auth();
@@ -229,275 +255,160 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen bg-white text-slate-800">
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-            /* ── Scroll-based reveal ── */
-            .reveal {
-              opacity: 0;
-              transform: translateY(20px);
-              transition: opacity 0.65s cubic-bezier(.22,1,.36,1), transform 0.65s cubic-bezier(.22,1,.36,1);
-            }
-            .reveal.visible {
-              opacity: 1;
-              transform: translateY(0);
-            }
-            .reveal-left {
-              opacity: 0;
-              transform: translateX(-24px);
-              transition: opacity 0.7s cubic-bezier(.22,1,.36,1), transform 0.7s cubic-bezier(.22,1,.36,1);
-            }
-            .reveal-left.visible { opacity: 1; transform: translateX(0); }
-            .reveal-right {
-              opacity: 0;
-              transform: translateX(24px);
-              transition: opacity 0.7s cubic-bezier(.22,1,.36,1), transform 0.7s cubic-bezier(.22,1,.36,1);
-            }
-            .reveal-right.visible { opacity: 1; transform: translateX(0); }
+      <style dangerouslySetInnerHTML={{ __html: `
+        .rv{opacity:0;transform:translateY(22px);transition:opacity .65s cubic-bezier(.22,1,.36,1),transform .65s cubic-bezier(.22,1,.36,1)}
+        .rv.in{opacity:1;transform:translateY(0)}
+        .rl{opacity:0;transform:translateX(-26px);transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1)}
+        .rl.in{opacity:1;transform:translateX(0)}
+        .rr{opacity:0;transform:translateX(26px);transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1)}
+        .rr.in{opacity:1;transform:translateX(0)}
+        .d1{transition-delay:55ms}.d2{transition-delay:115ms}.d3{transition-delay:175ms}
+        .d4{transition-delay:235ms}.d5{transition-delay:295ms}.d6{transition-delay:355ms}
+        .d7{transition-delay:415ms}.d8{transition-delay:475ms}
+        .lift{transition:transform 230ms cubic-bezier(.34,1.56,.64,1),box-shadow 230ms ease}
+        .lift:hover{transform:translateY(-4px);box-shadow:0 14px 36px rgba(15,23,42,.09)}
+        @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.72)}}
+        .pulse{animation:pulse 2.1s ease-in-out infinite}
+        @keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+        .float{animation:floatY 4.8s ease-in-out infinite}
+        @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+        .ticker-inner{animation:ticker 30s linear infinite}
+        .ticker-wrap:hover .ticker-inner{animation-play-state:paused}
+        @keyframes chipPop{from{opacity:0;transform:scale(.78)}to{opacity:1;transform:scale(1)}}
+        .chip-pop{animation:chipPop .38s cubic-bezier(.34,1.56,.64,1) both}
+        @keyframes notifSlide{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:translateX(0)}}
+        .notif-slide{animation:notifSlide .5s cubic-bezier(.22,1,.36,1) both}
+        .gdiv{height:1px;background:linear-gradient(90deg,transparent,#e2e8f0 20%,#bfdbfe 50%,#e2e8f0 80%,transparent)}
+        @keyframes glowPulse{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,.3)}50%{box-shadow:0 0 0 6px rgba(37,99,235,0)}}
+        .ai-glow{animation:glowPulse 2.5s ease-in-out infinite}
+      ` }} />
 
-            /* ── Stagger delays ── */
-            .d1 { transition-delay: 60ms; }
-            .d2 { transition-delay: 130ms; }
-            .d3 { transition-delay: 200ms; }
-            .d4 { transition-delay: 270ms; }
-            .d5 { transition-delay: 340ms; }
-            .d6 { transition-delay: 410ms; }
-            .d7 { transition-delay: 480ms; }
-            .d8 { transition-delay: 550ms; }
+      <script dangerouslySetInnerHTML={{ __html: `
+        document.addEventListener('DOMContentLoaded',function(){
+          var els=document.querySelectorAll('.rv,.rl,.rr');
+          var obs=new IntersectionObserver(function(entries){
+            entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});
+          },{threshold:0.1});
+          els.forEach(function(el){obs.observe(el);});
+        });
+      ` }} />
 
-            /* ── Hover lift ── */
-            .lift {
-              transition: transform 240ms cubic-bezier(.34,1.56,.64,1), box-shadow 240ms ease;
-            }
-            .lift:hover {
-              transform: translateY(-4px);
-              box-shadow: 0 12px 32px rgba(15,23,42,0.08);
-            }
-
-            /* ── Float animation ── */
-            @keyframes floatY {
-              0%, 100% { transform: translateY(0px); }
-              50%       { transform: translateY(-8px); }
-            }
-            .float { animation: floatY 4.5s ease-in-out infinite; }
-
-            /* ── Pulse dot ── */
-            @keyframes pulseDot {
-              0%, 100% { opacity: 1; transform: scale(1); }
-              50%       { opacity: 0.5; transform: scale(0.75); }
-            }
-            .pulse-dot { animation: pulseDot 2s ease-in-out infinite; }
-
-            /* ── Shimmer / skeleton ── */
-            @keyframes shimmer {
-              0%   { background-position: -400px 0; }
-              100% { background-position: 400px 0; }
-            }
-            .shimmer-bar {
-              background: linear-gradient(90deg, #f0f0f0 25%, #e0e8ff 50%, #f0f0f0 75%);
-              background-size: 800px 100%;
-              animation: shimmer 2.2s infinite linear;
-              border-radius: 4px;
-            }
-
-            /* ── Typewriter cursor ── */
-            @keyframes blink { 50% { opacity: 0; } }
-            .cursor { animation: blink 1s step-start infinite; }
-
-            /* ── Ticker ── */
-            @keyframes ticker {
-              0%   { transform: translateX(0); }
-              100% { transform: translateX(-50%); }
-            }
-            .ticker-inner { animation: ticker 28s linear infinite; }
-            .ticker-wrap:hover .ticker-inner { animation-play-state: paused; }
-
-            /* ── Count-up ── */
-            .count-target { font-variant-numeric: tabular-nums; }
-
-            /* ── Status chip entrance ── */
-            @keyframes chipIn {
-              from { opacity: 0; transform: scale(0.85); }
-              to   { opacity: 1; transform: scale(1); }
-            }
-            .chip-in { animation: chipIn 0.35s cubic-bezier(.34,1.56,.64,1) both; }
-
-            /* ── Progress bar fill ── */
-            @keyframes fillBar {
-              from { width: 0%; }
-            }
-            .fill-bar { animation: fillBar 1.4s cubic-bezier(.22,1,.36,1) both; }
-
-            /* ── Connector line draw ── */
-            @keyframes drawLine {
-              from { transform: scaleX(0); }
-              to   { transform: scaleX(1); }
-            }
-            .draw-line {
-              transform-origin: left;
-              animation: drawLine 0.7s cubic-bezier(.22,1,.36,1) both;
-            }
-
-            /* ── Notification slide-in ── */
-            @keyframes notifIn {
-              from { opacity: 0; transform: translateX(20px); }
-              to   { opacity: 1; transform: translateX(0); }
-            }
-            .notif-in { animation: notifIn 0.5s cubic-bezier(.22,1,.36,1) both; }
-
-            /* ── Section divider gradient ── */
-            .grad-divider {
-              height: 1px;
-              background: linear-gradient(90deg, transparent 0%, #e2e8f0 20%, #bfdbfe 50%, #e2e8f0 80%, transparent 100%);
-            }
-
-            /* ── Feature icon box ── */
-            .icon-box {
-              width: 36px; height: 36px;
-              border-radius: 8px;
-              display: flex; align-items: center; justify-content: center;
-              flex-shrink: 0;
-            }
-          `,
-        }}
-      />
-
-      {/* ──────────────────────────── Scroll observer ──────────────────────────── */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            document.addEventListener('DOMContentLoaded', function() {
-              var els = document.querySelectorAll('.reveal, .reveal-left, .reveal-right');
-              var obs = new IntersectionObserver(function(entries) {
-                entries.forEach(function(e) {
-                  if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }
-                });
-              }, { threshold: 0.12 });
-              els.forEach(function(el) { obs.observe(el); });
-            });
-          `,
-        }}
-      />
-
-      {/* ─────────────────────────────── NAV ─────────────────────────────── */}
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      {/* ── NAV ── */}
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/92 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-2.5">
             <Image src="/diagsync-logo.png" alt="Diagsync" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
             <div>
               <p className="text-sm font-semibold text-slate-800 leading-none">Diagsync</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Diagnostic Workflow OS</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Diagnostic Workflow OS</p>
             </div>
           </div>
-          <nav className="hidden md:flex items-center gap-6 text-sm text-slate-500">
-            <a href="#features" className="hover:text-slate-800 transition-colors">Features</a>
-            <a href="#workflow" className="hover:text-slate-800 transition-colors">Workflow</a>
-            <a href="#roles" className="hover:text-slate-800 transition-colors">Roles</a>
-            <a href="#reports" className="hover:text-slate-800 transition-colors">Reports</a>
-            <a href="#faq" className="hover:text-slate-800 transition-colors">FAQ</a>
+          <nav className="hidden md:flex items-center gap-5 text-xs text-slate-500">
+            {["features","workflow","ai","roles","reports","faq"].map((s) => (
+              <a key={s} href={`#${s}`} className="hover:text-slate-800 transition-colors capitalize">{s}</a>
+            ))}
           </nav>
           <div className="flex items-center gap-2">
             {isLoggedIn ? (
-              <Link href={dashboardPath} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
-                Dashboard
-              </Link>
+              <Link href={dashboardPath} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">Dashboard</Link>
             ) : (
               <>
-                <Link href="/login" className="rounded border border-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                  Sign In
-                </Link>
-                <Link href="/register" className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
-                  Register Lab
-                </Link>
+                <Link href="/login" className="rounded border border-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">Sign In</Link>
+                <Link href="/register" className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">Register Lab</Link>
               </>
             )}
           </div>
         </div>
       </header>
 
-      {/* ─────────────────────────────── HERO ─────────────────────────────── */}
+      {/* ── HERO ── */}
       <section className="relative overflow-hidden mx-auto max-w-6xl px-6 py-20 lg:py-28">
-        {/* background decoration */}
         <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute -top-32 -right-32 h-[480px] w-[480px] rounded-full bg-blue-50 opacity-60" />
-          <div className="absolute bottom-0 -left-20 h-[320px] w-[320px] rounded-full bg-slate-50 opacity-80" />
+          <div className="absolute -top-40 -right-40 h-[520px] w-[520px] rounded-full bg-blue-50 opacity-50" />
+          <div className="absolute bottom-0 -left-24 h-[360px] w-[360px] rounded-full bg-slate-50 opacity-70" />
         </div>
-
         <div className="grid gap-14 lg:grid-cols-2 lg:items-center">
-          <div className="reveal">
+          <div className="rv">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 mb-6">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 pulse-dot" />
-              Built for multi-role diagnostic labs
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 pulse" />
+              AI-powered · Multi-role · Offline-ready
             </span>
-            <h1 className="text-4xl font-bold leading-[1.15] text-slate-900 sm:text-5xl">
-              From patient registration
-              <br />
-              <span className="text-blue-600">to signed report</span>
-              <br />
-              in one platform.
+            <h1 className="text-4xl font-bold leading-[1.13] text-slate-900 sm:text-5xl">
+              From front desk<br/>
+              <span className="text-blue-600">to signed report</span><br/>
+              in one system.
             </h1>
             <p className="mt-5 text-base leading-relaxed text-slate-500 max-w-lg">
-              Diagsync gives every role in your diagnostic lab — receptionist, lab scientist,
-              radiographer, MD, and operations — a focused dashboard with exactly the tools
-              they need. Auto-routing, structured results, MD approval cycles, branded PDF
-              reports, and complete audit trails out of the box.
+              Diagsync is a complete diagnostic lab operating system — covering patient registration,
+              intelligent routing, AI result flagging, consultation queues, MD approval cycles,
+              revenue intelligence, and branded PDF dispatch with WhatsApp support.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               {isLoggedIn ? (
-                <Link href={dashboardPath} className="rounded bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
-                  Go to Dashboard
-                </Link>
+                <Link href={dashboardPath} className="rounded-lg bg-blue-600 px-7 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm">Go to Dashboard</Link>
               ) : (
                 <>
-                  <Link href="/register" className="rounded bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm">
-                    Set Up Your Lab
-                  </Link>
-                  <Link href="/login" className="rounded border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                    Sign In
-                  </Link>
+                  <Link href="/register" className="rounded-lg bg-blue-600 px-7 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm">Set Up Your Lab</Link>
+                  <Link href="/login" className="rounded-lg border border-slate-200 px-7 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Sign In</Link>
                 </>
               )}
             </div>
-            <p className="mt-5 text-xs text-slate-400">No credit card required · Set up in minutes · All roles included</p>
+            <p className="mt-4 text-xs text-slate-400">6 role dashboards · AI insights · Consultation queue · Offline sync · WhatsApp dispatch</p>
           </div>
 
-          {/* Hero visual — live-order card */}
-          <div className="reveal-right float">
+          {/* Hero live order card */}
+          <div className="rr float">
             <div className="rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5 bg-slate-50">
                 <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-green-400 pulse-dot" />
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Live Order · #ORD-2841</p>
+                  <span className="h-2 w-2 rounded-full bg-green-400 pulse" />
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Live Order · #ORD-3019</p>
                 </div>
-                <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">URGENT</span>
+                <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-bold text-red-600">EMERGENCY</span>
               </div>
               <div className="px-5 py-4">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">Adaeze Okonkwo</p>
-                    <p className="text-xs text-slate-400 mt-0.5">F · 34 yrs · Ref: Dr. Emeka Eze</p>
+                    <p className="text-sm font-semibold text-slate-800">Chukwuemeka Obi</p>
+                    <p className="text-xs text-slate-400 mt-0.5">M · 52 yrs · Ref: Dr. Amaka Eze</p>
                   </div>
-                  <span className="rounded bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">IN PROGRESS</span>
+                  <span className="rounded bg-orange-50 px-2.5 py-1 text-[11px] font-semibold text-orange-700">IN PROGRESS</span>
                 </div>
-                <div className="space-y-2.5">
+                {/* AI insight box */}
+                <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5">
+                  <p className="text-[11px] font-semibold text-blue-700 mb-1">AI Result Insight</p>
+                  <p className="text-[11px] text-blue-600 leading-relaxed">Troponin I above normal range — possible cardiac injury. Haemoglobin trending downward across 3 visits. Repeated FBC testing (4× this month).</p>
+                </div>
+                <div className="space-y-2">
                   {[
-                    { test: "Full Blood Count", dept: "LAB", status: "Result Drafted", color: "bg-purple-50 text-purple-700", time: "2m ago" },
-                    { test: "Liver Function Test", dept: "LAB", status: "In Progress", color: "bg-orange-50 text-orange-700", time: "8m ago" },
-                    { test: "Chest X-Ray", dept: "RADIOLOGY", status: "Submitted for Review", color: "bg-indigo-50 text-indigo-700", time: "15m ago" },
+                    { test: "Troponin I", dept: "LAB", status: "Result Drafted", color: "bg-purple-50 text-purple-700", flag: "HIGH" },
+                    { test: "Full Blood Count", dept: "LAB", status: "Submitted", color: "bg-indigo-50 text-indigo-700", flag: null },
+                    { test: "Chest X-Ray", dept: "RADIOLOGY", status: "Approved", color: "bg-teal-50 text-teal-700", flag: null },
                   ].map((item) => (
                     <div key={item.test} className="flex items-center justify-between rounded-lg bg-slate-50 px-3.5 py-2.5">
                       <div>
                         <p className="text-xs font-medium text-slate-700">{item.test}</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">{item.dept} · {item.time}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{item.dept}</p>
                       </div>
-                      <span className={`rounded px-2 py-0.5 text-[10px] font-semibold ${item.color}`}>{item.status}</span>
+                      <div className="flex items-center gap-1.5">
+                        {item.flag && <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.flag}</span>}
+                        <span className={`rounded px-2 py-0.5 text-[10px] font-semibold ${item.color}`}>{item.status}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center">
-                  <div><p className="text-[11px] text-slate-400">Total</p><p className="text-sm font-bold text-slate-800">₦18,500</p></div>
-                  <div><p className="text-[11px] text-slate-400">Paid</p><p className="text-sm font-bold text-green-600">₦15,000</p></div>
-                  <div><p className="text-[11px] text-slate-400">Balance</p><p className="text-sm font-bold text-amber-600">₦3,500</p></div>
+                <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-4 gap-2 text-center">
+                  {[
+                    { l: "Total", v: "₦32,000", c: "text-slate-800" },
+                    { l: "Paid", v: "₦20,000", c: "text-green-600" },
+                    { l: "Balance", v: "₦12,000", c: "text-amber-600" },
+                    { l: "Status", v: "PARTIAL", c: "text-amber-700" },
+                  ].map((b) => (
+                    <div key={b.l}>
+                      <p className="text-[10px] text-slate-400">{b.l}</p>
+                      <p className={`text-xs font-bold mt-0.5 ${b.c}`}>{b.v}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -505,8 +416,8 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ─────────────────────── NOTIFICATION TICKER ─────────────────────── */}
-      <div className="border-y border-slate-100 bg-slate-50 py-3 overflow-hidden ticker-wrap">
+      {/* ── NOTIFICATION TICKER ── */}
+      <div className="border-y border-slate-100 bg-slate-50 py-2.5 overflow-hidden ticker-wrap">
         <div className="ticker-inner flex gap-8 whitespace-nowrap" style={{ width: "max-content" }}>
           {[...notificationEvents, ...notificationEvents].map((evt, i) => (
             <span key={i} className="flex items-center gap-2 text-xs text-slate-500">
@@ -517,415 +428,439 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* ──────────────────────────── PROOF STATS ──────────────────────────── */}
+      {/* ── PROOF STATS ── */}
       <section className="mx-auto max-w-6xl px-6 py-14">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
           {proofStats.map((s, i) => (
-            <div key={s.label} className={`reveal d${Math.min(i + 1, 8)} lift rounded-xl border border-slate-200 bg-white p-4 text-center`}>
-              <p className="text-2xl font-bold text-slate-900 count-target">{s.value}</p>
+            <div key={s.label} className={`rv d${Math.min(i+1,8)} lift rounded-xl border border-slate-200 bg-white p-4 text-center`}>
+              <p className="text-2xl font-bold text-slate-900">{s.value}</p>
               <p className="text-[10px] text-slate-400 mt-1 leading-tight">{s.label}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <div className="grad-divider mx-6" />
+      <div className="gdiv mx-6" />
 
-      {/* ─────────────────────────── FEATURES GRID ─────────────────────────── */}
+      {/* ── FEATURES ── */}
       <section id="features" className="mx-auto max-w-6xl px-6 py-20">
-        <div className="mb-12 reveal">
-          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Platform Features</span>
-          <h2 className="mt-2 text-2xl font-bold text-slate-900">Everything your lab needs to run properly</h2>
-          <p className="mt-2 text-sm text-slate-400 max-w-xl">No spreadsheets. No paper trails. No verbal handoffs. A clean digital workflow from the first patient to the last report.</p>
+        <div className="mb-12 rv">
+          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Complete Feature Set</span>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">Every system your lab needs — built in, not bolted on</h2>
+          <p className="mt-2 text-sm text-slate-400 max-w-xl">No spreadsheets. No verbal handoffs. No paper trails. Every workflow digitised and audited.</p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {features.map((f, i) => (
-            <div key={f.title} className={`reveal d${Math.min(i + 1, 8)} lift rounded-xl border border-slate-200 bg-white p-5`}>
-              <div className="icon-box bg-blue-50 mb-4">
-                <div className="h-3.5 w-3.5 rounded-sm bg-blue-600" />
-              </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            { title: "Intelligent Auto-Routing Engine", desc: "Patient registration triggers instant task creation per department. The least-loaded AVAILABLE staff member is selected algorithmically — considering real-time active workload counts across 8 order statuses." },
+            { title: "AI Result Condition Detection", desc: "buildResultInsights() analyses entered values client-side and surfaces condition-relevant messages live. evaluateReferenceFlag() fires HIGH/LOW badges per numeric field the moment a value is typed." },
+            { title: "Consultation Queue System", desc: "A standalone outpatient module separate from the diagnostic workflow. Tracks walk-in patients from WAITING through CALLED, CONSULTED, and CANCELLED with timestamps and full staff attribution." },
+            { title: "Version Chain for All Edits", desc: "Every edit to a lab result, radiology report, or diagnostic report creates a new version in a parent-child chain (parentId). Active version is flagged. All previous versions are preserved and browsable." },
+            { title: "Offline Draft Sync", desc: "Patient registrations and lab result drafts saved to localStorage survive connectivity loss. Auto-synced sequentially when the device comes back online — no user action required." },
+            { title: "Digital Signature Presets", desc: "Lab scientists save signature images as named presets (up to 20). Normalised, deduplicated, and stored in localStorage. Sign-off is embedded in the result data and rendered on the PDF." },
+            { title: "WhatsApp Report Dispatch", desc: "Reports captured as PNG via html2canvas at 2× scale and shared via navigator.share(). Falls back to a wa.me link if the Web Share API is unavailable. Every dispatch attempt logged." },
+            { title: "Revenue Intelligence & Leakage", desc: "30-day rolling financials: ordered vs billed vs collected, unbilled leakage, uncollected leakage, completion leakage rate, gross margin %, profit by test line, 14-day daily chart." },
+            { title: "No-Show Forecasting", desc: "Computes last-7-day vs prior-7-day no-show rates, trend direction, and predicts next week's no-shows. Confidence level: high (150+ visits), medium (60+), or low." },
+            { title: "Price Override Tracking", desc: "Every test price override is attributed to the authorising staff member with a mandatory reason. The default price is preserved alongside the override for leakage tracking." },
+            { title: "Delayed Task Notifications", desc: "isTaskDelayed() fires TASK_DELAYED notifications to HRM and Super Admin when any routing task exceeds its turnaround target. Batched and deduplicated to prevent alert spam." },
+            { title: "Public Report Share Token", desc: "Each diagnostic report gets a unique public UUID token on creation — enabling patient-facing report access via a shareable URL without requiring authentication." },
+          ].map((f, i) => (
+            <div key={f.title} className={`rv d${Math.min((i%4)+1,4)} lift rounded-xl border border-slate-200 bg-white p-5`}>
+              <div className="mb-3 h-1 w-10 rounded-full bg-blue-600" />
               <h3 className="text-sm font-semibold text-slate-800">{f.title}</h3>
-              <p className="mt-2 text-xs leading-relaxed text-slate-500">{f.text}</p>
+              <p className="mt-2 text-xs leading-relaxed text-slate-500">{f.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <div className="grad-divider mx-6" />
+      <div className="gdiv mx-6" />
 
-      {/* ──────────────────────── ORDER STATUS PIPELINE ─────────────────────── */}
-      <section id="workflow" className="mx-auto max-w-6xl px-6 py-20">
-        <div className="grid gap-14 lg:grid-cols-2 lg:items-start">
-          <div className="reveal-left">
-            <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Order Lifecycle</span>
-            <h2 className="mt-2 text-2xl font-bold text-slate-900">13 order statuses. Every state tracked.</h2>
-            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-              Every test order in Diagsync moves through a precisely defined state machine — from the moment it's registered at reception to the moment the report is released. There are no ambiguous handoffs. Every transition is logged with who did it, when, and why.
-            </p>
-            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-              The edit-request cycle is fully supported: if an MD requests corrections, the order moves to <strong className="font-semibold text-slate-700">EDIT_REQUESTED</strong>, the scientist corrects and resubmits to <strong className="font-semibold text-slate-700">RESUBMITTED</strong>, and the MD reviews again before approval.
-            </p>
+      {/* ── AI FEATURES ── */}
+      <section id="ai" className="mx-auto max-w-6xl px-6 py-20">
+        <div className="mb-12 rv">
+          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Intelligence Layer</span>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">AI systems woven into the clinical workflow</h2>
+          <p className="mt-2 text-sm text-slate-400 max-w-xl">Not external integrations. Core functions running in result entry, patient history, and operational monitoring.</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {aiFeatures.map((f, i) => (
+            <div key={f.title} className={`rv d${Math.min((i%3)+1,3)} lift rounded-xl border border-slate-200 bg-white p-5`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <div className="h-3 w-3 rounded-sm bg-blue-600" />
+                </div>
+                <span className={`ai-glow rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white ${f.badgeColor}`}>{f.badge}</span>
+              </div>
+              <h3 className="text-sm font-semibold text-slate-800 mb-2">{f.title}</h3>
+              <p className="text-xs leading-relaxed text-slate-500">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* AI demo */}
+        <div className="mt-8 rv rounded-xl border border-slate-200 bg-white p-5">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">Live result entry — AI flagging as values are typed</p>
+          <div className="grid gap-3 sm:grid-cols-3 mb-4">
+            {[
+              { label: "Troponin I (ng/L)", value: "68.4", range: "Normal: 0–45", flag: "HIGH", bg: "border-red-200 bg-red-50" },
+              { label: "Haemoglobin (g/dL)", value: "10.2", range: "Normal: 13.5–17.5", flag: "LOW", bg: "border-red-200 bg-red-50" },
+              { label: "Glucose (mmol/L)", value: "5.1", range: "Normal: 3.9–5.6", flag: "NORMAL", bg: "border-green-200 bg-green-50" },
+            ].map((f) => (
+              <div key={f.label} className={`rounded-lg border p-3 ${f.bg}`}>
+                <p className="text-[11px] font-medium text-slate-600 mb-1">{f.label}</p>
+                <p className="text-lg font-bold text-slate-800">{f.value}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-[10px] text-slate-400">{f.range}</p>
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${f.flag === "NORMAL" ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}>{f.flag}</span>
+                </div>
+              </div>
+            ))}
           </div>
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-3.5 py-2.5">
+            <p className="text-[11px] font-semibold text-blue-700 mb-0.5">AI Insight — buildResultInsights()</p>
+            <p className="text-[11px] text-blue-600 leading-relaxed">Elevated Troponin I — possible acute myocardial injury, consider ECG and cardiology referral. Low Haemoglobin — anaemia workup recommended. Glucose within normal range.</p>
+          </div>
+        </div>
+      </section>
 
-          <div className="reveal-right">
-            <div className="flex flex-wrap gap-2">
-              {orderStatuses.map((s, i) => (
-                <span
-                  key={s.key}
-                  className={`chip-in rounded-full px-3 py-1 text-xs font-semibold ${s.color}`}
-                  style={{ animationDelay: `${i * 60}ms` }}
-                >
-                  {s.label}
-                </span>
+      <div className="gdiv mx-6" />
+
+      {/* ── WORKFLOW ── */}
+      <section id="workflow" className="mx-auto max-w-6xl px-6 py-20">
+        <div className="mb-12 rv">
+          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">End-to-End Workflow</span>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">9 stages. Every one owned, tracked, and logged.</h2>
+          <p className="mt-2 text-sm text-slate-400 max-w-xl">Every stage has a clear owner, a timestamp, and an audit log entry. Nothing moves without being recorded.</p>
+        </div>
+        <div className="relative">
+          <div className="absolute left-[22px] top-6 bottom-6 w-px bg-slate-200 hidden sm:block" />
+          <div className="space-y-3">
+            {workflow.map((item, idx) => (
+              <div key={item.step} className={`rv d${Math.min((idx%5)+1,5)} lift flex items-start gap-5 rounded-xl border border-slate-200 bg-white p-5`}>
+                <div className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold z-10">{idx + 1}</div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 flex-wrap mb-1">
+                    <p className="text-sm font-semibold text-slate-800">{item.step}</p>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold text-slate-500">{item.owner}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-10 rv">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">All 13 order states in the state machine</p>
+          <div className="flex flex-wrap gap-2">
+            {orderStatuses.map((s, i) => (
+              <span key={s.label} className={`chip-pop rounded-full px-3 py-1 text-xs font-semibold ${s.color}`} style={{ animationDelay: `${i * 55}ms` }}>{s.label}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="gdiv mx-6" />
+
+      {/* ── CONSULTATION QUEUE ── */}
+      <section className="mx-auto max-w-6xl px-6 py-20">
+        <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+          <div className="rl">
+            <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Consultation Queue</span>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">Outpatient walk-in management — completely separate from diagnostics</h2>
+            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
+              The consultation queue module manages walk-in outpatient visits independently of the diagnostic workflow. No test orders are needed. Receptionists add patients to the waiting list with name, age, contact, and a vitals note. The arrival time is recorded automatically.
+            </p>
+            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
+              Doctors pick up patients from the WAITING queue, call them, and record the consultation. Every action — who called, who acknowledged, who consulted — is attributed to the individual staff member with a precise timestamp.
+            </p>
+            <div className="mt-6 space-y-2">
+              {consultationStatuses.map((s) => (
+                <div key={s.status} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 lift">
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold flex-shrink-0 ${s.color}`}>{s.status}</span>
+                  <p className="text-xs text-slate-500">{s.desc}</p>
+                </div>
               ))}
             </div>
           </div>
-        </div>
-      </section>
-
-      <div className="grad-divider mx-6" />
-
-      {/* ───────────────────── WORKFLOW STEPS (DETAILED) ─────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 py-20">
-        <div className="mb-12 text-center reveal">
-          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Step by Step</span>
-          <h2 className="mt-2 text-2xl font-bold text-slate-900">How a patient moves through your lab</h2>
-          <p className="mt-2 text-sm text-slate-400">Every stage has an owner. Every action has a timestamp.</p>
-        </div>
-        <div className="relative">
-          {/* vertical line */}
-          <div className="absolute left-5 top-6 bottom-6 w-px bg-slate-200 hidden sm:block" />
-          <div className="space-y-3">
-            {workflow.map((item, idx) => (
-              <div key={item.step} className={`reveal d${Math.min(idx + 1, 8)} flex items-start gap-5 rounded-xl border border-slate-200 bg-white p-5 lift`}>
-                <div className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold z-10">
-                  {idx + 1}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <p className="text-sm font-semibold text-slate-800">{item.step}</p>
-                    <span className={`text-[11px] font-semibold rounded px-2 py-0.5 ${
-                      idx === workflow.length - 1 ? "bg-green-50 text-green-700" :
-                      idx < 2 ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-500"
-                    }`}>
-                      Stage {idx + 1}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500 leading-relaxed">{item.desc}</p>
-                </div>
+          <div className="rr">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <div className="border-b border-slate-100 bg-slate-50 px-5 py-3.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Consultation Queue — Live</p>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <div className="grad-divider mx-6" />
-
-      {/* ──────────────────────────── ROLE DASHBOARDS ──────────────────────────── */}
-      <section id="roles" className="mx-auto max-w-6xl px-6 py-20">
-        <div className="mb-12 reveal">
-          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Role Dashboards</span>
-          <h2 className="mt-2 text-2xl font-bold text-slate-900">Six focused dashboards. One platform.</h2>
-          <p className="mt-2 text-sm text-slate-400 max-w-xl">
-            Each staff member sees only what they need. Every dashboard is purpose-built for the tasks, queues, and decisions that role handles every day.
-          </p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {roles.map((r, i) => (
-            <div key={r.name} className={`reveal d${Math.min(i + 1, 6)} lift rounded-xl border border-slate-200 bg-white p-5`}>
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-bold text-slate-800">{r.name}</p>
-                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${r.color}`}>{r.dept}</span>
-              </div>
-              <p className="text-xs leading-relaxed text-slate-500">{r.text}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="grad-divider mx-6" />
-
-      {/* ──────────────────────────── PAYMENT TRACKING ──────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 py-20">
-        <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-          <div className="reveal-left">
-            <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Payment Management</span>
-            <h2 className="mt-2 text-2xl font-bold text-slate-900">Full payment lifecycle at reception</h2>
-            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-              Receptionists capture the full payment picture at registration — total amount, discount, amount paid, payment method, and outstanding balance. Each visit has one of four payment statuses that update in real time as payments come in.
-            </p>
-            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-              Partial payments show the outstanding balance clearly. Waived fees are logged with the authorising staff member. No visit leaves without a financial record.
-            </p>
-          </div>
-          <div className="reveal-right grid grid-cols-2 gap-3">
-            {payments.map((p, i) => (
-              <div key={p.status} className={`lift rounded-xl border border-slate-200 bg-white p-4 d${i + 1}`}>
-                <span className={`inline-block rounded-full px-3 py-1 text-[11px] font-bold mb-3 ${p.color}`}>{p.status}</span>
-                <p className="text-xs text-slate-500">{p.desc}</p>
-              </div>
-            ))}
-            <div className="col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Per-visit billing summary</p>
-              <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="divide-y divide-slate-100">
                 {[
-                  { label: "Total", val: "₦24,000", c: "text-slate-800" },
-                  { label: "Discount", val: "₦2,000", c: "text-blue-600" },
-                  { label: "Paid", val: "₦18,000", c: "text-green-600" },
-                  { label: "Balance", val: "₦4,000", c: "text-amber-600" },
-                ].map((b) => (
-                  <div key={b.label}>
-                    <p className="text-[10px] text-slate-400">{b.label}</p>
-                    <p className={`text-sm font-bold mt-0.5 ${b.c}`}>{b.val}</p>
+                  { name: "Ngozi Adeyemi", age: 34, vitals: "BP: 140/90, Temp: 37.2°C", status: "WAITING", statusC: "bg-slate-100 text-slate-600", time: "09:15" },
+                  { name: "Tunde Balogun", age: 58, vitals: "Fasting glucose: 11.2 mmol/L", status: "CALLED", statusC: "bg-blue-50 text-blue-700", time: "09:08" },
+                  { name: "Aisha Mohammed", age: 27, vitals: "Complains of chest pain", status: "CONSULTED", statusC: "bg-green-50 text-green-700", time: "08:50" },
+                ].map((p) => (
+                  <div key={p.name} className="px-5 py-3.5 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs font-semibold text-slate-800">{p.name} · {p.age}yrs</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${p.statusC}`}>{p.status}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">{p.vitals}</p>
+                    <p className="text-[10px] text-slate-300 mt-0.5">Arrived: {p.time}</p>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <div className="grad-divider mx-6" />
-
-      {/* ──────────────────────────── REPORTS ──────────────────────────── */}
-      <section id="reports" className="mx-auto max-w-6xl px-6 py-20">
-        <div className="mb-12 reveal">
-          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Report Engine</span>
-          <h2 className="mt-2 text-2xl font-bold text-slate-900">Branded PDF reports with full dispatch tracking</h2>
-          <p className="mt-2 text-sm text-slate-400 max-w-xl">Lab and radiology reports rendered with your organisation's branding. Every dispatch action logged.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {reportFeatures.map((f, i) => (
-            <div key={f.title} className={`reveal d${Math.min(i + 1, 4)} lift rounded-xl border border-slate-200 bg-white p-5`}>
-              <div className="mb-3 h-1 w-10 rounded-full bg-blue-600" />
-              <h3 className="text-sm font-semibold text-slate-800">{f.title}</h3>
-              <p className="mt-2 text-xs leading-relaxed text-slate-500">{f.text}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Report dispatch badge strip */}
-        <div className="mt-8 reveal rounded-xl border border-slate-200 bg-slate-50 p-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Report action events logged</p>
-          <div className="flex flex-wrap gap-2">
-            {["Sent", "Printed", "Downloaded", "Send Failed", "Draft Updated", "Released", "Ready for Review"].map((a) => (
-              <span key={a} className="rounded-full bg-white border border-slate-200 px-3 py-1 text-xs text-slate-600 font-medium">{a}</span>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <div className="grad-divider mx-6" />
-
-      {/* ──────────────────────────── TEST CATALOG ──────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 py-20">
-        <div className="grid gap-12 lg:grid-cols-2 lg:items-start">
-          <div className="reveal-left">
-            <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Test Catalog</span>
-            <h2 className="mt-2 text-2xl font-bold text-slate-900">A fully configurable diagnostic test catalog</h2>
-            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-              Super Admins build and maintain the lab's complete test catalog. Every test has a code, type (Lab or Radiology), department, price, turnaround target, sample type, and a fully custom result template.
-            </p>
-            <div className="mt-6 space-y-3">
-              {catalogFeatures.map((f, i) => (
-                <div key={f.title} className={`reveal d${i + 1} rounded-lg border border-slate-200 bg-white p-4 lift`}>
-                  <p className="text-sm font-semibold text-slate-800">{f.title}</p>
-                  <p className="mt-1 text-xs text-slate-500 leading-relaxed">{f.text}</p>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {[
+                { label: "Staff attribution fields", items: ["createdById", "calledById", "acknowledgedById", "consultedById"] },
+                { label: "Timestamp fields logged", items: ["arrivalAt", "calledAt", "acknowledgedAt", "consultedAt"] },
+              ].map((g) => (
+                <div key={g.label} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">{g.label}</p>
+                  {g.items.map((item) => (
+                    <p key={item} className="text-[11px] font-mono text-slate-600 mt-1">{item}</p>
+                  ))}
                 </div>
               ))}
             </div>
           </div>
+        </div>
+      </section>
 
-          {/* Field type table */}
-          <div className="reveal-right">
-            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-              <div className="border-b border-slate-100 bg-slate-50 px-5 py-3.5">
+      <div className="gdiv mx-6" />
+
+      {/* ── ROLES ── */}
+      <section id="roles" className="mx-auto max-w-6xl px-6 py-20">
+        <div className="mb-12 rv">
+          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Role Dashboards</span>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">Six purpose-built dashboards. Every capability where it belongs.</h2>
+          <p className="mt-2 text-sm text-slate-400 max-w-xl">Each role dashboard is route-guarded at the middleware level. No cross-department data bleeds through.</p>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {roles.map((r, i) => (
+            <div key={r.name} className={`rv d${Math.min((i%3)+1,3)} lift rounded-xl border border-slate-200 bg-white p-5`}>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-bold text-slate-800">{r.name}</p>
+                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${r.pill}`}>{r.dept}</span>
+              </div>
+              <ul className="space-y-1.5">
+                {r.points.map((pt) => (
+                  <li key={pt} className="flex items-start gap-2 text-xs text-slate-500">
+                    <span className="mt-1.5 flex-shrink-0 h-1 w-1 rounded-full bg-blue-500" />
+                    {pt}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="gdiv mx-6" />
+
+      {/* ── TEST CATALOG ── */}
+      <section className="mx-auto max-w-6xl px-6 py-20">
+        <div className="grid gap-12 lg:grid-cols-2 lg:items-start">
+          <div className="rl">
+            <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Test Catalog</span>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">100+ pre-seeded tests across 6 categories</h2>
+            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
+              Every test has a code, category, type, department, sell price, cost price, turnaround target, sample type, and a fully configured result template — seeded with accurate normal ranges and units so reporting starts immediately.
+            </p>
+            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
+              Super Admin can add new tests, edit fields, set cost prices, and configure all metadata from the admin panel. The catalog is per-organisation — unique codes enforced per org.
+            </p>
+            <div className="mt-6 space-y-2">
+              {testCategories.map((c, i) => (
+                <div key={c.name} className={`rv d${i+1} rounded-lg border border-slate-200 bg-white px-4 py-3 lift`}>
+                  <p className="text-xs font-semibold text-slate-700">{c.name}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{c.examples}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rr">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden mb-4">
+              <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Custom Result Field Types</p>
               </div>
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-slate-100">
                   {[
-                    { type: "NUMBER", desc: "Numeric value with units, min/max normal range, and reference note" },
-                    { type: "TEXT", desc: "Short single-line text input for findings or IDs" },
-                    { type: "TEXTAREA", desc: "Multi-line text for impressions, comments, or narrative" },
-                    { type: "DROPDOWN", desc: "Select from a predefined option list configured per test" },
-                    { type: "CHECKBOX", desc: "Boolean present/absent or yes/no result field" },
+                    { type: "NUMBER", desc: "Numeric with units, normalMin, normalMax, AI range flagging" },
+                    { type: "TEXT", desc: "Short single-line finding or identifier field" },
+                    { type: "TEXTAREA", desc: "Multi-line impression, narrative, or comments" },
+                    { type: "DROPDOWN", desc: "Option list — Reactive/Non-Reactive, AA/AS/SS, A/B/AB/O etc." },
+                    { type: "CHECKBOX", desc: "Boolean positive/negative or present/absent field" },
                   ].map((f) => (
                     <tr key={f.type} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-5 py-3 font-mono text-xs font-semibold text-blue-700 whitespace-nowrap">{f.type}</td>
+                      <td className="px-5 py-3 font-mono text-xs font-semibold text-blue-700 whitespace-nowrap w-32">{f.type}</td>
                       <td className="px-5 py-3 text-xs text-slate-500">{f.desc}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <div className="border-t border-slate-100 bg-slate-50 px-5 py-3">
-                <p className="text-[11px] text-slate-400">Each field: required flag · sort order · units · normal range · reference note</p>
-              </div>
             </div>
-
-            {/* Turnaround preview */}
-            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">Sample turnaround targets</p>
-              <div className="space-y-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Runtime field flexibility</p>
+              <ul className="space-y-1.5">
                 {[
-                  { name: "Full Blood Count", time: 45, max: 120 },
-                  { name: "Liver Function Test", time: 90, max: 120 },
-                  { name: "Chest X-Ray", time: 30, max: 60 },
-                  { name: "Urinalysis", time: 20, max: 60 },
-                ].map((t) => (
-                  <div key={t.name}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-xs text-slate-600">{t.name}</span>
-                      <span className="text-xs text-slate-400">{t.time}min</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-blue-500 fill-bar"
-                        style={{ width: `${(t.time / t.max) * 100}%` }}
-                      />
-                    </div>
-                  </div>
+                  "Add custom fields to any result at runtime without changing the test template",
+                  "Remove or restore default template fields per individual result",
+                  "Field sort order configured in test setup, respected at entry",
+                  "normalText and referenceNote shown inline during result entry",
+                  "Sensitivity fields handled separately for microbiology workflows",
+                  "Cost price set per test — powers HRM gross margin analytics",
+                ].map((pt) => (
+                  <li key={pt} className="flex items-start gap-2 text-xs text-slate-500">
+                    <span className="mt-1.5 flex-shrink-0 h-1 w-1 rounded-full bg-blue-500" />
+                    {pt}
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="grad-divider mx-6" />
+      <div className="gdiv mx-6" />
 
-      {/* ──────────────────────────── STAFF MANAGEMENT ──────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 py-20">
-        <div className="mb-12 reveal">
-          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Staff Management</span>
-          <h2 className="mt-2 text-2xl font-bold text-slate-900">Complete staff lifecycle management</h2>
-          <p className="mt-2 text-sm text-slate-400 max-w-xl">From onboarding to shift assignment to availability status — manage your entire team from a single admin panel.</p>
+      {/* ── REPORTS ── */}
+      <section id="reports" className="mx-auto max-w-6xl px-6 py-20">
+        <div className="mb-12 rv">
+          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Report Engine</span>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">Branded reports. Multiple dispatch methods. Full version history.</h2>
+          <p className="mt-2 text-sm text-slate-400 max-w-xl">Every report rendered with your letterhead, tracks every edit in a version chain, and can be dispatched via print, PNG download, or WhatsApp — all logged.</p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {staffFeatures.map((f, i) => (
-            <div key={f.title} className={`reveal d${Math.min(i + 1, 4)} lift rounded-xl border border-slate-200 bg-white p-5`}>
-              <div className="icon-box bg-blue-50 mb-4">
-                <div className="h-3.5 w-3.5 rounded-full border-2 border-blue-600" />
-              </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {reportFeatures.map((f, i) => (
+            <div key={f.title} className={`rv d${Math.min((i%3)+1,3)} lift rounded-xl border border-slate-200 bg-white p-5`}>
+              <div className="mb-3 h-1 w-10 rounded-full bg-blue-600" />
               <h3 className="text-sm font-semibold text-slate-800">{f.title}</h3>
-              <p className="mt-2 text-xs leading-relaxed text-slate-500">{f.text}</p>
+              <p className="mt-2 text-xs leading-relaxed text-slate-500">{f.desc}</p>
             </div>
           ))}
         </div>
-
-        {/* Shift / status strip */}
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div className="reveal rounded-xl border border-slate-200 bg-white p-5">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Shift Types</p>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 rv">
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Report dispatch methods</p>
             <div className="flex flex-wrap gap-2">
-              {["MORNING", "AFTERNOON", "NIGHT", "FULL_DAY"].map((s) => (
-                <span key={s} className="rounded border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">{s}</span>
+              {["Print (with letterhead)", "Print (without letterhead)", "PNG Download (html2canvas 2×)", "WhatsApp (Web Share API)", "WhatsApp link fallback", "wa.me URL fallback"].map((d) => (
+                <span key={d} className="rounded border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">{d}</span>
               ))}
             </div>
           </div>
-          <div className="reveal rounded-xl border border-slate-200 bg-white p-5">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Account States</p>
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Action events logged per report</p>
             <div className="flex flex-wrap gap-2">
-              {[
-                { s: "ACTIVE", c: "bg-green-50 text-green-700" },
-                { s: "INACTIVE", c: "bg-slate-100 text-slate-600" },
-                { s: "SUSPENDED", c: "bg-red-50 text-red-600" },
-              ].map((a) => (
-                <span key={a.s} className={`rounded-full px-3 py-1 text-xs font-semibold ${a.c}`}>{a.s}</span>
+              {["Released", "Printed", "Downloaded", "Sent", "Send Failed", "Draft Updated", "Ready for Review"].map((a) => (
+                <span key={a} className="rounded border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">{a}</span>
               ))}
             </div>
           </div>
         </div>
       </section>
 
-      <div className="grad-divider mx-6" />
+      <div className="gdiv mx-6" />
 
-      {/* ──────────────────────────── NOTIFICATIONS ──────────────────────────── */}
+      {/* ── OFFLINE + SIGNATURE ── */}
       <section className="mx-auto max-w-6xl px-6 py-20">
-        <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-          <div className="reveal-left">
-            <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Notifications</span>
-            <h2 className="mt-2 text-2xl font-bold text-slate-900">16 real-time notification types. Zero missed updates.</h2>
-            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-              Every significant event in the workflow fires a targeted notification to the right staff member. Task assignments, result submissions, MD approvals or rejections, report releases, dispatch failures — all delivered in real time to the relevant role.
-            </p>
-            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-              Staff never have to poll or ask for updates. When something needs their attention, they know immediately.
-            </p>
-          </div>
-
-          {/* Notification mock */}
-          <div className="reveal-right space-y-2">
-            {[
-              { icon: "✓", title: "Result Approved", body: "Chest X-Ray for Adaeze Okonkwo approved by Dr. Chidi", time: "just now", color: "bg-green-50 text-green-700" },
-              { icon: "!", title: "Edit Requested", body: "FBC result for Emeka Nwosu — correction needed in WBC field", time: "2m ago", color: "bg-red-50 text-red-600" },
-              { icon: "→", title: "Task Assigned", body: "Urinalysis · Patient #P-1042 assigned to you", time: "5m ago", color: "bg-blue-50 text-blue-700" },
-              { icon: "↓", title: "Report Released", body: "LFT report for Ngozi Obi is now available for dispatch", time: "12m ago", color: "bg-teal-50 text-teal-700" },
-            ].map((n, i) => (
-              <div
-                key={n.title}
-                className="notif-in lift flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
-                style={{ animationDelay: `${i * 120}ms` }}
-              >
-                <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${n.color}`}>{n.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-slate-800">{n.title}</p>
-                    <p className="text-[11px] text-slate-400 whitespace-nowrap">{n.time}</p>
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-slate-500 leading-relaxed">{n.body}</p>
+        <div className="grid gap-12 lg:grid-cols-2">
+          <div className="rl">
+            <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Offline Support</span>
+            <h2 className="mt-2 text-xl font-bold text-slate-900 mb-4">Works without internet. Syncs the moment it returns.</h2>
+            <div className="space-y-3">
+              {offlineFeatures.map((f, i) => (
+                <div key={f.title} className={`rv d${i+1} lift rounded-lg border border-slate-200 bg-white p-4`}>
+                  <p className="text-sm font-semibold text-slate-800">{f.title}</p>
+                  <p className="mt-1.5 text-xs text-slate-500 leading-relaxed">{f.desc}</p>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+          <div className="rr">
+            <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Digital Signatures</span>
+            <h2 className="mt-2 text-xl font-bold text-slate-900 mb-4">Save once. Sign any result in one click.</h2>
+            <div className="space-y-3">
+              {signatureFeatures.map((f, i) => (
+                <div key={f.title} className={`rv d${i+1} lift rounded-lg border border-slate-200 bg-white p-4`}>
+                  <p className="text-sm font-semibold text-slate-800">{f.title}</p>
+                  <p className="mt-1.5 text-xs text-slate-500 leading-relaxed">{f.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <div className="grad-divider mx-6" />
+      <div className="gdiv mx-6" />
 
-      {/* ──────────────────────────── AUDIT TRAIL ──────────────────────────── */}
+      {/* ── HRM ANALYTICS ── */}
+      <section className="mx-auto max-w-6xl px-6 py-20">
+        <div className="grid gap-12 lg:grid-cols-2 lg:items-start">
+          <div className="rl">
+            <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Revenue Intelligence</span>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">A full financial operations dashboard for HRM</h2>
+            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
+              The revenue intelligence module computes a 30-day rolling financial picture across all visits — distinguishing ordered value, billed value, and collected value, then identifying exactly where revenue is leaking.
+            </p>
+            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
+              Cost prices are configured per test so gross margin is accurate. The top 12 most profitable test lines are ranked, a 14-day daily profit chart is computed, and a no-show/cancellation forecast is generated with confidence scoring.
+            </p>
+          </div>
+          <div className="rr">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {hrmAnalytics.map((a, i) => (
+                <div key={a.metric} className={`rv d${Math.min((i%4)+1,4)} lift rounded-xl border border-slate-200 bg-white p-4`}>
+                  <p className="text-xs font-semibold text-slate-700">{a.metric}</p>
+                  <p className="mt-1 text-[11px] text-slate-400 leading-relaxed">{a.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="gdiv mx-6" />
+
+      {/* ── AUDIT TRAIL ── */}
       <section className="mx-auto max-w-6xl px-6 py-20">
         <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-          {/* Audit log mock */}
-          <div className="reveal-left">
+          <div className="rl">
             <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-              <div className="border-b border-slate-100 bg-slate-50 px-5 py-3.5 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Audit Log · Last 6 Events</p>
-                <span className="h-2 w-2 rounded-full bg-green-400 pulse-dot" />
+              <div className="border-b border-slate-100 bg-slate-50 px-5 py-3 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Audit Log — Immutable</p>
+                <span className="h-2 w-2 rounded-full bg-green-400 pulse" />
               </div>
               <div className="divide-y divide-slate-50">
                 {[
-                  { actor: "Dr. Chidi Okafor", role: "MD", action: "Approved result", target: "FBC · #ORD-2841", time: "09:42:11" },
-                  { actor: "Chinyere Eze", role: "LAB_SCIENTIST", action: "Submitted result", target: "FBC · #ORD-2841", time: "09:38:04" },
-                  { actor: "Adanna Musa", role: "RECEPTIONIST", action: "Registered patient", target: "Adaeze Okonkwo", time: "09:31:55" },
-                  { actor: "Ikenna Obi", role: "RADIOGRAPHER", action: "Uploaded image", target: "Chest X-Ray · #ORD-2839", time: "09:28:17" },
-                  { actor: "System", role: "AUTO_ROUTE", action: "Assigned task", target: "Urinalysis → Chinyere", time: "09:27:44" },
-                  { actor: "Dr. Chidi Okafor", role: "MD", action: "Edit requested", target: "LFT · #ORD-2838", time: "09:21:03" },
+                  { actor: "Dr. Adewale Okafor", role: "MD", action: "Approved result", target: "FBC · #ORD-3019", time: "10:14:08", ip: "192.168.1.12" },
+                  { actor: "Ngozi Eze", role: "LAB_SCIENTIST", action: "Submitted result", target: "Troponin I · #ORD-3019", time: "10:09:41", ip: "192.168.1.4" },
+                  { actor: "Chidi Musa", role: "RECEPTIONIST", action: "Registered patient", target: "Chukwuemeka Obi", time: "09:52:17", ip: "192.168.1.2" },
+                  { actor: "Amaka Obi", role: "RADIOGRAPHER", action: "Uploaded imaging file", target: "Chest X-Ray · #ORD-3018", time: "09:48:33", ip: "192.168.1.8" },
+                  { actor: "System", role: "AUTO_ROUTE", action: "Assigned task to Ngozi Eze", target: "Lab · #ORD-3019", time: "09:52:18", ip: "—" },
+                  { actor: "Dr. Adewale Okafor", role: "MD", action: "Edit requested", target: "LFT · #ORD-3016", time: "09:39:04", ip: "192.168.1.12" },
                 ].map((e) => (
-                  <div key={`${e.time}-${e.action}`} className="px-5 py-3 hover:bg-slate-50 transition-colors">
+                  <div key={e.time + e.action} className="px-5 py-3 hover:bg-slate-50 transition-colors">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-medium text-slate-700 truncate">{e.actor}</p>
-                      <p className="text-[11px] text-slate-400 whitespace-nowrap font-mono">{e.time}</p>
+                      <p className="text-[11px] font-mono text-slate-400 whitespace-nowrap">{e.time}</p>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">{e.action} · <span className="text-slate-400">{e.target}</span></p>
-                    <span className="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{e.role}</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{e.role}</span>
+                      <p className="text-[11px] text-slate-500">{e.action} · <span className="text-slate-400">{e.target}</span></p>
+                    </div>
+                    <p className="text-[10px] text-slate-300 mt-0.5">IP: {e.ip}</p>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-
-          <div className="reveal-right">
+          <div className="rr">
             <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Audit Trail</span>
-            <h2 className="mt-2 text-2xl font-bold text-slate-900">Every action. Every actor. Every timestamp.</h2>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">Every action. Every actor. IP address included.</h2>
             <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-              Diagsync maintains a complete immutable audit log for every organisation. Nothing is ever deleted or modified without a trace. HRM and Super Admins can filter audit events by actor, role, department, action type, and date range.
+              Every action in Diagsync fires an audit log entry with actor ID, role, action name, entity type, entity ID, old value (JSON), new value (JSON), changes (JSON), IP address, user agent, notes, and timestamp.
             </p>
             <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-              Whether you need to investigate a delayed report, verify who released a result, or review how a payment was waived — the audit trail has the answer.
+              Logs are indexed by actor, action type, entity type, and timestamp for fast filtered queries. They are immutable — readable but never deletable.
             </p>
-            <div className="mt-6 flex flex-wrap gap-2">
-              {["Actor identity", "Role logged", "Department", "Timestamp", "Target record", "Action type"].map((tag) => (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {["Actor ID", "Role", "Action", "Entity type", "Entity ID", "Old value (JSON)", "New value (JSON)", "Changes (JSON)", "IP address", "User agent", "Notes", "Timestamp"].map((tag) => (
                 <span key={tag} className="rounded-full bg-blue-50 border border-blue-100 px-3 py-1 text-xs text-blue-700 font-medium">{tag}</span>
               ))}
             </div>
@@ -933,70 +868,18 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <div className="grad-divider mx-6" />
+      <div className="gdiv mx-6" />
 
-      {/* ──────────────────────── PRIORITY TRIAGE ──────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 py-20">
-        <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-          <div className="reveal-left">
-            <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Priority System</span>
-            <h2 className="mt-2 text-2xl font-bold text-slate-900">Critical patients never get buried in the queue</h2>
-            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-              Every patient visit is tagged with a priority level at registration. That priority propagates to every task in every department — lab, radiology, and MD queues all surface EMERGENCY and URGENT cases at the top, automatically.
-            </p>
-          </div>
-          <div className="reveal-right grid grid-cols-3 gap-3">
-            {[
-              { level: "ROUTINE", color: "bg-slate-50 border-slate-200 text-slate-700", dot: "bg-slate-400", desc: "Standard clinical workload. Processed in order." },
-              { level: "URGENT", color: "bg-amber-50 border-amber-200 text-amber-800", dot: "bg-amber-400", desc: "Elevated priority. Surfaces above routine tasks." },
-              { level: "EMERGENCY", color: "bg-red-50 border-red-200 text-red-700", dot: "bg-red-500", desc: "Immediate attention required. Top of every queue." },
-            ].map((p) => (
-              <div key={p.level} className={`lift rounded-xl border p-4 ${p.color}`}>
-                <div className={`h-3 w-3 rounded-full mb-3 pulse-dot ${p.dot}`} />
-                <p className="text-xs font-bold mb-2">{p.level}</p>
-                <p className="text-[11px] leading-relaxed opacity-80">{p.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <div className="grad-divider mx-6" />
-
-      {/* ──────────────────────── ORGANISATION SETTINGS ──────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 py-20">
-        <div className="mb-12 text-center reveal">
-          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Organisation Settings</span>
-          <h2 className="mt-2 text-2xl font-bold text-slate-900">Your lab, your brand</h2>
-          <p className="mt-2 text-sm text-slate-400 max-w-xl mx-auto">Upload your logo, configure your letterhead, manage contact info, and customise org-level settings from a single admin panel.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[
-            { title: "Organisation Logo", text: "Uploaded via Cloudinary and displayed across all staff dashboards, report headers, and the org profile." },
-            { title: "Letterhead Upload", text: "Upload a custom letterhead image. It's embedded in every released PDF report for a fully branded patient-facing document." },
-            { title: "Contact Info & Address", text: "Org name, email, phone, and address are captured and surfaced on reports and patient receipts." },
-          ].map((f, i) => (
-            <div key={f.title} className={`reveal d${i + 1} lift rounded-xl border border-slate-200 bg-white p-5`}>
-              <div className="mb-3 h-1 w-8 rounded-full bg-blue-600" />
-              <h3 className="text-sm font-semibold text-slate-800">{f.title}</h3>
-              <p className="mt-2 text-xs leading-relaxed text-slate-500">{f.text}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="grad-divider mx-6" />
-
-      {/* ──────────────────────────── FAQ ──────────────────────────── */}
+      {/* ── FAQ ── */}
       <section id="faq" className="mx-auto max-w-6xl px-6 py-20">
-        <div className="mb-12 reveal">
+        <div className="mb-12 rv">
           <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">FAQ</span>
-          <h2 className="mt-2 text-2xl font-bold text-slate-900">Frequently asked questions</h2>
-          <p className="mt-2 text-sm text-slate-400">Quick answers for teams moving from paper or spreadsheet workflows.</p>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">Technical answers from the codebase</h2>
+          <p className="mt-2 text-sm text-slate-400">Real questions about real system behaviour — answered directly from implementation.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {faqs.map((faq, i) => (
-            <div key={faq.q} className={`reveal d${Math.min((i % 4) + 1, 4)} lift rounded-xl border border-slate-200 bg-white p-5`}>
+            <div key={faq.q} className={`rv d${Math.min((i%4)+1,4)} lift rounded-xl border border-slate-200 bg-white p-5`}>
               <p className="text-sm font-semibold text-slate-800">{faq.q}</p>
               <p className="mt-2 text-xs leading-relaxed text-slate-500">{faq.a}</p>
             </div>
@@ -1004,71 +887,65 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <div className="grad-divider mx-6" />
+      <div className="gdiv mx-6" />
 
-      {/* ──────────────────────────── CTA ──────────────────────────── */}
+      {/* ── CTA ── */}
       <section className="mx-auto max-w-6xl px-6 py-20">
-        <div className="reveal rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white px-10 py-16 text-center">
+        <div className="rv rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white px-10 py-16 text-center">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-700 mb-6">
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-500 pulse-dot" />
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-500 pulse" />
             Ready to get started
           </span>
-          <h2 className="text-2xl font-bold text-slate-900 max-w-xl mx-auto leading-tight">
-            Digitise your entire diagnostic workflow in one afternoon.
+          <h2 className="text-2xl font-bold text-slate-900 max-w-2xl mx-auto leading-tight">
+            Everything your diagnostic lab needs. One platform. Live today.
           </h2>
-          <p className="mt-4 text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
-            Register your organisation, invite your staff, configure your test catalog, and start routing patients the same day. No installation. No training week. Just a working lab system.
+          <p className="mt-4 text-sm text-slate-500 max-w-lg mx-auto leading-relaxed">
+            Register your organisation, invite staff, load your test catalog, and start routing patients the same day. No installation. No training week. Just a fully working lab system.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             {isLoggedIn ? (
-              <Link href={dashboardPath} className="rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm">
-                Go to Dashboard
-              </Link>
+              <Link href={dashboardPath} className="rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm">Go to Dashboard</Link>
             ) : (
               <>
-                <Link href="/register" className="rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm">
-                  Register Your Lab
-                </Link>
-                <Link href="/login" className="rounded-lg border border-slate-200 bg-white px-8 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                  Sign In
-                </Link>
+                <Link href="/register" className="rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm">Register Your Lab</Link>
+                <Link href="/login" className="rounded-lg border border-slate-200 bg-white px-8 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Sign In</Link>
               </>
             )}
           </div>
-          <p className="mt-5 text-xs text-slate-400">All 6 role dashboards · 13 order statuses · 16 notification types · Branded PDF reports</p>
+          <p className="mt-5 text-xs text-slate-400">6 roles · AI result flagging · Consultation queue · Offline sync · WhatsApp dispatch · Revenue intelligence · Full audit trail</p>
         </div>
       </section>
 
-      {/* ──────────────────────────── FOOTER ──────────────────────────── */}
+      {/* ── FOOTER ── */}
       <footer className="border-t border-slate-200 bg-slate-50">
-        <div className="mx-auto max-w-6xl px-6 py-8">
+        <div className="mx-auto max-w-6xl px-6 py-10">
           <div className="grid gap-8 sm:grid-cols-4 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Image src="/diagsync-logo.png" alt="Diagsync" width={24} height={24} className="h-6 w-6 rounded object-cover" />
                 <span className="text-sm font-semibold text-slate-700">Diagsync</span>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed">Diagnostic Workflow Operating System. Built for multi-role labs.</p>
+              <p className="text-xs text-slate-400 leading-relaxed">Diagnostic Workflow Operating System. AI-powered. Offline-ready. Built for multi-role labs.</p>
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-600 mb-3">Platform</p>
-              <div className="space-y-2">
-                {["Features", "Workflow", "Role Dashboards", "Reports"].map((l) => (
-                  <a key={l} href={`#${l.toLowerCase().replace(/\s/g, '-')}`} className="block text-xs text-slate-400 hover:text-slate-600 transition-colors">{l}</a>
+              <p className="text-xs font-semibold text-slate-600 mb-3">System Modules</p>
+              <div className="space-y-1.5">
+                {["Lab Workflow", "Radiology Workflow", "Consultation Queue", "Report Engine", "Revenue Intelligence", "Audit Trail", "Offline Sync"].map((l) => (
+                  <p key={l} className="text-xs text-slate-400">{l}</p>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-600 mb-3">Departments</p>
-              <div className="space-y-2">
-                {["Reception", "Laboratory", "Radiology", "Medical Review", "HR & Operations"].map((d) => (
+              <p className="text-xs font-semibold text-slate-600 mb-3">Test Categories</p>
+              <div className="space-y-1.5">
+                {["Haematology", "Clinical Chemistry", "Microbiology", "Urinalysis", "Serology / Immunology", "Imaging & Radiology"].map((d) => (
                   <p key={d} className="text-xs text-slate-400">{d}</p>
                 ))}
               </div>
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-600 mb-3">Account</p>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {isLoggedIn ? (
                   <Link href={dashboardPath} className="block text-xs text-slate-400 hover:text-slate-600 transition-colors">Dashboard</Link>
                 ) : (
@@ -1081,7 +958,7 @@ export default async function HomePage() {
             </div>
           </div>
           <div className="border-t border-slate-200 pt-6 flex items-center justify-between">
-            <p className="text-xs text-slate-400">Diagsync · Diagnostic Workflow OS</p>
+            <p className="text-xs text-slate-400">Diagsync · Diagnostic Workflow Operating System</p>
             <p className="text-xs text-slate-400">All rights reserved</p>
           </div>
         </div>
