@@ -133,11 +133,10 @@ export function renderReportHtml(args: RenderArgs) {
       opacity: 0.24;
     }
     .watermark img {
-      width: 220px;
+      width: 120px;
       height: auto;
       max-width: none;
-      transform: scale(2.15);
-      transform-origin: center;
+      transform: none;
     }
     .watermark-top-left {
       top: var(--wm-top-offset);
