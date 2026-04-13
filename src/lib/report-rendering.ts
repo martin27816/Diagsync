@@ -130,7 +130,7 @@ export function renderReportHtml(args: RenderArgs) {
       position: absolute;
       pointer-events: none;
       z-index: 1;
-      opacity: 0.24;
+      opacity: 1;
     }
     .watermark img {
       width: 120px;
