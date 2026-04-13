@@ -47,9 +47,12 @@ export default async function HRMDashboardPage() {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="relative space-y-5 overflow-hidden">
+      <div className="pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full bg-cyan-200/35 blur-3xl" />
+      <div className="pointer-events-none absolute top-24 right-[-4rem] h-64 w-64 rounded-full bg-blue-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-[-6rem] left-1/3 h-72 w-72 rounded-full bg-indigo-100/30 blur-3xl" />
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="relative z-10 flex items-center justify-between rounded-2xl border border-white/50 bg-white/55 px-4 py-3 shadow-[0_10px_40px_-24px_rgba(15,23,42,0.45)] backdrop-blur-xl">
         <div>
           <h1 className="text-base font-semibold text-slate-800">Operations Overview</h1>
           <p className="text-xs text-slate-400 mt-0.5">Live workflow across your lab</p>
@@ -57,14 +60,14 @@ export default async function HRMDashboardPage() {
         <div className="flex items-center gap-2">
           <Link
             href="/dashboard/hrm/consultation"
-            className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded border border-white/60 bg-white/70 px-3 py-1.5 text-xs text-slate-700 hover:bg-white transition-colors backdrop-blur"
           >
             Consultation Monitor
           </Link>
           {user.role === "SUPER_ADMIN" && (
             <Link
               href="/dashboard/hrm/settings"
-              className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded border border-white/60 bg-white/70 px-3 py-1.5 text-xs text-slate-700 hover:bg-white transition-colors backdrop-blur"
             >
               <Settings2 className="h-3.5 w-3.5" />
               Settings
@@ -74,9 +77,9 @@ export default async function HRMDashboardPage() {
       </div>
 
       {/* Metrics strip */}
-      <div className="grid grid-cols-4 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden lg:grid-cols-8">
+      <div className="relative z-10 grid grid-cols-4 gap-2 rounded-2xl border border-white/50 bg-white/45 p-2 shadow-[0_10px_36px_-24px_rgba(15,23,42,0.45)] backdrop-blur-xl lg:grid-cols-8">
         {metrics.map((m) => (
-          <div key={m.label} className="bg-white px-4 py-3">
+          <div key={m.label} className="rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 backdrop-blur">
             <p className="text-[11px] text-slate-400 uppercase tracking-wide">{m.label}</p>
             <p className={`text-xl font-bold mt-0.5 ${m.alert ? "text-red-600" : "text-slate-800"}`}>
               {m.value}
@@ -86,10 +89,10 @@ export default async function HRMDashboardPage() {
       </div>
 
       {/* Two column: analytics + activity */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Analytics */}
-        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
+        <div className="rounded-2xl border border-white/50 bg-white/60 overflow-hidden shadow-[0_10px_36px_-24px_rgba(15,23,42,0.45)] backdrop-blur-xl">
+          <div className="flex items-center justify-between border-b border-white/60 bg-white/35 px-4 py-2.5">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Analytics</span>
             <Link href="/dashboard/hrm/operations" className="text-xs text-blue-600 hover:underline">
               View operations →
@@ -111,7 +114,7 @@ export default async function HRMDashboardPage() {
                 {Object.entries(overview.analytics.tasksPerDepartment).map(([dept, count]) => (
                   <span
                     key={dept}
-                    className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                    className="rounded border border-white/70 bg-white/70 px-2 py-0.5 text-xs text-slate-700 backdrop-blur"
                   >
                     {dept}: <strong>{count as number}</strong>
                   </span>
@@ -152,8 +155,8 @@ export default async function HRMDashboardPage() {
         </div>
 
         {/* Recent Activity */}
-        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
+        <div className="rounded-2xl border border-white/50 bg-white/60 overflow-hidden shadow-[0_10px_36px_-24px_rgba(15,23,42,0.45)] backdrop-blur-xl">
+          <div className="flex items-center justify-between border-b border-white/60 bg-white/35 px-4 py-2.5">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent Activity</span>
             <Link href="/dashboard/hrm/audit" className="text-xs text-blue-600 hover:underline">
               View all →
