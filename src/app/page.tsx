@@ -154,13 +154,13 @@ export default async function HomePage() {
           </div>
 
           {/* Workflow preview */}
-          <div className="reveal delay-2 rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm float-card">
+          <div className="reveal delay-2 rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm">
             <div className="border-b border-slate-100 px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Patient Workflow</p>
             </div>
             <div className="divide-y divide-slate-100">
               {workflow.map((step, idx) => (
-                <div key={step} className="flex items-center justify-between px-4 py-3 hover-lift">
+                <div key={step} className="flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-600">
                       {idx + 1}
