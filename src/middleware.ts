@@ -40,7 +40,7 @@ export default async function middleware(req: NextRequest) {
 
   const userRole = token.role as Role;
 
-  if (pathname === "/" || pathname === "/dashboard") {
+  if (pathname === "/dashboard") {
     return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
   }
 
@@ -56,4 +56,3 @@ export default async function middleware(req: NextRequest) {
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
 };
-

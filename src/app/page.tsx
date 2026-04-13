@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Image from "next/image";
-import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getDashboardPath } from "@/lib/utils";
 import { Role } from "@prisma/client";
@@ -62,10 +61,9 @@ const roles = [
 
 export default async function HomePage() {
   const session = await auth();
-  if (session?.user) {
-    const role = (session.user as any).role as Role;
-    redirect(getDashboardPath(role));
-  }
+  const role = (session?.user as any)?.role as Role | undefined;
+  const dashboardPath = role ? getDashboardPath(role) : "/dashboard";
+  const isLoggedIn = Boolean(session?.user);
 
   return (
     <main className="min-h-screen bg-white text-slate-800">
@@ -118,12 +116,20 @@ export default async function HomePage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/login" className="rounded border border-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-              Sign In
-            </Link>
-            <Link href="/register" className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
-              Register Lab
-            </Link>
+            {isLoggedIn ? (
+              <Link href={dashboardPath} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="rounded border border-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  Sign In
+                </Link>
+                <Link href="/register" className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+                  Register Lab
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -144,12 +150,20 @@ export default async function HomePage() {
               times out of the box.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/register" className="rounded bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
-                Set Up Your Lab
-              </Link>
-              <Link href="/login" className="rounded border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                Sign In
-              </Link>
+              {isLoggedIn ? (
+                <Link href={dashboardPath} className="rounded bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+                  Go to Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link href="/register" className="rounded bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+                    Set Up Your Lab
+                  </Link>
+                  <Link href="/login" className="rounded border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                    Sign In
+                  </Link>
+                </>
+              )}
             </div>
           </div>
 
@@ -330,12 +344,20 @@ export default async function HomePage() {
             and start routing patients the same day.
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <Link href="/register" className="rounded bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
-              Register Your Lab
-            </Link>
-            <Link href="/login" className="rounded border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-              Sign In
-            </Link>
+            {isLoggedIn ? (
+              <Link href={dashboardPath} className="rounded bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link href="/register" className="rounded bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+                  Register Your Lab
+                </Link>
+                <Link href="/login" className="rounded border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                  Sign In
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -349,8 +371,14 @@ export default async function HomePage() {
           </div>
           <p className="text-xs text-slate-400">Diagnostic Workflow Operating System</p>
           <div className="flex items-center gap-4">
-            <Link href="/login" className="text-xs text-slate-400 hover:text-slate-600">Sign In</Link>
-            <Link href="/register" className="text-xs text-slate-400 hover:text-slate-600">Register</Link>
+            {isLoggedIn ? (
+              <Link href={dashboardPath} className="text-xs text-slate-400 hover:text-slate-600">Dashboard</Link>
+            ) : (
+              <>
+                <Link href="/login" className="text-xs text-slate-400 hover:text-slate-600">Sign In</Link>
+                <Link href="/register" className="text-xs text-slate-400 hover:text-slate-600">Register</Link>
+              </>
+            )}
           </div>
         </div>
       </footer>
