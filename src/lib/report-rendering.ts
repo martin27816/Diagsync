@@ -109,6 +109,8 @@ export function renderReportHtml(args: RenderArgs) {
       box-sizing: border-box;
       padding: ${hasLetterhead ? "340px 44px 90px" : "120px 44px 90px"};
       background: #ffffff;
+      --wm-top-offset: ${hasLetterhead ? "160px" : "88px"};
+      --wm-bottom-offset: 118px;
     }
     .letterhead-layer {
       position: absolute;
@@ -124,17 +126,20 @@ export function renderReportHtml(args: RenderArgs) {
       display: block;
     }
     .watermark {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      align-items: flex-end;
-      justify-content: flex-start;
+      position: absolute;
       pointer-events: none;
-      z-index: 0;
-      opacity: 0.08;
-      padding: 0 0 28px 28px;
+      z-index: 1;
+      opacity: 0.14;
     }
-    .watermark img { width: 110px; height: auto; }
+    .watermark img { width: 145px; height: auto; max-width: 25%; }
+    .watermark-top-left {
+      top: var(--wm-top-offset);
+      left: 42px;
+    }
+    .watermark-bottom-right {
+      right: 42px;
+      bottom: var(--wm-bottom-offset);
+    }
     .content-shell {
       position: relative;
       z-index: 2;
@@ -143,22 +148,6 @@ export function renderReportHtml(args: RenderArgs) {
       padding: 18px 22px;
       background: ${hasLetterhead ? "#ffffff" : "rgba(255, 255, 255, 0.93)"};
       border-radius: 8px;
-    }
-    .shell-watermark {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: flex-end;
-      justify-content: flex-start;
-      pointer-events: none;
-      z-index: 0;
-      opacity: 0.1;
-      padding: 0 0 18px 18px;
-    }
-    .shell-watermark img {
-      width: 95px;
-      height: auto;
-      max-width: 24%;
     }
     .content { position: relative; z-index: 2; }
     .header { margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
@@ -215,23 +204,19 @@ export function renderReportHtml(args: RenderArgs) {
   <div class="preview-actions">
     <button class="preview-print-btn" onclick="window.print()" type="button">Print Report</button>
   </div>
-  ${
-    effectiveWatermarkUrl
-      ? `<div class="watermark"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>`
-      : ""
-  }
   <main class="page">
     ${
       hasLetterhead && args.organization.letterheadUrl
         ? `<div class="letterhead-layer"><img src="${escapeHtml(args.organization.letterheadUrl)}" alt="letterhead" crossorigin="anonymous" /></div>`
         : ""
     }
-    <div class="content-shell">
     ${
       effectiveWatermarkUrl
-        ? `<div class="shell-watermark"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>`
+        ? `<div class="watermark watermark-top-left"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>
+           <div class="watermark watermark-bottom-right"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>`
         : ""
     }
+    <div class="content-shell">
     <div class="content">
       ${
         hasLetterhead
