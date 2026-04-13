@@ -224,14 +224,6 @@ export function renderReportHtml(args: RenderArgs) {
     }
     <div class="content-shell">
     <div class="content">
-      ${
-        hasLetterhead
-          ? ""
-          : `<div class="header">
-        <h1>${escapeHtml(args.organization.name)}</h1>
-        <p class="muted">${escapeHtml(args.organization.address)} | ${escapeHtml(args.organization.phone)} | ${escapeHtml(args.organization.email)}</p>
-      </div>`
-      }
       <h2>${args.department === Department.LABORATORY ? "Laboratory Report" : "Radiology Report"}</h2>
       <div class="meta-grid">
         <p><strong>Patient:</strong> ${escapeHtml(String(patient.fullName ?? "-"))}</p>
