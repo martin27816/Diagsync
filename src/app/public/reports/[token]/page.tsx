@@ -35,7 +35,7 @@ export default async function PublicReportPage({ params }: { params: { token: st
     content: active.content as any,
     comments: active.comments ?? report.comments,
     prescription: active.prescription ?? report.prescription,
-    watermarkUrl: "/diagsync-logo.png",
+    watermarkUrl: "/diagsync-watermark.png",
   });
 
   return <iframe title="Public Report" srcDoc={html} className="h-screen w-full border-0" />;

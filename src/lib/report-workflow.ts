@@ -604,7 +604,7 @@ export async function renderReportForPreview(actor: ReportActor, reportId: strin
     comments: activeVersion.comments ?? report.comments,
     prescription: activeVersion.prescription ?? report.prescription,
     mdName: null,
-    watermarkUrl: "/diagsync-logo.png",
+    watermarkUrl: "/diagsync-watermark.png",
   });
 
   return {
