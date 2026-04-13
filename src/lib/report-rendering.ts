@@ -24,10 +24,11 @@ type RenderArgs = {
   prescription?: string | null;
   mdName?: string | null;
   watermarkUrl?: string;
+  includeLetterhead?: boolean;
 };
 
 export function renderReportHtml(args: RenderArgs) {
-  const hasLetterhead = Boolean(args.organization.letterheadUrl);
+  const hasLetterhead = Boolean(args.includeLetterhead !== false && args.organization.letterheadUrl);
   const patient = args.content.patient ?? {};
   const meta = args.content.meta ?? {};
   const tests = Array.isArray(args.content.tests) ? args.content.tests : [];
@@ -129,9 +130,15 @@ export function renderReportHtml(args: RenderArgs) {
       position: absolute;
       pointer-events: none;
       z-index: 1;
-      opacity: 0.14;
+      opacity: 0.24;
     }
-    .watermark img { width: 145px; height: auto; max-width: 25%; }
+    .watermark img {
+      width: 220px;
+      height: auto;
+      max-width: none;
+      transform: scale(2.15);
+      transform-origin: center;
+    }
     .watermark-top-left {
       top: var(--wm-top-offset);
       left: 42px;

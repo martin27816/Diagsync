@@ -584,7 +584,11 @@ export async function trackReportAction(
   });
 }
 
-export async function renderReportForPreview(actor: ReportActor, reportId: string) {
+export async function renderReportForPreview(
+  actor: ReportActor,
+  reportId: string,
+  options?: { includeLetterhead?: boolean }
+) {
   const report = await getReportDetails(actor, reportId);
   const activeVersion = report.versions.find((version) => version.isActive) ?? report.versions[0] ?? null;
   if (!activeVersion) throw new Error("INVALID_VERSION_CHAIN");
@@ -605,6 +609,7 @@ export async function renderReportForPreview(actor: ReportActor, reportId: strin
     prescription: activeVersion.prescription ?? report.prescription,
     mdName: null,
     watermarkUrl: "/diagsync-watermark.png",
+    includeLetterhead: options?.includeLetterhead ?? true,
   });
 
   return {

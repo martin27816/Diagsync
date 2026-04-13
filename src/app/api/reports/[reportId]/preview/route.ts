@@ -5,7 +5,7 @@ import { renderReportForPreview } from "@/lib/report-workflow";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: { reportId: string } }
 ) {
   try {
@@ -13,9 +13,13 @@ export async function GET(
     if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
     const user = session.user as any;
 
+    const url = new URL(req.url);
+    const includeLetterhead = url.searchParams.get("letterhead") !== "without";
+
     const rendered = await renderReportForPreview(
       { id: user.id, role: user.role, organizationId: user.organizationId },
-      params.reportId
+      params.reportId,
+      { includeLetterhead }
     );
 
     return new NextResponse(rendered.html, {

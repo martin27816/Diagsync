@@ -47,6 +47,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const [receptionInstruction, setReceptionInstruction] = useState("");
   const [previewLoaded, setPreviewLoaded] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [printLetterheadMode, setPrintLetterheadMode] = useState<"with" | "without">("with");
   const previewRef = useRef<HTMLIFrameElement | null>(null);
   const loadReportsSeqRef = useRef(0);
   const loadDetailsSeqRef = useRef(0);
@@ -69,6 +70,11 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       return;
     }
     reportDetailsCacheRef.current.clear();
+  }
+
+  function previewUrl(reportId: string, letterheadMode: "with" | "without") {
+    const query = letterheadMode === "without" ? "?letterhead=without" : "";
+    return `/api/reports/${reportId}/preview${query}`;
   }
 
   async function loadReports(opts?: { signal?: AbortSignal; force?: boolean }) {
@@ -211,16 +217,46 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   async function printReport() {
     if (!details) return;
     await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "PRINT" }) });
-    window.open(`/api/reports/${details.id}/preview`, "_blank", "noopener,noreferrer");
+    window.open(previewUrl(details.id, printLetterheadMode), "_blank", "noopener,noreferrer");
   }
 
-  async function captureReportPng(): Promise<{ blob: Blob; fileName: string } | null> {
+  async function captureReportPng(mode: "with" | "without"): Promise<{ blob: Blob; fileName: string } | null> {
     if (!details) return null;
-    const iframe = previewRef.current;
-    if (!iframe?.contentDocument) { setError("Preview not ready. Wait a moment and retry."); return null; }
+    let iframe = previewRef.current;
+    let temporaryIframe: HTMLIFrameElement | null = null;
+
+    if (mode !== printLetterheadMode || !iframe?.contentDocument) {
+      temporaryIframe = document.createElement("iframe");
+      temporaryIframe.src = previewUrl(details.id, mode);
+      temporaryIframe.style.position = "fixed";
+      temporaryIframe.style.left = "-99999px";
+      temporaryIframe.style.top = "0";
+      temporaryIframe.style.width = "794px";
+      temporaryIframe.style.height = "1123px";
+      temporaryIframe.style.opacity = "0";
+      document.body.appendChild(temporaryIframe);
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error("PREVIEW_TIMEOUT")), 10000);
+        temporaryIframe!.onload = () => {
+          window.clearTimeout(timeout);
+          resolve();
+        };
+      }).catch(() => undefined);
+      iframe = temporaryIframe;
+    }
+
+    if (!iframe?.contentDocument) {
+      if (temporaryIframe) temporaryIframe.remove();
+      setError("Preview not ready. Wait a moment and retry.");
+      return null;
+    }
     const doc = iframe.contentDocument;
     const target = (doc.body as HTMLElement | null) ?? (doc.querySelector(".page") as HTMLElement | null);
-    if (!target) { setError("Preview content unavailable."); return null; }
+    if (!target) {
+      if (temporaryIframe) temporaryIframe.remove();
+      setError("Preview content unavailable.");
+      return null;
+    }
     try {
       iframe.contentWindow?.scrollTo(0, 0);
       const w = Math.max(doc.documentElement?.scrollWidth ?? 0, doc.body?.scrollWidth ?? 0, target.scrollWidth);
@@ -232,11 +268,14 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const safeVisit = details.visit.visitNumber.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
       return { blob, fileName: `${safePatient}-${safeVisit}-${details.reportType}-report.png` };
     } catch { setError("Image export failed. Check CORS settings, then retry."); return null; }
+    finally {
+      if (temporaryIframe) temporaryIframe.remove();
+    }
   }
 
   async function downloadReport() {
     setError("");
-    const captured = await captureReportPng();
+    const captured = await captureReportPng(printLetterheadMode);
     if (!captured) return;
     const url = URL.createObjectURL(captured.blob);
     const a = document.createElement("a"); a.href = url; a.download = captured.fileName;
@@ -252,7 +291,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const res = await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "SEND_WHATSAPP" }) });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "WhatsApp handoff failed"); return; }
-      const captured = await captureReportPng();
+      const captured = await captureReportPng("with");
       const canShare = Boolean(captured) && typeof navigator?.share === "function" && typeof navigator?.canShare === "function";
       if (captured && canShare) {
         const file = new File([captured.blob], captured.fileName, { type: "image/png" });
@@ -336,7 +375,9 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
 
               {/* Preview iframe */}
               <div className="p-4">
-                <iframe title="Report preview" ref={previewRef} src={`/api/reports/${details.id}/preview`}
+                <iframe title="Report preview" ref={previewRef}
+                  key={`${details.id}:${printLetterheadMode}`}
+                  src={previewUrl(details.id, printLetterheadMode)}
                   onLoad={() => setPreviewLoaded(true)} className="h-96 w-full rounded border border-slate-200" />
               </div>
 
@@ -400,6 +441,23 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                     {canReceptionDispatch ? "Dispatch" : "Release"}
                   </p>
+                  <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                    Print option: choose with or without letterhead. Watermark stays in both modes. WhatsApp always uses letterhead.
+                  </div>
+                  <div>
+                    <label className={labelCls}>Print format</label>
+                    <select
+                      value={printLetterheadMode}
+                      onChange={(e) => {
+                        setPreviewLoaded(false);
+                        setPrintLetterheadMode(e.target.value as "with" | "without");
+                      }}
+                      className="h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"
+                    >
+                      <option value="with">With letterhead</option>
+                      <option value="without">Without letterhead (B/W friendly)</option>
+                    </select>
+                  </div>
                   {!canReceptionDispatch && (
                     <>
                       <div>
