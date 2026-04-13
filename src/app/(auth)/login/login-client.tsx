@@ -20,7 +20,8 @@ const labelCls = "block text-xs font-medium text-slate-600 mb-1";
 export function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+  const rawCallbackUrl = searchParams.get("callbackUrl");
+  const callbackUrl = rawCallbackUrl && rawCallbackUrl !== "/" ? rawCallbackUrl : "/dashboard";
   const [error, setError] = useState("");
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } =
