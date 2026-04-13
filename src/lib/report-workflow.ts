@@ -18,6 +18,7 @@ import { prisma } from "@/lib/prisma";
 import { renderReportHtml } from "@/lib/report-rendering";
 import { Department, NotificationType, OrderStatus, ReportStatus, Role, ReviewStatus, ReportType, VisitStatus } from "@prisma/client";
 import { formatReferenceDisplay } from "./reference-ranges";
+import { extractSignOffFromMap, stripSignOffKeys } from "./report-signoff";
 
 export type ReportActor = {
   id: string;
@@ -108,10 +109,12 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
   };
 
   if (task.department === Department.LABORATORY) {
+    let signOff: { signatureImage: string; signatureName: string } | null = null;
     const tests = task.results
       .filter((result) => result.testOrder.test.department === Department.LABORATORY)
       .map((result) => {
         const currentData = (result.versions[0]?.resultData ?? result.resultData ?? {}) as Record<string, any>;
+        if (!signOff) signOff = extractSignOffFromMap(currentData);
         const rows = result.testOrder.test.resultFields.map((field) => ({
           name: field.label,
           value: currentData[field.fieldKey] ?? "",
@@ -131,7 +134,7 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
           rows,
         };
       });
-    return { department: task.department, reportType, content: { ...common, tests } };
+    return { department: task.department, reportType, content: { ...common, tests, ...(signOff ? { signOff } : {}) } };
   }
 
   const radiologyTests = await prisma.testOrder.findMany({
@@ -149,9 +152,10 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
     : null;
   const reportExtraFields = report ? (report as Record<string, unknown>)["extraFields"] : null;
   const rawExtraFields = pickExtraFields(activeVersionExtraFields ?? reportExtraFields);
+  const signOff = extractSignOffFromMap(rawExtraFields);
   const extraFields = rawExtraFields
     ? Object.fromEntries(
-        Object.entries(rawExtraFields)
+        Object.entries(stripSignOffKeys(rawExtraFields))
           .map(([key, value]) => [key, value === null || value === undefined ? "" : String(value)])
           .filter(([key]) => key.trim().length > 0)
       )
@@ -168,7 +172,7 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
     name: file.fileName,
     fileType: file.fileType,
   }));
-  return { department: task.department, reportType, content: { ...common, tests, imagingFiles } };
+  return { department: task.department, reportType, content: { ...common, tests, imagingFiles, ...(signOff ? { signOff } : {}) } };
 }
 
 export async function ensureDraftReportForTask(taskId: string, actor: ReportActor) {

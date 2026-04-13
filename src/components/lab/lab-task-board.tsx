@@ -9,6 +9,14 @@ import { buildResultInsights } from "@/lib/result-insights";
 import { listOfflineLabDraftItems, removeOfflineLabDraft, upsertOfflineLabDraft } from "@/lib/offline-sync";
 import { evaluateReferenceFlag, formatReferenceDisplay } from "@/lib/reference-ranges";
 import { toCustomFieldKey } from "@/lib/custom-fields-core";
+import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY } from "@/lib/report-signoff";
+import {
+  SignaturePreset,
+  loadSignaturePresets,
+  removeSignaturePreset,
+  saveSignaturePresets,
+  upsertSignaturePreset,
+} from "@/lib/signature-presets";
 
 type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -49,6 +57,7 @@ type LabTask = {
 };
 
 type Draft = { values: Record<string, unknown>; notes: string };
+type TaskSignOff = { signatureName: string; signatureImage: string };
 
 function isSensitivityFieldKey(fieldKey: string) {
   return fieldKey.trim().toLowerCase() === "sensitivity";
@@ -334,8 +343,12 @@ export function LabTaskBoard() {
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [signOffByTask, setSignOffByTask] = useState<Record<string, TaskSignOff>>({});
+  const [signatureLibrary, setSignatureLibrary] = useState<SignaturePreset[]>([]);
+  const [selectedSignatureByTask, setSelectedSignatureByTask] = useState<Record<string, string>>({});
   const [sampleStatusByTask, setSampleStatusByTask] = useState<Record<string, SampleStatus>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const signatureInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [isOnline, setIsOnline] = useState(true);
   const draftsRef = useRef<Record<string, Draft>>({});
   const tasksRef = useRef<LabTask[]>([]);
@@ -354,8 +367,11 @@ export function LabTaskBoard() {
         for (const order of task.testOrders) {
           if (!next[order.id]) {
             const existing = order.labResults[0];
+            const existingValues = ((existing?.resultData as Record<string, unknown>) ?? {});
+            const { [SIGNOFF_IMAGE_KEY]: _ignoredSignatureImage, [SIGNOFF_NAME_KEY]: _ignoredSignatureName, ...cleanValues } =
+              existingValues;
             next[order.id] = {
-              values: (existing?.resultData as Record<string, unknown>) ?? {},
+              values: cleanValues,
               notes: existing?.notes ?? "",
             };
           }
@@ -370,6 +386,26 @@ export function LabTaskBoard() {
         if (!next[task.id]) {
           next[task.id] = task.sample?.status ?? "PENDING";
         }
+      }
+      return next;
+    });
+    setSignOffByTask((prev) => {
+      const next = { ...prev };
+      for (const task of rows) {
+        if (next[task.id]) continue;
+        let signatureName = "";
+        let signatureImage = "";
+        for (const order of task.testOrders) {
+          const resultData = order.labResults[0]?.resultData as Record<string, unknown> | undefined;
+          const maybeName = typeof resultData?.[SIGNOFF_NAME_KEY] === "string" ? resultData[SIGNOFF_NAME_KEY] : "";
+          const maybeImage = typeof resultData?.[SIGNOFF_IMAGE_KEY] === "string" ? resultData[SIGNOFF_IMAGE_KEY] : "";
+          if (maybeName && maybeImage) {
+            signatureName = maybeName;
+            signatureImage = maybeImage;
+            break;
+          }
+        }
+        next[task.id] = { signatureName, signatureImage };
       }
       return next;
     });
@@ -452,12 +488,35 @@ export function LabTaskBoard() {
   }, [isOnline, syncOfflineDrafts]);
 
   useEffect(() => {
+    setSignatureLibrary(loadSignaturePresets("reporting"));
+  }, []);
+
+  useEffect(() => {
     draftsRef.current = drafts;
   }, [drafts]);
 
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
+
+  useEffect(() => {
+    let next = signatureLibrary;
+    let changed = false;
+    for (const signOff of Object.values(signOffByTask)) {
+      const res = upsertSignaturePreset(next, {
+        name: signOff.signatureName ?? "",
+        image: signOff.signatureImage ?? "",
+      });
+      if (res.changed) {
+        next = res.items;
+        changed = true;
+      }
+    }
+    if (changed) {
+      setSignatureLibrary(next);
+      saveSignaturePresets("reporting", next);
+    }
+  }, [signOffByTask, signatureLibrary]);
 
   const filtered = useMemo(() => {
     const base = statusFilter === "ALL" ? tasks.filter((task) => task.status !== "COMPLETED") : tasks;
@@ -603,16 +662,85 @@ export function LabTaskBoard() {
     });
   }, []);
 
+  async function uploadSignature(taskId: string, file: File) {
+    const readAsDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.onerror = () => reject(new Error("SIGNATURE_READ_FAILED"));
+      reader.readAsDataURL(file);
+    });
+    setSignOffByTask((prev) => ({
+      ...prev,
+      [taskId]: {
+        signatureName: prev[taskId]?.signatureName ?? "",
+        signatureImage: readAsDataUrl,
+      },
+    }));
+  }
+
+  function applySignaturePreset(taskId: string, presetId: string) {
+    const preset = signatureLibrary.find((item) => item.id === presetId);
+    if (!preset) return;
+    setSignOffByTask((prev) => ({
+      ...prev,
+      [taskId]: {
+        signatureName: preset.name,
+        signatureImage: preset.image,
+      },
+    }));
+    setSelectedSignatureByTask((prev) => ({ ...prev, [taskId]: presetId }));
+  }
+
+  function saveCurrentSignatureToLibrary(taskId: string) {
+    const signOff = signOffByTask[taskId];
+    if (!signOff?.signatureName?.trim() || !signOff?.signatureImage?.trim()) return;
+    const res = upsertSignaturePreset(signatureLibrary, {
+      name: signOff.signatureName,
+      image: signOff.signatureImage,
+    });
+    if (!res.id) return;
+    setSignatureLibrary(res.items);
+    saveSignaturePresets("reporting", res.items);
+    setSelectedSignatureByTask((prev) => ({ ...prev, [taskId]: res.id as string }));
+  }
+
+  function deleteSignaturePreset(presetId: string) {
+    const next = removeSignaturePreset(signatureLibrary, presetId);
+    setSignatureLibrary(next);
+    saveSignaturePresets("reporting", next);
+    setSelectedSignatureByTask((prev) =>
+      Object.fromEntries(Object.entries(prev).map(([taskId, selectedId]) => [taskId, selectedId === presetId ? "" : selectedId]))
+    );
+  }
+
   function collectTaskDraftResults(task: LabTask, draftsSnapshot: Record<string, Draft> = draftsRef.current) {
     const sharedSensitivity = getSharedSensitivity(task, draftsSnapshot);
+    const signOff = signOffByTask[task.id];
     return task.testOrders.map((order) => ({
       testOrderId: order.id,
       resultData:
         order.test.resultFields.some((field) => isSensitivityFieldKey(field.fieldKey)) &&
         isValueFilled(sharedSensitivity) &&
         !isValueFilled((draftsSnapshot[order.id]?.values ?? {}).sensitivity)
-          ? { ...(draftsSnapshot[order.id]?.values ?? {}), sensitivity: sharedSensitivity }
-          : draftsSnapshot[order.id]?.values ?? {},
+          ? {
+              ...(draftsSnapshot[order.id]?.values ?? {}),
+              sensitivity: sharedSensitivity,
+              ...(signOff?.signatureImage && signOff?.signatureName
+                ? {
+                    [SIGNOFF_IMAGE_KEY]: signOff.signatureImage,
+                    [SIGNOFF_NAME_KEY]: signOff.signatureName,
+                  }
+                : {}),
+            }
+          : {
+              ...(draftsSnapshot[order.id]?.values ?? {}),
+              ...(signOff?.signatureImage && signOff?.signatureName
+                ? {
+                    [SIGNOFF_IMAGE_KEY]: signOff.signatureImage,
+                    [SIGNOFF_NAME_KEY]: signOff.signatureName,
+                  }
+                : {}),
+            },
       notes: draftsSnapshot[order.id]?.notes ?? "",
     }));
   }
@@ -852,6 +980,108 @@ export function LabTaskBoard() {
                                 Edit requested by MD: {task.review.rejectionReason}
                               </div>
                             ) : null}
+                            <div className="rounded border border-slate-200 bg-white p-3">
+                              <p className="text-[11px] font-medium text-slate-500 mb-2">Signature (for printed report)</p>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <select
+                                    value={selectedSignatureByTask[task.id] ?? ""}
+                                    onChange={(e) => {
+                                      const presetId = e.target.value;
+                                      setSelectedSignatureByTask((prev) => ({ ...prev, [task.id]: presetId }));
+                                      if (presetId) applySignaturePreset(task.id, presetId);
+                                    }}
+                                    className="h-7 flex-1 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  >
+                                    <option value="">Choose saved signature...</option>
+                                    {signatureLibrary.map((preset) => (
+                                      <option key={preset.id} value={preset.id}>
+                                        {preset.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {selectedSignatureByTask[task.id] ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteSignaturePreset(selectedSignatureByTask[task.id])}
+                                      className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                                    >
+                                      Delete Saved
+                                    </button>
+                                  ) : null}
+                                </div>
+                                <input
+                                  value={signOffByTask[task.id]?.signatureName ?? ""}
+                                  onChange={(e) =>
+                                    setSignOffByTask((prev) => ({
+                                      ...prev,
+                                      [task.id]: {
+                                        signatureImage: prev[task.id]?.signatureImage ?? "",
+                                        signatureName: e.target.value,
+                                      },
+                                    }))
+                                  }
+                                  placeholder="Signer name"
+                                  className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    ref={(el) => {
+                                      signatureInputRefs.current[task.id] = el;
+                                    }}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      await uploadSignature(task.id, file);
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => signatureInputRefs.current[task.id]?.click()}
+                                    className="rounded border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+                                  >
+                                    Upload Signature
+                                  </button>
+                                  {signOffByTask[task.id]?.signatureImage ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setSignOffByTask((prev) => ({
+                                          ...prev,
+                                          [task.id]: {
+                                            signatureName: prev[task.id]?.signatureName ?? "",
+                                            signatureImage: "",
+                                          },
+                                        }))
+                                      }
+                                      className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                                    >
+                                      Remove
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={() => saveCurrentSignatureToLibrary(task.id)}
+                                    className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700 hover:bg-blue-50 transition-colors"
+                                  >
+                                    Save Signature
+                                  </button>
+                                </div>
+                                {signOffByTask[task.id]?.signatureImage ? (
+                                  <img
+                                    src={signOffByTask[task.id].signatureImage}
+                                    alt="Signature preview"
+                                    className="h-16 w-auto max-w-[220px] object-contain border border-slate-200 rounded bg-white p-1"
+                                  />
+                                ) : (
+                                  <p className="text-[11px] text-slate-400">No signature image selected.</p>
+                                )}
+                              </div>
+                            </div>
                             {task.testOrders.map((order) => (
                               <OrderResultCard
                                 key={order.id}
@@ -892,3 +1122,4 @@ export function LabTaskBoard() {
     </div>
   );
 }
+

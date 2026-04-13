@@ -19,15 +19,21 @@ function testRadiologyExtraFieldsRender() {
           name: "Chest X-Ray",
           findings: "Clear lungs",
           impression: "Normal study",
-          extraFields: { technique: "PA view", comparison: "None" },
+          extraFields: { technique: "PA view", comparison: "None", __signature_name: "Dr A" },
         },
       ],
+      signOff: {
+        signatureImage: "data:image/png;base64,AAA",
+        signatureName: "Dr A",
+      },
     },
   });
 
   assert.equal(html.includes("technique"), true);
   assert.equal(html.includes("PA view"), true);
   assert.equal(html.includes("comparison"), true);
+  assert.equal(html.includes("signature-name"), true);
+  assert.equal(html.includes("__signature_name"), false);
 }
 
 function run() {

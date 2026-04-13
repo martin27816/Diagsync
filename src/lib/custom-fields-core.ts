@@ -1,6 +1,7 @@
 export const CUSTOM_FIELD_KEY_MAX_LENGTH = 80;
 export const CUSTOM_FIELD_VALUE_MAX_LENGTH = 10000;
 export const CUSTOM_FIELD_MAX_COUNT = 40;
+const SIGNATURE_IMAGE_MAX_LENGTH = 400000;
 
 export function toCustomFieldKey(label: string) {
   return label
@@ -70,7 +71,10 @@ export function validateResultDataPayload(input: unknown): ValidationResult<Reco
       typeof rawValue === "number" ||
       typeof rawValue === "boolean";
     if (!scalar) return { ok: false, error: `Result field '${rawKey}' must be a scalar value` };
-    if (typeof rawValue === "string" && rawValue.length > CUSTOM_FIELD_VALUE_MAX_LENGTH) {
+    if (typeof rawValue === "string" && key === "__signature_image" && rawValue.length > SIGNATURE_IMAGE_MAX_LENGTH) {
+      return { ok: false, error: "Signature image is too large" };
+    }
+    if (typeof rawValue === "string" && key !== "__signature_image" && rawValue.length > CUSTOM_FIELD_VALUE_MAX_LENGTH) {
       return { ok: false, error: `Result field '${rawKey}' value is too long` };
     }
   }

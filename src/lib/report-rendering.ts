@@ -1,4 +1,5 @@
 import { Department } from "@prisma/client";
+import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY } from "./report-signoff";
 
 function escapeHtml(input: string) {
   return input
@@ -35,6 +36,13 @@ export function renderReportHtml(args: RenderArgs) {
   const safeLabTests = tests.filter((test: any) => Array.isArray(test?.rows));
   const safeRadiologyTests = tests.filter((test: any) => !Array.isArray(test?.rows));
   const imagingFiles = Array.isArray(args.content.imagingFiles) ? args.content.imagingFiles : [];
+  const signOff =
+    args.content?.signOff &&
+    typeof args.content.signOff === "object" &&
+    typeof args.content.signOff.signatureImage === "string" &&
+    typeof args.content.signOff.signatureName === "string"
+      ? args.content.signOff
+      : null;
 
   const testsHtml =
     args.department === Department.LABORATORY
@@ -83,6 +91,7 @@ export function renderReportHtml(args: RenderArgs) {
                   test.extraFields && typeof test.extraFields === "object"
                     ? Object.entries(test.extraFields as Record<string, unknown>)
                         .map(([key, value]) => {
+                          if (key === SIGNOFF_IMAGE_KEY || key === SIGNOFF_NAME_KEY) return "";
                           const k = String(key ?? "").trim();
                           const v = value === null || value === undefined ? "" : String(value);
                           if (!k) return "";
@@ -179,6 +188,29 @@ export function renderReportHtml(args: RenderArgs) {
     th, td { border: 1px solid #d1d5db; padding: 6px; text-align: left; vertical-align: top; }
     th { background: #f3f4f6; }
     .footer-note { margin-top: 18px; font-size: 12px; }
+    .signature-block {
+      margin-top: 16px;
+      break-inside: avoid;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      max-width: 240px;
+    }
+    .signature-image {
+      width: auto;
+      max-width: 220px;
+      max-height: 78px;
+      object-fit: contain;
+      display: block;
+    }
+    .signature-name {
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.2;
+      word-break: break-word;
+      max-width: 220px;
+    }
     .muted { color: #6b7280; }
     .imaging-section { margin-bottom: 16px; }
     .imaging-grid { display:grid; grid-template-columns: 1fr; gap: 14px; }
@@ -279,6 +311,14 @@ export function renderReportHtml(args: RenderArgs) {
       ${
         args.mdName
           ? `<p class="footer-note"><strong>Medical Sign-off:</strong> ${escapeHtml(args.mdName)}</p>`
+          : ""
+      }
+      ${
+        signOff
+          ? `<section class="signature-block">
+              <img class="signature-image" src="${escapeHtml(String(signOff.signatureImage))}" alt="Signature" crossorigin="anonymous" />
+              <p class="signature-name">${escapeHtml(String(signOff.signatureName))}</p>
+            </section>`
           : ""
       }
     </div>

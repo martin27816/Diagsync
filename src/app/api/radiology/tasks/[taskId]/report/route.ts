@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { saveRadiologyReport } from "@/lib/radiology-workflow";
 import { validateCustomFieldsMap } from "@/lib/custom-fields-core";
+import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY, isDataImageUrl } from "@/lib/report-signoff";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,8 @@ const reportSchema = z.object({
   impression: z.string().max(10000).default(""),
   notes: z.string().max(10000).optional(),
   extraFields: z.record(z.string().max(80), z.string().max(10000)).optional(),
+  signatureName: z.string().max(120).optional(),
+  signatureImage: z.string().max(400000).optional(),
 });
 
 export async function POST(
@@ -34,6 +37,15 @@ export async function POST(
     }
 
     const user = session.user as any;
+    const signatureName = parsed.data.signatureName?.trim() ?? "";
+    const signatureImage = parsed.data.signatureImage?.trim() ?? "";
+    if ((signatureName || signatureImage) && (!signatureName || !signatureImage)) {
+      return NextResponse.json({ success: false, error: "Signature image and name must be provided together" }, { status: 400 });
+    }
+    if (signatureImage && !isDataImageUrl(signatureImage)) {
+      return NextResponse.json({ success: false, error: "Invalid signature image format" }, { status: 400 });
+    }
+
     const report = await saveRadiologyReport(
       params.taskId,
       {
@@ -42,7 +54,18 @@ export async function POST(
         organizationId: user.organizationId,
         auditMeta: getAuditMetaFromRequest(req),
       },
-      { ...parsed.data, extraFields: customFieldsCheck.value }
+      {
+        ...parsed.data,
+        extraFields: {
+          ...customFieldsCheck.value,
+          ...(signatureName && signatureImage
+            ? {
+                [SIGNOFF_NAME_KEY]: signatureName,
+                [SIGNOFF_IMAGE_KEY]: signatureImage,
+              }
+            : {}),
+        },
+      }
     );
 
     return NextResponse.json({ success: true, data: report, message: "Report draft saved" });

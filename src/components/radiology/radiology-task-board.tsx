@@ -4,6 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { formatDateTime } from "@/lib/utils";
 import { toCustomFieldKey } from "@/lib/custom-fields-core";
+import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY } from "@/lib/report-signoff";
+import {
+  SignaturePreset,
+  loadSignaturePresets,
+  removeSignaturePreset,
+  saveSignaturePresets,
+  upsertSignaturePreset,
+} from "@/lib/signature-presets";
 
 type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -16,7 +24,14 @@ type Report = {
   isSubmitted: boolean;
 };
 type Task = { id: string; status: TaskStatus; priority: Priority; createdAt: string; updatedAt: string; visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } }; imagingFiles: ImagingFile[]; radiologyReport: Report | null };
-type Draft = { findings: string; impression: string; notes: string; extraFields: Record<string, string> };
+type Draft = {
+  findings: string;
+  impression: string;
+  notes: string;
+  extraFields: Record<string, string>;
+  signatureName: string;
+  signatureImage: string;
+};
 
 const priorityStyle: Record<string, string> = {
   EMERGENCY: "bg-red-50 text-red-600", URGENT: "bg-amber-50 text-amber-700", ROUTINE: "bg-slate-100 text-slate-600",
@@ -44,7 +59,10 @@ export function RadiologyTaskBoard() {
   const [newExtraFieldValue, setNewExtraFieldValue] = useState<Record<string, string>>({});
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [signatureLibrary, setSignatureLibrary] = useState<SignaturePreset[]>([]);
+  const [selectedSignatureByTask, setSelectedSignatureByTask] = useState<Record<string, string>>({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const signatureInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const loadTasksSeqRef = useRef(0);
   const taskCacheRef = useRef<Map<string, { at: number; tasks: Task[] }>>(new Map());
   function invalidateTaskCache() {
@@ -73,6 +91,8 @@ export function RadiologyTaskBoard() {
         impression: task.radiologyReport?.impression ?? "",
         notes: task.radiologyReport?.notes ?? "",
         extraFields: task.radiologyReport?.extraFields ?? {},
+        signatureName: task.radiologyReport?.extraFields?.[SIGNOFF_NAME_KEY] ?? "",
+        signatureImage: task.radiologyReport?.extraFields?.[SIGNOFF_IMAGE_KEY] ?? "",
       };
     }
     setDrafts(nextDrafts);
@@ -115,13 +135,39 @@ export function RadiologyTaskBoard() {
     return () => controller.abort();
   }, [statusFilter, sort]);
 
+  useEffect(() => {
+    setSignatureLibrary(loadSignaturePresets("reporting"));
+  }, []);
+
+  useEffect(() => {
+    let next = signatureLibrary;
+    let changed = false;
+    for (const draft of Object.values(drafts)) {
+      const res = upsertSignaturePreset(next, {
+        name: draft.signatureName ?? "",
+        image: draft.signatureImage ?? "",
+      });
+      if (res.changed) {
+        next = res.items;
+        changed = true;
+      }
+    }
+    if (changed) {
+      setSignatureLibrary(next);
+      saveSignaturePresets("reporting", next);
+    }
+  }, [drafts, signatureLibrary]);
+
   const filtered = useMemo(() => tasks.filter((t) => priorityFilter === "ALL" || t.priority === priorityFilter), [tasks, priorityFilter]);
   const counts = useMemo(() => ({ pending: filtered.filter((t) => t.status === "PENDING").length, inProgress: filtered.filter((t) => t.status === "IN_PROGRESS").length, completed: filtered.filter((t) => t.status === "COMPLETED").length }), [filtered]);
 
   function updateDraft(taskId: string, patch: Partial<Draft>) {
     setDrafts((prev) => ({
       ...prev,
-      [taskId]: { ...(prev[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} }), ...patch },
+      [taskId]: {
+        ...(prev[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" }),
+        ...patch,
+      },
     }));
   }
   function reportReady(taskId: string) {
@@ -130,12 +176,12 @@ export function RadiologyTaskBoard() {
   }
 
   function setExtraFieldValue(taskId: string, fieldKey: string, value: string) {
-    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
+    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" };
     updateDraft(taskId, { extraFields: { ...current.extraFields, [fieldKey]: value } });
   }
 
   function removeExtraField(taskId: string, fieldKey: string) {
-    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
+    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" };
     if (!Object.prototype.hasOwnProperty.call(current.extraFields, fieldKey)) return;
     const next = { ...current.extraFields };
     delete next[fieldKey];
@@ -145,7 +191,7 @@ export function RadiologyTaskBoard() {
   function addExtraField(taskId: string, label: string, value: string) {
     const baseKey = toCustomFieldKey(label);
     if (!baseKey) return;
-    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
+    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" };
     if (Object.prototype.hasOwnProperty.call(current.extraFields, baseKey)) {
       setError(`Field '${baseKey}' already exists.`);
       return;
@@ -156,6 +202,35 @@ export function RadiologyTaskBoard() {
 
   function resetExtraFields(taskId: string) {
     updateDraft(taskId, { extraFields: {} });
+  }
+
+  function applySignaturePreset(taskId: string, presetId: string) {
+    const preset = signatureLibrary.find((item) => item.id === presetId);
+    if (!preset) return;
+    updateDraft(taskId, { signatureName: preset.name, signatureImage: preset.image });
+    setSelectedSignatureByTask((prev) => ({ ...prev, [taskId]: presetId }));
+  }
+
+  function saveCurrentSignatureToLibrary(taskId: string) {
+    const draft = drafts[taskId];
+    if (!draft?.signatureName?.trim() || !draft?.signatureImage?.trim()) return;
+    const res = upsertSignaturePreset(signatureLibrary, {
+      name: draft.signatureName,
+      image: draft.signatureImage,
+    });
+    if (!res.id) return;
+    setSignatureLibrary(res.items);
+    saveSignaturePresets("reporting", res.items);
+    setSelectedSignatureByTask((prev) => ({ ...prev, [taskId]: res.id as string }));
+  }
+
+  function deleteSignaturePreset(presetId: string) {
+    const next = removeSignaturePreset(signatureLibrary, presetId);
+    setSignatureLibrary(next);
+    saveSignaturePresets("reporting", next);
+    setSelectedSignatureByTask((prev) =>
+      Object.fromEntries(Object.entries(prev).map(([taskId, selectedId]) => [taskId, selectedId === presetId ? "" : selectedId]))
+    );
   }
 
   async function startTask(taskId: string) {
@@ -172,8 +247,8 @@ export function RadiologyTaskBoard() {
     setBusyTaskId(taskId); setError("");
     invalidateTaskCache();
     try {
-      const d = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
-      const json = await (await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })).json();
+    const d = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" };
+    const json = await (await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })).json();
       if (!json.success) { setError(json.error ?? "Unable to save report"); return; }
       patchTask(taskId, {
         radiologyReport: {
@@ -181,6 +256,15 @@ export function RadiologyTaskBoard() {
           impression: d.impression,
           notes: d.notes,
           extraFields: d.extraFields,
+          ...(d.signatureName && d.signatureImage
+            ? {
+                extraFields: {
+                  ...d.extraFields,
+                  [SIGNOFF_NAME_KEY]: d.signatureName,
+                  [SIGNOFF_IMAGE_KEY]: d.signatureImage,
+                },
+              }
+            : {}),
           isSubmitted: false,
         },
       });
@@ -191,7 +275,7 @@ export function RadiologyTaskBoard() {
     setBusyTaskId(taskId); setError("");
     invalidateTaskCache();
     try {
-      const d = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
+      const d = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" };
       if (!d.findings.trim() || !d.impression.trim()) { setError("Findings and impression are required before submission."); return; }
       await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) });
       const json = await (await fetch(`/api/radiology/tasks/${taskId}/submit`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requireImaging: true }) })).json();
@@ -217,6 +301,16 @@ export function RadiologyTaskBoard() {
         );
       }
     } finally { setBusyTaskId(null); setProgress((p) => { const n = { ...p }; delete n[taskId]; return n; }); }
+  }
+
+  async function uploadSignature(taskId: string, file: File) {
+    const readAsDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.onerror = () => reject(new Error("SIGNATURE_READ_FAILED"));
+      reader.readAsDataURL(file);
+    });
+    updateDraft(taskId, { signatureImage: readAsDataUrl });
   }
 
   if (loading) return (
@@ -381,10 +475,22 @@ export function RadiologyTaskBoard() {
                               <div className="rounded border border-slate-200 bg-white p-3">
                                 <p className="text-[11px] font-medium text-slate-500 mb-2">Extra Fields</p>
                                 <div className="space-y-2">
-                                  {Object.entries(drafts[task.id]?.extraFields ?? {}).length === 0 ? (
+                                  {Object.entries(
+                                    Object.fromEntries(
+                                      Object.entries(drafts[task.id]?.extraFields ?? {}).filter(
+                                        ([key]) => key !== SIGNOFF_IMAGE_KEY && key !== SIGNOFF_NAME_KEY
+                                      )
+                                    )
+                                  ).length === 0 ? (
                                     <p className="text-[11px] text-slate-400">No extra fields added.</p>
                                   ) : (
-                                    Object.entries(drafts[task.id]?.extraFields ?? {}).map(([fieldKey, fieldValue]) => (
+                                    Object.entries(
+                                      Object.fromEntries(
+                                        Object.entries(drafts[task.id]?.extraFields ?? {}).filter(
+                                          ([key]) => key !== SIGNOFF_IMAGE_KEY && key !== SIGNOFF_NAME_KEY
+                                        )
+                                      )
+                                    ).map(([fieldKey, fieldValue]) => (
                                       <div key={fieldKey} className="grid grid-cols-12 gap-2 items-center">
                                         <input
                                           value={fieldKey}
@@ -448,6 +554,92 @@ export function RadiologyTaskBoard() {
                                   </button>
                                 </div>
                               </div>
+                              <div className="rounded border border-slate-200 bg-white p-3">
+                                <p className="text-[11px] font-medium text-slate-500 mb-2">Signature (for printed report)</p>
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <select
+                                      value={selectedSignatureByTask[task.id] ?? ""}
+                                      onChange={(e) => {
+                                        const presetId = e.target.value;
+                                        setSelectedSignatureByTask((prev) => ({ ...prev, [task.id]: presetId }));
+                                        if (presetId) applySignaturePreset(task.id, presetId);
+                                      }}
+                                      className="h-7 flex-1 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    >
+                                      <option value="">Choose saved signature...</option>
+                                      {signatureLibrary.map((preset) => (
+                                        <option key={preset.id} value={preset.id}>
+                                          {preset.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {selectedSignatureByTask[task.id] ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => deleteSignaturePreset(selectedSignatureByTask[task.id])}
+                                        className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                                      >
+                                        Delete Saved
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                  <input
+                                    value={drafts[task.id]?.signatureName ?? ""}
+                                    onChange={(e) => updateDraft(task.id, { signatureName: e.target.value })}
+                                    placeholder="Signer name"
+                                    className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      ref={(el) => {
+                                        signatureInputRefs.current[task.id] = el;
+                                      }}
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        await uploadSignature(task.id, file);
+                                        e.target.value = "";
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => signatureInputRefs.current[task.id]?.click()}
+                                      className="rounded border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+                                    >
+                                      Upload Signature
+                                    </button>
+                                    {drafts[task.id]?.signatureImage ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => updateDraft(task.id, { signatureImage: "" })}
+                                        className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                                      >
+                                        Remove
+                                      </button>
+                                    ) : null}
+                                    <button
+                                      type="button"
+                                      onClick={() => saveCurrentSignatureToLibrary(task.id)}
+                                      className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700 hover:bg-blue-50 transition-colors"
+                                    >
+                                      Save Signature
+                                    </button>
+                                  </div>
+                                  {drafts[task.id]?.signatureImage ? (
+                                    <img
+                                      src={drafts[task.id].signatureImage}
+                                      alt="Signature preview"
+                                      className="h-16 w-auto max-w-[220px] object-contain border border-slate-200 rounded bg-white p-1"
+                                    />
+                                  ) : (
+                                    <p className="text-[11px] text-slate-400">No signature image selected.</p>
+                                  )}
+                                </div>
+                              </div>
                               <div className="flex gap-2 pt-1">
                                 <button disabled={busyTaskId === task.id} onClick={() => saveReport(task.id)}
                                   className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">
@@ -476,3 +668,4 @@ export function RadiologyTaskBoard() {
     </div>
   );
 }
+
