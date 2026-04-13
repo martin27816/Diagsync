@@ -41,15 +41,29 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "SUP
   const [message, setMessage] = useState("");
   const [data, setData] = useState<QueueResponse>({ active: [], consultedToday: [], history: [] });
   const [form, setForm] = useState({ fullName: "", age: "", contact: "", vitalsNote: "" });
+  const [search, setSearch] = useState("");
+  const [date, setDate] = useState(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  });
+  const [days, setDays] = useState("14");
 
   const isReception = role === "RECEPTIONIST" || role === "SUPER_ADMIN";
   const isMd = role === "MD" || role === "SUPER_ADMIN";
 
-  async function loadQueue() {
+  async function loadQueue(opts?: { search?: string; date?: string; days?: string }) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/consultations", { cache: "no-store" });
+      const query = new URLSearchParams({
+        search: (opts?.search ?? search).trim(),
+        date: opts?.date ?? date,
+        days: opts?.days ?? days,
+      });
+      const res = await fetch(`/api/consultations?${query.toString()}`, { cache: "no-store" });
       const json = await res.json();
       if (!json.success) {
         setError(json.error ?? "Failed to load consultation queue");
@@ -66,6 +80,22 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "SUP
   useEffect(() => {
     void loadQueue();
   }, []);
+
+  function applyFilters() {
+    void loadQueue({ search, date, days });
+  }
+
+  function resetFilters() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    const defaultDate = `${y}-${m}-${d}`;
+    setSearch("");
+    setDate(defaultDate);
+    setDays("14");
+    void loadQueue({ search: "", date: defaultDate, days: "14" });
+  }
 
   async function addPatient() {
     setError("");
@@ -169,6 +199,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "SUP
 
   const waitingCount = useMemo(() => data.active.filter((item) => item.status === "WAITING").length, [data.active]);
   const calledCount = useMemo(() => data.active.filter((item) => item.status === "CALLED").length, [data.active]);
+  const rowsInView = useMemo(() => data.active.length + data.history.length, [data.active.length, data.history.length]);
 
   return (
     <div className="space-y-4">
@@ -184,6 +215,56 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "SUP
         <div className="bg-white px-4 py-3">
           <p className="text-[11px] uppercase tracking-wide text-slate-400">Consulted Today</p>
           <p className="text-xl font-bold text-green-700 mt-0.5">{data.consultedToday.length}</p>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Search patient</label>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name, contact..."
+              className="h-8 w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Go to date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Days to show</label>
+            <select
+              value={days}
+              onChange={(e) => setDays(e.target.value)}
+              className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="7">7 days</option>
+              <option value="14">14 days</option>
+              <option value="30">30 days</option>
+              <option value="60">60 days</option>
+              <option value="90">90 days</option>
+            </select>
+          </div>
+          <button
+            onClick={applyFilters}
+            className="rounded bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors"
+          >
+            Apply
+          </button>
+          <button
+            onClick={resetFilters}
+            className="text-xs text-slate-400 hover:text-slate-600 pb-1"
+          >
+            Reset
+          </button>
+          <span className="ml-auto text-xs text-slate-400 pb-1">{rowsInView} consultation rows in view</span>
         </div>
       </div>
 

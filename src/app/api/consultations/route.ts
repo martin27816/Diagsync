@@ -12,18 +12,24 @@ const createConsultationSchema = z.object({
   vitalsNote: z.string().max(500).optional(),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
     const user = session.user as any;
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get("search") ?? "";
+    const date = searchParams.get("date") ?? undefined;
+    const daysRaw = Number.parseInt(searchParams.get("days") ?? "14", 10);
+    const days = Number.isNaN(daysRaw) ? 14 : daysRaw;
+
     const data = await listConsultationQueue({
       id: user.id,
       role: user.role,
       organizationId: user.organizationId,
-    });
+    }, { search, date, days });
     return NextResponse.json({ success: true, data });
   } catch (error) {
     if (error instanceof Error && error.message === "FORBIDDEN_ROLE") {
@@ -59,4 +65,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
-

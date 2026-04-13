@@ -8,6 +8,29 @@ export type ConsultationActor = {
   organizationId: string;
 };
 
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function todayDayKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+}
+
+function shiftDayKey(dayKey: string, delta: number) {
+  const [y, m, d] = dayKey.split("-").map((v) => Number(v));
+  const utc = new Date(Date.UTC(y, m - 1, d));
+  utc.setUTCDate(utc.getUTCDate() + delta);
+  return `${utc.getUTCFullYear()}-${pad2(utc.getUTCMonth() + 1)}-${pad2(utc.getUTCDate())}`;
+}
+
+function dayKeyToRangeUtc(dayKey: string) {
+  const [y, m, d] = dayKey.split("-").map((v) => Number(v));
+  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+  return { start, end };
+}
+
 function assertReceptionOrMd(role: string) {
   if (!["RECEPTIONIST", "MD", "SUPER_ADMIN"].includes(role)) {
     throw new Error("FORBIDDEN_ROLE");
@@ -22,15 +45,36 @@ function dayRange(date = new Date()) {
   return { start, end };
 }
 
-export async function listConsultationQueue(actor: ConsultationActor) {
+export async function listConsultationQueue(
+  actor: ConsultationActor,
+  opts?: { search?: string; date?: string; days?: number }
+) {
   assertReceptionOrMd(actor.role);
-  const { start, end } = dayRange();
+  const search = opts?.search?.trim() ?? "";
+  const selectedDate =
+    opts?.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : todayDayKey();
+  const daysWindow = Math.max(1, Math.min(90, opts?.days ?? 14));
+  const startDayKey = shiftDayKey(selectedDate, -(daysWindow - 1));
+  const { end } = dayKeyToRangeUtc(selectedDate);
+  const { start: rangeStart } = dayKeyToRangeUtc(startDayKey);
+  const { start: todayStart, end: todayEnd } = dayRange();
+
+  const searchFilter = search
+    ? {
+        OR: [
+          { fullName: { contains: search, mode: "insensitive" as const } },
+          { contact: { contains: search, mode: "insensitive" as const } },
+        ],
+      }
+    : {};
 
   const [active, consultedToday, history] = await Promise.all([
     prisma.consultationQueue.findMany({
       where: {
         organizationId: actor.organizationId,
         status: { in: ["WAITING", "CALLED"] },
+        createdAt: { gte: rangeStart, lte: end },
+        ...searchFilter,
       },
       orderBy: [{ arrivalAt: "asc" }],
       include: {
@@ -44,7 +88,8 @@ export async function listConsultationQueue(actor: ConsultationActor) {
       where: {
         organizationId: actor.organizationId,
         status: "CONSULTED",
-        consultedAt: { gte: start, lte: end },
+        consultedAt: { gte: todayStart, lte: todayEnd },
+        ...searchFilter,
       },
       orderBy: [{ consultedAt: "desc" }],
       take: 30,
@@ -56,6 +101,8 @@ export async function listConsultationQueue(actor: ConsultationActor) {
     prisma.consultationQueue.findMany({
       where: {
         organizationId: actor.organizationId,
+        createdAt: { gte: rangeStart, lte: end },
+        ...searchFilter,
       },
       orderBy: [{ createdAt: "desc" }],
       take: 200,
@@ -68,7 +115,7 @@ export async function listConsultationQueue(actor: ConsultationActor) {
     }),
   ]);
 
-  return { active, consultedToday, history };
+  return { active, consultedToday, history, filters: { selectedDate, daysWindow, search } };
 }
 
 export async function addConsultationPatient(
