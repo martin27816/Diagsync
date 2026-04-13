@@ -56,8 +56,12 @@ type LabTask = {
   testOrders: TestOrder[];
 };
 
-type Draft = { values: Record<string, unknown>; notes: string };
+type Draft = { values: Record<string, unknown>; notes: string; removedDefaultFieldKeys: string[] };
 type TaskSignOff = { signatureName: string; signatureImage: string };
+
+function createEmptyDraft(): Draft {
+  return { values: {}, notes: "", removedDefaultFieldKeys: [] };
+}
 
 function isSensitivityFieldKey(fieldKey: string) {
   return fieldKey.trim().toLowerCase() === "sensitivity";
@@ -100,6 +104,8 @@ type OrderResultCardProps = {
   onAddCustomField: (testOrderId: string, label: string, value: string) => void;
   onRemoveCustomField: (testOrderId: string, fieldKey: string) => void;
   onResetCustomFields: (testOrderId: string) => void;
+  onRemoveDefaultField: (testOrderId: string, fieldKey: string) => void;
+  onRestoreDefaultFields: (testOrderId: string) => void;
 };
 
 const OrderResultCard = memo(function OrderResultCard({
@@ -114,13 +120,20 @@ const OrderResultCard = memo(function OrderResultCard({
   onAddCustomField,
   onRemoveCustomField,
   onResetCustomFields,
+  onRemoveDefaultField,
+  onRestoreDefaultFields,
 }: OrderResultCardProps) {
   const insightMessages = useMemo(() => buildResultInsights(draft.values ?? {}), [draft.values]);
   const highlightKey = useMemo(() => new Set(highlightFields), [highlightFields]);
   const [customLabel, setCustomLabel] = useState("");
   const [customValue, setCustomValue] = useState("");
   const [customError, setCustomError] = useState("");
+  const removedDefaults = useMemo(() => new Set(draft.removedDefaultFieldKeys ?? []), [draft.removedDefaultFieldKeys]);
   const defaultFieldKeys = useMemo(() => new Set(order.test.resultFields.map((field) => field.fieldKey)), [order.test.resultFields]);
+  const visibleDefaultFields = useMemo(
+    () => order.test.resultFields.filter((field) => !removedDefaults.has(field.fieldKey)),
+    [order.test.resultFields, removedDefaults]
+  );
   const customEntries = useMemo(
     () =>
       Object.entries(draft.values ?? {}).filter(([key]) => !defaultFieldKeys.has(key)),
@@ -142,7 +155,7 @@ const OrderResultCard = memo(function OrderResultCard({
       <ResultInsightBox messages={insightMessages} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 mt-3">
-        {order.test.resultFields.map((field) => {
+        {visibleDefaultFields.map((field) => {
           const value = draft.values?.[field.fieldKey];
           const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
           const highlight = highlightKey.has(field.fieldKey);
@@ -151,7 +164,16 @@ const OrderResultCard = memo(function OrderResultCard({
 
           if (field.fieldType === "TEXTAREA") return (
             <div key={field.id} className="col-span-2 md:col-span-3 lg:col-span-4">
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <label className="block text-[11px] font-medium text-slate-500">{label}</label>
+                <button
+                  type="button"
+                  onClick={() => onRemoveDefaultField(order.id, field.fieldKey)}
+                  className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
+                >
+                  Remove
+                </button>
+              </div>
               {referenceText ? <p className="mb-1 text-[10px] text-slate-400">{referenceText}</p> : null}
               <textarea
                 rows={2}
@@ -169,17 +191,26 @@ const OrderResultCard = memo(function OrderResultCard({
               <div key={field.id}>
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <label className="block text-[11px] font-medium text-slate-500">{label}</label>
-                  {flag ? (
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                        flag === "NORMAL"
-                          ? "bg-green-50 text-green-700"
-                          : "bg-red-50 text-red-700"
-                      }`}
+                  <div className="flex items-center gap-1.5">
+                    {flag ? (
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                          flag === "NORMAL"
+                            ? "bg-green-50 text-green-700"
+                            : "bg-red-50 text-red-700"
+                        }`}
+                      >
+                        {flag}
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => onRemoveDefaultField(order.id, field.fieldKey)}
+                      className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
                     >
-                      {flag}
-                    </span>
-                  ) : null}
+                      Remove
+                    </button>
+                  </div>
                 </div>
                 {referenceText ? <p className="mb-1 text-[10px] text-slate-400">{referenceText}</p> : null}
                 <select
@@ -196,7 +227,17 @@ const OrderResultCard = memo(function OrderResultCard({
           }
 
           if (field.fieldType === "CHECKBOX") return (
-            <div key={field.id} className={`flex items-center gap-2 pt-4 rounded ${highlight ? "bg-amber-50 px-2" : ""}`}>
+            <div key={field.id} className={`rounded p-2 ${highlight ? "bg-amber-50" : ""}`}>
+              <div className="mb-1 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => onRemoveDefaultField(order.id, field.fieldKey)}
+                  className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
+                >
+                  Remove
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={Boolean(value)}
@@ -205,6 +246,7 @@ const OrderResultCard = memo(function OrderResultCard({
                 className="rounded border-slate-300"
               />
               <label className="text-[11px] font-medium text-slate-500">{field.label}</label>
+              </div>
             </div>
           );
 
@@ -212,17 +254,26 @@ const OrderResultCard = memo(function OrderResultCard({
             <div key={field.id}>
               <div className="mb-1 flex items-center justify-between gap-2">
                 <label className="block text-[11px] font-medium text-slate-500">{label}</label>
-                {flag ? (
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                      flag === "NORMAL"
-                        ? "bg-green-50 text-green-700"
-                        : "bg-red-50 text-red-700"
-                    }`}
+                <div className="flex items-center gap-1.5">
+                  {flag ? (
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                        flag === "NORMAL"
+                          ? "bg-green-50 text-green-700"
+                          : "bg-red-50 text-red-700"
+                      }`}
+                    >
+                      {flag}
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveDefaultField(order.id, field.fieldKey)}
+                    className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
                   >
-                    {flag}
-                  </span>
-                ) : null}
+                    Remove
+                  </button>
+                </div>
               </div>
               {referenceText ? <p className="mb-1 text-[10px] text-slate-400">{referenceText}</p> : null}
               <input
@@ -251,14 +302,30 @@ const OrderResultCard = memo(function OrderResultCard({
       <div className="mt-3 rounded border border-slate-200 p-3">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-[11px] font-medium text-slate-500">Extra Fields</p>
-          <button
-            type="button"
-            onClick={() => onResetCustomFields(order.id)}
-            className="rounded border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
-          >
-            Reset Default
-          </button>
+          <div className="flex items-center gap-1.5">
+            {draft.removedDefaultFieldKeys.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => onRestoreDefaultFields(order.id)}
+                className="rounded border border-blue-200 px-2 py-0.5 text-[11px] text-blue-700 hover:bg-blue-50"
+              >
+                Restore Removed Fields
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => onResetCustomFields(order.id)}
+              className="rounded border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
+            >
+              Reset Extra
+            </button>
+          </div>
         </div>
+        {draft.removedDefaultFieldKeys.length > 0 ? (
+          <p className="mb-2 text-[11px] text-amber-700">
+            {draft.removedDefaultFieldKeys.length} default field(s) removed for this report.
+          </p>
+        ) : null}
         <div className="space-y-2">
           {customEntries.length === 0 ? (
             <p className="text-[11px] text-slate-400">No extra fields added.</p>
@@ -373,6 +440,7 @@ export function LabTaskBoard() {
             next[order.id] = {
               values: cleanValues,
               notes: existing?.notes ?? "",
+              removedDefaultFieldKeys: [],
             };
           }
         }
@@ -567,6 +635,7 @@ export function LabTaskBoard() {
   function getSharedSensitivity(task: LabTask, draftsSnapshot: Record<string, Draft> = draftsRef.current) {
     for (const order of task.testOrders) {
       if (!order.test.resultFields.some((field) => isSensitivityFieldKey(field.fieldKey))) continue;
+      if ((draftsSnapshot[order.id]?.removedDefaultFieldKeys ?? []).some(isSensitivityFieldKey)) continue;
       const value = draftsSnapshot[order.id]?.values?.sensitivity;
       if (isValueFilled(value)) return value;
     }
@@ -574,8 +643,9 @@ export function LabTaskBoard() {
   }
 
   function isOrderReady(task: LabTask, order: TestOrder) {
-    const draft = drafts[order.id] ?? { values: {}, notes: "" };
-    const required = order.test.resultFields.filter((field) => field.isRequired);
+    const draft = drafts[order.id] ?? createEmptyDraft();
+    const removedDefaults = new Set(draft.removedDefaultFieldKeys ?? []);
+    const required = order.test.resultFields.filter((field) => field.isRequired && !removedDefaults.has(field.fieldKey));
     if (required.length === 0) {
       return Object.values(draft.values).some(isValueFilled) || draft.notes.trim().length > 0;
     }
@@ -595,7 +665,7 @@ export function LabTaskBoard() {
 
   function updateDraft(testOrderId: string, updater: (prev: Draft) => Draft) {
     setDrafts((prev) => {
-      const current = prev[testOrderId] ?? { values: {}, notes: "" };
+      const current = prev[testOrderId] ?? createEmptyDraft();
       const next = { ...prev, [testOrderId]: updater(current) };
       draftsRef.current = next;
       return next;
@@ -615,7 +685,8 @@ export function LabTaskBoard() {
       const next = { ...prev };
       const targetOrderIds = sensitivityOrderIds.length > 0 ? sensitivityOrderIds : [testOrderId];
       for (const orderId of targetOrderIds) {
-        const current = next[orderId] ?? { values: {}, notes: "" };
+        const current = next[orderId] ?? createEmptyDraft();
+        if ((current.removedDefaultFieldKeys ?? []).includes(fieldKey)) continue;
         next[orderId] = { ...current, values: { ...current.values, [fieldKey]: value } };
       }
       draftsRef.current = next;
@@ -647,6 +718,21 @@ export function LabTaskBoard() {
       delete nextValues[fieldKey];
       return { ...prev, values: nextValues };
     });
+  }, []);
+
+  const removeDefaultField = useCallback((testOrderId: string, fieldKey: string) => {
+    updateDraft(testOrderId, (prev) => {
+      const nextValues = { ...prev.values };
+      delete nextValues[fieldKey];
+      const removedDefaultFieldKeys = prev.removedDefaultFieldKeys.includes(fieldKey)
+        ? prev.removedDefaultFieldKeys
+        : [...prev.removedDefaultFieldKeys, fieldKey];
+      return { ...prev, values: nextValues, removedDefaultFieldKeys };
+    });
+  }, []);
+
+  const restoreDefaultFields = useCallback((testOrderId: string) => {
+    updateDraft(testOrderId, (prev) => ({ ...prev, removedDefaultFieldKeys: [] }));
   }, []);
 
   const resetCustomFields = useCallback((testOrderId: string) => {
@@ -718,29 +804,28 @@ export function LabTaskBoard() {
     const signOff = signOffByTask[task.id];
     return task.testOrders.map((order) => ({
       testOrderId: order.id,
-      resultData:
-        order.test.resultFields.some((field) => isSensitivityFieldKey(field.fieldKey)) &&
-        isValueFilled(sharedSensitivity) &&
-        !isValueFilled((draftsSnapshot[order.id]?.values ?? {}).sensitivity)
-          ? {
-              ...(draftsSnapshot[order.id]?.values ?? {}),
-              sensitivity: sharedSensitivity,
-              ...(signOff?.signatureImage && signOff?.signatureName
-                ? {
-                    [SIGNOFF_IMAGE_KEY]: signOff.signatureImage,
-                    [SIGNOFF_NAME_KEY]: signOff.signatureName,
-                  }
-                : {}),
-            }
-          : {
-              ...(draftsSnapshot[order.id]?.values ?? {}),
-              ...(signOff?.signatureImage && signOff?.signatureName
-                ? {
-                    [SIGNOFF_IMAGE_KEY]: signOff.signatureImage,
-                    [SIGNOFF_NAME_KEY]: signOff.signatureName,
-                  }
-                : {}),
-            },
+      resultData: (() => {
+        const draft = draftsSnapshot[order.id] ?? createEmptyDraft();
+        const removedDefaults = new Set(draft.removedDefaultFieldKeys ?? []);
+        const cleanedValues = Object.fromEntries(
+          Object.entries(draft.values ?? {}).filter(([key]) => !removedDefaults.has(key))
+        );
+        const canApplySharedSensitivity =
+          order.test.resultFields.some((field) => isSensitivityFieldKey(field.fieldKey)) &&
+          !removedDefaults.has("sensitivity") &&
+          isValueFilled(sharedSensitivity) &&
+          !isValueFilled(cleanedValues.sensitivity);
+        return {
+          ...cleanedValues,
+          ...(canApplySharedSensitivity ? { sensitivity: sharedSensitivity } : {}),
+          ...(signOff?.signatureImage && signOff?.signatureName
+            ? {
+                [SIGNOFF_IMAGE_KEY]: signOff.signatureImage,
+                [SIGNOFF_NAME_KEY]: signOff.signatureName,
+              }
+            : {}),
+        };
+      })(),
       notes: draftsSnapshot[order.id]?.notes ?? "",
     }));
   }
@@ -1087,7 +1172,7 @@ export function LabTaskBoard() {
                                 key={order.id}
                                 task={task}
                                 order={order}
-                                draft={drafts[order.id] ?? { values: {}, notes: "" }}
+                                draft={drafts[order.id] ?? createEmptyDraft()}
                                 highlightFields={highlightFields}
                                 isReady={isOrderReady(task, order)}
                                 onPersist={persistDraft}
@@ -1096,6 +1181,8 @@ export function LabTaskBoard() {
                                 onAddCustomField={addCustomField}
                                 onRemoveCustomField={removeCustomField}
                                 onResetCustomFields={resetCustomFields}
+                                onRemoveDefaultField={removeDefaultField}
+                                onRestoreDefaultFields={restoreDefaultFields}
                               />
                             ))}
 
