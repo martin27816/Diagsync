@@ -238,8 +238,7 @@ export async function saveRadiologyReport(
 
 export async function submitRadiologyTask(
   taskId: string,
-  actor: RadiologyActor,
-  options?: { requireImaging?: boolean }
+  actor: RadiologyActor
 ) {
   assertRadiographer(actor);
   const task = await assertOwnership(taskId, actor);
@@ -247,8 +246,6 @@ export async function submitRadiologyTask(
   if (!canSubmitRadiologyTask(task.status)) throw new Error("TASK_ALREADY_COMPLETED");
   if (!task.radiologyReport) throw new Error("MISSING_REPORT");
   if (!hasRequiredReportFields(task.radiologyReport)) throw new Error("INCOMPLETE_REPORT");
-  if (options?.requireImaging && task.imagingFiles.length === 0) throw new Error("MISSING_IMAGING");
-
   const now = new Date();
   await prisma.$transaction(async (tx) => {
     await tx.radiologyReport.update({

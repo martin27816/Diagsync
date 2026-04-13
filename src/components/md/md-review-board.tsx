@@ -433,11 +433,6 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                                     </div>
                                   ) : null}
                                   <p className="font-mono text-slate-400 text-[11px]">v{item.radiologyReport?.currentVersion ?? 1}</p>
-                                  <div className="space-y-0.5">
-                                    {item.imagingFiles.length === 0
-                                      ? <p className="text-slate-400 text-[11px]">No imaging files.</p>
-                                      : item.imagingFiles.map((img) => <a key={img.id} href={img.fileUrl} target="_blank" rel="noreferrer" className="block text-blue-600 hover:underline text-[11px]">{img.fileName}</a>)}
-                                  </div>
                                 </div>
                               )}
                             </div>

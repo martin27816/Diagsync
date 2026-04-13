@@ -15,7 +15,6 @@ import {
 
 type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
-type ImagingFile = { id: string; fileUrl: string; fileType: string; fileName: string; fileSizeBytes: number; createdAt: string };
 type Report = {
   findings: string;
   impression: string;
@@ -23,7 +22,7 @@ type Report = {
   extraFields?: Record<string, string> | null;
   isSubmitted: boolean;
 };
-type Task = { id: string; status: TaskStatus; priority: Priority; createdAt: string; updatedAt: string; visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } }; imagingFiles: ImagingFile[]; radiologyReport: Report | null };
+type Task = { id: string; status: TaskStatus; priority: Priority; createdAt: string; updatedAt: string; visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } }; radiologyReport: Report | null };
 type Draft = {
   findings: string;
   impression: string;
@@ -40,11 +39,6 @@ const statusStyle: Record<string, string> = {
   PENDING: "bg-slate-100 text-slate-600", IN_PROGRESS: "bg-blue-50 text-blue-700", COMPLETED: "bg-green-50 text-green-700", CANCELLED: "bg-red-50 text-red-600",
 };
 
-function isImageFile(file: ImagingFile) {
-  if (file.fileType?.startsWith("image/")) return true;
-  return [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"].some((ext) => file.fileName.toLowerCase().endsWith(ext));
-}
-
 export function RadiologyTaskBoard() {
   const TASK_CACHE_TTL_MS = 20_000;
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -57,11 +51,9 @@ export function RadiologyTaskBoard() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [newExtraFieldLabel, setNewExtraFieldLabel] = useState<Record<string, string>>({});
   const [newExtraFieldValue, setNewExtraFieldValue] = useState<Record<string, string>>({});
-  const [progress, setProgress] = useState<Record<string, number>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [signatureLibrary, setSignatureLibrary] = useState<SignaturePreset[]>([]);
   const [selectedSignatureByTask, setSelectedSignatureByTask] = useState<Record<string, string>>({});
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const signatureInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const loadTasksSeqRef = useRef(0);
   const taskCacheRef = useRef<Map<string, { at: number; tasks: Task[] }>>(new Map());
@@ -259,29 +251,11 @@ export function RadiologyTaskBoard() {
       const d = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" };
       if (!d.findings.trim() || !d.impression.trim()) { setError("Findings and impression are required before submission."); return; }
       await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) });
-      const json = await (await fetch(`/api/radiology/tasks/${taskId}/submit`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requireImaging: true }) })).json();
+      const json = await (await fetch(`/api/radiology/tasks/${taskId}/submit`, { method: "PATCH", headers: { "Content-Type": "application/json" } })).json();
       if (!json.success) { setError(json.error ?? "Unable to submit report"); return; }
       setExpandedTask(null);
       patchTask(taskId, { status: "COMPLETED" });
     } finally { setBusyTaskId(null); }
-  }
-
-  async function uploadImaging(taskId: string, file: File) {
-    setBusyTaskId(taskId); setProgress((p) => ({ ...p, [taskId]: 0 }));
-    invalidateTaskCache();
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const json = await (await fetch(`/api/radiology/tasks/${taskId}/upload`, { method: "POST", body: formData })).json();
-      if (!json.success) { setError(json.error ?? "Upload failed"); return; }
-      if (json.data) {
-        setTasks((prev) =>
-          prev.map((task) =>
-            task.id === taskId ? { ...task, imagingFiles: [...task.imagingFiles, json.data as ImagingFile] } : task
-          )
-        );
-      }
-    } finally { setBusyTaskId(null); setProgress((p) => { const n = { ...p }; delete n[taskId]; return n; }); }
   }
 
   async function uploadSignature(taskId: string, file: File) {
@@ -353,7 +327,7 @@ export function RadiologyTaskBoard() {
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Priority</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Status</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Images</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Report</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Assigned</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Actions</th>
               </tr>
@@ -374,7 +348,7 @@ export function RadiologyTaskBoard() {
                       <td className="px-4 py-2.5">
                         <span className={`rounded px-1.5 py-0.5 font-medium ${statusStyle[task.status]}`}>{task.status.replace("_", " ")}</span>
                       </td>
-                      <td className="px-4 py-2.5 text-slate-500">{task.imagingFiles.length} file{task.imagingFiles.length !== 1 ? "s" : ""}</td>
+                      <td className="px-4 py-2.5 text-slate-500">{task.radiologyReport?.findings?.trim() ? "Drafted" : "Pending"}</td>
                       <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(task.createdAt)}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex gap-1.5">
@@ -398,45 +372,7 @@ export function RadiologyTaskBoard() {
                     {isExpanded && task.status !== "COMPLETED" && (
                       <tr key={`${task.id}-expand`}>
                         <td colSpan={6} className="px-4 py-4 bg-slate-50 border-b border-slate-200">
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {/* Imaging */}
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Imaging Files ({task.imagingFiles.length})</p>
-                                <div className="flex items-center gap-2">
-                                  {progress[task.id] !== undefined && <span className="text-[11px] text-slate-400">Uploading...</span>}
-                                  <input ref={(el) => { fileInputRefs.current[task.id] = el; }} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,.dcm,image/*" className="hidden"
-                                    onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; await uploadImaging(task.id, file); e.target.value = ""; }} />
-                                  <button onClick={() => fileInputRefs.current[task.id]?.click()} disabled={busyTaskId === task.id}
-                                    className="rounded border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">
-                                    Upload File
-                                  </button>
-                                </div>
-                              </div>
-                              {task.imagingFiles.length > 0 ? (
-                                <>
-                                  <div className="grid grid-cols-3 gap-2">
-                                    {task.imagingFiles.filter(isImageFile).map((f) => (
-                                      <a key={f.id} href={f.fileUrl} target="_blank" rel="noreferrer" className="overflow-hidden rounded border border-slate-200" title={f.fileName}>
-                                        <img src={f.fileUrl} alt={f.fileName} className="h-20 w-full object-cover" loading="lazy" />
-                                      </a>
-                                    ))}
-                                  </div>
-                                  <div className="space-y-0.5">
-                                    {task.imagingFiles.map((f) => (
-                                      <a key={f.id} href={f.fileUrl} target="_blank" rel="noreferrer" className="block text-blue-600 hover:underline text-[11px]">
-                                        {f.fileName} ({Math.round(f.fileSizeBytes / 1024)} KB)
-                                      </a>
-                                    ))}
-                                  </div>
-                                </>
-                              ) : (
-                                <p className="text-[11px] text-slate-400">No files uploaded yet. At least one imaging file is required for submission.</p>
-                              )}
-                            </div>
-
-                            {/* Report */}
-                            <div className="space-y-3">
+                          <div className="space-y-3">
                               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Radiology Report</p>
                               <div>
                                 <label className="block text-[11px] font-medium text-slate-500 mb-1">Findings *</label>
@@ -634,7 +570,6 @@ export function RadiologyTaskBoard() {
                               {!reportReady(task.id) && (
                                 <p className="text-[11px] text-slate-400">Findings and impression required before submission.</p>
                               )}
-                            </div>
                           </div>
                         </td>
                       </tr>

@@ -15,9 +15,6 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const requireImaging = Boolean(body?.requireImaging);
-
     const user = session.user as any;
     await submitRadiologyTask(
       params.taskId,
@@ -26,8 +23,7 @@ export async function PATCH(
         role: user.role,
         organizationId: user.organizationId,
         auditMeta: getAuditMetaFromRequest(req),
-      },
-      { requireImaging }
+      }
     );
 
     return NextResponse.json({ success: true, message: "Radiology report submitted for review" });
@@ -44,9 +40,6 @@ export async function PATCH(
       }
       if (error.message === "INCOMPLETE_REPORT") {
         return NextResponse.json({ success: false, error: "Findings and impression are required" }, { status: 400 });
-      }
-      if (error.message === "MISSING_IMAGING") {
-        return NextResponse.json({ success: false, error: "Please upload imaging file(s) before submission" }, { status: 400 });
       }
       if (error.message === "TASK_ALREADY_COMPLETED") {
         return NextResponse.json({ success: false, error: "Task already submitted" }, { status: 409 });
