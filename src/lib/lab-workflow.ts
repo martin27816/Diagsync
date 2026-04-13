@@ -18,6 +18,7 @@ import {
   sampleStatusToOrderStage,
   sortByPriorityAndTime,
 } from "./lab-workflow-core";
+import { computeAbnormalFlags } from "./reference-ranges";
 
 export type LabActor = {
   id: string;
@@ -114,7 +115,25 @@ export async function getLabTasks(actor: LabActor, opts?: {
   const orderMap = new Map(testOrders.map((o) => [o.id, o]));
   const merged = rows.map((task) => ({
     ...task,
-    testOrders: task.testOrderIds.map((id) => orderMap.get(id)).filter(Boolean),
+    testOrders: task.testOrderIds
+      .map((id) => orderMap.get(id))
+      .filter((order): order is (typeof testOrders)[number] => Boolean(order))
+      .map((order) => ({
+        ...order,
+        labResults: order.labResults.map((result) => ({
+          ...result,
+          abnormalFlags: computeAbnormalFlags(
+            order.test.resultFields.map((field) => ({
+              fieldKey: field.fieldKey,
+              fieldType: field.fieldType,
+              normalMin: field.normalMin,
+              normalMax: field.normalMax,
+              normalText: (field as any).normalText ?? null,
+            })),
+            (result.resultData ?? {}) as Record<string, unknown>
+          ),
+        })),
+      })),
   }));
 
   return sortByPriorityAndTime(merged as any, opts?.sort === "oldest" ? "asc" : "desc");
@@ -248,8 +267,46 @@ export async function saveLabResults(taskId: string, actor: LabActor, inputs: Sa
     }
   }
 
+  const testOrders = await prisma.testOrder.findMany({
+    where: {
+      id: { in: Array.from(testOrderIds) },
+      organizationId: actor.organizationId,
+    },
+    include: {
+      test: {
+        include: {
+          resultFields: true,
+        },
+      },
+    },
+  });
+  const orderFieldMap = new Map(
+    testOrders.map((order) => [
+      order.id,
+      order.test.resultFields.map((field) => ({
+        fieldKey: field.fieldKey,
+        fieldType: field.fieldType,
+        normalMin: field.normalMin,
+        normalMax: field.normalMax,
+        normalText: (field as any).normalText ?? null,
+      })),
+    ])
+  );
+  const abnormalSummaries: string[] = [];
+
   await prisma.$transaction(async (tx) => {
     for (const input of inputs) {
+      const flags = computeAbnormalFlags(
+        orderFieldMap.get(input.testOrderId) ?? [],
+        (input.resultData ?? {}) as Record<string, unknown>
+      );
+      const flagged = Object.entries(flags)
+        .filter(([, status]) => status === "LOW" || status === "HIGH" || status === "ABNORMAL")
+        .map(([key, status]) => `${key}:${status}`);
+      if (flagged.length > 0) {
+        abnormalSummaries.push(`${input.testOrderId}[${flagged.join(", ")}]`);
+      }
+
       await tx.labResult.upsert({
         where: {
           taskId_testOrderId: {
@@ -289,7 +346,10 @@ export async function saveLabResults(taskId: string, actor: LabActor, inputs: Sa
     action: AUDIT_ACTIONS.RESULT_DRAFTED,
     entityType: "RoutingTask",
     entityId: task.id,
-    notes: `Draft results saved for ${inputs.length} test(s)`,
+    notes:
+      abnormalSummaries.length > 0
+        ? `Draft results saved for ${inputs.length} test(s). System flags: ${abnormalSummaries.join(" | ")}`
+        : `Draft results saved for ${inputs.length} test(s)`,
     ...actor.auditMeta,
   });
 }

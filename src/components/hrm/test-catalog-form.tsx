@@ -22,6 +22,8 @@ type FieldDraft = {
   unit: string;
   normalMin: string;
   normalMax: string;
+  normalText: string;
+  referenceNote: string;
   options: string;
   isRequired: boolean;
 };
@@ -33,6 +35,8 @@ const emptyField = (): FieldDraft => ({
   unit: "",
   normalMin: "",
   normalMax: "",
+  normalText: "",
+  referenceNote: "",
   options: "",
   isRequired: true,
 });
@@ -129,6 +133,8 @@ export function TestCatalogForm({ categories }: { categories: CategoryOption[] }
             unit: field.unit.trim() || undefined,
             normalMin: field.normalMin.trim() ? Number(field.normalMin) : undefined,
             normalMax: field.normalMax.trim() ? Number(field.normalMax) : undefined,
+            normalText: field.normalText.trim() || undefined,
+            referenceNote: field.referenceNote.trim() || undefined,
             options: field.options.trim() || undefined,
             isRequired: field.isRequired,
           })),
@@ -247,6 +253,8 @@ export function TestCatalogForm({ categories }: { categories: CategoryOption[] }
               <Input value={field.unit} onChange={(e) => setField(index, { unit: e.target.value })} placeholder="Unit (e.g. mg/dL)" />
               <Input value={field.normalMin} onChange={(e) => setField(index, { normalMin: e.target.value })} placeholder="Normal min" />
               <Input value={field.normalMax} onChange={(e) => setField(index, { normalMax: e.target.value })} placeholder="Normal max" />
+              <Input value={field.normalText} onChange={(e) => setField(index, { normalText: e.target.value })} placeholder="Normal text (e.g. Negative)" />
+              <Input value={field.referenceNote} onChange={(e) => setField(index, { referenceNote: e.target.value })} placeholder="Reference note (optional)" />
               <Input value={field.options} onChange={(e) => setField(index, { options: e.target.value })} placeholder="Options (comma-separated)" />
               <label className="flex items-center gap-2 text-xs text-slate-600">
                 <input
@@ -274,4 +282,3 @@ export function TestCatalogForm({ categories }: { categories: CategoryOption[] }
     </section>
   );
 }
-

@@ -301,6 +301,8 @@ model ResultTemplateField {
   unit       String?
   normalMin  Decimal?  @db.Decimal(10, 3)
   normalMax  Decimal?  @db.Decimal(10, 3)
+  normalText String?
+  referenceNote String?
   options    String?
   isRequired Boolean   @default(true)
   sortOrder  Int       @default(0)

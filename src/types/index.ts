@@ -72,6 +72,8 @@ export interface ResultTemplateField {
   unit?: string | null;
   normalMin?: number | null;
   normalMax?: number | null;
+  normalText?: string | null;
+  referenceNote?: string | null;
   options?: string | null;
   isRequired: boolean;
   sortOrder: number;

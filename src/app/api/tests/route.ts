@@ -13,6 +13,8 @@ const fieldSchema = z.object({
   unit: z.string().optional(),
   normalMin: z.number().optional(),
   normalMax: z.number().optional(),
+  normalText: z.string().optional(),
+  referenceNote: z.string().optional(),
   options: z.string().optional(),
   isRequired: z.boolean().optional(),
 });
@@ -112,6 +114,16 @@ export async function POST(req: NextRequest) {
     if (uniqueFieldKeys.size !== payload.fields.length) {
       return NextResponse.json({ success: false, error: "Field keys must be unique" }, { status: 400 });
     }
+    for (const field of payload.fields) {
+      const hasMin = field.normalMin !== undefined;
+      const hasMax = field.normalMax !== undefined;
+      if (field.fieldType === FieldType.NUMBER && hasMin !== hasMax) {
+        return NextResponse.json(
+          { success: false, error: `Numeric field "${field.label}" must include both normal min and max.` },
+          { status: 400 }
+        );
+      }
+    }
 
     const category = payload.categoryId
       ? await prisma.testCategory.findUnique({ where: { id: payload.categoryId }, select: { id: true } })
@@ -145,6 +157,8 @@ export async function POST(req: NextRequest) {
           unit: field.unit?.trim() || null,
           normalMin: field.normalMin,
           normalMax: field.normalMax,
+          normalText: field.normalText?.trim() || null,
+          referenceNote: field.referenceNote?.trim() || null,
           options: field.options?.trim() || null,
           isRequired: field.isRequired ?? true,
           sortOrder: index,

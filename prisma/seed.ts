@@ -6,6 +6,20 @@ if (process.env.DIRECT_URL) {
 
 const prisma = new PrismaClient();
 
+type SeedField = {
+  label: string;
+  fieldKey: string;
+  fieldType: FieldType;
+  unit?: string;
+  normalMin?: number;
+  normalMax?: number;
+  normalText?: string;
+  referenceNote?: string;
+  options?: string;
+  isRequired?: boolean;
+  sortOrder: number;
+};
+
 async function main() {
   console.log("🌱 Seeding Tests...");
 
@@ -66,26 +80,18 @@ async function main() {
     turnaroundMinutes: number;
     sampleType?: string;
     description?: string;
-    fields: {
-      label: string;
-      fieldKey: string;
-      fieldType: FieldType;
-      unit?: string;
-      normalMin?: number;
-      normalMax?: number;
-      options?: string;
-      isRequired?: boolean;
-      sortOrder: number;
-    }[];
+    fields: SeedField[];
   }) {
+    const enrichedFields = withReferenceMetadata(data.name, data.type, data.fields);
+
     const test = await prisma.diagnosticTest.upsert({
       where: { organizationId_code: { organizationId: orgId, code: data.code } },
       update: {
-        categoryId: data.categoryId,
         name: data.name,
+        price: data.price,
+        categoryId: data.categoryId,
         type: data.type,
         department: data.department,
-        price: data.price,
         turnaroundMinutes: data.turnaroundMinutes,
         sampleType: data.sampleType ?? null,
         description: data.description ?? null,
@@ -107,7 +113,7 @@ async function main() {
 
     await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
     await prisma.resultTemplateField.createMany({
-      data: data.fields.map((field) => ({
+      data: enrichedFields.map((field) => ({
         testId: test.id,
         label: field.label,
         fieldKey: field.fieldKey,
@@ -115,6 +121,8 @@ async function main() {
         unit: field.unit,
         normalMin: field.normalMin,
         normalMax: field.normalMax,
+        normalText: field.normalText,
+        referenceNote: field.referenceNote,
         options: field.options,
         isRequired: field.isRequired ?? true,
         sortOrder: field.sortOrder,
@@ -124,11 +132,144 @@ async function main() {
     return test;
   }
 
+  const COMPLEX_REFERENCE_FIELDS = new Set([
+    "psa_total",
+    "psa_free",
+    "fsh",
+    "lh",
+    "tsh",
+    "testosterone",
+    "ferritin",
+    "estradiol",
+    "progesterone",
+    "prolactin",
+    "dhea_s",
+    "cortisol",
+    "acth",
+  ]);
+
+  const NUMERIC_RANGE_OVERRIDES: Record<string, { min: number; max: number }> = {
+    cholesterol_total: { min: 120, max: 200 },
+    triglyceride: { min: 0, max: 150 },
+    ldl_c: { min: 0, max: 100 },
+    volume: { min: 1.4, max: 6.0 },
+    sperm_concentration: { min: 15, max: 250 },
+    induration: { min: 0, max: 4 },
+  };
+
+  function isCultureTest(testName: string) {
+    const n = testName.toLowerCase();
+    return n.includes("m/c/s") || n.includes("culture");
+  }
+
+  function isQualitativeOnlyTest(testName: string) {
+    const n = testName.toLowerCase();
+    return n.includes("qualitative") || n.includes("screening") || n.includes("confirmatory");
+  }
+
+  function deriveNormalText(options?: string) {
+    if (!options) return undefined;
+    const list = options.split(",").map((item) => item.trim()).filter(Boolean);
+    const preferred = [
+      "Negative",
+      "Non-Reactive",
+      "Absent",
+      "No Growth",
+      "Nil",
+      "Normal",
+    ];
+    for (const target of preferred) {
+      const found = list.find((item) => item.toLowerCase() === target.toLowerCase());
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  function normalizeNumericRange(field: SeedField) {
+    if (field.fieldType !== FieldType.NUMBER) return field;
+    let normalMin = field.normalMin;
+    let normalMax = field.normalMax;
+    const override = NUMERIC_RANGE_OVERRIDES[field.fieldKey];
+    if (override) {
+      normalMin = override.min;
+      normalMax = override.max;
+    } else if (normalMin !== undefined && normalMax === undefined) {
+      normalMax = Math.max(normalMin, normalMin * 10);
+    } else if (normalMax !== undefined && normalMin === undefined) {
+      normalMin = 0;
+    }
+    return { ...field, normalMin, normalMax };
+  }
+
+  function withReferenceMetadata(testName: string, type: TestType, fields: SeedField[]): SeedField[] {
+    const isRadiology = type === TestType.RADIOLOGY;
+    const cultureTest = isCultureTest(testName);
+    const qualitativeOnly = isQualitativeOnlyTest(testName);
+
+    return fields.map((sourceField) => {
+      let field = normalizeNumericRange(sourceField);
+
+      if (isRadiology) {
+        field = {
+          ...field,
+          normalMin: undefined,
+          normalMax: undefined,
+          normalText: undefined,
+          referenceNote: undefined,
+        };
+      }
+
+      const autoNormalText =
+        field.fieldType === FieldType.DROPDOWN &&
+        field.normalMin === undefined &&
+        field.normalMax === undefined
+          ? deriveNormalText(field.options)
+          : undefined;
+
+      const needsComplexNote =
+        field.fieldType === FieldType.NUMBER &&
+        (COMPLEX_REFERENCE_FIELDS.has(field.fieldKey) ||
+          testName.toLowerCase().includes("hormone") ||
+          testName.toLowerCase().includes("psa") ||
+          testName.toLowerCase().includes("ferritin"));
+
+      return {
+        ...field,
+        normalText: field.normalText ?? autoNormalText,
+        referenceNote:
+          field.referenceNote ??
+          (needsComplexNote
+            ? "Depends on age/sex and clinical context."
+            : qualitativeOnly && field.fieldType === FieldType.NUMBER
+            ? "Interpret with clinical context."
+            : undefined),
+        normalMin:
+          cultureTest || (qualitativeOnly && field.fieldType !== FieldType.NUMBER)
+            ? undefined
+            : field.normalMin,
+        normalMax:
+          cultureTest || (qualitativeOnly && field.fieldType !== FieldType.NUMBER)
+            ? undefined
+            : field.normalMax,
+      };
+    });
+  }
+
+  function makeCultureFields() {
+    return [
+      { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Negative,Positive", normalText: "Negative", sortOrder: 1 },
+      { label: "Organism", fieldKey: "organism", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+      { label: "Sensitivity", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    ] as SeedField[];
+  }
+
   function makeRadiologyWorkflowFields() {
     return [
-      { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
-      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
-      { label: "Notes", fieldKey: "notes", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+      { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+      { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+      { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
     ];
   }
 
@@ -705,7 +846,7 @@ async function main() {
   }
 
   
-  const LAB_FIELD_LIBRARY: Record<string, { label: string; fieldKey: string; fieldType: FieldType; unit?: string; normalMin?: number; normalMax?: number; options?: string; isRequired?: boolean; sortOrder: number; }[]> = {
+  const LAB_FIELD_LIBRARY: Record<string, SeedField[]> = {
   "ALKALINE PHOSPHATASE (ALP)": [
     { label: "Alkaline Phosphatase (ALP)", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 44, normalMax: 147, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
@@ -1340,7 +1481,7 @@ async function main() {
   ],
 };
 
-  const RADIOLOGY_FIELD_LIBRARY: Record<string, { label: string; fieldKey: string; fieldType: FieldType; unit?: string; normalMin?: number; normalMax?: number; options?: string; isRequired?: boolean; sortOrder: number; }[]> = {
+  const RADIOLOGY_FIELD_LIBRARY: Record<string, SeedField[]> = {
   "ABDOMINAL SCAN": [
     { label: "Liver", fieldKey: "liver", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
     { label: "Gallbladder", fieldKey: "gallbladder", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
@@ -1470,24 +1611,17 @@ async function main() {
   }
 
   function buildLabMainFields(testName: string) {
+    if (isCultureTest(testName)) {
+      return makeCultureFields();
+    }
+
     const mapped = LAB_FIELD_LIBRARY[testName];
     if (mapped) return mapped;
-
-    if (testName.includes("M/C/S") || testName.includes("CULTURE")) {
-      return [
-        { label: "Macroscopy", fieldKey: "macroscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 1 },
-        { label: "Microscopy", fieldKey: "microscopy", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
-        { label: "Culture Result", fieldKey: "culture_result", fieldType: FieldType.DROPDOWN, options: "No Growth,Growth Present,Mixed Growth", sortOrder: 3 },
-        { label: "Isolated Organism(s)", fieldKey: "organisms", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
-        { label: "Sensitivity Pattern", fieldKey: "sensitivity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
-        { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
-      ];
-    }
 
     const n = testName.toLowerCase();
     if (n.includes("screening") || n.includes("qualitative") || n.includes("confirmatory")) {
       return [
-        { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
+        { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", normalText: "Negative", sortOrder: 1 },
         { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
         { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
       ];
@@ -1539,6 +1673,8 @@ async function main() {
 
   for (let i = 0; i < dedupedLab.length; i += 1) {
     const testName = dedupedLab[i];
+    const normalized = testName.toUpperCase();
+    if (existingLabNames.has(normalized)) continue;
     const code = generateCode("LB", testName, i);
     await seedTest({
       code,
@@ -1552,10 +1688,13 @@ async function main() {
       description: "Added from expanded catalog list",
       fields: buildLabMainFields(testName),
     });
+    existingLabNames.add(normalized);
   }
 
   for (let i = 0; i < dedupedRadiology.length; i += 1) {
     const testName = dedupedRadiology[i];
+    const normalized = testName.toUpperCase();
+    if (existingRadiologyNames.has(normalized)) continue;
     const code = generateCode("RD", testName, i);
     await seedTest({
       code,
@@ -1568,6 +1707,7 @@ async function main() {
       description: "Added from expanded catalog list",
       fields: buildRadiologyMainFields(testName),
     });
+    existingRadiologyNames.add(normalized);
   }
 
   console.log(`✅ Added/updated ${dedupedLab.length} expanded lab tests`);

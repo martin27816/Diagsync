@@ -17,6 +17,7 @@ import { notifyResultEdited, sendNotificationToRoles, sendNotification } from "@
 import { prisma } from "@/lib/prisma";
 import { renderReportHtml } from "@/lib/report-rendering";
 import { Department, NotificationType, OrderStatus, ReportStatus, Role, ReviewStatus, ReportType } from "@prisma/client";
+import { formatReferenceDisplay } from "./reference-ranges";
 
 export type ReportActor = {
   id: string;
@@ -110,10 +111,15 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
           name: field.label,
           value: currentData[field.fieldKey] ?? "",
           unit: field.unit ?? "",
-          reference:
-            field.normalMin !== null && field.normalMax !== null
-              ? `${field.normalMin} - ${field.normalMax}`
-              : "",
+          reference: formatReferenceDisplay({
+            fieldKey: field.fieldKey,
+            fieldType: field.fieldType,
+            unit: field.unit,
+            normalMin: field.normalMin as any,
+            normalMax: field.normalMax as any,
+            normalText: (field as any).normalText ?? null,
+            referenceNote: (field as any).referenceNote ?? null,
+          }),
         }));
         return {
           name: result.testOrder.test.name,

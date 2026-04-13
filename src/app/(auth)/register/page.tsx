@@ -6,14 +6,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, Building2, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/index";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/index";
 
 const schema = z.object({
-  orgName: z.string().min(2, "Organization name is required"),
+  orgName: z.string().min(2, "Organisation name is required"),
   orgEmail: z.string().email("Valid email required"),
   orgPhone: z.string().min(7, "Phone number required"),
   orgAddress: z.string().min(5, "Address required"),
@@ -32,16 +27,13 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+const inputCls = "h-8 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
+const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
+const errCls = "mt-0.5 text-[11px] text-red-500";
+
 function getFriendlyFileName(url: string) {
-  if (!url) return "";
-  try {
-    const pathname = new URL(url).pathname;
-    const value = pathname.split("/").pop() ?? "";
-    return decodeURIComponent(value);
-  } catch {
-    const value = url.split("/").pop() ?? "";
-    return decodeURIComponent(value);
-  }
+  try { return decodeURIComponent(new URL(url).pathname.split("/").pop() ?? ""); }
+  catch { return decodeURIComponent(url.split("/").pop() ?? ""); }
 }
 
 export default function RegisterPage() {
@@ -51,213 +43,161 @@ export default function RegisterPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingLetterhead, setUploadingLetterhead] = useState(false);
 
-  const {
-    register,
-    setValue,
-    watch,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<FormData>({ resolver: zodResolver(schema) });
+  const { register, setValue, watch, handleSubmit, formState: { errors, isSubmitting } } =
+    useForm<FormData>({ resolver: zodResolver(schema) });
 
   async function onSubmit(data: FormData) {
     setServerError("");
     try {
       const res = await fetch("/api/organizations/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
       });
       const json = await res.json();
-      if (!json.success) {
-        setServerError(json.error ?? "Something went wrong");
-        return;
-      }
+      if (!json.success) { setServerError(json.error ?? "Something went wrong"); return; }
       setRegistered(true);
       setTimeout(() => router.push("/login"), 3000);
-    } catch {
-      setServerError("Network error. Please try again.");
-    }
+    } catch { setServerError("Network error. Please try again."); }
   }
 
   async function uploadBranding(file: File, folder: string, setter: (v: boolean) => void) {
     setter(true);
     try {
       const form = new FormData();
-      form.append("file", file);
-      form.append("folder", folder);
+      form.append("file", file); form.append("folder", folder);
       const res = await fetch("/api/uploads/branding", { method: "POST", body: form });
       const json = await res.json();
-      if (!json.success) {
-        setServerError(json.error ?? "Branding upload failed");
-        return null;
-      }
+      if (!json.success) { setServerError(json.error ?? "Upload failed"); return null; }
       return json.data.fileUrl as string;
-    } catch {
-      setServerError("Branding upload failed");
-      return null;
-    } finally {
-      setter(false);
-    }
+    } catch { setServerError("Upload failed"); return null; }
+    finally { setter(false); }
   }
 
-  if (registered) {
-    return (
-      <Card className="w-full max-w-md shadow-lg">
-        <CardContent className="pt-8 pb-8 text-center space-y-4">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
-            <CheckCircle2 className="h-7 w-7 text-green-600" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold">Registration Successful!</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Your organization has been set up. Redirecting to login...
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (registered) return (
+    <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 text-center">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600 text-xl">✓</div>
+      <h2 className="text-sm font-semibold text-slate-800">Registration Successful</h2>
+      <p className="mt-1 text-xs text-slate-400">Your organisation is set up. Redirecting to login...</p>
+    </div>
+  );
 
   return (
-    <Card className="w-full max-w-xl shadow-lg">
-      <CardHeader className="text-center pb-4">
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Building2 className="h-6 w-6" />
+    <div className="w-full max-w-xl">
+      <div className="mb-6 text-center">
+        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
+          <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
         </div>
-        <CardTitle className="text-2xl">Register Your Lab</CardTitle>
-        <CardDescription>Set up your organization and admin account</CardDescription>
-      </CardHeader>
+        <h1 className="text-base font-semibold text-slate-800">Register Your Lab</h1>
+        <p className="text-xs text-slate-400 mt-0.5">Set up your organisation and admin account</p>
+      </div>
 
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <form onSubmit={handleSubmit(onSubmit)}>
           <input type="hidden" {...register("orgLogo")} />
           <input type="hidden" {...register("orgLetterheadUrl")} />
+
           {serverError && (
-            <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">
-              {serverError}
-            </div>
+            <div className="mx-4 mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{serverError}</div>
           )}
 
-          {/* Organization Details */}
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-              Organization Details
-            </h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2 space-y-1.5">
-                <Label htmlFor="orgName">Lab / Organization Name *</Label>
-                <Input id="orgName" placeholder="e.g. Reene Medical Diagnostics" {...register("orgName")} />
-                {errors.orgName && <p className="text-xs text-destructive">{errors.orgName.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="orgEmail">Lab Email *</Label>
-                <Input id="orgEmail" type="email" placeholder="info@lab.com" {...register("orgEmail")} />
-                {errors.orgEmail && <p className="text-xs text-destructive">{errors.orgEmail.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="orgPhone">Lab Phone *</Label>
-                <Input id="orgPhone" placeholder="+234..." {...register("orgPhone")} />
-                {errors.orgPhone && <p className="text-xs text-destructive">{errors.orgPhone.message}</p>}
-              </div>
-              <div className="sm:col-span-2 space-y-1.5">
-                <Label htmlFor="orgAddress">Lab Address *</Label>
-                <Input id="orgAddress" placeholder="Full lab address" {...register("orgAddress")} />
-                {errors.orgAddress && <p className="text-xs text-destructive">{errors.orgAddress.message}</p>}
-              </div>
-              <div className="sm:col-span-2 space-y-1.5">
-                <Label htmlFor="orgContactInfo">Additional Contact Info (optional)</Label>
-                <Input id="orgContactInfo" placeholder="Website, alternate phone, etc." {...register("orgContactInfo")} />
-              </div>
-              <div className="sm:col-span-2 space-y-2">
-                <Label>Lab Logo (optional)</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const url = await uploadBranding(file, "diagsync/branding/logo", setUploadingLogo);
-                      if (url) setValue("orgLogo", url);
-                    }}
-                  />
-                  {uploadingLogo ? <span className="text-xs text-muted-foreground">Uploading...</span> : null}
-                </div>
-                {watch("orgLogo") ? <p className="text-xs text-muted-foreground">Uploaded: {getFriendlyFileName(watch("orgLogo") ?? "")}</p> : null}
-              </div>
-              <div className="sm:col-span-2 space-y-2">
-                <Label>Letterhead Template (optional)</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const url = await uploadBranding(file, "diagsync/branding/letterhead", setUploadingLetterhead);
-                      if (url) setValue("orgLetterheadUrl", url);
-                    }}
-                  />
-                  {uploadingLetterhead ? <span className="text-xs text-muted-foreground">Uploading...</span> : null}
-                </div>
-                {watch("orgLetterheadUrl") ? <p className="text-xs text-muted-foreground">Uploaded: {getFriendlyFileName(watch("orgLetterheadUrl") ?? "")}</p> : null}
-              </div>
+          {/* Organisation Details */}
+          <div className="border-b border-slate-100 px-4 py-3">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Organisation Details</span>
+          </div>
+          <div className="p-4 grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className={labelCls}>Lab / Organisation Name *</label>
+              <input placeholder="e.g. Reene Medical Diagnostics" {...register("orgName")} className={inputCls} />
+              {errors.orgName && <p className={errCls}>{errors.orgName.message}</p>}
+            </div>
+            <div>
+              <label className={labelCls}>Lab Email *</label>
+              <input type="email" placeholder="info@lab.com" {...register("orgEmail")} className={inputCls} />
+              {errors.orgEmail && <p className={errCls}>{errors.orgEmail.message}</p>}
+            </div>
+            <div>
+              <label className={labelCls}>Lab Phone *</label>
+              <input placeholder="+234..." {...register("orgPhone")} className={inputCls} />
+              {errors.orgPhone && <p className={errCls}>{errors.orgPhone.message}</p>}
+            </div>
+            <div className="col-span-2">
+              <label className={labelCls}>Lab Address *</label>
+              <input placeholder="Full lab address" {...register("orgAddress")} className={inputCls} />
+              {errors.orgAddress && <p className={errCls}>{errors.orgAddress.message}</p>}
+            </div>
+            <div className="col-span-2">
+              <label className={labelCls}>Additional Contact Info (optional)</label>
+              <input placeholder="Website, alternate phone, etc." {...register("orgContactInfo")} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Lab Logo (optional)</label>
+              <input type="file" accept="image/*" className="text-xs text-slate-600"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]; if (!file) return;
+                  const url = await uploadBranding(file, "diagsync/branding/logo", setUploadingLogo);
+                  if (url) setValue("orgLogo", url);
+                }} />
+              {uploadingLogo && <p className="text-[11px] text-slate-400 mt-0.5">Uploading...</p>}
+              {watch("orgLogo") && <p className="text-[11px] text-blue-600 mt-0.5 truncate">{getFriendlyFileName(watch("orgLogo") ?? "")}</p>}
+            </div>
+            <div>
+              <label className={labelCls}>Letterhead Template (optional)</label>
+              <input type="file" accept="image/*" className="text-xs text-slate-600"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]; if (!file) return;
+                  const url = await uploadBranding(file, "diagsync/branding/letterhead", setUploadingLetterhead);
+                  if (url) setValue("orgLetterheadUrl", url);
+                }} />
+              {uploadingLetterhead && <p className="text-[11px] text-slate-400 mt-0.5">Uploading...</p>}
+              {watch("orgLetterheadUrl") && <p className="text-[11px] text-blue-600 mt-0.5 truncate">{getFriendlyFileName(watch("orgLetterheadUrl") ?? "")}</p>}
             </div>
           </div>
 
           {/* Admin Account */}
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-              Admin Account
-            </h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2 space-y-1.5">
-                <Label htmlFor="adminName">Admin Full Name *</Label>
-                <Input id="adminName" placeholder="e.g. Dr. Sarah Obi" {...register("adminName")} />
-                {errors.adminName && <p className="text-xs text-destructive">{errors.adminName.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="adminEmail">Admin Email *</Label>
-                <Input id="adminEmail" type="email" placeholder="admin@lab.com" {...register("adminEmail")} />
-                {errors.adminEmail && <p className="text-xs text-destructive">{errors.adminEmail.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="adminPhone">Admin Phone *</Label>
-                <Input id="adminPhone" placeholder="+234..." {...register("adminPhone")} />
-                {errors.adminPhone && <p className="text-xs text-destructive">{errors.adminPhone.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="adminPassword">Password *</Label>
-                <Input id="adminPassword" type="password" placeholder="Min 8 characters" {...register("adminPassword")} />
-                {errors.adminPassword && <p className="text-xs text-destructive">{errors.adminPassword.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="confirmPassword">Confirm Password *</Label>
-                <Input id="confirmPassword" type="password" placeholder="Repeat password" {...register("confirmPassword")} />
-                {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
-              </div>
+          <div className="border-t border-b border-slate-100 px-4 py-3">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Admin Account</span>
+          </div>
+          <div className="p-4 grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className={labelCls}>Admin Full Name *</label>
+              <input placeholder="e.g. Dr. Sarah Obi" {...register("adminName")} className={inputCls} />
+              {errors.adminName && <p className={errCls}>{errors.adminName.message}</p>}
+            </div>
+            <div>
+              <label className={labelCls}>Admin Email *</label>
+              <input type="email" placeholder="admin@lab.com" {...register("adminEmail")} className={inputCls} />
+              {errors.adminEmail && <p className={errCls}>{errors.adminEmail.message}</p>}
+            </div>
+            <div>
+              <label className={labelCls}>Admin Phone *</label>
+              <input placeholder="+234..." {...register("adminPhone")} className={inputCls} />
+              {errors.adminPhone && <p className={errCls}>{errors.adminPhone.message}</p>}
+            </div>
+            <div>
+              <label className={labelCls}>Password *</label>
+              <input type="password" placeholder="Min 8 characters" {...register("adminPassword")} className={inputCls} />
+              {errors.adminPassword && <p className={errCls}>{errors.adminPassword.message}</p>}
+            </div>
+            <div>
+              <label className={labelCls}>Confirm Password *</label>
+              <input type="password" placeholder="Repeat password" {...register("confirmPassword")} className={inputCls} />
+              {errors.confirmPassword && <p className={errCls}>{errors.confirmPassword.message}</p>}
             </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Registering...
-              </>
-            ) : (
-              "Register Organization"
-            )}
-          </Button>
+          <div className="border-t border-slate-100 p-4">
+            <button type="submit" disabled={isSubmitting}
+              className="w-full rounded bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              {isSubmitting ? "Registering..." : "Register Organisation"}
+            </button>
+            <p className="mt-3 text-center text-xs text-slate-400">
+              Already registered?{" "}
+              <Link href="/login" className="text-blue-600 hover:underline font-medium">Sign in</Link>
+            </p>
+          </div>
         </form>
-
-        <div className="mt-5 text-center text-sm text-muted-foreground">
-          Already registered?{" "}
-          <Link href="/login" className="text-primary font-medium hover:underline">
-            Sign in
-          </Link>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

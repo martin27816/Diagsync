@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ResultInsightBox } from "@/components/results/result-insight-box";
 import { buildResultInsights } from "@/lib/result-insights";
 import { listOfflineLabDraftItems, removeOfflineLabDraft, upsertOfflineLabDraft } from "@/lib/offline-sync";
+import { evaluateReferenceFlag, formatReferenceDisplay } from "@/lib/reference-ranges";
 
 type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -19,6 +20,10 @@ type ResultField = {
   fieldType: "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
   options?: string | null;
   unit?: string | null;
+  normalMin?: number | null;
+  normalMax?: number | null;
+  normalText?: string | null;
+  referenceNote?: string | null;
   isRequired: boolean;
 };
 
@@ -26,7 +31,7 @@ type TestOrder = {
   id: string;
   status: string;
   test: { name: string; code: string; sampleType?: string | null; resultFields: ResultField[] };
-  labResults: Array<{ id: string; resultData: Record<string, unknown>; notes?: string | null; isSubmitted: boolean }>;
+  labResults: Array<{ id: string; resultData: Record<string, unknown>; notes?: string | null; isSubmitted: boolean; abnormalFlags?: Record<string, string> }>;
 };
 
 type LabTask = {
@@ -112,10 +117,13 @@ const OrderResultCard = memo(function OrderResultCard({
           const value = draft.values?.[field.fieldKey];
           const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
           const highlight = highlightKey.has(field.fieldKey);
+          const referenceText = formatReferenceDisplay(field);
+          const flag = evaluateReferenceFlag(field, value);
 
           if (field.fieldType === "TEXTAREA") return (
             <div key={field.id} className="col-span-2 md:col-span-3 lg:col-span-4">
               <label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>
+              {referenceText ? <p className="mb-1 text-[10px] text-slate-400">{referenceText}</p> : null}
               <textarea
                 rows={2}
                 value={typeof value === "string" ? value : ""}
@@ -130,7 +138,21 @@ const OrderResultCard = memo(function OrderResultCard({
             const options = (field.options ?? "").split(",").map((row) => row.trim()).filter(Boolean);
             return (
               <div key={field.id}>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="block text-[11px] font-medium text-slate-500">{label}</label>
+                  {flag ? (
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                        flag === "NORMAL"
+                          ? "bg-green-50 text-green-700"
+                          : "bg-red-50 text-red-700"
+                      }`}
+                    >
+                      {flag}
+                    </span>
+                  ) : null}
+                </div>
+                {referenceText ? <p className="mb-1 text-[10px] text-slate-400">{referenceText}</p> : null}
                 <select
                   value={typeof value === "string" ? value : ""}
                   onBlur={() => void onPersist(task).catch(() => undefined)}
@@ -159,7 +181,21 @@ const OrderResultCard = memo(function OrderResultCard({
 
           return (
             <div key={field.id}>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <label className="block text-[11px] font-medium text-slate-500">{label}</label>
+                {flag ? (
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                      flag === "NORMAL"
+                        ? "bg-green-50 text-green-700"
+                        : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {flag}
+                  </span>
+                ) : null}
+              </div>
+              {referenceText ? <p className="mb-1 text-[10px] text-slate-400">{referenceText}</p> : null}
               <input
                 type={field.fieldType === "NUMBER" ? "number" : "text"}
                 value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
