@@ -1,0 +1,38 @@
+import assert from "node:assert/strict";
+import { Department } from "@prisma/client";
+import { renderReportHtml } from "./report-rendering";
+
+function testRadiologyExtraFieldsRender() {
+  const html = renderReportHtml({
+    organization: {
+      name: "DiagOps",
+      address: "Address",
+      phone: "123",
+      email: "test@example.com",
+    },
+    department: Department.RADIOLOGY,
+    content: {
+      patient: { fullName: "Jane Doe", patientId: "P001", age: 30, sex: "F" },
+      meta: { visitNumber: "V001", visitDate: new Date().toISOString(), reportDate: new Date().toISOString() },
+      tests: [
+        {
+          name: "Chest X-Ray",
+          findings: "Clear lungs",
+          impression: "Normal study",
+          extraFields: { technique: "PA view", comparison: "None" },
+        },
+      ],
+    },
+  });
+
+  assert.equal(html.includes("technique"), true);
+  assert.equal(html.includes("PA view"), true);
+  assert.equal(html.includes("comparison"), true);
+}
+
+function run() {
+  testRadiologyExtraFieldsRender();
+  console.log("report-rendering tests passed");
+}
+
+run();

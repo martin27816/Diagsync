@@ -6,6 +6,7 @@ import {
   canSubmitTask,
   hasResultsForAllTests,
   sortByPriorityAndTime,
+  applySharedSensitivity,
 } from "./lab-workflow-core";
 
 function testPermissionEnforcement() {
@@ -57,13 +58,26 @@ function testPrioritySort() {
   assert.deepEqual(rows.map((r) => r.id), ["2", "3", "1"]);
 }
 
+function testSharedSensitivityMerge() {
+  const merged = applySharedSensitivity(
+    [
+      { testOrderId: "o1", resultData: { microscopy: "Few", sensitivity: "Ciprofloxacin" } },
+      { testOrderId: "o2", resultData: { microscopy: "Many" } },
+      { testOrderId: "o3", resultData: { notes: "n/a" } },
+    ],
+    new Set(["o1", "o2"])
+  );
+  const order2 = merged.find((row) => row.testOrderId === "o2");
+  assert.equal(order2?.resultData?.sensitivity, "Ciprofloxacin");
+}
+
 function run() {
   testPermissionEnforcement();
   testTaskLifecycleGuards();
   testResultSubmissionValidation();
   testPrioritySort();
+  testSharedSensitivityMerge();
   console.log("lab-workflow-core tests passed");
 }
 
 run();
-

@@ -55,3 +55,25 @@ export function sortByPriorityAndTime<T extends { priority: Priority; createdAt:
   });
 }
 
+export function applySharedSensitivity<T extends { testOrderId: string; resultData: Record<string, unknown> }>(
+  inputs: T[],
+  sensitivityEnabledOrderIds: Set<string>
+) {
+  const filled = (value: unknown) =>
+    value === 0 ||
+    typeof value === "boolean" ||
+    (value !== undefined && value !== null && `${value}`.trim() !== "");
+
+  const sharedSensitivity = inputs
+    .filter((row) => sensitivityEnabledOrderIds.has(row.testOrderId))
+    .map((row) => row.resultData.sensitivity)
+    .find((value) => filled(value));
+
+  if (!filled(sharedSensitivity)) return inputs;
+
+  return inputs.map((row) => {
+    if (!sensitivityEnabledOrderIds.has(row.testOrderId)) return row;
+    if (filled(row.resultData.sensitivity)) return row;
+    return { ...row, resultData: { ...row.resultData, sensitivity: sharedSensitivity } };
+  });
+}

@@ -229,7 +229,7 @@ export async function saveRadiologyReport(
     action: AUDIT_ACTIONS.RESULT_DRAFTED,
     entityType: "RadiologyReport",
     entityId: report.id,
-    notes: "Radiology report draft saved",
+    notes: `Radiology report draft saved${input.extraFields ? ` with ${Object.keys(input.extraFields).length} custom field(s)` : ""}`,
     ...actor.auditMeta,
   });
 

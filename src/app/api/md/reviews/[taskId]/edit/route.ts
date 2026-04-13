@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { editMdReview } from "@/lib/md-workflow";
+import { validateCustomFieldsMap, validateResultDataPayload } from "@/lib/custom-fields-core";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,28 @@ export async function PATCH(
     if (!parsed.success) {
       return NextResponse.json({ success: false, error: parsed.error.errors[0].message }, { status: 400 });
     }
+    const editedData = parsed.data.editedData as Record<string, unknown>;
+    if (editedData && typeof editedData === "object") {
+      const maybeReport = editedData["report"] as Record<string, unknown> | undefined;
+      const maybeTestResults = editedData["testResults"];
+
+      if (maybeReport && typeof maybeReport === "object") {
+        const customFieldsCheck = validateCustomFieldsMap(maybeReport["extraFields"]);
+        if (!customFieldsCheck.ok) {
+          return NextResponse.json({ success: false, error: customFieldsCheck.error }, { status: 400 });
+        }
+        maybeReport["extraFields"] = customFieldsCheck.value;
+      }
+
+      if (Array.isArray(maybeTestResults)) {
+        for (const row of maybeTestResults as Array<Record<string, unknown>>) {
+          const resultDataCheck = validateResultDataPayload(row?.resultData);
+          if (!resultDataCheck.ok) {
+            return NextResponse.json({ success: false, error: resultDataCheck.error }, { status: 400 });
+          }
+        }
+      }
+    }
 
     await editMdReview(
       params.taskId,
@@ -35,7 +58,7 @@ export async function PATCH(
         organizationId: user.organizationId,
         auditMeta: getAuditMetaFromRequest(req),
       },
-      parsed.data as { editedData: any; reason: string; comments?: string }
+      { ...parsed.data, editedData } as { editedData: any; reason: string; comments?: string }
     );
 
     return NextResponse.json({ success: true, message: "Edits saved for review" });

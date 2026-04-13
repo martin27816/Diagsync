@@ -8,6 +8,7 @@ import { ResultInsightBox } from "@/components/results/result-insight-box";
 import { buildResultInsights } from "@/lib/result-insights";
 import { listOfflineLabDraftItems, removeOfflineLabDraft, upsertOfflineLabDraft } from "@/lib/offline-sync";
 import { evaluateReferenceFlag, formatReferenceDisplay } from "@/lib/reference-ranges";
+import { toCustomFieldKey } from "@/lib/custom-fields-core";
 
 type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -49,15 +50,6 @@ type LabTask = {
 
 type Draft = { values: Record<string, unknown>; notes: string };
 
-function toFieldKey(label: string) {
-  return label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 64);
-}
-
 function isSensitivityFieldKey(fieldKey: string) {
   return fieldKey.trim().toLowerCase() === "sensitivity";
 }
@@ -98,6 +90,7 @@ type OrderResultCardProps = {
   onSetNotes: (testOrderId: string, value: string) => void;
   onAddCustomField: (testOrderId: string, label: string, value: string) => void;
   onRemoveCustomField: (testOrderId: string, fieldKey: string) => void;
+  onResetCustomFields: (testOrderId: string) => void;
 };
 
 const OrderResultCard = memo(function OrderResultCard({
@@ -111,11 +104,13 @@ const OrderResultCard = memo(function OrderResultCard({
   onSetNotes,
   onAddCustomField,
   onRemoveCustomField,
+  onResetCustomFields,
 }: OrderResultCardProps) {
   const insightMessages = useMemo(() => buildResultInsights(draft.values ?? {}), [draft.values]);
   const highlightKey = useMemo(() => new Set(highlightFields), [highlightFields]);
   const [customLabel, setCustomLabel] = useState("");
   const [customValue, setCustomValue] = useState("");
+  const [customError, setCustomError] = useState("");
   const defaultFieldKeys = useMemo(() => new Set(order.test.resultFields.map((field) => field.fieldKey)), [order.test.resultFields]);
   const customEntries = useMemo(
     () =>
@@ -245,7 +240,16 @@ const OrderResultCard = memo(function OrderResultCard({
       </div>
 
       <div className="mt-3 rounded border border-slate-200 p-3">
-        <p className="text-[11px] font-medium text-slate-500 mb-2">Extra Fields</p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[11px] font-medium text-slate-500">Extra Fields</p>
+          <button
+            type="button"
+            onClick={() => onResetCustomFields(order.id)}
+            className="rounded border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
+          >
+            Reset Default
+          </button>
+        </div>
         <div className="space-y-2">
           {customEntries.length === 0 ? (
             <p className="text-[11px] text-slate-400">No extra fields added.</p>
@@ -265,7 +269,10 @@ const OrderResultCard = memo(function OrderResultCard({
                 />
                 <button
                   type="button"
-                  onClick={() => onRemoveCustomField(order.id, fieldKey)}
+                  onClick={() => {
+                    if (!window.confirm(`Remove extra field '${fieldKey}'?`)) return;
+                    onRemoveCustomField(order.id, fieldKey);
+                  }}
                   className="col-span-2 rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
                 >
                   Remove
@@ -291,15 +298,27 @@ const OrderResultCard = memo(function OrderResultCard({
             type="button"
             onClick={() => {
               if (!customLabel.trim()) return;
+              const nextKey = toCustomFieldKey(customLabel);
+              const hasDuplicate = customEntries.some(([key]) => key === nextKey);
+              if (!nextKey) {
+                setCustomError("Field name is invalid.");
+                return;
+              }
+              if (hasDuplicate) {
+                setCustomError(`Field '${nextKey}' already exists.`);
+                return;
+              }
               onAddCustomField(order.id, customLabel, customValue);
               setCustomLabel("");
               setCustomValue("");
+              setCustomError("");
             }}
             className="col-span-2 rounded border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
           >
             Add
           </button>
         </div>
+        {customError ? <p className="mt-1 text-[11px] text-red-600">{customError}</p> : null}
       </div>
     </div>
   );
@@ -550,17 +569,14 @@ export function LabTaskBoard() {
   }, []);
 
   const addCustomField = useCallback((testOrderId: string, label: string, value: string) => {
-    const baseKey = toFieldKey(label);
+    const baseKey = toCustomFieldKey(label);
     if (!baseKey) return;
     updateDraft(testOrderId, (prev) => {
       const nextValues = { ...prev.values };
-      let fieldKey = baseKey;
-      let counter = 2;
-      while (Object.prototype.hasOwnProperty.call(nextValues, fieldKey)) {
-        fieldKey = `${baseKey}_${counter}`;
-        counter += 1;
+      if (Object.prototype.hasOwnProperty.call(nextValues, baseKey)) {
+        return prev;
       }
-      nextValues[fieldKey] = value;
+      nextValues[baseKey] = value;
       return { ...prev, values: nextValues };
     });
   }, []);
@@ -570,6 +586,19 @@ export function LabTaskBoard() {
       if (!Object.prototype.hasOwnProperty.call(prev.values, fieldKey)) return prev;
       const nextValues = { ...prev.values };
       delete nextValues[fieldKey];
+      return { ...prev, values: nextValues };
+    });
+  }, []);
+
+  const resetCustomFields = useCallback((testOrderId: string) => {
+    const task = findTaskForOrder(testOrderId);
+    const order = task?.testOrders.find((row) => row.id === testOrderId);
+    if (!order) return;
+    const defaultKeys = new Set(order.test.resultFields.map((field) => field.fieldKey));
+    updateDraft(testOrderId, (prev) => {
+      const nextValues = Object.fromEntries(
+        Object.entries(prev.values).filter(([key]) => defaultKeys.has(key))
+      );
       return { ...prev, values: nextValues };
     });
   }, []);
@@ -836,6 +865,7 @@ export function LabTaskBoard() {
                                 onSetNotes={setDraftNotesValue}
                                 onAddCustomField={addCustomField}
                                 onRemoveCustomField={removeCustomField}
+                                onResetCustomFields={resetCustomFields}
                               />
                             ))}
 

@@ -4,6 +4,7 @@ import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { saveLabResults, submitLabTask } from "@/lib/lab-workflow";
 import { z } from "zod";
 import type { SaveResultInput } from "@/lib/lab-workflow";
+import { validateResultDataPayload } from "@/lib/custom-fields-core";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,12 @@ export async function POST(
     const parsed = saveResultsSchema.safeParse(await req.json());
     if (!parsed.success) {
       return NextResponse.json({ success: false, error: parsed.error.errors[0].message }, { status: 400 });
+    }
+    for (const row of parsed.data.results) {
+      const resultDataCheck = validateResultDataPayload(row.resultData);
+      if (!resultDataCheck.ok) {
+        return NextResponse.json({ success: false, error: resultDataCheck.error }, { status: 400 });
+      }
     }
 
     const user = session.user as any;

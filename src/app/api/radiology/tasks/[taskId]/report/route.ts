@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { saveRadiologyReport } from "@/lib/radiology-workflow";
+import { validateCustomFieldsMap } from "@/lib/custom-fields-core";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,10 @@ export async function POST(
     if (!parsed.success) {
       return NextResponse.json({ success: false, error: parsed.error.errors[0].message }, { status: 400 });
     }
+    const customFieldsCheck = validateCustomFieldsMap(parsed.data.extraFields);
+    if (!customFieldsCheck.ok) {
+      return NextResponse.json({ success: false, error: customFieldsCheck.error }, { status: 400 });
+    }
 
     const user = session.user as any;
     const report = await saveRadiologyReport(
@@ -37,7 +42,7 @@ export async function POST(
         organizationId: user.organizationId,
         auditMeta: getAuditMetaFromRequest(req),
       },
-      parsed.data
+      { ...parsed.data, extraFields: customFieldsCheck.value }
     );
 
     return NextResponse.json({ success: true, data: report, message: "Report draft saved" });

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { formatDateTime } from "@/lib/utils";
+import { toCustomFieldKey } from "@/lib/custom-fields-core";
 
 type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -16,15 +17,6 @@ type Report = {
 };
 type Task = { id: string; status: TaskStatus; priority: Priority; createdAt: string; updatedAt: string; visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } }; imagingFiles: ImagingFile[]; radiologyReport: Report | null };
 type Draft = { findings: string; impression: string; notes: string; extraFields: Record<string, string> };
-
-function toFieldKey(label: string) {
-  return label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 64);
-}
 
 const priorityStyle: Record<string, string> = {
   EMERGENCY: "bg-red-50 text-red-600", URGENT: "bg-amber-50 text-amber-700", ROUTINE: "bg-slate-100 text-slate-600",
@@ -151,16 +143,19 @@ export function RadiologyTaskBoard() {
   }
 
   function addExtraField(taskId: string, label: string, value: string) {
-    const baseKey = toFieldKey(label);
+    const baseKey = toCustomFieldKey(label);
     if (!baseKey) return;
     const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
-    let key = baseKey;
-    let counter = 2;
-    while (Object.prototype.hasOwnProperty.call(current.extraFields, key)) {
-      key = `${baseKey}_${counter}`;
-      counter += 1;
+    if (Object.prototype.hasOwnProperty.call(current.extraFields, baseKey)) {
+      setError(`Field '${baseKey}' already exists.`);
+      return;
     }
-    updateDraft(taskId, { extraFields: { ...current.extraFields, [key]: value } });
+    updateDraft(taskId, { extraFields: { ...current.extraFields, [baseKey]: value } });
+    setError("");
+  }
+
+  function resetExtraFields(taskId: string) {
+    updateDraft(taskId, { extraFields: {} });
   }
 
   async function startTask(taskId: string) {
@@ -403,7 +398,10 @@ export function RadiologyTaskBoard() {
                                         />
                                         <button
                                           type="button"
-                                          onClick={() => removeExtraField(task.id, fieldKey)}
+                                          onClick={() => {
+                                            if (!window.confirm(`Remove extra field '${fieldKey}'?`)) return;
+                                            removeExtraField(task.id, fieldKey);
+                                          }}
                                           className="col-span-2 rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
                                         >
                                           Remove
@@ -438,6 +436,15 @@ export function RadiologyTaskBoard() {
                                     className="col-span-2 rounded border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
                                   >
                                     Add
+                                  </button>
+                                </div>
+                                <div className="mt-2 flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => resetExtraFields(task.id)}
+                                    className="rounded border border-slate-200 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-50"
+                                  >
+                                    Reset Default
                                   </button>
                                 </div>
                               </div>

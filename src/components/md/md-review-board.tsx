@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
@@ -6,6 +6,7 @@ import { ResultInsightBox } from "@/components/results/result-insight-box";
 import { buildResultInsights } from "@/lib/result-insights";
 import { PatientInsights } from "@/components/patients/patient-insights";
 import { analyzePatientInsights, type PatientHistoryRow } from "@/lib/patient-insights";
+import { toCustomFieldKey } from "@/lib/custom-fields-core";
 
 type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 type TaskDepartment = "LABORATORY" | "RADIOLOGY";
@@ -26,7 +27,7 @@ type Item = {
     notes?: string | null;
     versionHistory: Array<{ id: string; version: number; isActive: boolean; parentId?: string | null; resultData: Record<string, unknown>; notes?: string | null; editReason: string; editedBy: { id: string; fullName: string }; createdAt: string }>;
   }>;
-  radiologyReport: { currentVersion: number; findings: string; impression: string; notes?: string | null; versionHistory: Array<{ id: string; version: number; isActive: boolean; parentId?: string | null; findings: string; impression: string; notes?: string | null; editReason: string; editedBy: { id: string; fullName: string }; createdAt: string }> } | null;
+  radiologyReport: { currentVersion: number; findings: string; impression: string; notes?: string | null; extraFields?: Record<string, string> | null; versionHistory: Array<{ id: string; version: number; isActive: boolean; parentId?: string | null; findings: string; impression: string; notes?: string | null; extraFields?: Record<string, string> | null; editReason: string; editedBy: { id: string; fullName: string }; createdAt: string }> } | null;
   imagingFiles: Array<{ id: string; fileName: string; fileUrl: string }>;
   patientHistory: PatientHistoryRow[];
   patientVisitCount: number;
@@ -77,7 +78,9 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
   const [approveComments, setApproveComments] = useState<Record<string, string>>({});
   const [labEdits, setLabEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});
   const [labEditNotes, setLabEditNotes] = useState<Record<string, Record<string, string>>>({});
-  const [radiologyEdits, setRadiologyEdits] = useState<Record<string, { findings: string; impression: string; notes: string }>>({});
+  const [radiologyEdits, setRadiologyEdits] = useState<Record<string, { findings: string; impression: string; notes: string; extraFields: Record<string, string> }>>({});
+  const [newRadFieldLabel, setNewRadFieldLabel] = useState<Record<string, string>>({});
+  const [newRadFieldValue, setNewRadFieldValue] = useState<Record<string, string>>({});
   const loadDataSeqRef = useRef(0);
   const reviewCacheRef = useRef<Map<string, { at: number; items: Item[]; counts: { pending: number; approved: number; rejected: number } }>>(new Map());
 
@@ -86,7 +89,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
     setCounts(data.counts);
     const nextLabEdits: Record<string, Record<string, Record<string, string>>> = {};
     const nextLabNotes: Record<string, Record<string, string>> = {};
-    const nextRadEdits: Record<string, { findings: string; impression: string; notes: string }> = {};
+    const nextRadEdits: Record<string, { findings: string; impression: string; notes: string; extraFields: Record<string, string> }> = {};
     for (const item of data.items) {
       if (item.department === "LABORATORY") {
         nextLabEdits[item.id] = {};
@@ -96,7 +99,12 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
           nextLabNotes[item.id][result.testOrderId] = result.notes ?? "";
         }
       } else {
-        nextRadEdits[item.id] = { findings: item.radiologyReport?.findings ?? "", impression: item.radiologyReport?.impression ?? "", notes: item.radiologyReport?.notes ?? "" };
+        nextRadEdits[item.id] = {
+          findings: item.radiologyReport?.findings ?? "",
+          impression: item.radiologyReport?.impression ?? "",
+          notes: item.radiologyReport?.notes ?? "",
+          extraFields: item.radiologyReport?.extraFields ?? {},
+        };
       }
     }
     setLabEdits(nextLabEdits);
@@ -191,7 +199,12 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
     if (item.department === "LABORATORY") {
       payload = { testResults: item.results.map((result) => ({ testOrderId: result.testOrderId, resultData: labEdits[taskId]?.[result.testOrderId] ?? normalizeResultData(result.resultData), notes: labEditNotes[taskId]?.[result.testOrderId] ?? result.notes ?? "" })) };
     } else {
-      const current = radiologyEdits[taskId] ?? { findings: item.radiologyReport?.findings ?? "", impression: item.radiologyReport?.impression ?? "", notes: item.radiologyReport?.notes ?? "" };
+      const current = radiologyEdits[taskId] ?? {
+        findings: item.radiologyReport?.findings ?? "",
+        impression: item.radiologyReport?.impression ?? "",
+        notes: item.radiologyReport?.notes ?? "",
+        extraFields: item.radiologyReport?.extraFields ?? {},
+      };
       if (!current.findings.trim() || !current.impression.trim()) { setError("Findings and impression are required."); return; }
       payload = { report: current };
     }
@@ -204,6 +217,54 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
       if (!json.success) { setError(json.error ?? "Edit failed"); await loadData(); }
       else setExpandedId(null);
     } finally { setBusyTaskId(null); }
+  }
+
+  function setRadExtraField(taskId: string, fieldKey: string, value: string) {
+    setRadiologyEdits((prev) => ({
+      ...prev,
+      [taskId]: {
+        ...(prev[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} }),
+        extraFields: {
+          ...((prev[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} }).extraFields ?? {}),
+          [fieldKey]: value,
+        },
+      },
+    }));
+  }
+
+  function removeRadExtraField(taskId: string, fieldKey: string) {
+    setRadiologyEdits((prev) => {
+      const current = prev[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
+      if (!Object.prototype.hasOwnProperty.call(current.extraFields, fieldKey)) return prev;
+      const nextExtra = { ...current.extraFields };
+      delete nextExtra[fieldKey];
+      return { ...prev, [taskId]: { ...current, extraFields: nextExtra } };
+    });
+  }
+
+  function addRadExtraField(taskId: string, label: string, value: string) {
+    const key = toCustomFieldKey(label);
+    if (!key) {
+      setError("Field name is invalid.");
+      return;
+    }
+    const current = radiologyEdits[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} };
+    if (Object.prototype.hasOwnProperty.call(current.extraFields, key)) {
+      setError(`Field '${key}' already exists.`);
+      return;
+    }
+    setError("");
+    setRadExtraField(taskId, key, value);
+  }
+
+  function resetRadExtraFields(taskId: string) {
+    setRadiologyEdits((prev) => ({
+      ...prev,
+      [taskId]: {
+        ...(prev[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {} }),
+        extraFields: {},
+      },
+    }));
   }
 
   if (loading) return (
@@ -277,7 +338,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                     <tr key={item.id} className={`hover:bg-slate-50 transition-colors ${isExpanded ? "bg-blue-50/20" : ""}`}>
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-slate-800">{item.visit.patient.fullName}</p>
-                        <p className="font-mono text-slate-400">{item.visit.patient.patientId} · {item.visit.patient.age}y · {item.visit.patient.sex}</p>
+                        <p className="font-mono text-slate-400">{item.visit.patient.patientId} Â· {item.visit.patient.age}y Â· {item.visit.patient.sex}</p>
                       </td>
                       <td className="px-4 py-2.5 text-slate-500">{item.department}</td>
                       <td className="px-4 py-2.5 text-slate-500">
@@ -291,7 +352,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                       <td className="px-4 py-2.5">
                         <span className={`rounded px-1.5 py-0.5 font-medium ${reviewStyle[reviewStatus]}`}>{reviewStatus}</span>
                       </td>
-                      <td className="px-4 py-2.5 text-slate-500">{item.staff?.fullName ?? "—"}</td>
+                      <td className="px-4 py-2.5 text-slate-500">{item.staff?.fullName ?? "â€”"}</td>
                       <td className="px-4 py-2.5 text-slate-400">{minutesAgoLabel(item.updatedAt)}</td>
                       <td className="px-4 py-2.5">
                         {reviewStatus !== "APPROVED" && (
@@ -320,7 +381,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                                     <div key={result.testOrderId} className="rounded border border-slate-100 p-2">
                                       <p className="font-medium text-slate-800">{result.testOrder.test.name} <span className="font-mono text-slate-400 text-[11px]">v{result.currentVersion}</span></p>
                                       <p className="text-slate-500 mt-1">
-                                        {Object.entries(result.resultData as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined && `${v}`.trim()).map(([k, v]) => `${k}: ${v}`).join(" · ") || "—"}
+                                        {Object.entries(result.resultData as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined && `${v}`.trim()).map(([k, v]) => `${k}: ${v}`).join(" Â· ") || "â€”"}
                                       </p>
                                       {result.notes && <p className="text-slate-400 text-[11px] mt-0.5">Note: {result.notes}</p>}
                                       <ResultInsightBox messages={buildResultInsights(result.resultData)} />
@@ -329,8 +390,13 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                                 </div>
                               ) : (
                                 <div className="space-y-1.5">
-                                  <p className="text-slate-700"><span className="font-medium">Findings:</span> {item.radiologyReport?.findings ?? "—"}</p>
-                                  <p className="text-slate-700"><span className="font-medium">Impression:</span> {item.radiologyReport?.impression ?? "—"}</p>
+                                  <p className="text-slate-700"><span className="font-medium">Findings:</span> {item.radiologyReport?.findings ?? "â€”"}</p>
+                                  <p className="text-slate-700"><span className="font-medium">Impression:</span> {item.radiologyReport?.impression ?? "â€”"}</p>
+                                  {Object.entries(item.radiologyReport?.extraFields ?? {}).map(([key, value]) => (
+                                    <p key={key} className="text-slate-700">
+                                      <span className="font-medium">{key}:</span> {value}
+                                    </p>
+                                  ))}
                                   <p className="font-mono text-slate-400 text-[11px]">v{item.radiologyReport?.currentVersion ?? 1}</p>
                                   <div className="space-y-0.5">
                                     {item.imagingFiles.length === 0
@@ -415,10 +481,72 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                                       <label key={field}>
                                         <span className="block text-[11px] text-slate-400 capitalize">{field}</span>
                                         <textarea rows={field === "notes" ? 1 : 2} value={radiologyEdits[item.id]?.[field] ?? ""}
-                                          onChange={(e) => setRadiologyEdits((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? { findings: "", impression: "", notes: "" }), [field]: e.target.value } }))}
+                                          onChange={(e) => setRadiologyEdits((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? { findings: "", impression: "", notes: "", extraFields: {} }), [field]: e.target.value } }))}
                                           className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
                                       </label>
                                     ))}
+                                    <div className="rounded border border-slate-200 p-2">
+                                      <div className="mb-2 flex items-center justify-between">
+                                        <span className="text-[11px] text-slate-500">Extra Fields</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => resetRadExtraFields(item.id)}
+                                          className="rounded border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
+                                        >
+                                          Reset Default
+                                        </button>
+                                      </div>
+                                      <div className="space-y-1.5">
+                                        {Object.entries(radiologyEdits[item.id]?.extraFields ?? {}).map(([key, value]) => (
+                                          <div key={key} className="grid grid-cols-12 gap-1.5 items-center">
+                                            <input value={key} readOnly className="col-span-4 h-7 rounded border border-slate-200 bg-slate-50 px-2 text-xs text-slate-500" />
+                                            <input
+                                              value={value}
+                                              onChange={(e) => setRadExtraField(item.id, key, e.target.value)}
+                                              className="col-span-6 h-7 rounded border border-slate-200 bg-white px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (!window.confirm(`Remove extra field '${key}'?`)) return;
+                                                removeRadExtraField(item.id, key);
+                                              }}
+                                              className="col-span-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-600 hover:bg-red-100"
+                                            >
+                                              Remove
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <div className="mt-2 grid grid-cols-12 gap-1.5">
+                                        <input
+                                          value={newRadFieldLabel[item.id] ?? ""}
+                                          onChange={(e) => setNewRadFieldLabel((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                          placeholder="Field name"
+                                          className="col-span-4 h-7 rounded border border-slate-200 bg-white px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                        <input
+                                          value={newRadFieldValue[item.id] ?? ""}
+                                          onChange={(e) => setNewRadFieldValue((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                          placeholder="Value"
+                                          className="col-span-6 h-7 rounded border border-slate-200 bg-white px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const label = newRadFieldLabel[item.id] ?? "";
+                                            const value = newRadFieldValue[item.id] ?? "";
+                                            if (!label.trim()) return;
+                                            addRadExtraField(item.id, label, value);
+                                            setNewRadFieldLabel((prev) => ({ ...prev, [item.id]: "" }));
+                                            setNewRadFieldValue((prev) => ({ ...prev, [item.id]: "" }));
+                                          }}
+                                          className="col-span-2 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100"
+                                        >
+                                          Add
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
                                 )}
                                 <label className="mt-2 block">

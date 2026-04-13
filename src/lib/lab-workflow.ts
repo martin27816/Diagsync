@@ -15,6 +15,7 @@ import {
   canStartTask,
   canSubmitTask,
   hasResultsForAllTests,
+  applySharedSensitivity,
   sampleStatusToOrderStage,
   sortByPriorityAndTime,
 } from "./lab-workflow-core";
@@ -32,12 +33,6 @@ export type SaveResultInput = {
   resultData: Prisma.InputJsonValue;
   notes?: string;
 };
-
-function isFilledValue(value: unknown) {
-  if (typeof value === "boolean") return true;
-  if (value === 0) return true;
-  return value !== undefined && value !== null && `${value}`.trim() !== "";
-}
 
 function assertLabScientist(actor: LabActor) {
   if (actor.role !== "LAB_SCIENTIST") {
@@ -313,28 +308,24 @@ export async function saveLabResults(taskId: string, actor: LabActor, inputs: Sa
         : ({} as Prisma.InputJsonObject);
     return { ...input, resultData };
   });
-  const sharedSensitivity = normalizedInputs
-    .filter((input) => sensitivityEnabledOrderIds.has(input.testOrderId))
-    .map((input) => input.resultData.sensitivity)
-    .find((value) => isFilledValue(value));
-  const finalInputs = normalizedInputs.map((input) => {
-    if (!sensitivityEnabledOrderIds.has(input.testOrderId)) return input;
-    if (!isFilledValue(sharedSensitivity)) return input;
-    if (isFilledValue(input.resultData.sensitivity)) return input;
-    const nextResultData = Object.assign(
-      {},
-      input.resultData as Record<string, Prisma.InputJsonValue>,
-      { sensitivity: sharedSensitivity as Prisma.InputJsonValue }
-    ) as Prisma.InputJsonObject;
-    return {
-      ...input,
-      resultData: nextResultData,
-    };
-  });
+  const finalInputs = applySharedSensitivity(normalizedInputs, sensitivityEnabledOrderIds).map((input) => ({
+    ...input,
+    resultData: input.resultData as Prisma.InputJsonObject,
+  }));
   const abnormalSummaries: string[] = [];
+  const customFieldSummaries: string[] = [];
 
   await prisma.$transaction(async (tx) => {
     for (const input of finalInputs) {
+      const defaultFieldKeys = new Set(
+        (orderFieldMap.get(input.testOrderId) ?? []).map((field) => field.fieldKey.toLowerCase())
+      );
+      const customKeys = Object.keys((input.resultData ?? {}) as Record<string, unknown>).filter(
+        (key) => !defaultFieldKeys.has(key.toLowerCase())
+      );
+      if (customKeys.length > 0) {
+        customFieldSummaries.push(`${input.testOrderId}[${customKeys.join(", ")}]`);
+      }
       const flags = computeAbnormalFlags(
         orderFieldMap.get(input.testOrderId) ?? [],
         (input.resultData ?? {}) as Record<string, unknown>
@@ -386,9 +377,13 @@ export async function saveLabResults(taskId: string, actor: LabActor, inputs: Sa
     entityType: "RoutingTask",
     entityId: task.id,
     notes:
-      abnormalSummaries.length > 0
-        ? `Draft results saved for ${finalInputs.length} test(s). System flags: ${abnormalSummaries.join(" | ")}`
-        : `Draft results saved for ${finalInputs.length} test(s)`,
+      [
+        `Draft results saved for ${finalInputs.length} test(s)`,
+        abnormalSummaries.length > 0 ? `System flags: ${abnormalSummaries.join(" | ")}` : null,
+        customFieldSummaries.length > 0 ? `Custom fields: ${customFieldSummaries.join(" | ")}` : null,
+      ]
+        .filter(Boolean)
+        .join(". "),
     ...actor.auditMeta,
   });
 }
