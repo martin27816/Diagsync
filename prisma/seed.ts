@@ -77,6 +77,7 @@ async function main() {
     department: Department;
     categoryId: string;
     price: number;
+    costPrice?: number;
     turnaroundMinutes: number;
     sampleType?: string;
     description?: string;
@@ -89,6 +90,7 @@ async function main() {
       update: {
         name: data.name,
         price: data.price,
+        costPrice: data.costPrice ?? Math.round(data.price * 0.55),
         categoryId: data.categoryId,
         type: data.type,
         department: data.department,
@@ -105,6 +107,7 @@ async function main() {
         type: data.type,
         department: data.department,
         price: data.price,
+        costPrice: data.costPrice ?? Math.round(data.price * 0.55),
         turnaroundMinutes: data.turnaroundMinutes,
         sampleType: data.sampleType,
         description: data.description,

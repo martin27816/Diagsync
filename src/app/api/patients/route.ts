@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { Role, Sex, Priority, PaymentStatus } from "@prisma/client";
+import { Role, Sex, Priority, PaymentStatus, PaymentEntryType } from "@prisma/client";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { assignTasksForVisit } from "@/lib/routing-engine";
 
@@ -227,11 +227,32 @@ export async function POST(req: NextRequest) {
               testId: test.id,
               organizationId: user.organizationId,
               status: "REGISTERED",
+              defaultPrice: Number(test.price ?? 0),
               price: submittedPrices.get(test.id) ?? 0,
+              ...(Math.abs((submittedPrices.get(test.id) ?? 0) - Number(test.price ?? 0)) > 0.0001
+                ? {
+                    priceOverriddenById: user.id,
+                    priceOverrideReason: "Reception pricing override during registration",
+                  }
+                : {}),
             },
           })
         )
       );
+
+      if (data.amountPaid > 0) {
+        await tx.visitPayment.create({
+          data: {
+            organizationId: user.organizationId,
+            visitId: visit.id,
+            recordedById: user.id,
+            amount: data.amountPaid,
+            paymentType: PaymentEntryType.PAYMENT,
+            paymentMethod: data.paymentMethod || null,
+            notes: "Initial payment at registration",
+          },
+        });
+      }
 
       return { patient, visit, testOrders };
     });

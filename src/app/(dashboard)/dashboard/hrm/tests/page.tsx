@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { TestCatalogForm } from "@/components/hrm/test-catalog-form";
+import { formatCurrency } from "@/lib/utils";
 
 function turnaround(mins: number) {
   if (mins >= 60) {
@@ -87,6 +88,8 @@ export default async function TestCatalogPage() {
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Category</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Sample</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Turnaround</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Price</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Cost</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Fields</th>
               </tr>
             </thead>
@@ -102,6 +105,8 @@ export default async function TestCatalogPage() {
                   <td className="px-4 py-2.5 text-slate-500">{test.category?.name ?? "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500">{test.sampleType ?? "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500">{turnaround(test.turnaroundMinutes)}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{formatCurrency(Number(test.price))}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{formatCurrency(Number((test as any).costPrice ?? 0))}</td>
                   <td className="px-4 py-2.5 text-slate-400">{test._count.resultFields}</td>
                 </tr>
               ))}
@@ -130,6 +135,8 @@ export default async function TestCatalogPage() {
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Code</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Category</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Turnaround</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Price</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Cost</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Fields</th>
               </tr>
             </thead>
@@ -144,6 +151,8 @@ export default async function TestCatalogPage() {
                   </td>
                   <td className="px-4 py-2.5 text-slate-500">{test.category?.name ?? "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500">{turnaround(test.turnaroundMinutes)}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{formatCurrency(Number(test.price))}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{formatCurrency(Number((test as any).costPrice ?? 0))}</td>
                   <td className="px-4 py-2.5 text-slate-400">{test._count.resultFields}</td>
                 </tr>
               ))}

@@ -78,6 +78,19 @@ enum PaymentStatus {
   PARTIAL
 }
 
+enum VisitStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentEntryType {
+  PAYMENT
+  REFUND
+  ADJUSTMENT
+}
+
 enum OrderStatus {
   REGISTERED
   ASSIGNED
@@ -200,6 +213,8 @@ model Staff {
   auditLogs         AuditLog[]
   registeredPatients Patient[]        @relation("RegisteredBy")
   assignedTestOrders TestOrder[]      @relation("AssignedTestOrders")
+  overriddenTestOrders TestOrder[]    @relation("OverriddenTestOrders")
+  visitPayments      VisitPayment[]
   routingTasks      RoutingTask[]
   labSamples        LabSample[]
   labResults        LabResult[]
@@ -318,6 +333,7 @@ model DiagnosticTest {
   type              TestType
   department        Department
   price             Decimal    @db.Decimal(10, 2)
+  costPrice         Decimal    @db.Decimal(10, 2) @default(0)
   turnaroundMinutes Int
   sampleType        String?
   description       String?
@@ -386,12 +402,17 @@ model Visit {
   organizationId String
   visitNumber    String
   priority       Priority      @default(ROUTINE)
+  status         VisitStatus   @default(ACTIVE)
   paymentStatus  PaymentStatus @default(PENDING)
   totalAmount    Decimal       @db.Decimal(10, 2) @default(0)
   amountPaid     Decimal       @db.Decimal(10, 2) @default(0)
   discount       Decimal       @db.Decimal(10, 2) @default(0)
   paymentMethod  String?
   notes          String?
+  cancelledAt    DateTime?
+  cancelledReason String?
+  noShowAt       DateTime?
+  noShowReason   String?
   registeredAt   DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -401,7 +422,9 @@ model Visit {
   labSamples LabSample[]
   reviews Review[]
   reports DiagnosticReport[]
+  payments VisitPayment[]
 
+  @@index([organizationId, status, registeredAt])
   @@map("visits")
 }
 
@@ -411,8 +434,11 @@ model TestOrder {
   testId            String
   organizationId    String
   assignedToId      String?
+  priceOverriddenById String?
   status            OrderStatus @default(REGISTERED)
+  defaultPrice      Decimal     @db.Decimal(10, 2) @default(0)
   price             Decimal     @db.Decimal(10, 2)
+  priceOverrideReason String?
   notes             String?
   registeredAt      DateTime    @default(now())
   assignedAt        DateTime?
@@ -430,10 +456,31 @@ model TestOrder {
   visit Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
   test  DiagnosticTest @relation(fields: [testId], references: [id])
   assignedTo Staff?    @relation("AssignedTestOrders", fields: [assignedToId], references: [id])
+  priceOverriddenBy Staff? @relation("OverriddenTestOrders", fields: [priceOverriddenById], references: [id])
   labResults LabResult[]
 
   @@index([organizationId, assignedToId, status])
+  @@index([organizationId, priceOverriddenById, createdAt])
   @@map("test_orders")
+}
+
+model VisitPayment {
+  id             String           @id @default(cuid())
+  organizationId String
+  visitId        String
+  recordedById   String
+  amount         Decimal          @db.Decimal(10, 2)
+  paymentType    PaymentEntryType @default(PAYMENT)
+  paymentMethod  String?
+  notes          String?
+  createdAt      DateTime         @default(now())
+
+  visit      Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  recordedBy Staff @relation(fields: [recordedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, visitId, createdAt])
+  @@index([organizationId, paymentType, createdAt])
+  @@map("visit_payments")
 }
 
 model RoutingTask {

@@ -57,6 +57,7 @@ export function TestCatalogForm({ categories }: { categories: CategoryOption[] }
   const [department, setDepartment] = useState<Department>("LABORATORY");
   const [categoryId, setCategoryId] = useState("");
   const [price, setPrice] = useState("");
+  const [costPrice, setCostPrice] = useState("");
   const [turnaroundMinutes, setTurnaroundMinutes] = useState("120");
   const [sampleType, setSampleType] = useState("");
   const [description, setDescription] = useState("");
@@ -93,6 +94,7 @@ export function TestCatalogForm({ categories }: { categories: CategoryOption[] }
     setDepartment("LABORATORY");
     setCategoryId("");
     setPrice("");
+    setCostPrice("");
     setTurnaroundMinutes("120");
     setSampleType("");
     setDescription("");
@@ -123,6 +125,7 @@ export function TestCatalogForm({ categories }: { categories: CategoryOption[] }
           department,
           categoryId: categoryId || undefined,
           price: price.trim() ? Number(price) : 0,
+          costPrice: costPrice.trim() ? Number(costPrice) : 0,
           turnaroundMinutes: Number(turnaroundMinutes),
           sampleType: sampleType.trim() || undefined,
           description: description.trim() || undefined,
@@ -215,6 +218,10 @@ export function TestCatalogForm({ categories }: { categories: CategoryOption[] }
         <div className="space-y-1">
           <Label>Default Price (optional)</Label>
           <Input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0" />
+        </div>
+        <div className="space-y-1">
+          <Label>Cost Price (optional)</Label>
+          <Input type="number" min="0" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="0" />
         </div>
         <div className="space-y-1">
           <Label>Turnaround (mins)</Label>

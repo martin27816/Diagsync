@@ -1,0 +1,208 @@
+import { prisma } from "@/lib/prisma";
+import { canUseHrmDashboard } from "@/lib/hrm-monitoring-core";
+import { OrderStatus, PaymentEntryType, VisitStatus } from "@prisma/client";
+
+type HrmActor = {
+  id: string;
+  role: string;
+  organizationId: string;
+};
+
+function assertHrm(actor: HrmActor) {
+  if (!canUseHrmDashboard(actor.role)) throw new Error("FORBIDDEN_ROLE");
+}
+
+function toMoney(value: unknown) {
+  const num = Number(value ?? 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function dayKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+export async function getRevenueOpsIntelligence(actor: HrmActor) {
+  assertHrm(actor);
+
+  const now = new Date();
+  const start30 = new Date(now);
+  start30.setDate(start30.getDate() - 29);
+  start30.setHours(0, 0, 0, 0);
+
+  const start14 = new Date(now);
+  start14.setDate(start14.getDate() - 13);
+  start14.setHours(0, 0, 0, 0);
+
+  const visits = await prisma.visit.findMany({
+    where: {
+      organizationId: actor.organizationId,
+      registeredAt: { gte: start30 },
+    },
+    select: {
+      id: true,
+      registeredAt: true,
+      status: true,
+      amountPaid: true,
+      testOrders: {
+        select: {
+          id: true,
+          status: true,
+          price: true,
+          defaultPrice: true,
+          test: { select: { id: true, name: true, code: true, type: true, costPrice: true } },
+        },
+      },
+      payments: {
+        select: { amount: true, paymentType: true },
+      },
+    },
+    orderBy: { registeredAt: "desc" },
+  });
+
+  let orderedValue = 0;
+  let billedValue = 0;
+  let collectedValue = 0;
+  let incompleteBilledValue = 0;
+  let orderedCount = 0;
+  let completedCount = 0;
+
+  const completedStatuses = new Set<OrderStatus>([OrderStatus.APPROVED, OrderStatus.RELEASED]);
+  const profitMap = new Map<
+    string,
+    { name: string; code: string; type: string; orders: number; revenue: number; cost: number; profit: number }
+  >();
+  const dailyProfitMap = new Map<string, { revenue: number; cost: number; profit: number }>();
+
+  for (const visit of visits) {
+    const paymentLedger = visit.payments.reduce((sum, payment) => {
+      const amount = toMoney(payment.amount);
+      if (payment.paymentType === PaymentEntryType.REFUND) return sum - amount;
+      return sum + amount;
+    }, 0);
+    const visitCollected = paymentLedger > 0 ? paymentLedger : toMoney(visit.amountPaid);
+    collectedValue += visitCollected;
+
+    for (const order of visit.testOrders) {
+      const defaultPrice = toMoney(order.defaultPrice) > 0 ? toMoney(order.defaultPrice) : toMoney(order.price);
+      const billedPrice = toMoney(order.price);
+      const costPrice = toMoney(order.test.costPrice);
+
+      orderedValue += defaultPrice;
+      billedValue += billedPrice;
+      orderedCount += 1;
+
+      if (completedStatuses.has(order.status)) {
+        completedCount += 1;
+      } else {
+        incompleteBilledValue += billedPrice;
+      }
+
+      const byTest = profitMap.get(order.test.id) ?? {
+        name: order.test.name,
+        code: order.test.code,
+        type: order.test.type,
+        orders: 0,
+        revenue: 0,
+        cost: 0,
+        profit: 0,
+      };
+      byTest.orders += 1;
+      byTest.revenue += billedPrice;
+      byTest.cost += costPrice;
+      byTest.profit += billedPrice - costPrice;
+      profitMap.set(order.test.id, byTest);
+
+      if (visit.registeredAt >= start14) {
+        const key = dayKey(visit.registeredAt);
+        const day = dailyProfitMap.get(key) ?? { revenue: 0, cost: 0, profit: 0 };
+        day.revenue += billedPrice;
+        day.cost += costPrice;
+        day.profit += billedPrice - costPrice;
+        dailyProfitMap.set(key, day);
+      }
+    }
+  }
+
+  const noShowCancelCount = visits.filter(
+    (visit) => visit.status === VisitStatus.NO_SHOW || visit.status === VisitStatus.CANCELLED
+  ).length;
+  const totalVisits = visits.length;
+  const noShowCancelRate = totalVisits > 0 ? noShowCancelCount / totalVisits : 0;
+
+  const last7Start = new Date(now);
+  last7Start.setDate(last7Start.getDate() - 6);
+  const prev7Start = new Date(now);
+  prev7Start.setDate(prev7Start.getDate() - 13);
+  const prev7End = new Date(now);
+  prev7End.setDate(prev7End.getDate() - 7);
+
+  const last7 = visits.filter((visit) => visit.registeredAt >= last7Start);
+  const prev7 = visits.filter((visit) => visit.registeredAt >= prev7Start && visit.registeredAt < prev7End);
+
+  const last7Rate =
+    last7.length > 0
+      ? last7.filter((visit) => visit.status === VisitStatus.NO_SHOW || visit.status === VisitStatus.CANCELLED)
+          .length / last7.length
+      : 0;
+  const prev7Rate =
+    prev7.length > 0
+      ? prev7.filter((visit) => visit.status === VisitStatus.NO_SHOW || visit.status === VisitStatus.CANCELLED)
+          .length / prev7.length
+      : 0;
+
+  const trendDelta = last7Rate - prev7Rate;
+  const trendDirection = trendDelta > 0.01 ? "up" : trendDelta < -0.01 ? "down" : "flat";
+  const avgDailyRegistrations = last7.length / 7;
+  const predictedNoShowsNext7 = Math.max(0, Math.round(last7Rate * avgDailyRegistrations * 7));
+  const confidence = totalVisits >= 150 ? "high" : totalVisits >= 60 ? "medium" : "low";
+
+  const unbilledLeakage = Math.max(0, orderedValue - billedValue);
+  const uncollectedLeakage = Math.max(0, billedValue - collectedValue);
+  const completionLeakageRate = orderedCount > 0 ? (orderedCount - completedCount) / orderedCount : 0;
+
+  const topProfitLines = Array.from(profitMap.values())
+    .sort((a, b) => b.profit - a.profit)
+    .slice(0, 12);
+
+  const dailyProfit = Array.from({ length: 14 }, (_, i) => {
+    const date = new Date(start14);
+    date.setDate(start14.getDate() + i);
+    const key = dayKey(date);
+    const day = dailyProfitMap.get(key) ?? { revenue: 0, cost: 0, profit: 0 };
+    return { date: key, ...day };
+  });
+
+  const totalCost = topProfitLines.reduce((sum, row) => sum + row.cost, 0);
+  const totalRevenue = topProfitLines.reduce((sum, row) => sum + row.revenue, 0);
+
+  return {
+    summary: {
+      windowDays: 30,
+      orderedValue,
+      billedValue,
+      collectedValue,
+      unbilledLeakage,
+      uncollectedLeakage,
+      incompleteBilledValue,
+      completionLeakageRate,
+      grossMarginPct: totalRevenue > 0 ? (totalRevenue - totalCost) / totalRevenue : 0,
+      orderedCount,
+      completedCount,
+    },
+    profitByTestLine: topProfitLines,
+    dailyProfit,
+    noShowForecast: {
+      noShowCancelRate,
+      last7Rate,
+      prev7Rate,
+      trendDirection,
+      trendDelta,
+      predictedNoShowsNext7,
+      confidence,
+      basedOnVisits: totalVisits,
+    },
+  };
+}

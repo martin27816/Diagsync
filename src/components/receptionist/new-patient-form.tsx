@@ -9,7 +9,7 @@ import { enqueueOfflinePatient, listOfflinePatientItems, removeOfflinePatient, t
 
 interface TestResult {
   id: string; name: string; code: string; type: "LAB" | "RADIOLOGY";
-  department: string; sampleType?: string | null; category?: { name: string } | null;
+  department: string; price?: number | string; sampleType?: string | null; category?: { name: string } | null;
 }
 interface CartItem extends TestResult { enteredPrice: string }
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -95,7 +95,13 @@ export function NewPatientForm() {
     else setPaymentStatus("PENDING");
   }, [amountPaidNum, totalAmount]);
 
-  function addToCart(test: TestResult) { setCart((prev) => [...prev, { ...test, enteredPrice: "" }]); setTestSearch(""); setTestResults([]); setShowDropdown(false); }
+  function addToCart(test: TestResult) {
+    const suggestedPrice = toNumberPrice(test.price ?? 0);
+    setCart((prev) => [...prev, { ...test, enteredPrice: suggestedPrice > 0 ? String(suggestedPrice) : "" }]);
+    setTestSearch("");
+    setTestResults([]);
+    setShowDropdown(false);
+  }
   function removeFromCart(id: string) { setCart((prev) => prev.filter((t) => t.id !== id)); }
   function updateCartPrice(id: string, value: string) { setCart((prev) => prev.map((item) => item.id === id ? { ...item, enteredPrice: value } : item)); }
 

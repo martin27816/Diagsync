@@ -33,6 +33,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
     console.error("[MD_REVIEWS_GET]", error);
-    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+    const detail = error instanceof Error ? error.message : String(error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Internal server error",
+        ...(process.env.NODE_ENV !== "production" ? { detail } : {}),
+      },
+      { status: 500 }
+    );
   }
 }

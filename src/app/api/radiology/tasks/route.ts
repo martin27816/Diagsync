@@ -43,7 +43,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: { tasks, counts } });
   } catch (error) {
     console.error("[RAD_TASKS_GET]", error);
-    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+    const detail = error instanceof Error ? error.message : String(error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Internal server error",
+        ...(process.env.NODE_ENV !== "production" ? { detail } : {}),
+      },
+      { status: 500 }
+    );
   }
 }
-

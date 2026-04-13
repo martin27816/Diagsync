@@ -16,7 +16,7 @@ import {
 import { notifyResultEdited, sendNotificationToRoles, sendNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { renderReportHtml } from "@/lib/report-rendering";
-import { Department, NotificationType, OrderStatus, ReportStatus, Role, ReviewStatus, ReportType } from "@prisma/client";
+import { Department, NotificationType, OrderStatus, ReportStatus, Role, ReviewStatus, ReportType, VisitStatus } from "@prisma/client";
 import { formatReferenceDisplay } from "./reference-ranges";
 
 export type ReportActor = {
@@ -469,6 +469,20 @@ export async function releaseReport(
       },
       data: { status: OrderStatus.RELEASED, releasedAt: new Date() },
     });
+
+    const pendingOrderCount = await tx.testOrder.count({
+      where: {
+        visitId: report.visitId,
+        organizationId: actor.organizationId,
+        status: { notIn: [OrderStatus.RELEASED, OrderStatus.CANCELLED] },
+      },
+    });
+    if (pendingOrderCount === 0) {
+      await tx.visit.update({
+        where: { id: report.visitId },
+        data: { status: VisitStatus.COMPLETED },
+      });
+    }
   });
 
   await createAuditLog({
