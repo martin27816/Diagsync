@@ -10,6 +10,17 @@ import { enqueueOfflinePatient, listOfflinePatientItems, removeOfflinePatient, t
 interface TestResult {
   id: string; name: string; code: string; type: "LAB" | "RADIOLOGY";
   department: string; price?: number | string; sampleType?: string | null; category?: { name: string } | null;
+  resultFields?: Array<{
+    id: string;
+    label: string;
+    fieldKey: string;
+    fieldType: "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
+    unit?: string | null;
+    normalMin?: number | null;
+    normalMax?: number | null;
+    normalText?: string | null;
+    referenceNote?: string | null;
+  }>;
 }
 interface CartItem extends TestResult { enteredPrice: string }
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -45,6 +56,9 @@ export function NewPatientForm() {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [rangeDraftByTest, setRangeDraftByTest] = useState<Record<string, NonNullable<TestResult["resultFields"]>>>({});
+  const [rangeSavingByTest, setRangeSavingByTest] = useState<Record<string, boolean>>({});
+  const [expandedRangeByTest, setExpandedRangeByTest] = useState<Record<string, boolean>>({});
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -98,12 +112,84 @@ export function NewPatientForm() {
   function addToCart(test: TestResult) {
     const suggestedPrice = toNumberPrice(test.price ?? 0);
     setCart((prev) => [...prev, { ...test, enteredPrice: suggestedPrice > 0 ? String(suggestedPrice) : "" }]);
+    setRangeDraftByTest((prev) => ({
+      ...prev,
+      [test.id]: (test.resultFields ?? []).map((field) => ({ ...field })),
+    }));
+    setExpandedRangeByTest((prev) => ({ ...prev, [test.id]: true }));
     setTestSearch("");
     setTestResults([]);
     setShowDropdown(false);
   }
-  function removeFromCart(id: string) { setCart((prev) => prev.filter((t) => t.id !== id)); }
+  function removeFromCart(id: string) {
+    setCart((prev) => prev.filter((t) => t.id !== id));
+    setRangeDraftByTest((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setExpandedRangeByTest((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }
   function updateCartPrice(id: string, value: string) { setCart((prev) => prev.map((item) => item.id === id ? { ...item, enteredPrice: value } : item)); }
+
+  function updateRangeValue(
+    testId: string,
+    fieldId: string,
+    patch: Partial<NonNullable<TestResult["resultFields"]>[number]>
+  ) {
+    setRangeDraftByTest((prev) => ({
+      ...prev,
+      [testId]: (prev[testId] ?? []).map((field) => (field.id === fieldId ? { ...field, ...patch } : field)),
+    }));
+  }
+
+  async function saveRangesForTest(testId: string) {
+    const rows = rangeDraftByTest[testId] ?? [];
+    if (rows.length === 0) return;
+    for (const row of rows) {
+      const min = row.normalMin;
+      const max = row.normalMax;
+      if (typeof min === "number" && typeof max === "number" && min > max) {
+        setError(`Invalid range in ${row.label}: min cannot be greater than max.`);
+        return;
+      }
+    }
+    setRangeSavingByTest((prev) => ({ ...prev, [testId]: true }));
+    try {
+      const payload = {
+        rangeFields: rows.map((row) => ({
+          id: row.id,
+          normalMin: row.normalMin ?? null,
+          normalMax: row.normalMax ?? null,
+          normalText: row.normalText ?? null,
+          referenceNote: row.referenceNote ?? null,
+        })),
+      };
+      const res = await fetch(`/api/tests/${testId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error ?? "Unable to save ranges");
+        return;
+      }
+      const updatedFields = (json.data?.resultFields ?? rows) as NonNullable<TestResult["resultFields"]>;
+      setRangeDraftByTest((prev) => ({ ...prev, [testId]: updatedFields }));
+      setCart((prev) =>
+        prev.map((item) => (item.id === testId ? { ...item, resultFields: updatedFields } : item))
+      );
+    } catch {
+      setError("Network error while saving ranges.");
+    } finally {
+      setRangeSavingByTest((prev) => ({ ...prev, [testId]: false }));
+    }
+  }
 
   function buildPayload(): OfflinePatientPayload {
     return {
@@ -163,6 +249,9 @@ export function NewPatientForm() {
     setFullName(""); setAge(""); setPhone(""); setEmail(""); setAddress(""); setDateOfBirth("");
     setReferringDoctor(""); setClinicalNote(""); setPriority("ROUTINE"); setPaymentStatus("PENDING");
     setAmountPaid(""); setDiscount(""); setPaymentMethod(""); setVisitNotes(""); setCart([]);
+    setRangeDraftByTest({});
+    setRangeSavingByTest({});
+    setExpandedRangeByTest({});
   }
 
   const paymentBadge: Record<string, string> = {
@@ -307,6 +396,7 @@ export function NewPatientForm() {
               {cart.length === 0 ? (
                 <p className="text-center text-xs text-slate-400 py-4 border border-dashed border-slate-200 rounded">No tests added yet.</p>
               ) : (
+                <div className="space-y-3">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-slate-100">
@@ -334,6 +424,101 @@ export function NewPatientForm() {
                     ))}
                   </tbody>
                 </table>
+                <div className="mt-3 space-y-3">
+                  {cart.map((item) => {
+                    const rows = rangeDraftByTest[item.id] ?? [];
+                    const rangeFields = rows.filter((field) =>
+                      field.fieldType === "NUMBER" ||
+                      field.normalMin != null ||
+                      field.normalMax != null ||
+                      !!field.normalText ||
+                      !!field.referenceNote
+                    );
+                    if (rangeFields.length === 0) return null;
+
+                    const isOpen = expandedRangeByTest[item.id] ?? true;
+                    const isSaving = !!rangeSavingByTest[item.id];
+
+                    return (
+                      <div key={`${item.id}-ranges`} className="rounded border border-blue-100 bg-blue-50/40">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedRangeByTest((prev) => ({ ...prev, [item.id]: !isOpen }))}
+                          className="flex w-full items-center justify-between px-3 py-2 text-left"
+                        >
+                          <div>
+                            <p className="text-xs font-semibold text-slate-700">{item.name} Range Fields</p>
+                            <p className="text-[11px] text-slate-500">Edit values for this registration, or save as default for future patients.</p>
+                          </div>
+                          <span className="text-xs text-slate-500">{isOpen ? "Hide" : "Edit"}</span>
+                        </button>
+
+                        {isOpen && (
+                          <div className="border-t border-blue-100 px-3 py-3 space-y-2">
+                            {rangeFields.map((field) => (
+                              <div key={field.id} className="rounded border border-slate-200 bg-white p-2.5 space-y-2">
+                                <div className="text-xs font-medium text-slate-700">{field.label}</div>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                  <label className="space-y-1">
+                                    <span className="text-[11px] text-slate-500">Normal Min</span>
+                                    <input
+                                      type="number"
+                                      value={field.normalMin ?? ""}
+                                      onChange={(e) => updateRangeValue(item.id, field.id, { normalMin: e.target.value === "" ? null : Number(e.target.value) })}
+                                      className={inputCls}
+                                    />
+                                  </label>
+                                  <label className="space-y-1">
+                                    <span className="text-[11px] text-slate-500">Normal Max</span>
+                                    <input
+                                      type="number"
+                                      value={field.normalMax ?? ""}
+                                      onChange={(e) => updateRangeValue(item.id, field.id, { normalMax: e.target.value === "" ? null : Number(e.target.value) })}
+                                      className={inputCls}
+                                    />
+                                  </label>
+                                </div>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                  <label className="space-y-1">
+                                    <span className="text-[11px] text-slate-500">Normal Text</span>
+                                    <input
+                                      value={field.normalText ?? ""}
+                                      onChange={(e) => updateRangeValue(item.id, field.id, { normalText: e.target.value })}
+                                      className={inputCls}
+                                      placeholder="e.g. Negative"
+                                    />
+                                  </label>
+                                  <label className="space-y-1">
+                                    <span className="text-[11px] text-slate-500">Reference Note</span>
+                                    <input
+                                      value={field.referenceNote ?? ""}
+                                      onChange={(e) => updateRangeValue(item.id, field.id, { referenceNote: e.target.value })}
+                                      className={inputCls}
+                                      placeholder="Optional note"
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            ))}
+
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-[11px] text-slate-500">You can continue registration without saving these defaults.</p>
+                              <button
+                                type="button"
+                                onClick={() => void saveRangesForTest(item.id)}
+                                disabled={isSaving}
+                                className="rounded border border-blue-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {isSaving ? "Saving..." : "Save as Default"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                </div>
               )}
             </div>
           </div>
