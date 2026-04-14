@@ -357,7 +357,8 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
         ) : data.active.length === 0 ? (
           <p className="px-4 py-8 text-xs text-slate-400">No active consultation patients.</p>
         ) : (
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[1180px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">#</th>
@@ -370,7 +371,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Doctor</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Arrival Time</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Countdown</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Action</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 w-[180px] min-w-[180px]">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -407,20 +408,20 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                       <span className="text-slate-400">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-2.5 w-[180px] min-w-[180px]">
                     {isMd ? (
-                      <div className="flex gap-1.5">
+                      <div className="flex flex-wrap gap-1.5">
                         <button
                           disabled={busyId === row.id || row.status === "CONSULTED"}
                           onClick={() => void callPatient(row.id)}
-                          className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                          className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
                         >
                           {busyId === row.id ? "Calling..." : "Call Patient"}
                         </button>
                         <button
                           disabled={busyId === row.id || row.status !== "CALLED"}
                           onClick={() => void markConsulted(row.id)}
-                          className="rounded bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                          className="rounded bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors whitespace-nowrap"
                         >
                           {busyId === row.id ? "Updating..." : "Finish Consultation"}
                         </button>
@@ -430,7 +431,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                       <button
                         disabled={busyId === row.id || row.status !== "CALLED"}
                         onClick={() => void markPatientIn(row.id)}
-                        className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
                       >
                         {busyId === row.id ? "Updating..." : "Patient In"}
                       </button>
@@ -440,6 +441,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
