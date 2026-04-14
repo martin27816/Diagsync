@@ -69,6 +69,11 @@ function isSensitivityFieldKey(fieldKey: string) {
   return fieldKey.trim().toLowerCase() === "sensitivity";
 }
 
+function isCommentLikeField(field: Pick<ResultField, "fieldKey" | "label">) {
+  const token = `${field.fieldKey} ${field.label}`.toLowerCase();
+  return token.includes("comment") || token.includes("remark") || token.includes("interpret");
+}
+
 const DEFAULT_SENSITIVITY_ANTIBIOTICS = [
   "Lyntriaxone",
   "Gentamycin",
@@ -172,6 +177,128 @@ function serializeSensitivityPattern(items: SensitivityCell[]) {
     })
     .filter(Boolean)
     .join("\n");
+}
+
+function hasFilledValue(value: unknown) {
+  if (typeof value === "boolean") return true;
+  if (value === 0) return true;
+  return value !== undefined && value !== null && `${value}`.trim() !== "";
+}
+
+function pickRandom<T>(items: T[]) {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function generateLabScientistComment(input: {
+  task: LabTask;
+  order: TestOrder;
+  draft: Draft;
+  commentFieldKey: string;
+}) {
+  const values = input.draft.values ?? {};
+  const measuredParts: string[] = [];
+  let measuredCount = 0;
+  let abnormalCount = 0;
+
+  for (const field of input.order.test.resultFields) {
+    if (field.fieldKey === input.commentFieldKey) continue;
+    if (isSensitivityFieldKey(field.fieldKey)) continue;
+    const raw = values[field.fieldKey];
+    if (!hasFilledValue(raw)) continue;
+
+    measuredCount += 1;
+    const valueText =
+      typeof raw === "boolean" ? (raw ? "positive" : "negative") : String(raw).trim();
+    const withUnit = field.unit ? `${valueText} ${field.unit}` : valueText;
+    const flag = evaluateReferenceFlag(field, raw);
+
+    if (flag === "HIGH") {
+      abnormalCount += 1;
+      measuredParts.push(`${field.label} is elevated (${withUnit})`);
+      continue;
+    }
+    if (flag === "LOW") {
+      abnormalCount += 1;
+      measuredParts.push(`${field.label} is reduced (${withUnit})`);
+      continue;
+    }
+    if (flag === "ABNORMAL") {
+      abnormalCount += 1;
+      measuredParts.push(`${field.label} is abnormal (${withUnit})`);
+      continue;
+    }
+    measuredParts.push(`${field.label} is ${withUnit}`);
+  }
+
+  const sensitivityRows = parseSensitivityPattern(values.sensitivity).filter(
+    (row) => hasFilledValue(row.zone) || hasFilledValue(row.interpretation)
+  );
+  const sensitiveCount = sensitivityRows.filter((row) => row.interpretation === "S").length;
+  const resistantCount = sensitivityRows.filter((row) => row.interpretation === "R").length;
+  const intermediateCount = sensitivityRows.filter((row) => row.interpretation === "I").length;
+  const leadingSensitive = sensitivityRows
+    .filter((row) => row.interpretation === "S")
+    .slice(0, 3)
+    .map((row) => row.antibiotic);
+
+  const opener = pickRandom([
+    `Review of ${input.order.test.name} for ${input.task.visit.patient.fullName} shows`,
+    `${input.order.test.name} result summary indicates`,
+    `Current laboratory profile demonstrates`,
+    `Analyte review suggests`,
+    `Result interpretation at this stage shows`,
+  ]);
+
+  const measuredSentence =
+    measuredCount > 0
+      ? pickRandom([
+          `${opener} ${measuredParts.slice(0, 3).join("; ")}.`,
+          `${opener} ${measuredParts.slice(0, 3).join(", ")}.`,
+          `${opener} ${measuredParts.slice(0, 3).join(" and ")}.`,
+        ])
+      : pickRandom([
+          `${opener} no additional numeric analytes were entered yet.`,
+          `${opener} limited analyte data at this point.`,
+          `${opener} no non-comment parameters documented yet.`,
+        ]);
+
+  const trendSentence =
+    measuredCount > 0
+      ? abnormalCount === 0
+        ? pickRandom([
+            "Overall pattern is within expected limits for the parameters provided.",
+            "Entered parameters appear within reference expectation at this time.",
+            "No clear deviation from expected reference trend in the documented fields.",
+          ])
+        : pickRandom([
+            `${abnormalCount} parameter(s) show deviation that may require clinical correlation.`,
+            `Observed abnormalities (${abnormalCount}) should be interpreted with the patient's clinical picture.`,
+            `There are ${abnormalCount} out-of-range finding(s) requiring follow-up interpretation.`,
+          ])
+      : "";
+
+  const sensitivitySentence =
+    sensitivityRows.length > 0
+      ? pickRandom([
+          `Sensitivity profile: S=${sensitiveCount}, R=${resistantCount}, I=${intermediateCount}.`,
+          `Antibiogram trend shows ${sensitiveCount} sensitive, ${resistantCount} resistant and ${intermediateCount} intermediate agents.`,
+          `Susceptibility summary recorded ${sensitiveCount} sensitive, ${resistantCount} resistant, ${intermediateCount} intermediate.`,
+        ]) +
+        (leadingSensitive.length > 0
+          ? ` Preferred sensitive options include ${leadingSensitive.join(", ")}.`
+          : "")
+      : "";
+
+  const closingSentence = pickRandom([
+    "Kindly correlate with symptoms and treatment history before final decision.",
+    "Clinical correlation and physician review are advised.",
+    "Interpret together with patient history, examination and treatment response.",
+    "Recommend final interpretation in context of full clinical assessment.",
+  ]);
+
+  return [measuredSentence, trendSentence, sensitivitySentence, closingSentence]
+    .filter((line) => line.trim().length > 0)
+    .join(" ");
 }
 
 const priorityStyle: Record<string, string> = {
@@ -392,13 +519,32 @@ const OrderResultCard = memo(function OrderResultCard({
             <div key={field.id} className="col-span-2 md:col-span-3 lg:col-span-4">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <label className="block text-[11px] font-medium text-slate-500">{label}</label>
-                <button
-                  type="button"
-                  onClick={() => onRemoveDefaultField(order.id, field.fieldKey)}
-                  className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
-                >
-                  Remove
-                </button>
+                <div className="flex items-center gap-1.5">
+                  {isCommentLikeField(field) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const generated = generateLabScientistComment({
+                          task,
+                          order,
+                          draft,
+                          commentFieldKey: field.fieldKey,
+                        });
+                        onSetFieldValue(order.id, field.fieldKey, generated);
+                      }}
+                      className="rounded border border-blue-200 px-1.5 py-0.5 text-[10px] text-blue-700 hover:bg-blue-50"
+                    >
+                      {hasFilledValue(value) ? "Rewrite" : "Auto-write"}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveDefaultField(order.id, field.fieldKey)}
+                    className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
               {referenceText ? <p className="mb-1 text-[10px] text-slate-400">{referenceText}</p> : null}
               <textarea
