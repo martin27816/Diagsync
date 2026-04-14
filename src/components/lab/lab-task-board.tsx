@@ -59,6 +59,7 @@ type LabTask = {
 
 type Draft = { values: Record<string, unknown>; notes: string; removedDefaultFieldKeys: string[] };
 type TaskSignOff = { signatureName: string; signatureImage: string };
+type SensitivityCell = { antibiotic: string; zone: string; interpretation: string };
 
 function createEmptyDraft(): Draft {
   return { values: {}, notes: "", removedDefaultFieldKeys: [] };
@@ -66,6 +67,82 @@ function createEmptyDraft(): Draft {
 
 function isSensitivityFieldKey(fieldKey: string) {
   return fieldKey.trim().toLowerCase() === "sensitivity";
+}
+
+const DEFAULT_SENSITIVITY_ANTIBIOTICS = [
+  "Lyntriaxone",
+  "Gentamycin",
+  "Lynipro (Ciprofloxacin)",
+  "Levosif (Levofloxacin)",
+  "Velcone",
+  "Amoxicillin",
+  "Ornidavid",
+  "Excef Tz (Ceftriaxone + Tazobactam)",
+  "Ceftriazidie",
+  "Streptomycin",
+  "Ceftriaxone",
+  "Cetroxol (Azithromycin)",
+  "Cozima",
+  "Rifampicin",
+  "Erythromycin",
+  "Mesufyl (Cefoperazone)",
+  "Ciprofloxacin",
+];
+
+function parseSensitivityPattern(raw: unknown): SensitivityCell[] {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text) {
+    return DEFAULT_SENSITIVITY_ANTIBIOTICS.map((antibiotic) => ({
+      antibiotic,
+      zone: "",
+      interpretation: "",
+    }));
+  }
+
+  const rows = text
+    .split(/\r?\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const interpretationMatch = line.match(/\b(S|R|I)\b/i);
+      const zoneMatch = line.match(/\b(\d+\+|\+\+\+|\+\+|\+|\d+(?:\.\d+)?\s*mm)\b/i);
+      let antibiotic = line;
+
+      const colonIndex = line.indexOf(":");
+      if (colonIndex > 0) antibiotic = line.slice(0, colonIndex).trim();
+      else if (interpretationMatch?.index !== undefined)
+        antibiotic = line.slice(0, interpretationMatch.index).trim();
+      else if (zoneMatch?.index !== undefined) antibiotic = line.slice(0, zoneMatch.index).trim();
+
+      return {
+        antibiotic: antibiotic.replace(/[-–:,]+$/g, "").trim(),
+        zone: zoneMatch?.[1]?.trim() ?? "",
+        interpretation: interpretationMatch?.[1]?.toUpperCase() ?? "",
+      };
+    })
+    .filter((item) => item.antibiotic);
+
+  if (rows.length === 0) {
+    return DEFAULT_SENSITIVITY_ANTIBIOTICS.map((antibiotic) => ({
+      antibiotic,
+      zone: "",
+      interpretation: "",
+    }));
+  }
+
+  return rows;
+}
+
+function serializeSensitivityPattern(items: SensitivityCell[]) {
+  return items
+    .map((item) => {
+      const antibiotic = item.antibiotic.trim();
+      if (!antibiotic) return "";
+      const parts = [item.zone.trim(), item.interpretation.trim().toUpperCase()].filter(Boolean);
+      return parts.length > 0 ? `${antibiotic}: ${parts.join(" ")}` : `${antibiotic}:`;
+    })
+    .filter(Boolean)
+    .join("\n");
 }
 
 const priorityStyle: Record<string, string> = {
@@ -162,6 +239,112 @@ const OrderResultCard = memo(function OrderResultCard({
           const highlight = highlightKey.has(field.fieldKey);
           const referenceText = formatReferenceDisplay(field);
           const flag = evaluateReferenceFlag(field, value);
+
+          if (isSensitivityFieldKey(field.fieldKey)) {
+            const cells = parseSensitivityPattern(value);
+            const updateCell = (index: number, next: Partial<SensitivityCell>) => {
+              const updated = cells.map((cell, cellIndex) =>
+                cellIndex === index ? { ...cell, ...next } : cell
+              );
+              onSetFieldValue(order.id, field.fieldKey, serializeSensitivityPattern(updated));
+            };
+            const addRow = () => {
+              const updated = [...cells, { antibiotic: "", zone: "", interpretation: "" }];
+              onSetFieldValue(order.id, field.fieldKey, serializeSensitivityPattern(updated));
+            };
+            const removeRow = (index: number) => {
+              if (cells.length <= 1) return;
+              const updated = cells.filter((_, cellIndex) => cellIndex !== index);
+              onSetFieldValue(order.id, field.fieldKey, serializeSensitivityPattern(updated));
+            };
+
+            return (
+              <div key={field.id} className="col-span-2 md:col-span-3 lg:col-span-4">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="block text-[11px] font-medium text-slate-500">{label}</label>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveDefaultField(order.id, field.fieldKey)}
+                    className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+                {referenceText ? <p className="mb-1 text-[10px] text-slate-400">{referenceText}</p> : null}
+                <div className={`rounded border ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"} p-2`}>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-[11px]">
+                      <thead>
+                        <tr className="bg-slate-50">
+                          <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Antibiotic</th>
+                          <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Value (+/2+/3+)</th>
+                          <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">S / R / I</th>
+                          <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cells.map((cell, index) => (
+                          <tr key={`${cell.antibiotic}-${index}`}>
+                            <td className="border border-slate-200 p-1.5">
+                              <input
+                                value={cell.antibiotic}
+                                onBlur={() => void onPersist(task).catch(() => undefined)}
+                                onChange={(e) => updateCell(index, { antibiotic: e.target.value })}
+                                className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                placeholder="Antibiotic name"
+                              />
+                            </td>
+                            <td className="border border-slate-200 p-1.5">
+                              <input
+                                value={cell.zone}
+                                onBlur={() => void onPersist(task).catch(() => undefined)}
+                                onChange={(e) => updateCell(index, { zone: e.target.value })}
+                                className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                placeholder="+ / 2+ / 3+ / 20mm"
+                              />
+                            </td>
+                            <td className="border border-slate-200 p-1.5">
+                              <select
+                                value={cell.interpretation}
+                                onBlur={() => void onPersist(task).catch(() => undefined)}
+                                onChange={(e) => updateCell(index, { interpretation: e.target.value })}
+                                className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              >
+                                <option value="">-</option>
+                                <option value="S">S</option>
+                                <option value="R">R</option>
+                                <option value="I">I</option>
+                              </select>
+                            </td>
+                            <td className="border border-slate-200 p-1.5">
+                              <button
+                                type="button"
+                                onClick={() => removeRow(index)}
+                                disabled={cells.length <= 1}
+                                className="rounded border border-red-200 px-2 py-1 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={addRow}
+                      className="rounded border border-blue-200 px-2 py-1 text-[11px] text-blue-700 hover:bg-blue-50"
+                    >
+                      Add antibiotic
+                    </button>
+                    <p className="text-[10px] text-slate-500">Note: S = Sensitivity, R = Resistance, I = Intermediate</p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
 
           if (field.fieldType === "TEXTAREA") return (
             <div key={field.id} className="col-span-2 md:col-span-3 lg:col-span-4">
