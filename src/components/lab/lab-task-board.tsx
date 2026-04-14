@@ -104,20 +104,47 @@ function parseSensitivityPattern(raw: unknown): SensitivityCell[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const interpretationMatch = line.match(/\b(S|R|I)\b/i);
-      const zoneMatch = line.match(/\b(\d+\+|\+\+\+|\+\+|\+|\d+(?:\.\d+)?\s*mm)\b/i);
-      let antibiotic = line;
+      if (line.includes("||")) {
+        const [antibiotic = "", zone = "", interpretation = ""] = line.split("||");
+        return {
+          antibiotic: antibiotic.trim(),
+          zone: zone.trim(),
+          interpretation: interpretation.trim().toUpperCase(),
+        };
+      }
 
+      let antibiotic = line;
+      let details = "";
       const colonIndex = line.indexOf(":");
-      if (colonIndex > 0) antibiotic = line.slice(0, colonIndex).trim();
-      else if (interpretationMatch?.index !== undefined)
-        antibiotic = line.slice(0, interpretationMatch.index).trim();
-      else if (zoneMatch?.index !== undefined) antibiotic = line.slice(0, zoneMatch.index).trim();
+      if (colonIndex > 0) {
+        antibiotic = line.slice(0, colonIndex).trim();
+        details = line.slice(colonIndex + 1).trim();
+      }
+
+      let interpretation = "";
+      let zone = details;
+      const interpretationTail = details.match(/\b(S|R|I)\b\s*$/i);
+      if (interpretationTail) {
+        interpretation = interpretationTail[1].toUpperCase();
+        zone = details.slice(0, interpretationTail.index).trim();
+      }
+
+      if (!details) {
+        const interpretationMatch = line.match(/\b(S|R|I)\b/i);
+        const zoneMatch = line.match(/\b(\d+\+|\+\+\+|\+\+|\+|\d+(?:\.\d+)?\s*mm|\d+)\b/i);
+        if (interpretationMatch?.index !== undefined) {
+          antibiotic = line.slice(0, interpretationMatch.index).trim();
+          interpretation = interpretationMatch[1].toUpperCase();
+        } else if (zoneMatch?.index !== undefined) {
+          antibiotic = line.slice(0, zoneMatch.index).trim();
+          zone = zoneMatch[1].trim();
+        }
+      }
 
       return {
         antibiotic: antibiotic.replace(/[-–:,]+$/g, "").trim(),
-        zone: zoneMatch?.[1]?.trim() ?? "",
-        interpretation: interpretationMatch?.[1]?.toUpperCase() ?? "",
+        zone: zone.trim(),
+        interpretation,
       };
     })
     .filter((item) => item.antibiotic);
@@ -138,8 +165,7 @@ function serializeSensitivityPattern(items: SensitivityCell[]) {
     .map((item) => {
       const antibiotic = item.antibiotic.trim();
       if (!antibiotic) return "";
-      const parts = [item.zone.trim(), item.interpretation.trim().toUpperCase()].filter(Boolean);
-      return parts.length > 0 ? `${antibiotic}: ${parts.join(" ")}` : `${antibiotic}:`;
+      return `${antibiotic}||${item.zone.trim()}||${item.interpretation.trim().toUpperCase()}`;
     })
     .filter(Boolean)
     .join("\n");

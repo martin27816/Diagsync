@@ -69,6 +69,15 @@ function parseSensitivityEntries(rawValue: string): SensitivityEntry[] {
 
   const parsed = lines
     .map((line) => {
+      if (line.includes("||")) {
+        const [antibiotic = "", zone = "", interpretation = ""] = line.split("||");
+        return {
+          antibiotic: antibiotic.trim(),
+          zone: zone.trim(),
+          interpretation: interpretation.trim().toUpperCase(),
+        };
+      }
+
       const cleanLine = line.replace(/\s+/g, " ").trim();
       const interpretationMatch = cleanLine.match(/\b(S|R|I)\b/i);
       const zoneMatch = cleanLine.match(/\b(\d+\+|\+\+\+|\+\+|\+|\d+(?:\.\d+)?\s*mm)\b/i);
