@@ -9,13 +9,55 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
+const FETCH_TIMEOUT_MS = 12_000;
+const SW_TIMEOUT_MS = 10_000;
+const SUBSCRIBE_TIMEOUT_MS = 10_000;
+
 export function isPushSupported() {
   if (typeof window === "undefined") return false;
   return "serviceWorker" in navigator && "PushManager" in window;
 }
 
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutErrorMessage: string
+) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(timeoutErrorMessage));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs = FETCH_TIMEOUT_MS
+) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function getRegistration() {
-  return navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  return withTimeout(
+    navigator.serviceWorker.register("/sw.js", { scope: "/" }),
+    SW_TIMEOUT_MS,
+    "service_worker_timeout"
+  );
 }
 
 export async function getExistingPushSubscription() {
@@ -27,11 +69,16 @@ export async function getExistingPushSubscription() {
 export async function syncPushSubscriptionWithServer(
   subscription: PushSubscription
 ) {
-  const subRes = await fetch("/api/push/subscription", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ subscription: subscription.toJSON() }),
-  });
+  let subRes: Response;
+  try {
+    subRes = await fetchWithTimeout("/api/push/subscription", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: subscription.toJSON() }),
+    });
+  } catch {
+    return { ok: false as const, reason: "network_timeout" as const };
+  }
   if (!subRes.ok) {
     return { ok: false as const, reason: "server_rejected_subscription" as const };
   }
@@ -48,20 +95,50 @@ export async function subscribeToDevicePush() {
     return { ok: false as const, reason: "permission_denied" as const };
   }
 
-  const keyRes = await fetch("/api/push/public-key", { cache: "no-store" });
-  const keyJson = await keyRes.json();
+  let keyRes: Response;
+  try {
+    keyRes = await fetchWithTimeout(
+      "/api/push/public-key",
+      { cache: "no-store" },
+      FETCH_TIMEOUT_MS
+    );
+  } catch {
+    return { ok: false as const, reason: "network_timeout" as const };
+  }
+
+  const keyJson = await keyRes.json().catch(() => null);
   const publicKey = keyJson?.data?.publicKey;
   if (!keyRes.ok || !publicKey) {
     return { ok: false as const, reason: "missing_public_key" as const };
   }
 
-  const registration = await getRegistration();
+  let registration: ServiceWorkerRegistration;
+  try {
+    registration = await getRegistration();
+  } catch (error) {
+    if (error instanceof Error && error.message === "service_worker_timeout") {
+      return { ok: false as const, reason: "service_worker_timeout" as const };
+    }
+    return { ok: false as const, reason: "service_worker_register_failed" as const };
+  }
+
   let subscription = await registration.pushManager.getSubscription();
   if (!subscription) {
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
-    });
+    try {
+      subscription = await withTimeout(
+        registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        }),
+        SUBSCRIBE_TIMEOUT_MS,
+        "subscribe_timeout"
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === "subscribe_timeout") {
+        return { ok: false as const, reason: "subscribe_timeout" as const };
+      }
+      return { ok: false as const, reason: "subscribe_failed" as const };
+    }
   }
 
   const sync = await syncPushSubscriptionWithServer(subscription);

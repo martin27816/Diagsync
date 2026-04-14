@@ -200,44 +200,78 @@ export function NotificationBell({ role }: { role: string }) {
   }
 
   async function refreshPushStatus() {
-    if (!isPushSupported()) {
-      setPushSupported(false);
-      setPushError("");
-      return;
-    }
-    setPushSupported(true);
-    setPushPermission(Notification.permission);
-    const sub = await getExistingPushSubscription();
-    if (!sub) {
+    try {
+      if (!isPushSupported()) {
+        setPushSupported(false);
+        setPushError("");
+        return;
+      }
+      setPushSupported(true);
+      setPushPermission(Notification.permission);
+      const sub = await getExistingPushSubscription();
+      if (!sub) {
+        setPushEnabled(false);
+        setPushError("");
+        return;
+      }
+      const sync = await syncPushSubscriptionWithServer(sub);
+      if (sync.ok) {
+        setPushEnabled(true);
+        setPushError("");
+        return;
+      }
       setPushEnabled(false);
-      setPushError("");
-      return;
+      if (sync.reason === "network_timeout") {
+        setPushError("Could not verify device subscription (network timeout).");
+        return;
+      }
+      setPushError("Device subscription exists, but server registration failed.");
+    } catch {
+      setPushEnabled(false);
+      setPushError("Could not verify push status right now.");
     }
-    const sync = await syncPushSubscriptionWithServer(sub);
-    if (sync.ok) {
-      setPushEnabled(true);
-      setPushError("");
-      return;
-    }
-    setPushEnabled(false);
-    setPushError("Device subscription exists, but server registration failed.");
+  }
+
+  function getPushEnableErrorMessage(
+    reason:
+      | "missing_public_key"
+      | "server_rejected_subscription"
+      | "permission_denied"
+      | "unsupported"
+      | "network_timeout"
+      | "service_worker_timeout"
+      | "service_worker_register_failed"
+      | "subscribe_timeout"
+      | "subscribe_failed"
+  ) {
+    if (reason === "missing_public_key") return "Push keys are missing on server.";
+    if (reason === "server_rejected_subscription") return "Server rejected device subscription.";
+    if (reason === "permission_denied") return "Browser notification permission was denied.";
+    if (reason === "network_timeout") return "Network timed out while enabling push notifications.";
+    if (reason === "service_worker_timeout") return "Service worker setup timed out. Reload and try again.";
+    if (reason === "service_worker_register_failed") return "Service worker could not register on this browser.";
+    if (reason === "subscribe_timeout") return "Browser subscription timed out. Try again.";
+    if (reason === "subscribe_failed") return "Browser could not create push subscription.";
+    if (reason === "unsupported") return "This browser does not support push notifications.";
+    return "Could not enable device notifications.";
   }
 
   async function enableDevicePush() {
     setPushLoading(true);
+    setPushError("");
     try {
       const result = await subscribeToDevicePush();
       setPushPermission(Notification.permission);
       if (result.ok) {
         setPushEnabled(true);
         setPushError("");
-      } else if (result.reason === "missing_public_key") {
-        setPushError("Push keys are missing on server.");
-      } else if (result.reason === "server_rejected_subscription") {
-        setPushError("Server rejected device subscription.");
-      } else if (result.reason === "permission_denied") {
-        setPushError("Browser notification permission was denied.");
+      } else {
+        setPushEnabled(false);
+        setPushError(getPushEnableErrorMessage(result.reason));
       }
+    } catch {
+      setPushEnabled(false);
+      setPushError("Could not enable device notifications right now.");
     } finally {
       setPushLoading(false);
       await refreshPushStatus();
