@@ -252,6 +252,9 @@ export async function reassignTask(
     where: { id: input.taskId, organizationId: actor.organizationId },
   });
   if (!task) throw new Error("TASK_NOT_FOUND");
+  if (task.status === RoutingTaskStatus.COMPLETED || task.status === RoutingTaskStatus.CANCELLED) {
+    throw new Error("TASK_NOT_REASSIGNABLE");
+  }
 
   const staff = await prisma.staff.findFirst({
     where: {

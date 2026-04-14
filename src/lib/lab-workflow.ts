@@ -358,14 +358,28 @@ export async function saveLabResults(taskId: string, actor: LabActor, inputs: Sa
         },
       });
 
-      await tx.testOrder.update({
-        where: { id: input.testOrderId },
+      await tx.testOrder.updateMany({
+        where: {
+          id: input.testOrderId,
+          organizationId: actor.organizationId,
+          status: {
+            notIn: [
+              OrderStatus.SUBMITTED_FOR_REVIEW,
+              OrderStatus.APPROVED,
+              OrderStatus.RELEASED,
+              OrderStatus.CANCELLED,
+            ],
+          },
+        },
         data: { status: OrderStatus.RESULT_DRAFTED },
       });
     }
 
-    await tx.routingTask.update({
-      where: { id: task.id },
+    await tx.routingTask.updateMany({
+      where: {
+        id: task.id,
+        status: { in: [RoutingTaskStatus.PENDING, RoutingTaskStatus.IN_PROGRESS] },
+      },
       data: { status: RoutingTaskStatus.IN_PROGRESS },
     });
   });
@@ -400,10 +414,6 @@ export async function submitLabTask(taskId: string, actor: LabActor) {
     where: { taskId: task.id, organizationId: actor.organizationId },
     select: { testOrderId: true, isSubmitted: true },
   });
-
-  if (existingResults.length > 0 && existingResults.every((r) => r.isSubmitted)) {
-    throw new Error("TASK_ALREADY_COMPLETED");
-  }
 
   if (!hasResultsForAllTests(task.testOrderIds, existingResults.map((r) => r.testOrderId))) {
     throw new Error("MISSING_RESULTS");

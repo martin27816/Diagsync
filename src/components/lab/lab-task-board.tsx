@@ -419,6 +419,7 @@ export function LabTaskBoard() {
   const [isOnline, setIsOnline] = useState(true);
   const draftsRef = useRef<Record<string, Draft>>({});
   const tasksRef = useRef<LabTask[]>([]);
+  const submittingTaskIdsRef = useRef<Set<string>>(new Set());
   const loadTasksSeqRef = useRef(0);
   const taskCacheRef = useRef<Map<string, { at: number; tasks: LabTask[] }>>(new Map());
   function invalidateTaskCache() {
@@ -812,6 +813,7 @@ export function LabTaskBoard() {
   }
 
   async function persistDraft(task: LabTask, draftsSnapshot: Record<string, Draft> = draftsRef.current) {
+    if (submittingTaskIdsRef.current.has(task.id)) return;
     const results = collectTaskDraftResults(task, draftsSnapshot);
     upsertOfflineLabDraft({ taskId: task.id, results });
     if (!navigator.onLine) return;
@@ -843,6 +845,7 @@ export function LabTaskBoard() {
 
   async function onWorkflowClick(task: LabTask) {
     if (task.status === "COMPLETED") return;
+    submittingTaskIdsRef.current.add(task.id);
     setSavingTaskId(task.id);
     setError("");
     invalidateTaskCache();
@@ -919,6 +922,7 @@ export function LabTaskBoard() {
       setError("Action failed. Please retry.");
       await loadTasks();
     } finally {
+      submittingTaskIdsRef.current.delete(task.id);
       setSavingTaskId(null);
     }
   }

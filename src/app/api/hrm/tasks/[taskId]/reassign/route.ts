@@ -46,6 +46,12 @@ export async function PATCH(
       if (error.message === "INVALID_ASSIGNEE" || error.message === "INVALID_ASSIGNEE_ROLE") {
         return NextResponse.json({ success: false, error: "Invalid assignee for this task" }, { status: 400 });
       }
+      if (error.message === "TASK_NOT_REASSIGNABLE") {
+        return NextResponse.json(
+          { success: false, error: "Completed or cancelled tasks cannot be reassigned" },
+          { status: 409 }
+        );
+      }
     }
     console.error("[HRM_TASK_REASSIGN]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
