@@ -50,6 +50,23 @@ function toCreateData(
   };
 }
 
+async function createManyNotifications(
+  data: Prisma.NotificationCreateManyInput[],
+  context: string
+) {
+  if (data.length === 0) return 0;
+  try {
+    const result = await prisma.notification.createMany({
+      data,
+      skipDuplicates: true,
+    });
+    return result.count;
+  } catch (error) {
+    console.error(`[NOTIFY_CREATE_MANY_FAILED] context=${context} count=${data.length}`, error);
+    throw error;
+  }
+}
+
 // Single notification — kept for one-off sends
 export async function sendNotification(input: SendNotificationInput) {
   try {
@@ -73,6 +90,12 @@ export async function sendNotification(input: SendNotificationInput) {
     return created;
   } catch (error: any) {
     if (error?.code === "P2002") return null;
+    console.error("[NOTIFY_CREATE_FAILED] single_send", {
+      organizationId: input.organizationId,
+      userId: input.userId,
+      type: input.type,
+      entityId: input.entityId ?? null,
+    });
     throw error;
   }
 }
@@ -113,12 +136,7 @@ export async function sendNotificationToRoles(input: {
     })
   );
 
-  const result = await prisma.notification.createMany({
-    data,
-    skipDuplicates: true, // handles dedupeKey unique constraint
-  });
-
-  return result.count;
+  return createManyNotifications(data, "sendNotificationToRoles");
 }
 
 // OPTIMISED: parallel queries instead of sequential
@@ -239,15 +257,33 @@ export async function emitDelayedTaskNotifications(organizationId: string) {
       new Date()
     );
     if (!delayed) continue;
+    const elapsedMinutes = Math.max(
+      1,
+      Math.floor((Date.now() - task.createdAt.getTime()) / 60000)
+    );
+    const ratio = elapsedMinutes / Math.max(1, expectedMinutes);
+    const tier = ratio >= 3 ? 3 : ratio >= 2 ? 2 : 1;
+    const title =
+      tier === 3
+        ? "Critical delay escalation"
+        : tier === 2
+        ? "Major delay escalation"
+        : "Delayed task detected";
+    const suffix =
+      tier === 3
+        ? "Immediate intervention required."
+        : tier === 2
+        ? "Requires urgent reassignment review."
+        : "Monitor and intervene if needed.";
 
     for (const user of privileged) {
-      const dedupeKey = `delayed:${task.id}:${user.id}`;
+      const dedupeKey = `delayed:t${tier}:${task.id}:${user.id}`;
       notificationsToCreate.push({
         organizationId,
         userId: user.id,
         type: NotificationType.TASK_DELAYED,
-        title: "Delayed task detected",
-        message: `${task.department} task for ${task.visit.patient.fullName} exceeded target turnaround.`,
+        title,
+        message: `${task.department} task for ${task.visit.patient.fullName} exceeded turnaround (${elapsedMinutes}m vs ${expectedMinutes}m). ${suffix}`,
         entityId: task.id,
         entityType: "RoutingTask",
         dedupeKey,
@@ -258,11 +294,7 @@ export async function emitDelayedTaskNotifications(organizationId: string) {
   if (notificationsToCreate.length === 0) return 0;
 
   // OPTIMISED: single batch insert instead of N×M sequential writes
-  const result = await prisma.notification.createMany({
-    data: notificationsToCreate,
-    skipDuplicates: true,
-  });
-  return result.count;
+  return createManyNotifications(notificationsToCreate, "emitDelayedTaskNotifications");
 }
 
 export async function notifyStaffForTaskAssignment(input: {
@@ -333,9 +365,7 @@ export async function notifyMdResultSubmitted(input: {
     })),
   ];
 
-  if (data.length === 0) return 0;
-  const result = await prisma.notification.createMany({ data, skipDuplicates: true });
-  return result.count;
+  return createManyNotifications(data, "notifyMdResultSubmitted");
 }
 
 export async function notifyTaskReviewOutcome(input: {
@@ -390,9 +420,7 @@ export async function notifyTaskReviewOutcome(input: {
     })),
   ];
 
-  if (data.length === 0) return 0;
-  const result = await prisma.notification.createMany({ data, skipDuplicates: true });
-  return result.count;
+  return createManyNotifications(data, "notifyTaskReviewOutcome");
 }
 
 // OPTIMISED: batch insert instead of sequential loop
@@ -424,6 +452,5 @@ export async function notifyResultEdited(input: {
     dedupeKey: `edited:${input.taskId}:${input.dedupeSeed}:${userId}`,
   }));
 
-  const result = await prisma.notification.createMany({ data, skipDuplicates: true });
-  return result.count;
+  return createManyNotifications(data, "notifyResultEdited");
 }

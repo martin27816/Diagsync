@@ -122,23 +122,30 @@ export async function startRadiologyTask(taskId: string, actor: RadiologyActor) 
       data: { status: RoutingTaskStatus.IN_PROGRESS },
     });
 
-    const orders = await tx.testOrder.findMany({
-      where: { id: { in: task.testOrderIds }, organizationId: actor.organizationId },
+    await tx.testOrder.updateMany({
+      where: {
+        id: { in: task.testOrderIds },
+        organizationId: actor.organizationId,
+        status: { in: [OrderStatus.ASSIGNED, OrderStatus.REGISTERED] },
+      },
+      data: { status: OrderStatus.IN_PROGRESS },
     });
-
-    for (const order of orders) {
-      await tx.testOrder.update({
-        where: { id: order.id },
-        data: {
-          status:
-            order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.REGISTERED
-              ? OrderStatus.IN_PROGRESS
-              : order.status,
-          openedAt: order.openedAt ?? now,
-          startedAt: order.startedAt ?? now,
-        },
-      });
-    }
+    await tx.testOrder.updateMany({
+      where: {
+        id: { in: task.testOrderIds },
+        organizationId: actor.organizationId,
+        openedAt: null,
+      },
+      data: { openedAt: now },
+    });
+    await tx.testOrder.updateMany({
+      where: {
+        id: { in: task.testOrderIds },
+        organizationId: actor.organizationId,
+        startedAt: null,
+      },
+      data: { startedAt: now },
+    });
   });
 
   await createAuditLog({
@@ -243,6 +250,7 @@ export async function submitRadiologyTask(
   assertRadiographer(actor);
   const task = await assertOwnership(taskId, actor);
 
+  if (task.status === RoutingTaskStatus.COMPLETED && task.radiologyReport?.isSubmitted) return;
   if (!canSubmitRadiologyTask(task.status)) throw new Error("TASK_ALREADY_COMPLETED");
   if (!task.radiologyReport) throw new Error("MISSING_REPORT");
   if (!hasRequiredReportFields(task.radiologyReport)) throw new Error("INCOMPLETE_REPORT");
@@ -258,19 +266,21 @@ export async function submitRadiologyTask(
       data: { status: RoutingTaskStatus.COMPLETED },
     });
 
-    const orders = await tx.testOrder.findMany({
+    await tx.testOrder.updateMany({
       where: { id: { in: task.testOrderIds }, organizationId: actor.organizationId },
+      data: {
+        status: OrderStatus.SUBMITTED_FOR_REVIEW,
+        submittedAt: now,
+      },
     });
-    for (const order of orders) {
-      await tx.testOrder.update({
-        where: { id: order.id },
-        data: {
-          status: OrderStatus.SUBMITTED_FOR_REVIEW,
-          completedAt: order.completedAt ?? now,
-          submittedAt: now,
-        },
-      });
-    }
+    await tx.testOrder.updateMany({
+      where: {
+        id: { in: task.testOrderIds },
+        organizationId: actor.organizationId,
+        completedAt: null,
+      },
+      data: { completedAt: now },
+    });
   });
 
   await createAuditLog({

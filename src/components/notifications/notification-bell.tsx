@@ -25,6 +25,69 @@ export function NotificationBell({ role }: { role: string }) {
   const [error, setError] = useState("");
   const [data, setData] = useState<NotificationResponse>({ items: [], unreadCount: 0, nextCursor: null });
   const ref = useRef<HTMLDivElement>(null);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const initializedRef = useRef(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  function isVitalNotification(item: NotificationItem) {
+    const alwaysVital = new Set([
+      "TASK_ASSIGNED",
+      "RESULT_SUBMITTED",
+      "RESULT_REJECTED",
+      "RESULT_EDITED",
+      "REPORT_READY_FOR_REVIEW",
+      "REPORT_SEND_FAILED",
+      "TASK_DELAYED",
+      "TASK_REASSIGNED",
+      "TASK_OVERRIDDEN",
+    ]);
+    if (alwaysVital.has(item.type)) return true;
+    if (item.type !== "SYSTEM") return false;
+
+    const title = (item.title ?? "").toLowerCase();
+    const message = (item.message ?? "").toLowerCase();
+    if (title.includes("new consultation patient")) return true; // MD
+    if (title.includes("patient requested by md")) return true; // Receptionist bring-in
+    if (message.includes("bring in")) return true;
+    return false;
+  }
+
+  function playVitalAlert() {
+    try {
+      const AudioCtor =
+        typeof window !== "undefined"
+          ? ((window as any).AudioContext || (window as any).webkitAudioContext)
+          : null;
+      if (!AudioCtor) return;
+
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new AudioCtor();
+      }
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+
+      const start = ctx.currentTime + 0.01;
+      const scheduleBeep = (at: number, duration: number, frequency: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "square";
+        osc.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(0.42, at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(at);
+        osc.stop(at + duration);
+      };
+
+      scheduleBeep(start, 0.22, 950);
+      scheduleBeep(start + 0.28, 0.22, 1150);
+      scheduleBeep(start + 0.56, 0.28, 950);
+    } catch {
+      // best-effort only
+    }
+  }
 
   async function load() {
     try {
@@ -32,7 +95,15 @@ export function NotificationBell({ role }: { role: string }) {
       const res = await fetch("/api/notifications?limit=10", { cache: "no-store" });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "Failed"); return; }
-      setData(json.data);
+      const nextData = json.data as NotificationResponse;
+      const nextIds = new Set(nextData.items.map((item) => item.id));
+      const newItems = nextData.items.filter((item) => !seenIdsRef.current.has(item.id));
+      if (initializedRef.current && newItems.some((item) => !item.isRead && isVitalNotification(item))) {
+        playVitalAlert();
+      }
+      seenIdsRef.current = nextIds;
+      initializedRef.current = true;
+      setData(nextData);
     } catch { setError("Failed to load"); }
     finally { setLoading(false); }
   }

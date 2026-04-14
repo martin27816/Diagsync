@@ -41,9 +41,21 @@ export default async function HRMDashboardPage() {
     { label: "Pending Tasks", value: overview.metrics.pendingTasks },
     { label: "Completed", value: overview.metrics.completedTasks },
     { label: "Delayed", value: overview.metrics.delayedTasks, alert: overview.metrics.delayedTasks > 0 },
+    { label: "Unacked Alerts", value: overview.metrics.unacknowledgedAlerts, alert: overview.metrics.unacknowledgedAlerts > 0 },
     { label: "Total Staff", value: totalStaff },
     { label: "Available", value: activeStaff },
     { label: "Unavailable", value: unavailableStaff },
+  ];
+  const focusItems = [
+    overview.metrics.unacknowledgedAlerts > 0
+      ? `Acknowledge ${overview.metrics.unacknowledgedAlerts} vital alert(s) to reduce reliability risk.`
+      : "No unacknowledged vital alerts.",
+    overview.metrics.delayedTasks > 0
+      ? `Intervene in ${overview.metrics.delayedTasks} delayed task(s): reassign or override where needed.`
+      : "No delayed tasks right now.",
+    overview.dominance.simplicityScore < 80
+      ? "Simplicity score is below target: reduce pending backlog and keep one clear next action per task."
+      : "Simplicity score is on track.",
   ];
 
   return (
@@ -83,6 +95,38 @@ export default async function HRMDashboardPage() {
             </p>
           </div>
         ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden lg:grid-cols-5">
+        {[
+          { label: "Overall", value: overview.dominance.overallScore },
+          { label: "Speed", value: overview.dominance.speedScore },
+          { label: "Simplicity", value: overview.dominance.simplicityScore },
+          { label: "Reliability", value: overview.dominance.reliabilityScore },
+          { label: "Automation", value: overview.dominance.automationScore },
+        ].map((item) => (
+          <div key={item.label} className="bg-white px-4 py-3">
+            <p className="text-[11px] text-slate-400 uppercase tracking-wide">{item.label} Score</p>
+            <p
+              className={`text-xl font-bold mt-0.5 ${
+                item.value >= 85 ? "text-green-700" : item.value >= 70 ? "text-amber-700" : "text-red-700"
+              }`}
+            >
+              {item.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Today's Focus</p>
+        <div className="mt-2 space-y-1.5">
+          {focusItems.map((item) => (
+            <p key={item} className="text-xs text-slate-600">
+              {item}
+            </p>
+          ))}
+        </div>
       </div>
 
       {/* Two column: analytics + activity */}

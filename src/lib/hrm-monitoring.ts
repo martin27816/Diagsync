@@ -37,6 +37,10 @@ type TaskFilters = {
   priority?: Priority | "ALL";
 };
 
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
 function assertHrm(actor: HrmActor) {
   if (!canUseHrmDashboard(actor.role)) throw new Error("FORBIDDEN_ROLE");
 }
@@ -116,7 +120,19 @@ export async function getHrmOverview(actor: HrmActor) {
   todayStart.setHours(0, 0, 0, 0);
   const now = new Date();
 
-  const [todayPatients, activeVisits, tasks, staffRows] = await Promise.all([
+  const vitalAlertTypes = [
+    NotificationType.TASK_DELAYED,
+    NotificationType.TASK_REASSIGNED,
+    NotificationType.TASK_OVERRIDDEN,
+    NotificationType.RESULT_SUBMITTED,
+    NotificationType.RESULT_REJECTED,
+    NotificationType.RESULT_EDITED,
+    NotificationType.REPORT_READY_FOR_REVIEW,
+    NotificationType.REPORT_SEND_FAILED,
+  ];
+  const unreadAlertCutoff = new Date(now.getTime() - 2 * 60 * 1000);
+
+  const [todayPatients, activeVisits, tasks, staffRows, unacknowledgedAlerts] = await Promise.all([
     prisma.patient.count({
       where: { organizationId: actor.organizationId, createdAt: { gte: todayStart } },
     }),
@@ -147,6 +163,18 @@ export async function getHrmOverview(actor: HrmActor) {
     prisma.staff.findMany({
       where: { organizationId: actor.organizationId },
       select: { id: true, fullName: true, role: true, availabilityStatus: true, status: true },
+    }),
+    prisma.notification.count({
+      where: {
+        organizationId: actor.organizationId,
+        isRead: false,
+        createdAt: { lte: unreadAlertCutoff },
+        type: { in: vitalAlertTypes },
+        user: {
+          role: { in: [Role.HRM, Role.SUPER_ADMIN] },
+          status: StaffStatus.ACTIVE,
+        },
+      },
     }),
   ]);
 
@@ -186,10 +214,21 @@ export async function getHrmOverview(actor: HrmActor) {
   const delayedTasks = metricTasks.filter((t) => isTaskDelayed(t, now)).length;
   const pendingTasks = metricTasks.filter((t) => t.status !== RoutingTaskStatus.COMPLETED && t.status !== RoutingTaskStatus.CANCELLED).length;
   const completedTasks = metricTasks.filter((t) => t.status === RoutingTaskStatus.COMPLETED).length;
+  const activeTasks = metricTasks.filter((t) => t.status === RoutingTaskStatus.PENDING || t.status === RoutingTaskStatus.IN_PROGRESS).length;
 
   const avgCompletion = averageCompletionMinutes(metricTasks);
   const perDepartment = tasksPerDepartment(metricTasks);
   const workload = staffWorkload(metricTasks);
+  const delayedRate = activeTasks > 0 ? delayedTasks / activeTasks : 0;
+  const pendingRate = activeTasks > 0 ? metricTasks.filter((t) => t.status === RoutingTaskStatus.PENDING).length / activeTasks : 0;
+  const assignedCoverage = tasks.length > 0 ? tasks.filter((t) => Boolean(t.staffId)).length / tasks.length : 0;
+  const completionRate = tasks.length > 0 ? completedTasks / tasks.length : 0;
+
+  const speedScore = clampScore(100 - Math.min(60, avgCompletion / 2) - delayedRate * 40);
+  const simplicityScore = clampScore(100 - pendingRate * 40 - delayedRate * 30);
+  const reliabilityScore = clampScore(100 - delayedRate * 45 - Math.min(25, unacknowledgedAlerts * 2));
+  const automationScore = clampScore(55 + assignedCoverage * 25 + completionRate * 20 - delayedRate * 20);
+  const overallScore = clampScore((speedScore + simplicityScore + reliabilityScore + automationScore) / 4);
 
   const staffPerformance = staffRows.map((s) => {
     const wl = workload.get(s.id) ?? { assigned: 0, active: 0, completed: 0 };
@@ -217,11 +256,19 @@ export async function getHrmOverview(actor: HrmActor) {
       pendingTasks,
       completedTasks,
       delayedTasks,
+      unacknowledgedAlerts,
     },
     analytics: {
       averageCompletionMinutes: avgCompletion,
       tasksPerDepartment: perDepartment,
       busiestStaff,
+    },
+    dominance: {
+      overallScore,
+      speedScore,
+      simplicityScore,
+      reliabilityScore,
+      automationScore,
     },
     staffPerformance,
   };

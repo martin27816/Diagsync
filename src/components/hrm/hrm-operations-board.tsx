@@ -60,6 +60,7 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
   const [reassign, setReassign] = useState<Record<string, string>>({});
   const [reason, setReason] = useState<Record<string, string>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [lastLoadedAt, setLastLoadedAt] = useState<string>("");
 
   async function loadData() {
     setLoading(true);
@@ -76,6 +77,7 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
       if (!perfJson.success) { setError(perfJson.error ?? "Failed to load staff performance"); return; }
       setTasks(taskJson.data);
       setStaffPerf(perfJson.data);
+      setLastLoadedAt(new Date().toISOString());
     } catch {
       setError("Network error while loading operations data");
     } finally {
@@ -84,6 +86,13 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
   }
 
   useEffect(() => { void loadData(); }, [department, status, priority]);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (busyTaskId) return;
+      void loadData();
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [busyTaskId, department, status, priority]);
 
   const delayedCount = useMemo(() => tasks.filter((t) => t.delayed).length, [tasks]);
 
@@ -179,6 +188,9 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
         >
           Refresh
         </button>
+        {lastLoadedAt ? (
+          <span className="text-[11px] text-slate-400">Updated {formatDateTime(lastLoadedAt)}</span>
+        ) : null}
       </div>
 
       {error && (

@@ -126,7 +126,7 @@ export async function addConsultationPatient(
     throw new Error("FORBIDDEN_ROLE");
   }
 
-  return prisma.consultationQueue.create({
+  const created = await prisma.consultationQueue.create({
     data: {
       organizationId: actor.organizationId,
       fullName: input.fullName.trim(),
@@ -136,6 +136,19 @@ export async function addConsultationPatient(
       createdById: actor.id,
     },
   });
+
+  await sendNotificationToRoles({
+    organizationId: actor.organizationId,
+    roles: [Role.MD],
+    type: NotificationType.SYSTEM,
+    title: "New Consultation Patient",
+    message: `${created.fullName} (${created.age}y) joined consultation queue.`,
+    entityId: created.id,
+    entityType: "ConsultationQueue",
+    dedupeKeyPrefix: `consultation-new:${created.id}`,
+  });
+
+  return created;
 }
 
 export async function callConsultationPatient(actor: ConsultationActor, queueId: string) {

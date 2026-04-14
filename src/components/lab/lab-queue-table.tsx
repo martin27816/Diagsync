@@ -30,6 +30,25 @@ const statusStyle: Record<string, string> = {
   CANCELLED: "bg-red-50 text-red-600",
 };
 
+function getNextStep(row: QueueRow) {
+  if (row.taskStatus === "PENDING") return "Open case and begin task";
+  if (row.taskStatus === "COMPLETED") return "Submitted for MD review";
+  if (row.sampleStatus === "PENDING") return "Collect sample";
+  if (row.sampleStatus === "COLLECTED" || row.sampleStatus === "RECEIVED") return "Start processing";
+  if (row.sampleStatus === "PROCESSING") return "Enter and submit result";
+  return "Continue processing";
+}
+
+function getActionLabel(row: QueueRow) {
+  if (row.taskStatus === "PENDING") return "Start";
+  if (row.taskStatus === "COMPLETED") return "View";
+  return "Continue";
+}
+
+function taskDashboardHref(taskId: string) {
+  return `/dashboard/lab-scientist?task=${encodeURIComponent(taskId)}`;
+}
+
 export function LabQueueTable({ rows }: { rows: QueueRow[] }) {
   const router = useRouter();
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
@@ -42,8 +61,7 @@ export function LabQueueTable({ rows }: { rows: QueueRow[] }) {
       const res = await fetch(`/api/lab/tasks/${taskId}/start`, { method: "PATCH" });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "Unable to start task"); return; }
-      router.push("/dashboard/lab-scientist");
-      router.refresh();
+      router.push(taskDashboardHref(taskId));
     } finally {
       setBusyTaskId(null);
     }
@@ -75,6 +93,7 @@ export function LabQueueTable({ rows }: { rows: QueueRow[] }) {
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Priority</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Status</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Sample</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Next step</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Assigned</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Updated</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Action</th>
@@ -85,7 +104,7 @@ export function LabQueueTable({ rows }: { rows: QueueRow[] }) {
                 <tr key={row.taskId} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-2.5">
                     <p className="font-medium text-slate-800">{row.patientName}</p>
-                    <p className="font-mono text-slate-400">{row.patientId} · {row.visitNumber}</p>
+                    <p className="font-mono text-slate-400">{row.patientId} - {row.visitNumber}</p>
                   </td>
                   <td className="px-4 py-2.5 text-slate-500">{row.tests.join(", ")}</td>
                   <td className="px-4 py-2.5">
@@ -99,6 +118,7 @@ export function LabQueueTable({ rows }: { rows: QueueRow[] }) {
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-slate-500">{row.sampleStatus}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{getNextStep(row)}</td>
                   <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(row.assignedAt)}</td>
                   <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(row.updatedAt)}</td>
                   <td className="px-4 py-2.5">
@@ -108,15 +128,13 @@ export function LabQueueTable({ rows }: { rows: QueueRow[] }) {
                         onClick={() => startTask(row.taskId)}
                         className="rounded bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                       >
-                        {busyTaskId === row.taskId ? "Starting..." : "Start"}
+                        {busyTaskId === row.taskId ? "Starting..." : getActionLabel(row)}
                       </button>
                     ) : (
                       <button
-                        onClick={() => router.push("/dashboard/lab-scientist")}
+                        onClick={() => router.push(taskDashboardHref(row.taskId))}
                         className="rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
-                      >
-                        Open
-                      </button>
+                      >{getActionLabel(row)}</button>
                     )}
                   </td>
                 </tr>
@@ -128,3 +146,4 @@ export function LabQueueTable({ rows }: { rows: QueueRow[] }) {
     </div>
   );
 }
+

@@ -2,8 +2,16 @@ import { auth } from "@/lib/auth";
 import { LabQueueTable } from "@/components/lab/lab-queue-table";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { RoutingTaskStatus } from "@prisma/client";
 
-export default async function LabQueuePage() {
+type QueueFilter = "ACTIVE" | "ALL" | "PENDING" | "IN_PROGRESS" | "COMPLETED";
+
+export default async function LabQueuePage({
+  searchParams,
+}: {
+  searchParams?: { status?: string };
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
@@ -11,20 +19,38 @@ export default async function LabQueuePage() {
   if (!["LAB_SCIENTIST", "SUPER_ADMIN"].includes(user.role)) {
     redirect("/dashboard");
   }
+  const statusFilter = (searchParams?.status ?? "ACTIVE").toUpperCase() as QueueFilter;
+  const statusWhere =
+    statusFilter === "ALL"
+      ? {}
+      : statusFilter === "ACTIVE"
+      ? { status: { in: [RoutingTaskStatus.PENDING, RoutingTaskStatus.IN_PROGRESS] } }
+      : statusFilter === "PENDING"
+      ? { status: RoutingTaskStatus.PENDING }
+      : statusFilter === "IN_PROGRESS"
+      ? { status: RoutingTaskStatus.IN_PROGRESS }
+      : { status: RoutingTaskStatus.COMPLETED };
 
   const tasks = await prisma.routingTask.findMany({
     where: {
       organizationId: user.organizationId,
       department: "LABORATORY",
       ...(user.role === "LAB_SCIENTIST" ? { staffId: user.id } : {}),
+      ...statusWhere,
     },
     include: {
       visit: {
-        include: {
-          patient: true,
+        select: {
+          visitNumber: true,
+          patient: {
+            select: {
+              fullName: true,
+              patientId: true,
+            },
+          },
         },
       },
-      sample: true,
+      sample: { select: { status: true } },
     },
     orderBy: [
       { priority: "desc" },
@@ -65,8 +91,31 @@ export default async function LabQueuePage() {
       <div>
         <h1 className="text-2xl font-bold">Lab Queue</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Start tests from here. Time and status update immediately after each action.
+          Active queue first, with clear next actions to reduce clicks.
         </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {[
+          { key: "ACTIVE", label: "Active queue" },
+          { key: "ALL", label: "All" },
+          { key: "PENDING", label: "Pending" },
+          { key: "IN_PROGRESS", label: "In progress" },
+          { key: "COMPLETED", label: "Completed" },
+        ].map((item) => {
+          const active = statusFilter === item.key;
+          const href = item.key === "ACTIVE" ? "/dashboard/lab-scientist/queue" : `/dashboard/lab-scientist/queue?status=${item.key}`;
+          return (
+            <Link
+              key={item.key}
+              href={href}
+              className={`rounded border px-3 py-1 text-xs transition-colors ${
+                active ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
       </div>
       <LabQueueTable rows={rows} />
     </div>

@@ -153,25 +153,22 @@ export async function startLabTask(taskId: string, actor: LabActor) {
       data: { status: RoutingTaskStatus.IN_PROGRESS },
     });
 
-    const testOrders = await tx.testOrder.findMany({
+    await tx.testOrder.updateMany({
       where: {
         id: { in: task.testOrderIds },
         organizationId: actor.organizationId,
+        status: { in: [OrderStatus.ASSIGNED, OrderStatus.REGISTERED] },
       },
+      data: { status: OrderStatus.OPENED },
     });
-
-    for (const order of testOrders) {
-      await tx.testOrder.update({
-        where: { id: order.id },
-        data: {
-          status:
-            order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.REGISTERED
-              ? OrderStatus.OPENED
-              : order.status,
-          openedAt: order.openedAt ?? now,
-        },
-      });
-    }
+    await tx.testOrder.updateMany({
+      where: {
+        id: { in: task.testOrderIds },
+        organizationId: actor.organizationId,
+        openedAt: null,
+      },
+      data: { openedAt: now },
+    });
   });
 
   await createAuditLog({
@@ -222,25 +219,39 @@ export async function updateSampleForLabTask(
 
     const orderStatus = sampleStatusToOrderStage(sampleStatus);
     if (orderStatus) {
-      const orders = await tx.testOrder.findMany({
+      await tx.testOrder.updateMany({
         where: {
           id: { in: task.testOrderIds },
           organizationId: actor.organizationId,
         },
+        data: { status: orderStatus as OrderStatus },
       });
-
-      for (const order of orders) {
-        await tx.testOrder.update({
-          where: { id: order.id },
-          data: {
-            status: orderStatus as OrderStatus,
-            sampleCollectedAt:
-              sampleStatus === SampleStatus.COLLECTED ? order.sampleCollectedAt ?? now : order.sampleCollectedAt,
-            startedAt:
-              sampleStatus === SampleStatus.PROCESSING ? order.startedAt ?? now : order.startedAt,
-            completedAt:
-              sampleStatus === SampleStatus.DONE ? order.completedAt ?? now : order.completedAt,
+      if (sampleStatus === SampleStatus.COLLECTED) {
+        await tx.testOrder.updateMany({
+          where: {
+            id: { in: task.testOrderIds },
+            organizationId: actor.organizationId,
+            sampleCollectedAt: null,
           },
+          data: { sampleCollectedAt: now },
+        });
+      } else if (sampleStatus === SampleStatus.PROCESSING) {
+        await tx.testOrder.updateMany({
+          where: {
+            id: { in: task.testOrderIds },
+            organizationId: actor.organizationId,
+            startedAt: null,
+          },
+          data: { startedAt: now },
+        });
+      } else if (sampleStatus === SampleStatus.DONE) {
+        await tx.testOrder.updateMany({
+          where: {
+            id: { in: task.testOrderIds },
+            organizationId: actor.organizationId,
+            completedAt: null,
+          },
+          data: { completedAt: now },
         });
       }
     }
@@ -260,6 +271,9 @@ export async function updateSampleForLabTask(
 export async function saveLabResults(taskId: string, actor: LabActor, inputs: SaveResultInput[]) {
   assertLabScientist(actor);
   const task = await assertTaskOwnership(taskId, actor);
+  if (task.status === RoutingTaskStatus.COMPLETED || task.status === RoutingTaskStatus.CANCELLED) {
+    throw new Error("TASK_ALREADY_COMPLETED");
+  }
 
   const testOrderIds = new Set(task.testOrderIds);
   for (const input of inputs) {
@@ -358,22 +372,23 @@ export async function saveLabResults(taskId: string, actor: LabActor, inputs: Sa
         },
       });
 
-      await tx.testOrder.updateMany({
-        where: {
-          id: input.testOrderId,
-          organizationId: actor.organizationId,
-          status: {
-            notIn: [
-              OrderStatus.SUBMITTED_FOR_REVIEW,
-              OrderStatus.APPROVED,
-              OrderStatus.RELEASED,
-              OrderStatus.CANCELLED,
-            ],
-          },
-        },
-        data: { status: OrderStatus.RESULT_DRAFTED },
-      });
     }
+
+    await tx.testOrder.updateMany({
+      where: {
+        id: { in: finalInputs.map((item) => item.testOrderId) },
+        organizationId: actor.organizationId,
+        status: {
+          notIn: [
+            OrderStatus.SUBMITTED_FOR_REVIEW,
+            OrderStatus.APPROVED,
+            OrderStatus.RELEASED,
+            OrderStatus.CANCELLED,
+          ],
+        },
+      },
+      data: { status: OrderStatus.RESULT_DRAFTED },
+    });
 
     await tx.routingTask.updateMany({
       where: {
@@ -406,6 +421,9 @@ export async function submitLabTask(taskId: string, actor: LabActor) {
   assertLabScientist(actor);
   const task = await assertTaskOwnership(taskId, actor);
 
+  if (task.status === RoutingTaskStatus.COMPLETED) {
+    return;
+  }
   if (!canSubmitTask(task.status)) {
     throw new Error("TASK_ALREADY_COMPLETED");
   }
@@ -431,20 +449,21 @@ export async function submitLabTask(taskId: string, actor: LabActor) {
       data: { status: RoutingTaskStatus.COMPLETED },
     });
 
-    const orders = await tx.testOrder.findMany({
+    await tx.testOrder.updateMany({
       where: { id: { in: task.testOrderIds }, organizationId: actor.organizationId },
+      data: {
+        status: OrderStatus.SUBMITTED_FOR_REVIEW,
+        submittedAt: now,
+      },
     });
-
-    for (const order of orders) {
-      await tx.testOrder.update({
-        where: { id: order.id },
-        data: {
-          status: OrderStatus.SUBMITTED_FOR_REVIEW,
-          completedAt: order.completedAt ?? now,
-          submittedAt: now,
-        },
-      });
-    }
+    await tx.testOrder.updateMany({
+      where: {
+        id: { in: task.testOrderIds },
+        organizationId: actor.organizationId,
+        completedAt: null,
+      },
+      data: { completedAt: now },
+    });
   });
 
   await createAuditLog({
