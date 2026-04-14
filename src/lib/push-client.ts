@@ -10,8 +10,8 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 const FETCH_TIMEOUT_MS = 12_000;
-const SW_TIMEOUT_MS = 10_000;
-const SUBSCRIBE_TIMEOUT_MS = 10_000;
+const SW_TIMEOUT_MS = 20_000;
+const SUBSCRIBE_TIMEOUT_MS = 25_000;
 
 export function isPushSupported() {
   if (typeof window === "undefined") return false;
@@ -53,11 +53,19 @@ async function fetchWithTimeout(
 }
 
 async function getRegistration() {
-  return withTimeout(
+  const reg = await withTimeout(
     navigator.serviceWorker.register("/sw.js", { scope: "/" }),
     SW_TIMEOUT_MS,
     "service_worker_timeout"
   );
+  // Some Chromium variants (notably Opera builds) can delay activation.
+  // Waiting for navigator.serviceWorker.ready avoids early subscribe timeouts.
+  await withTimeout(
+    navigator.serviceWorker.ready.then(() => undefined),
+    SW_TIMEOUT_MS,
+    "service_worker_timeout"
+  );
+  return reg;
 }
 
 export async function getExistingPushSubscription() {
