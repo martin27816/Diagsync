@@ -12,6 +12,7 @@ import {
 } from "./notifications-core";
 import { isTaskDelayed, type TaskForMetrics } from "./hrm-monitoring-core";
 import { resolveEditNotificationTargets } from "./edit-versioning-core";
+import { dispatchPushForNotification } from "./push-notifications";
 
 export type NotificationActor = {
   id: string;
@@ -60,6 +61,48 @@ async function createManyNotifications(
       data,
       skipDuplicates: true,
     });
+    if (result.count > 0) {
+      const grouped = new Map<
+        string,
+        {
+          organizationId: string;
+          userIds: string[];
+          title: string;
+          message: string;
+          entityId?: string;
+          entityType?: string;
+        }
+      >();
+
+      for (const item of data) {
+        const key = [
+          item.organizationId,
+          item.title,
+          item.message,
+          item.entityId ?? "",
+          item.entityType ?? "",
+        ].join("|");
+        const existing = grouped.get(key);
+        if (existing) {
+          existing.userIds.push(item.userId);
+          continue;
+        }
+        grouped.set(key, {
+          organizationId: item.organizationId,
+          userIds: [item.userId],
+          title: item.title,
+          message: item.message,
+          entityId: item.entityId ?? undefined,
+          entityType: item.entityType ?? undefined,
+        });
+      }
+
+      await Promise.allSettled(
+        Array.from(grouped.values()).map((group) =>
+          dispatchPushForNotification(group)
+        )
+      );
+    }
     return result.count;
   } catch (error) {
     console.error(`[NOTIFY_CREATE_MANY_FAILED] context=${context} count=${data.length}`, error);
@@ -86,6 +129,14 @@ export async function sendNotification(input: SendNotificationInput) {
         user: { connect: { id: input.userId } },
         organizationId: input.organizationId,
       },
+    });
+    await dispatchPushForNotification({
+      organizationId: input.organizationId,
+      userIds: [input.userId],
+      title: input.title,
+      message: input.message,
+      entityId: input.entityId,
+      entityType: input.entityType,
     });
     return created;
   } catch (error: any) {

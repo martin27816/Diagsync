@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
+import { isPushSupported, subscribeToDevicePush } from "@/lib/push-client";
 
 type NotificationItem = {
   id: string; type: string; title: string; message: string;
@@ -33,6 +34,10 @@ export function NotificationBell({ role }: { role: string }) {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelayMsRef = useRef(1500);
   const streamRef = useRef<EventSource | null>(null);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>("default");
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
 
   function isVitalNotification(item: NotificationItem) {
     const alwaysVital = new Set([
@@ -188,7 +193,34 @@ export function NotificationBell({ role }: { role: string }) {
     await fetch("/api/notifications/read-all", { method: "PATCH" }).catch(() => null);
   }
 
+  async function refreshPushStatus() {
+    if (!isPushSupported()) {
+      setPushSupported(false);
+      return;
+    }
+    setPushSupported(true);
+    setPushPermission(Notification.permission);
+    const reg = await navigator.serviceWorker.getRegistration("/");
+    const sub = await reg?.pushManager.getSubscription();
+    setPushEnabled(Boolean(sub));
+  }
+
+  async function enableDevicePush() {
+    setPushLoading(true);
+    try {
+      const result = await subscribeToDevicePush();
+      setPushPermission(Notification.permission);
+      if (result.ok) {
+        setPushEnabled(true);
+      }
+    } finally {
+      setPushLoading(false);
+      await refreshPushStatus();
+    }
+  }
+
   useEffect(() => { void load(); }, []);
+  useEffect(() => { void refreshPushStatus(); }, []);
 
   useEffect(() => {
     const onUserGesture = () => {
@@ -336,9 +368,26 @@ export function NotificationBell({ role }: { role: string }) {
           </div>
 
           {/* Footer */}
+          {pushSupported && (
+            <div className="border-t border-slate-100 px-3 py-2">
+              {pushEnabled ? (
+                <p className="text-[11px] text-emerald-600">Device alerts enabled for this browser.</p>
+              ) : pushPermission === "denied" ? (
+                <p className="text-[11px] text-amber-600">Device alerts blocked in browser settings.</p>
+              ) : (
+                <button
+                  onClick={() => void enableDevicePush()}
+                  disabled={pushLoading}
+                  className="text-xs text-blue-600 hover:underline disabled:text-slate-400"
+                >
+                  {pushLoading ? "Enabling..." : "Enable device notifications"}
+                </button>
+              )}
+            </div>
+          )}
           <div className="border-t border-slate-100 px-3 py-2">
             <Link href={roleNotificationPath(role)} className="text-xs text-blue-600 hover:underline">
-              View all notifications →
+              View all notifications
             </Link>
           </div>
         </div>
