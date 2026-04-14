@@ -10,6 +10,7 @@ type OrgSettings = {
   contactInfo: string;
   logo: string;
   letterheadUrl: string;
+  consultationTimeoutMinutes: string;
 };
 
 const inputCls = "h-8 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -24,6 +25,7 @@ const emptySettings: OrgSettings = {
   contactInfo: "",
   logo: "",
   letterheadUrl: "",
+  consultationTimeoutMinutes: "10",
 };
 
 function getFriendlyFileName(url: string) {
@@ -75,6 +77,7 @@ export function LabSettingsForm() {
         contactInfo: json.data?.contactInfo ?? "",
         logo: json.data?.logo ?? "",
         letterheadUrl: json.data?.letterheadUrl ?? "",
+        consultationTimeoutMinutes: String(json.data?.consultationTimeoutMinutes ?? 10),
       };
       setSettings(next);
       setInitialSettings(next);
@@ -126,6 +129,10 @@ export function LabSettingsForm() {
         contactInfo: settings.contactInfo.trim() || null,
         logo: settings.logo.trim() || null,
         letterheadUrl: settings.letterheadUrl.trim() || null,
+        consultationTimeoutMinutes: Math.max(
+          1,
+          Math.min(120, Number.parseInt(settings.consultationTimeoutMinutes || "10", 10) || 10)
+        ),
       };
       const res = await fetch("/api/organization/settings", {
         method: "PATCH",
@@ -145,6 +152,9 @@ export function LabSettingsForm() {
         contactInfo: json.data?.contactInfo ?? payload.contactInfo ?? "",
         logo: json.data?.logo ?? payload.logo ?? "",
         letterheadUrl: json.data?.letterheadUrl ?? payload.letterheadUrl ?? "",
+        consultationTimeoutMinutes: String(
+          json.data?.consultationTimeoutMinutes ?? payload.consultationTimeoutMinutes
+        ),
       };
       setSettings(next);
       setInitialSettings(next);
@@ -213,6 +223,24 @@ export function LabSettingsForm() {
               onChange={(e) => setSettings((prev) => ({ ...prev, address: e.target.value }))}
               className={inputCls}
               placeholder="Full lab address"
+            />
+          </div>
+
+          <div>
+            <label className={labelCls}>Consultation Timer (minutes)</label>
+            <input
+              type="number"
+              min={1}
+              max={120}
+              value={settings.consultationTimeoutMinutes}
+              onChange={(e) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  consultationTimeoutMinutes: e.target.value,
+                }))
+              }
+              className={inputCls}
+              placeholder="10"
             />
           </div>
 

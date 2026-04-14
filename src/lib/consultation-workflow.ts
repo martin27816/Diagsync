@@ -45,11 +45,75 @@ function dayRange(date = new Date()) {
   return { start, end };
 }
 
+function normalizeConsultationTimeoutMinutes(value: number | null | undefined) {
+  if (!Number.isFinite(value)) return 10;
+  return Math.max(1, Math.min(120, Number(value)));
+}
+
+async function getConsultationTimeoutMinutes(organizationId: string) {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { consultationTimeoutMinutes: true },
+  });
+  return normalizeConsultationTimeoutMinutes(org?.consultationTimeoutMinutes);
+}
+
+async function autoExpireCalledConsultations(organizationId: string) {
+  const timeoutMinutes = await getConsultationTimeoutMinutes(organizationId);
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - timeoutMinutes * 60 * 1000);
+
+  const expired = await prisma.consultationQueue.findMany({
+    where: {
+      organizationId,
+      status: "CALLED",
+      calledAt: { lte: cutoff },
+    },
+    select: {
+      id: true,
+      fullName: true,
+      age: true,
+      calledAt: true,
+    },
+  });
+
+  if (expired.length === 0) return { expiredCount: 0, timeoutMinutes };
+
+  for (const item of expired) {
+    const updateResult = await prisma.consultationQueue.updateMany({
+      where: {
+        id: item.id,
+        organizationId,
+        status: "CALLED",
+      },
+      data: {
+        status: "CONSULTED",
+        consultedAt: now,
+      },
+    });
+    if (updateResult.count === 0) continue;
+
+    await sendNotificationToRoles({
+      organizationId,
+      roles: [Role.MD],
+      type: NotificationType.SYSTEM,
+      title: "Consultation Time Up",
+      message: `${item.fullName} (${item.age}y) reached ${timeoutMinutes} minutes and was auto-finished. Other patients may be waiting.`,
+      entityId: item.id,
+      entityType: "ConsultationQueue",
+      dedupeKeyPrefix: `consultation-time-up:${item.id}:${item.calledAt?.toISOString() ?? "unknown"}`,
+    });
+  }
+
+  return { expiredCount: expired.length, timeoutMinutes };
+}
+
 export async function listConsultationQueue(
   actor: ConsultationActor,
   opts?: { search?: string; date?: string; days?: number }
 ) {
   assertReceptionOrMd(actor.role);
+  const { timeoutMinutes } = await autoExpireCalledConsultations(actor.organizationId);
   const search = opts?.search?.trim() ?? "";
   const selectedDate =
     opts?.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : todayDayKey();
@@ -115,7 +179,13 @@ export async function listConsultationQueue(
     }),
   ]);
 
-  return { active, consultedToday, history, filters: { selectedDate, daysWindow, search } };
+  return {
+    active,
+    consultedToday,
+    history,
+    filters: { selectedDate, daysWindow, search },
+    settings: { consultationTimeoutMinutes: timeoutMinutes },
+  };
 }
 
 export async function addConsultationPatient(

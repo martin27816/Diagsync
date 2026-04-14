@@ -64,7 +64,9 @@ export function NotificationBell({ role }: { role: string }) {
     const message = (item.message ?? "").toLowerCase();
     if (title.includes("new consultation patient")) return true; // MD
     if (title.includes("patient requested by md")) return true; // Receptionist bring-in
+    if (title.includes("consultation time up")) return true; // MD timeout alert
     if (message.includes("bring in")) return true;
+    if (message.includes("other patients may be waiting")) return true;
     return false;
   }
 

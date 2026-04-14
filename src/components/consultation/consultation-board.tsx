@@ -25,6 +25,9 @@ type QueueResponse = {
   active: QueueItem[];
   consultedToday: QueueItem[];
   history: QueueItem[];
+  settings?: {
+    consultationTimeoutMinutes?: number;
+  };
 };
 
 const statusStyle: Record<ConsultationStatus, string> = {
@@ -50,12 +53,13 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
     return `${y}-${m}-${d}`;
   });
   const [days, setDays] = useState("14");
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const isReception = role === "RECEPTIONIST" || role === "SUPER_ADMIN";
   const isMd = role === "MD" || role === "SUPER_ADMIN";
 
-  async function loadQueue(opts?: { search?: string; date?: string; days?: string }) {
-    setLoading(true);
+  async function loadQueue(opts?: { search?: string; date?: string; days?: string; silent?: boolean }) {
+    if (!opts?.silent) setLoading(true);
     setError("");
     try {
       const query = new URLSearchParams({
@@ -73,13 +77,27 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
     } catch {
       setError("Network error while loading consultation queue");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }
 
   useEffect(() => {
     void loadQueue();
   }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const poll = window.setInterval(() => {
+      void loadQueue({ silent: true });
+    }, 15_000);
+    return () => window.clearInterval(poll);
+  }, [search, date, days]);
 
   function applyFilters() {
     void loadQueue({ search, date, days });
@@ -200,6 +218,22 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
   const waitingCount = useMemo(() => data.active.filter((item) => item.status === "WAITING").length, [data.active]);
   const calledCount = useMemo(() => data.active.filter((item) => item.status === "CALLED").length, [data.active]);
   const rowsInView = useMemo(() => data.active.length + data.history.length, [data.active.length, data.history.length]);
+  const consultationTimeoutMinutes = Math.max(
+    1,
+    Math.min(120, Number(data.settings?.consultationTimeoutMinutes ?? 10))
+  );
+
+  function formatCountdown(calledAt?: string | null) {
+    if (!calledAt) return "—";
+    const calledAtMs = new Date(calledAt).getTime();
+    if (!Number.isFinite(calledAtMs)) return "—";
+    const remainingMs = calledAtMs + consultationTimeoutMinutes * 60_000 - nowMs;
+    if (remainingMs <= 0) return "Time up";
+    const totalSeconds = Math.ceil(remainingMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
 
   return (
     <div className="space-y-4">
@@ -335,6 +369,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Receptionist</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Doctor</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Arrival Time</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Countdown</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Action</th>
               </tr>
             </thead>
@@ -357,6 +392,21 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                     {row.consultedBy?.fullName ?? row.calledBy?.fullName ?? "—"}
                   </td>
                   <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(row.arrivalAt)}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    {row.status === "CALLED" ? (
+                      <span
+                        className={`rounded px-1.5 py-0.5 font-medium ${
+                          formatCountdown(row.calledAt) === "Time up"
+                            ? "bg-rose-50 text-rose-700"
+                            : "bg-amber-50 text-amber-700"
+                        }`}
+                      >
+                        {formatCountdown(row.calledAt)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5">
                     {isMd ? (
                       <div className="flex gap-1.5">

@@ -16,6 +16,7 @@ const bodySchema = z.object({
   contactInfo: z.string().max(1000).optional().nullable(),
   logo: z.string().url().optional().nullable(),
   letterheadUrl: z.string().url().optional().nullable(),
+  consultationTimeoutMinutes: z.number().int().min(1).max(120).optional(),
 });
 
 function assertAdmin(role: string) {
@@ -81,6 +82,7 @@ export async function PATCH(req: NextRequest) {
         address: oldOrg.address,
         logo: oldOrg.logo,
         letterheadUrl: oldOrg.letterheadUrl,
+        consultationTimeoutMinutes: oldOrg.consultationTimeoutMinutes,
       },
       newValue: {
         name: updated.name,
@@ -88,6 +90,7 @@ export async function PATCH(req: NextRequest) {
         address: updated.address,
         logo: updated.logo,
         letterheadUrl: updated.letterheadUrl,
+        consultationTimeoutMinutes: updated.consultationTimeoutMinutes,
       },
       changes: {
         before: oldOrg,

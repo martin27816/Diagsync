@@ -173,6 +173,7 @@ model Organization {
   logo      String?
   contactInfo String?
   letterheadUrl String?
+  consultationTimeoutMinutes Int @default(10)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
