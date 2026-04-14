@@ -155,6 +155,29 @@ export async function subscribeToDevicePush() {
         "subscribe_timeout"
       );
     } catch (error) {
+      // Chromium-family browsers (including Opera) can keep a stale key-bound
+      // subscription and throw until we explicitly recreate it.
+      try {
+        const stale = await registration.pushManager.getSubscription();
+        if (stale) {
+          await stale.unsubscribe().catch(() => null);
+          subscription = await withTimeout(
+            registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(publicKey),
+            }),
+            SUBSCRIBE_TIMEOUT_MS,
+            "subscribe_timeout"
+          );
+        }
+      } catch {
+        // Fall through to generic error mapping below.
+      }
+      if (subscription) {
+        const retrySync = await syncPushSubscriptionWithServer(subscription);
+        if (!retrySync.ok) return retrySync;
+        return { ok: true as const };
+      }
       if (error instanceof Error && error.message === "subscribe_timeout") {
         return { ok: false as const, reason: "subscribe_timeout" as const };
       }

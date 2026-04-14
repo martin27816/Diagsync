@@ -201,7 +201,7 @@ export function NotificationBell({ role }: { role: string }) {
     await fetch("/api/notifications/read-all", { method: "PATCH" }).catch(() => null);
   }
 
-  async function refreshPushStatus() {
+  async function refreshPushStatus(opts?: { keepError?: boolean }) {
     try {
       if (!isPushSupported()) {
         setPushSupported(false);
@@ -213,7 +213,7 @@ export function NotificationBell({ role }: { role: string }) {
       const sub = await getExistingPushSubscription();
       if (!sub) {
         setPushEnabled(false);
-        setPushError("");
+        if (!opts?.keepError) setPushError("");
         return;
       }
       const sync = await syncPushSubscriptionWithServer(sub);
@@ -277,10 +277,12 @@ export function NotificationBell({ role }: { role: string }) {
   async function enableDevicePush() {
     setPushLoading(true);
     setPushError("");
+    let enabled = false;
     try {
       const result = await subscribeToDevicePush();
       setPushPermission(Notification.permission);
       if (result.ok) {
+        enabled = true;
         setPushEnabled(true);
         setPushError("");
       } else {
@@ -292,7 +294,7 @@ export function NotificationBell({ role }: { role: string }) {
       setPushError("Could not enable device notifications right now.");
     } finally {
       setPushLoading(false);
-      await refreshPushStatus();
+      await refreshPushStatus({ keepError: !enabled });
     }
   }
 
