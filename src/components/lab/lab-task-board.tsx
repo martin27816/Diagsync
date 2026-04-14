@@ -176,6 +176,7 @@ type OrderResultCardProps = {
   draft: Draft;
   highlightFields: string[];
   isReady: boolean;
+  suppressSensitivityField?: boolean;
   onPersist: (task: LabTask) => Promise<void>;
   onSetFieldValue: (testOrderId: string, fieldKey: string, value: unknown) => void;
   onSetNotes: (testOrderId: string, value: string) => void;
@@ -192,6 +193,7 @@ const OrderResultCard = memo(function OrderResultCard({
   draft,
   highlightFields,
   isReady,
+  suppressSensitivityField = false,
   onPersist,
   onSetFieldValue,
   onSetNotes,
@@ -234,6 +236,7 @@ const OrderResultCard = memo(function OrderResultCard({
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 mt-3">
         {visibleDefaultFields.map((field) => {
+          if (suppressSensitivityField && isSensitivityFieldKey(field.fieldKey)) return null;
           const value = draft.values?.[field.fieldKey];
           const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
           const highlight = highlightKey.has(field.fieldKey);
@@ -868,6 +871,118 @@ export function LabTaskBoard() {
     return sampleStatus === "PROCESSING" || sampleStatus === "DONE" || task.status === "COMPLETED";
   }
 
+  function renderSharedSensitivityPanel(task: LabTask) {
+    const sensitivityOrders = task.testOrders.filter((order) =>
+      order.test.resultFields.some((field) => isSensitivityFieldKey(field.fieldKey))
+    );
+    if (sensitivityOrders.length <= 1) return null;
+
+    const primaryOrder = sensitivityOrders[0];
+    const sharedRaw = getSharedSensitivity(task);
+    const cells = parseSensitivityPattern(sharedRaw);
+    const testNames = sensitivityOrders.map((order) => order.test.name).join(", ");
+
+    const updateCell = (index: number, next: Partial<SensitivityCell>) => {
+      const updated = cells.map((cell, cellIndex) =>
+        cellIndex === index ? { ...cell, ...next } : cell
+      );
+      setDraftFieldValue(primaryOrder.id, "sensitivity", serializeSensitivityPattern(updated));
+    };
+    const addRow = () => {
+      const updated = [...cells, { antibiotic: "", zone: "", interpretation: "" }];
+      setDraftFieldValue(primaryOrder.id, "sensitivity", serializeSensitivityPattern(updated));
+    };
+    const removeRow = (index: number) => {
+      if (cells.length <= 1) return;
+      const updated = cells.filter((_, cellIndex) => cellIndex !== index);
+      setDraftFieldValue(primaryOrder.id, "sensitivity", serializeSensitivityPattern(updated));
+    };
+
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <label className="block text-[11px] font-medium text-slate-500">
+            Sensitivity Pattern (Shared)
+          </label>
+          <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] text-blue-700">
+            Applies to: {testNames}
+          </span>
+        </div>
+        <div className="rounded border border-slate-200 bg-white p-2">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-[11px]">
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Antibiotic</th>
+                  <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Value (+/2+/3+)</th>
+                  <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">S / R / I</th>
+                  <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cells.map((cell, index) => (
+                  <tr key={`${cell.antibiotic}-${index}`}>
+                    <td className="border border-slate-200 p-1.5">
+                      <input
+                        value={cell.antibiotic}
+                        onBlur={() => void persistDraft(task).catch(() => undefined)}
+                        onChange={(e) => updateCell(index, { antibiotic: e.target.value })}
+                        className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Antibiotic name"
+                      />
+                    </td>
+                    <td className="border border-slate-200 p-1.5">
+                      <input
+                        value={cell.zone}
+                        onBlur={() => void persistDraft(task).catch(() => undefined)}
+                        onChange={(e) => updateCell(index, { zone: e.target.value })}
+                        className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="+ / 2+ / 3+ / 20mm"
+                      />
+                    </td>
+                    <td className="border border-slate-200 p-1.5">
+                      <select
+                        value={cell.interpretation}
+                        onBlur={() => void persistDraft(task).catch(() => undefined)}
+                        onChange={(e) => updateCell(index, { interpretation: e.target.value })}
+                        className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">-</option>
+                        <option value="S">S</option>
+                        <option value="R">R</option>
+                        <option value="I">I</option>
+                      </select>
+                    </td>
+                    <td className="border border-slate-200 p-1.5">
+                      <button
+                        type="button"
+                        onClick={() => removeRow(index)}
+                        disabled={cells.length <= 1}
+                        className="rounded border border-red-200 px-2 py-1 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-2 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={addRow}
+              className="rounded border border-blue-200 px-2 py-1 text-[11px] text-blue-700 hover:bg-blue-50"
+            >
+              Add antibiotic
+            </button>
+            <p className="text-[10px] text-slate-500">Note: S = Sensitivity, R = Resistance, I = Intermediate</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function updateDraft(testOrderId: string, updater: (prev: Draft) => Draft) {
     setDrafts((prev) => {
       const current = prev[testOrderId] ?? createEmptyDraft();
@@ -1227,6 +1342,10 @@ export function LabTaskBoard() {
             <tbody className="divide-y divide-slate-100">
               {filtered.map((task) => {
                 const highlightFields = getHighlightFields(task);
+                const shouldUseSharedSensitivityPanel =
+                  task.testOrders.filter((order) =>
+                    order.test.resultFields.some((field) => isSensitivityFieldKey(field.fieldKey))
+                  ).length > 1;
                 return (
                   <Fragment key={task.id}>
                     <tr id={`lab-task-row-${task.id}`} key={task.id} className={`hover:bg-slate-50 transition-colors ${expandedTask === task.id ? "bg-blue-50/30" : ""}`}>
@@ -1375,6 +1494,7 @@ export function LabTaskBoard() {
                                 )}
                               </div>
                             </div>
+                            {shouldUseSharedSensitivityPanel ? renderSharedSensitivityPanel(task) : null}
                             {task.testOrders.map((order) => (
                               <OrderResultCard
                                 key={order.id}
@@ -1383,6 +1503,7 @@ export function LabTaskBoard() {
                                 draft={drafts[order.id] ?? createEmptyDraft()}
                                 highlightFields={highlightFields}
                                 isReady={isOrderReady(task, order)}
+                                suppressSensitivityField={shouldUseSharedSensitivityPanel}
                                 onPersist={persistDraft}
                                 onSetFieldValue={setDraftFieldValue}
                                 onSetNotes={setDraftNotesValue}
