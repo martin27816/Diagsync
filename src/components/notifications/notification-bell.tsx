@@ -73,7 +73,7 @@ export function NotificationBell({ role }: { role: string }) {
         osc.type = "square";
         osc.frequency.value = frequency;
         gain.gain.setValueAtTime(0.0001, at);
-        gain.gain.exponentialRampToValueAtTime(0.42, at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.75, at + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -84,6 +84,10 @@ export function NotificationBell({ role }: { role: string }) {
       scheduleBeep(start, 0.22, 950);
       scheduleBeep(start + 0.28, 0.22, 1150);
       scheduleBeep(start + 0.56, 0.28, 950);
+      const repeat = start + 1.05;
+      scheduleBeep(repeat, 0.22, 950);
+      scheduleBeep(repeat + 0.28, 0.22, 1150);
+      scheduleBeep(repeat + 0.56, 0.28, 950);
     } catch {
       // best-effort only
     }
