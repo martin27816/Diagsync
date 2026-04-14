@@ -114,7 +114,11 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
       .filter((result) => result.testOrder.test.department === Department.LABORATORY)
       .map((result) => {
         const currentData = (result.versions[0]?.resultData ?? result.resultData ?? {}) as Record<string, any>;
-        if (!signOff) signOff = extractSignOffFromMap(currentData);
+        if (!signOff) {
+          const activeVersionData = (result.versions[0]?.resultData ?? {}) as Record<string, unknown>;
+          const baseResultData = (result.resultData ?? {}) as Record<string, unknown>;
+          signOff = extractSignOffFromMap(activeVersionData) ?? extractSignOffFromMap(baseResultData);
+        }
         const rows = result.testOrder.test.resultFields.map((field) => ({
           name: field.label,
           value: currentData[field.fieldKey] ?? "",

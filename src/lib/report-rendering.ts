@@ -30,6 +30,10 @@ type RenderArgs = {
 
 export function renderReportHtml(args: RenderArgs) {
   const hasLetterhead = Boolean(args.includeLetterhead !== false && args.organization.letterheadUrl);
+  const pageHeightPx = 1123;
+  const pageWidthPx = 794;
+  const contentTopPx = hasLetterhead ? 252 : 148;
+  const contentBottomPx = hasLetterhead ? 156 : 92;
   const patient = args.content.patient ?? {};
   const meta = args.content.meta ?? {};
   const tests = Array.isArray(args.content.tests) ? args.content.tests : [];
@@ -124,15 +128,16 @@ export function renderReportHtml(args: RenderArgs) {
     }
     .page {
       position: relative;
-      width: 794px;
-      max-width: 794px;
-      min-height: 1123px;
+      width: ${pageWidthPx}px;
+      max-width: ${pageWidthPx}px;
+      height: ${pageHeightPx}px;
       margin: 0 auto;
       box-sizing: border-box;
-      padding: ${hasLetterhead ? "340px 44px 90px" : "170px 44px 90px"};
+      padding: ${contentTopPx}px 44px ${contentBottomPx}px;
       background: #ffffff;
-      --wm-top-offset: ${hasLetterhead ? "160px" : "88px"};
-      --wm-bottom-offset: 118px;
+      overflow: hidden;
+      --wm-top-offset: ${hasLetterhead ? "132px" : "82px"};
+      --wm-bottom-offset: ${hasLetterhead ? "140px" : "108px"};
     }
     .letterhead-layer {
       position: absolute;
@@ -171,10 +176,17 @@ export function renderReportHtml(args: RenderArgs) {
       position: relative;
       z-index: 2;
       max-width: 760px;
+      height: 100%;
       margin: 0 auto;
-      padding: 18px 22px;
+      padding: 14px 18px;
       background: ${hasLetterhead ? "#ffffff" : "rgba(255, 255, 255, 0.93)"};
       border-radius: 8px;
+      overflow: hidden;
+    }
+    .fit-root {
+      width: 100%;
+      transform-origin: top left;
+      will-change: transform;
     }
     .content { position: relative; z-index: 2; }
     .header { margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
@@ -183,9 +195,9 @@ export function renderReportHtml(args: RenderArgs) {
     h3 { margin: 8px 0; font-size: 14px; }
     p { margin: 4px 0; font-size: 13px; }
     .meta-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-    .block { margin-bottom: 14px; break-inside: avoid; }
+    .block { margin-bottom: 10px; break-inside: avoid; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { border: 1px solid #d1d5db; padding: 6px; text-align: left; vertical-align: top; }
+    th, td { border: 1px solid #d1d5db; padding: 5px; text-align: left; vertical-align: top; }
     th { background: #f3f4f6; }
     .footer-note { margin-top: 18px; font-size: 12px; }
     .signature-block {
@@ -266,8 +278,9 @@ export function renderReportHtml(args: RenderArgs) {
            <div class="watermark watermark-bottom-right"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>`
         : ""
     }
-    <div class="content-shell">
-    <div class="content">
+    <div class="content-shell" id="content-shell">
+    <div class="fit-root" id="fit-root">
+    <div class="content" id="fit-content">
       <h2>${args.department === Department.LABORATORY ? "Laboratory Report" : "Radiology Report"}</h2>
       <div class="meta-grid">
         <p><strong>Patient:</strong> ${escapeHtml(String(patient.fullName ?? "-"))}</p>
@@ -323,7 +336,39 @@ export function renderReportHtml(args: RenderArgs) {
       }
     </div>
     </div>
+    </div>
   </main>
+  <script>
+    (function () {
+      var shell = document.getElementById("content-shell");
+      var root = document.getElementById("fit-root");
+      var content = document.getElementById("fit-content");
+      if (!shell || !root || !content) return;
+
+      function fitToSinglePage() {
+        root.style.transform = "scale(1)";
+        root.style.width = "100%";
+        var available = shell.clientHeight;
+        var actual = content.scrollHeight;
+        if (!available || !actual) return;
+
+        if (actual <= available) return;
+
+        var scale = available / actual;
+        var minScale = 0.72;
+        if (scale < minScale) scale = minScale;
+        if (scale > 1) scale = 1;
+
+        root.style.transform = "scale(" + scale + ")";
+        root.style.width = (100 / scale) + "%";
+      }
+
+      window.addEventListener("load", fitToSinglePage);
+      window.addEventListener("resize", fitToSinglePage);
+      window.addEventListener("beforeprint", fitToSinglePage);
+      fitToSinglePage();
+    })();
+  </script>
 </body>
 </html>
   `.trim();
