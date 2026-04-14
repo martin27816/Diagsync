@@ -10,6 +10,12 @@ function escapeHtml(input: string) {
     .replaceAll("'", "&#039;");
 }
 
+function hasRenderableValue(value: unknown) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "number" || typeof value === "boolean") return true;
+  return String(value).trim().length > 0;
+}
+
 type RenderArgs = {
   organization: {
     name: string;
@@ -36,6 +42,7 @@ export function renderReportHtml(args: RenderArgs) {
   const contentBottomPx = hasLetterhead ? 156 : 92;
   const patient = args.content.patient ?? {};
   const meta = args.content.meta ?? {};
+  const referringDoctor = String(meta.referringDoctor ?? "").trim();
   const tests = Array.isArray(args.content.tests) ? args.content.tests : [];
   const safeLabTests = tests.filter((test: any) => Array.isArray(test?.rows));
   const safeRadiologyTests = tests.filter((test: any) => !Array.isArray(test?.rows));
@@ -52,7 +59,10 @@ export function renderReportHtml(args: RenderArgs) {
     args.department === Department.LABORATORY
       ? safeLabTests
           .map((test: any) => {
-            const rows = Array.isArray(test.rows) ? test.rows : [];
+            const rows = (Array.isArray(test.rows) ? test.rows : []).filter((row: any) =>
+              hasRenderableValue(row?.value)
+            );
+            if (rows.length === 0) return "";
             const rowHtml = rows
               .map(
                 (row: any) => `
@@ -289,7 +299,7 @@ export function renderReportHtml(args: RenderArgs) {
         <p><strong>Visit No:</strong> ${escapeHtml(String(meta.visitNumber ?? "-"))}</p>
         <p><strong>Visit Date:</strong> ${escapeHtml(String(meta.visitDate ?? "-"))}</p>
         <p><strong>Report Date:</strong> ${escapeHtml(String(meta.reportDate ?? "-"))}</p>
-        <p><strong>Referring Doctor:</strong> ${escapeHtml(String(meta.referringDoctor ?? "-"))}</p>
+        ${referringDoctor ? `<p><strong>Referring Doctor:</strong> ${escapeHtml(referringDoctor)}</p>` : ""}
       </div>
       ${
         args.department === Department.RADIOLOGY && imagingFiles.length

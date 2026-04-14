@@ -26,8 +26,13 @@ export function NotificationBell({ role }: { role: string }) {
   const [data, setData] = useState<NotificationResponse>({ items: [], unreadCount: 0, nextCursor: null });
   const ref = useRef<HTMLDivElement>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
+  const playedVitalIdsRef = useRef<Set<string>>(new Set());
+  const pendingVitalIdsRef = useRef<Set<string>>(new Set());
   const initializedRef = useRef(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectDelayMsRef = useRef(1500);
+  const streamRef = useRef<EventSource | null>(null);
 
   function isVitalNotification(item: NotificationItem) {
     const alwaysVital = new Set([
@@ -65,6 +70,10 @@ export function NotificationBell({ role }: { role: string }) {
       }
       const ctx = audioCtxRef.current;
       if (!ctx) return;
+      if (ctx.state === "suspended") {
+        void ctx.resume();
+      }
+      if (ctx.state !== "running") return;
 
       const start = ctx.currentTime + 0.01;
       const scheduleBeep = (at: number, duration: number, frequency: number) => {
@@ -88,8 +97,51 @@ export function NotificationBell({ role }: { role: string }) {
       scheduleBeep(repeat, 0.22, 950);
       scheduleBeep(repeat + 0.28, 0.22, 1150);
       scheduleBeep(repeat + 0.56, 0.28, 950);
+      return true;
     } catch {
       // best-effort only
+      return false;
+    }
+  }
+
+  function enqueuePendingVital(ids: string[]) {
+    for (const id of ids) {
+      if (!id || playedVitalIdsRef.current.has(id)) continue;
+      pendingVitalIdsRef.current.add(id);
+    }
+  }
+
+  function flushPendingVitalAlerts() {
+    if (pendingVitalIdsRef.current.size === 0) return;
+    const ok = playVitalAlert();
+    if (!ok) return;
+    for (const id of Array.from(pendingVitalIdsRef.current)) {
+      playedVitalIdsRef.current.add(id);
+    }
+    pendingVitalIdsRef.current.clear();
+  }
+
+  function unlockAudio() {
+    try {
+      const AudioCtor =
+        typeof window !== "undefined"
+          ? ((window as any).AudioContext || (window as any).webkitAudioContext)
+          : null;
+      if (!AudioCtor) return;
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new AudioCtor();
+      }
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === "suspended") {
+        void ctx.resume().finally(() => {
+          flushPendingVitalAlerts();
+        });
+      } else {
+        flushPendingVitalAlerts();
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -100,12 +152,24 @@ export function NotificationBell({ role }: { role: string }) {
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "Failed"); return; }
       const nextData = json.data as NotificationResponse;
-      const nextIds = new Set(nextData.items.map((item) => item.id));
       const newItems = nextData.items.filter((item) => !seenIdsRef.current.has(item.id));
-      if (initializedRef.current && newItems.some((item) => !item.isRead && isVitalNotification(item))) {
-        playVitalAlert();
+      const vitalNewUnreadIds = newItems
+        .filter((item) => !item.isRead && isVitalNotification(item))
+        .map((item) => item.id);
+      if (initializedRef.current && vitalNewUnreadIds.length > 0) {
+        const unplayed = vitalNewUnreadIds.filter((id) => !playedVitalIdsRef.current.has(id));
+        if (unplayed.length > 0) {
+          enqueuePendingVital(unplayed);
+          flushPendingVitalAlerts();
+        }
       }
-      seenIdsRef.current = nextIds;
+      for (const item of nextData.items) {
+        seenIdsRef.current.add(item.id);
+      }
+      if (seenIdsRef.current.size > 500) {
+        const trimmed = Array.from(seenIdsRef.current).slice(-350);
+        seenIdsRef.current = new Set(trimmed);
+      }
       initializedRef.current = true;
       setData(nextData);
     } catch { setError("Failed to load"); }
@@ -127,16 +191,89 @@ export function NotificationBell({ role }: { role: string }) {
   useEffect(() => { void load(); }, []);
 
   useEffect(() => {
+    const onUserGesture = () => {
+      unlockAudio();
+    };
+    window.addEventListener("pointerdown", onUserGesture, { passive: true });
+    window.addEventListener("keydown", onUserGesture);
+    window.addEventListener("touchstart", onUserGesture, { passive: true });
+    return () => {
+      window.removeEventListener("pointerdown", onUserGesture);
+      window.removeEventListener("keydown", onUserGesture);
+      window.removeEventListener("touchstart", onUserGesture);
+    };
+  }, []);
+
+  useEffect(() => {
     function handleClickOutside(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   useEffect(() => {
-    const stream = new EventSource("/api/notifications/stream");
-    stream.addEventListener("notification", () => { void load(); });
-    stream.addEventListener("error", () => { stream.close(); });
-    return () => stream.close();
+    let cancelled = false;
+
+    const cleanupReconnect = () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+    };
+
+    const connect = () => {
+      if (cancelled) return;
+      cleanupReconnect();
+      if (streamRef.current) {
+        streamRef.current.close();
+        streamRef.current = null;
+      }
+      const stream = new EventSource("/api/notifications/stream");
+      streamRef.current = stream;
+
+      stream.addEventListener("ready", () => {
+        reconnectDelayMsRef.current = 1500;
+      });
+      stream.addEventListener("notification", () => {
+        reconnectDelayMsRef.current = 1500;
+        void load();
+      });
+      stream.addEventListener("error", () => {
+        stream.close();
+        if (cancelled) return;
+        const delay = reconnectDelayMsRef.current;
+        reconnectDelayMsRef.current = Math.min(15_000, Math.floor(delay * 1.7));
+        reconnectTimerRef.current = setTimeout(() => {
+          connect();
+        }, delay);
+      });
+    };
+
+    connect();
+    return () => {
+      cancelled = true;
+      cleanupReconnect();
+      if (streamRef.current) {
+        streamRef.current.close();
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const visibilityHandler = () => {
+      if (document.visibilityState === "visible") {
+        void load();
+        flushPendingVitalAlerts();
+      }
+    };
+    document.addEventListener("visibilitychange", visibilityHandler);
+    const poll = window.setInterval(() => {
+      void load();
+    }, 20_000);
+    return () => {
+      document.removeEventListener("visibilitychange", visibilityHandler);
+      window.clearInterval(poll);
+    };
   }, []);
 
   const unreadBadge = useMemo(() => {
