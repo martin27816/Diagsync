@@ -16,6 +16,256 @@ function hasRenderableValue(value: unknown) {
   return String(value).trim().length > 0;
 }
 
+type LabRenderRow = {
+  name: string;
+  value: string;
+  unit: string;
+  reference: string;
+};
+
+type LabRenderTest = {
+  name: string;
+  rows: LabRenderRow[];
+};
+
+type SensitivityEntry = {
+  antibiotic: string;
+  zone: string;
+  interpretation: string;
+};
+
+function normalizeToken(input: string) {
+  return input.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function isSensitivityRow(rowName: string) {
+  return normalizeToken(rowName).includes("sensitivity");
+}
+
+function isCultureRow(rowName: string) {
+  const token = normalizeToken(rowName);
+  return token.includes("culture");
+}
+
+function isMicroscopyRow(rowName: string) {
+  const token = normalizeToken(rowName);
+  return (
+    token.includes("wbc") ||
+    token.includes("pus") ||
+    token.includes("epithelial") ||
+    token.includes("bacterial") ||
+    token.includes("yeast")
+  );
+}
+
+function parseSensitivityEntries(rawValue: string): SensitivityEntry[] {
+  const text = rawValue.trim();
+  if (!text) return [];
+
+  const lines = text
+    .split(/\r?\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const parsed = lines
+    .map((line) => {
+      const cleanLine = line.replace(/\s+/g, " ").trim();
+      const interpretationMatch = cleanLine.match(/\b(S|R|I)\b/i);
+      const zoneMatch = cleanLine.match(/\b(\d+\+|\+\+\+|\+\+|\+|\d+(?:\.\d+)?\s*mm)\b/i);
+
+      let antibiotic = cleanLine;
+      const colonIdx = cleanLine.indexOf(":");
+      if (colonIdx > 0) {
+        antibiotic = cleanLine.slice(0, colonIdx).trim();
+      } else if (interpretationMatch?.index !== undefined) {
+        antibiotic = cleanLine.slice(0, interpretationMatch.index).trim();
+      } else if (zoneMatch?.index !== undefined) {
+        antibiotic = cleanLine.slice(0, zoneMatch.index).trim();
+      }
+
+      antibiotic = antibiotic.replace(/[-–:,]+$/g, "").trim();
+
+      return {
+        antibiotic,
+        zone: zoneMatch?.[1]?.trim() ?? "",
+        interpretation: interpretationMatch?.[1]?.toUpperCase() ?? "",
+      };
+    })
+    .filter((item) => item.antibiotic.length > 0);
+
+  if (parsed.length > 0) return parsed;
+
+  return text
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((antibiotic) => ({ antibiotic, zone: "", interpretation: "" }));
+}
+
+function renderGenericLabSection(test: LabRenderTest) {
+  const rows = test.rows.filter((row) => hasRenderableValue(row.value));
+  if (rows.length === 0) return "";
+
+  const rowHtml = rows
+    .map(
+      (row) => `
+        <tr>
+          <td>${escapeHtml(row.name)}</td>
+          <td>${escapeHtml(row.value)}</td>
+          <td>${escapeHtml(row.unit)}</td>
+          <td>${escapeHtml(row.reference)}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  return `
+    <section class="block">
+      <h3>${escapeHtml(test.name || "Laboratory Test")}</h3>
+      <table>
+        <thead>
+          <tr><th>Parameter</th><th>Result</th><th>Unit</th><th>Reference</th></tr>
+        </thead>
+        <tbody>${rowHtml}</tbody>
+      </table>
+    </section>
+  `;
+}
+
+function renderMicroCultureSensitivitySection(tests: LabRenderTest[]) {
+  if (tests.length === 0) return "";
+
+  const specimenColumns = tests.map((test) => ({
+    label: test.name?.trim() || "SPECIMEN",
+    rows: test.rows,
+  }));
+
+  const preferredMicroscopyRows = [
+    "WBC/PUS cells/HPF",
+    "Epithelial cells",
+    "Bacterial cells",
+    "Yeast cells",
+  ];
+
+  const microscopyLabelMap = new Map<string, string>();
+  for (const label of preferredMicroscopyRows) {
+    microscopyLabelMap.set(normalizeToken(label), label);
+  }
+
+  for (const test of specimenColumns) {
+    for (const row of test.rows) {
+      if (!isMicroscopyRow(row.name)) continue;
+      const token = normalizeToken(row.name);
+      if (!microscopyLabelMap.has(token)) {
+        microscopyLabelMap.set(token, row.name);
+      }
+    }
+  }
+
+  const microscopyRows = Array.from(microscopyLabelMap.entries());
+  const microscopyHtmlRows = microscopyRows
+    .map(([token, label]) => {
+      const values = specimenColumns
+        .map((test) => {
+          const found = test.rows.find((row) => normalizeToken(row.name) === token);
+          return escapeHtml(found?.value ?? "-");
+        })
+        .map((value) => `<td>${value}</td>`)
+        .join("");
+      return `<tr><td>${escapeHtml(label)}</td>${values}</tr>`;
+    })
+    .join("");
+
+  const cultureLines = specimenColumns
+    .map((test) => {
+      const cultureRows = test.rows.filter(
+        (row) => isCultureRow(row.name) && !isSensitivityRow(row.name) && hasRenderableValue(row.value)
+      );
+      if (cultureRows.length === 0) return "";
+      const summary = cultureRows.map((row) => row.value).join(" ").trim();
+      if (!summary) return "";
+      return `<p><strong>${escapeHtml(test.label)}:</strong> ${escapeHtml(summary)}</p>`;
+    })
+    .filter(Boolean)
+    .join("");
+
+  const sensitivityRaw =
+    specimenColumns
+      .map((test) => test.rows.find((row) => isSensitivityRow(row.name))?.value ?? "")
+      .find((value) => value.trim().length > 0) ?? "";
+
+  const sensitivityEntries = parseSensitivityEntries(sensitivityRaw);
+  const sensitivityHtml =
+    sensitivityEntries.length > 0
+      ? `
+        <section class="block sensitivity-block">
+          <h3 class="sensitivity-title">SENSITIVITY</h3>
+          <div class="sensitivity-wrap">
+            <table class="sensitivity-table">
+              <thead>
+                <tr>
+                  <th class="sens-row-title"> </th>
+                  ${sensitivityEntries
+                    .map(
+                      (item) =>
+                        `<th class="sens-drug"><span>${escapeHtml(item.antibiotic)}</span></th>`
+                    )
+                    .join("")}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th class="sens-row-title">Value</th>
+                  ${sensitivityEntries
+                    .map((item) => `<td>${escapeHtml(item.zone || "-")}</td>`)
+                    .join("")}
+                </tr>
+                <tr>
+                  <th class="sens-row-title">Result</th>
+                  ${sensitivityEntries
+                    .map((item) => `<td class="sens-result">${escapeHtml(item.interpretation || "-")}</td>`)
+                    .join("")}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="sensitivity-note"><strong>Note:</strong> S = Sensitivity, R = Resistance, I = Intermediate</p>
+        </section>
+      `
+      : "";
+
+  const microscopyTable =
+    microscopyHtmlRows.length > 0
+      ? `
+        <section class="block">
+          <h3>MICROSCOPY CULTURE AND SENSITIVITY</h3>
+          <table class="mcs-table">
+            <thead>
+              <tr>
+                <th>SPECIMEN</th>
+                ${specimenColumns.map((test) => `<th>${escapeHtml(test.label)}</th>`).join("")}
+              </tr>
+            </thead>
+            <tbody>
+              ${microscopyHtmlRows}
+            </tbody>
+          </table>
+        </section>
+      `
+      : "";
+
+  const cultureHtml = cultureLines
+    ? `
+      <section class="block culture-report">
+        <p><strong>CULTURE (S) REPORT</strong></p>
+        ${cultureLines}
+      </section>
+    `
+    : "";
+
+  return `${microscopyTable}${cultureHtml}${sensitivityHtml}`;
+}
+
 type RenderArgs = {
   organization: {
     name: string;
@@ -57,38 +307,36 @@ export function renderReportHtml(args: RenderArgs) {
 
   const testsHtml =
     args.department === Department.LABORATORY
-      ? safeLabTests
-          .map((test: any) => {
-            const rows = (Array.isArray(test.rows) ? test.rows : []).filter((row: any) =>
-              hasRenderableValue(row?.value)
-            );
-            if (rows.length === 0) return "";
-            const rowHtml = rows
-              .map(
-                (row: any) => `
-                  <tr>
-                    <td>${escapeHtml(String(row.name ?? ""))}</td>
-                    <td>${escapeHtml(String(row.value ?? ""))}</td>
-                    <td>${escapeHtml(String(row.unit ?? ""))}</td>
-                    <td>${escapeHtml(String(row.reference ?? ""))}</td>
-                  </tr>
-                `
-              )
-              .join("");
+      ? (() => {
+          const normalizedLabTests: LabRenderTest[] = safeLabTests.map((test: any) => ({
+            name: String(test?.name ?? "Laboratory Test"),
+            rows: (Array.isArray(test?.rows) ? test.rows : []).map((row: any) => ({
+              name: String(row?.name ?? ""),
+              value: String(row?.value ?? ""),
+              unit: String(row?.unit ?? ""),
+              reference: String(row?.reference ?? ""),
+            })),
+          }));
 
-            return `
-              <section class="block">
-                <h3>${escapeHtml(String(test.name ?? "Laboratory Test"))}</h3>
-                <table>
-                  <thead>
-                    <tr><th>Parameter</th><th>Result</th><th>Unit</th><th>Reference</th></tr>
-                  </thead>
-                  <tbody>${rowHtml}</tbody>
-                </table>
-              </section>
-            `;
-          })
-          .join("")
+          const microCultureTests = normalizedLabTests.filter((test) => {
+            const title = normalizeToken(test.name);
+            if (title.includes("m c s") || title.includes("culture") || title.includes("sensitivity")) {
+              return true;
+            }
+            return test.rows.some(
+              (row) => isSensitivityRow(row.name) || isCultureRow(row.name) || isMicroscopyRow(row.name)
+            );
+          });
+
+          const microCultureHtml = renderMicroCultureSensitivitySection(microCultureTests);
+          const renderedMicroCulture = new Set(microCultureTests);
+          const genericHtml = normalizedLabTests
+            .filter((test) => !renderedMicroCulture.has(test))
+            .map((test) => renderGenericLabSection(test))
+            .join("");
+
+          return `${microCultureHtml}${genericHtml}`;
+        })()
       : safeRadiologyTests
           .map(
             (test: any) => `
@@ -209,6 +457,43 @@ export function renderReportHtml(args: RenderArgs) {
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { border: 1px solid #d1d5db; padding: 5px; text-align: left; vertical-align: top; }
     th { background: #f3f4f6; }
+    .mcs-table th, .mcs-table td { text-align: left; }
+    .culture-report p { margin: 3px 0; }
+    .sensitivity-block { margin-top: 8px; }
+    .sensitivity-title { text-align: center; letter-spacing: 0.03em; margin-bottom: 6px; }
+    .sensitivity-wrap { overflow-x: auto; }
+    .sensitivity-table { table-layout: fixed; min-width: 100%; }
+    .sensitivity-table th,
+    .sensitivity-table td {
+      border: 1px solid #9ca3af;
+      text-align: center;
+      padding: 4px;
+      font-size: 11px;
+    }
+    .sensitivity-table .sens-row-title {
+      width: 70px;
+      min-width: 70px;
+      font-weight: 700;
+      background: #f9fafb;
+    }
+    .sensitivity-table .sens-drug {
+      width: 48px;
+      min-width: 48px;
+      height: 138px;
+      padding: 0;
+      background: #ffffff;
+      vertical-align: bottom;
+    }
+    .sensitivity-table .sens-drug span {
+      display: inline-block;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      line-height: 1.05;
+      font-weight: 600;
+      padding: 6px 0;
+    }
+    .sensitivity-table .sens-result { font-weight: 700; color: #b91c1c; }
+    .sensitivity-note { margin-top: 6px; font-size: 11px; }
     .footer-note { margin-top: 18px; font-size: 12px; }
     .signature-block {
       margin-top: 16px;
