@@ -483,7 +483,7 @@ export function LabTaskBoard() {
     });
   }, []);
 
-  const loadTasks = useCallback(async (opts?: { signal?: AbortSignal; force?: boolean }) => {
+  const loadTasks = useCallback(async (opts?: { signal?: AbortSignal; force?: boolean; silent?: boolean }) => {
     const cacheKey = `${statusFilter}:${sort}`;
     if (!opts?.force) {
       const cached = taskCacheRef.current.get(cacheKey);
@@ -496,8 +496,10 @@ export function LabTaskBoard() {
     }
 
     const requestId = ++loadTasksSeqRef.current;
-    setLoading(true);
-    setError("");
+    if (!opts?.silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const query = new URLSearchParams({ status: statusFilter, sort });
       const res = await fetch(`/api/lab/tasks?${query.toString()}`, { signal: opts?.signal });
@@ -515,7 +517,9 @@ export function LabTaskBoard() {
       setError("Network error while loading tasks");
     } finally {
       if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
-      setLoading(false);
+      if (!opts?.silent) {
+        setLoading(false);
+      }
     }
   }, [TASK_CACHE_TTL_MS, applyLoadedRows, sort, statusFilter]);
 
@@ -524,6 +528,25 @@ export function LabTaskBoard() {
     void loadTasks({ signal: controller.signal });
     return () => controller.abort();
   }, [loadTasks]);
+
+  useEffect(() => {
+    if (!isOnline) return;
+
+    const refreshNow = () => {
+      if (document.visibilityState !== "visible") return;
+      void loadTasks({ force: true, silent: true });
+    };
+
+    const poll = window.setInterval(refreshNow, 12_000);
+    window.addEventListener("focus", refreshNow);
+    document.addEventListener("visibilitychange", refreshNow);
+
+    return () => {
+      window.clearInterval(poll);
+      window.removeEventListener("focus", refreshNow);
+      document.removeEventListener("visibilitychange", refreshNow);
+    };
+  }, [isOnline, loadTasks]);
 
   useEffect(() => {
     const syncStatus = () => setIsOnline(navigator.onLine);
