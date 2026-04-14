@@ -89,6 +89,9 @@ const DEFAULT_SENSITIVITY_ANTIBIOTICS = [
   "Ciprofloxacin",
 ];
 
+const SENSITIVITY_VALUE_OPTIONS = ["+", "2+", "3+", "4+", "5mm", "10mm", "15mm", "20mm", "25mm", "30mm"];
+const SENSITIVITY_INTERPRETATION_OPTIONS = ["S", "R", "I"];
+
 function parseSensitivityPattern(raw: unknown): SensitivityCell[] {
   const text = typeof raw === "string" ? raw.trim() : "";
   if (!text) {
@@ -325,6 +328,7 @@ const OrderResultCard = memo(function OrderResultCard({
                             </td>
                             <td className="border border-slate-200 p-1.5">
                               <input
+                                list={`sens-zone-options-${order.id}`}
                                 value={cell.zone}
                                 onBlur={() => void onPersist(task).catch(() => undefined)}
                                 onChange={(e) => updateCell(index, { zone: e.target.value })}
@@ -333,17 +337,16 @@ const OrderResultCard = memo(function OrderResultCard({
                               />
                             </td>
                             <td className="border border-slate-200 p-1.5">
-                              <select
+                              <input
+                                list={`sens-int-options-${order.id}`}
                                 value={cell.interpretation}
                                 onBlur={() => void onPersist(task).catch(() => undefined)}
-                                onChange={(e) => updateCell(index, { interpretation: e.target.value })}
+                                onChange={(e) =>
+                                  updateCell(index, { interpretation: e.target.value.toUpperCase() })
+                                }
                                 className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              >
-                                <option value="">-</option>
-                                <option value="S">S</option>
-                                <option value="R">R</option>
-                                <option value="I">I</option>
-                              </select>
+                                placeholder="S / R / I"
+                              />
                             </td>
                             <td className="border border-slate-200 p-1.5">
                               <button
@@ -359,6 +362,16 @@ const OrderResultCard = memo(function OrderResultCard({
                         ))}
                       </tbody>
                     </table>
+                    <datalist id={`sens-zone-options-${order.id}`}>
+                      {SENSITIVITY_VALUE_OPTIONS.map((option) => (
+                        <option key={option} value={option} />
+                      ))}
+                    </datalist>
+                    <datalist id={`sens-int-options-${order.id}`}>
+                      {SENSITIVITY_INTERPRETATION_OPTIONS.map((option) => (
+                        <option key={option} value={option} />
+                      ))}
+                    </datalist>
                   </div>
                   <div className="mt-2 flex items-center justify-between">
                     <button
@@ -959,6 +972,7 @@ export function LabTaskBoard() {
                     </td>
                     <td className="border border-slate-200 p-1.5">
                       <input
+                        list={`sens-zone-options-shared-${task.id}`}
                         value={cell.zone}
                         onBlur={() => void persistDraft(task).catch(() => undefined)}
                         onChange={(e) => updateCell(index, { zone: e.target.value })}
@@ -967,17 +981,16 @@ export function LabTaskBoard() {
                       />
                     </td>
                     <td className="border border-slate-200 p-1.5">
-                      <select
+                      <input
+                        list={`sens-int-options-shared-${task.id}`}
                         value={cell.interpretation}
                         onBlur={() => void persistDraft(task).catch(() => undefined)}
-                        onChange={(e) => updateCell(index, { interpretation: e.target.value })}
+                        onChange={(e) =>
+                          updateCell(index, { interpretation: e.target.value.toUpperCase() })
+                        }
                         className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      >
-                        <option value="">-</option>
-                        <option value="S">S</option>
-                        <option value="R">R</option>
-                        <option value="I">I</option>
-                      </select>
+                        placeholder="S / R / I"
+                      />
                     </td>
                     <td className="border border-slate-200 p-1.5">
                       <button
@@ -993,6 +1006,16 @@ export function LabTaskBoard() {
                 ))}
               </tbody>
             </table>
+            <datalist id={`sens-zone-options-shared-${task.id}`}>
+              {SENSITIVITY_VALUE_OPTIONS.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
+            <datalist id={`sens-int-options-shared-${task.id}`}>
+              {SENSITIVITY_INTERPRETATION_OPTIONS.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
           </div>
           <div className="mt-2 flex items-center justify-between">
             <button
