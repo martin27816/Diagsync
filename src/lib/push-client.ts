@@ -18,6 +18,26 @@ async function getRegistration() {
   return navigator.serviceWorker.register("/sw.js", { scope: "/" });
 }
 
+export async function getExistingPushSubscription() {
+  if (!isPushSupported()) return null;
+  const registration = await getRegistration();
+  return registration.pushManager.getSubscription();
+}
+
+export async function syncPushSubscriptionWithServer(
+  subscription: PushSubscription
+) {
+  const subRes = await fetch("/api/push/subscription", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subscription: subscription.toJSON() }),
+  });
+  if (!subRes.ok) {
+    return { ok: false as const, reason: "server_rejected_subscription" as const };
+  }
+  return { ok: true as const };
+}
+
 export async function subscribeToDevicePush() {
   if (!isPushSupported()) {
     return { ok: false as const, reason: "unsupported" as const };
@@ -44,14 +64,8 @@ export async function subscribeToDevicePush() {
     });
   }
 
-  const subRes = await fetch("/api/push/subscription", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ subscription: subscription.toJSON() }),
-  });
-  if (!subRes.ok) {
-    return { ok: false as const, reason: "server_rejected_subscription" as const };
-  }
+  const sync = await syncPushSubscriptionWithServer(subscription);
+  if (!sync.ok) return sync;
 
   return { ok: true as const };
 }

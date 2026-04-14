@@ -4,7 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
-import { isPushSupported, subscribeToDevicePush } from "@/lib/push-client";
+import {
+  getExistingPushSubscription,
+  isPushSupported,
+  subscribeToDevicePush,
+  syncPushSubscriptionWithServer,
+} from "@/lib/push-client";
 
 type NotificationItem = {
   id: string; type: string; title: string; message: string;
@@ -38,6 +43,7 @@ export function NotificationBell({ role }: { role: string }) {
   const [pushPermission, setPushPermission] = useState<NotificationPermission>("default");
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  const [pushError, setPushError] = useState("");
 
   function isVitalNotification(item: NotificationItem) {
     const alwaysVital = new Set([
@@ -196,13 +202,25 @@ export function NotificationBell({ role }: { role: string }) {
   async function refreshPushStatus() {
     if (!isPushSupported()) {
       setPushSupported(false);
+      setPushError("");
       return;
     }
     setPushSupported(true);
     setPushPermission(Notification.permission);
-    const reg = await navigator.serviceWorker.getRegistration("/");
-    const sub = await reg?.pushManager.getSubscription();
-    setPushEnabled(Boolean(sub));
+    const sub = await getExistingPushSubscription();
+    if (!sub) {
+      setPushEnabled(false);
+      setPushError("");
+      return;
+    }
+    const sync = await syncPushSubscriptionWithServer(sub);
+    if (sync.ok) {
+      setPushEnabled(true);
+      setPushError("");
+      return;
+    }
+    setPushEnabled(false);
+    setPushError("Device subscription exists, but server registration failed.");
   }
 
   async function enableDevicePush() {
@@ -212,6 +230,13 @@ export function NotificationBell({ role }: { role: string }) {
       setPushPermission(Notification.permission);
       if (result.ok) {
         setPushEnabled(true);
+        setPushError("");
+      } else if (result.reason === "missing_public_key") {
+        setPushError("Push keys are missing on server.");
+      } else if (result.reason === "server_rejected_subscription") {
+        setPushError("Server rejected device subscription.");
+      } else if (result.reason === "permission_denied") {
+        setPushError("Browser notification permission was denied.");
       }
     } finally {
       setPushLoading(false);
@@ -375,13 +400,16 @@ export function NotificationBell({ role }: { role: string }) {
               ) : pushPermission === "denied" ? (
                 <p className="text-[11px] text-amber-600">Device alerts blocked in browser settings.</p>
               ) : (
-                <button
-                  onClick={() => void enableDevicePush()}
-                  disabled={pushLoading}
-                  className="text-xs text-blue-600 hover:underline disabled:text-slate-400"
-                >
-                  {pushLoading ? "Enabling..." : "Enable device notifications"}
-                </button>
+                <div className="space-y-1">
+                  <button
+                    onClick={() => void enableDevicePush()}
+                    disabled={pushLoading}
+                    className="text-xs text-blue-600 hover:underline disabled:text-slate-400"
+                  >
+                    {pushLoading ? "Enabling..." : "Enable device notifications"}
+                  </button>
+                  {pushError ? <p className="text-[10px] text-rose-600">{pushError}</p> : null}
+                </div>
               )}
             </div>
           )}
