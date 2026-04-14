@@ -26,6 +26,7 @@ interface CartItem extends TestResult { enteredPrice: string }
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
 type PaymentStatus = "PENDING" | "PAID" | "PARTIAL" | "WAIVED";
 type Sex = "MALE" | "FEMALE" | "OTHER";
+const TEST_PRICE_MEMORY_KEY = "diag_sync_test_price_memory_v1";
 
 function toNumberPrice(value: number | string): number {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -67,6 +68,40 @@ export function NewPatientForm() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [savedData, setSavedData] = useState<{ patientId: string; visitNumber: string } | null>(null);
+  const [savedPriceByTestId, setSavedPriceByTestId] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(TEST_PRICE_MEMORY_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+      const normalized: Record<string, string> = {};
+      for (const [testId, value] of Object.entries(parsed as Record<string, unknown>)) {
+        if (!testId || typeof value !== "string") continue;
+        const trimmed = value.trim();
+        if (!trimmed) continue;
+        const num = Number(trimmed);
+        if (!Number.isFinite(num) || num <= 0) continue;
+        normalized[testId] = trimmed;
+      }
+      setSavedPriceByTestId(normalized);
+    } catch {
+      // Ignore malformed local cache and proceed.
+    }
+  }, []);
+
+  function persistSavedPrice(testId: string, price: string) {
+    setSavedPriceByTestId((prev) => {
+      const next = { ...prev, [testId]: price };
+      try {
+        window.localStorage.setItem(TEST_PRICE_MEMORY_KEY, JSON.stringify(next));
+      } catch {
+        // Best-effort local cache only.
+      }
+      return next;
+    });
+  }
 
   const searchTests = useCallback(async (query: string) => {
     if (query.length < 1) { setTestResults([]); setShowDropdown(false); return; }
@@ -110,8 +145,9 @@ export function NewPatientForm() {
   }, [amountPaidNum, totalAmount]);
 
   function addToCart(test: TestResult) {
+    const rememberedPrice = savedPriceByTestId[test.id];
     const suggestedPrice = toNumberPrice(test.price ?? 0);
-    setCart((prev) => [...prev, { ...test, enteredPrice: suggestedPrice > 0 ? String(suggestedPrice) : "" }]);
+    setCart((prev) => [...prev, { ...test, enteredPrice: rememberedPrice ?? (suggestedPrice > 0 ? String(suggestedPrice) : "") }]);
     setRangeDraftByTest((prev) => ({
       ...prev,
       [test.id]: (test.resultFields ?? []).map((field) => ({ ...field })),
@@ -134,7 +170,14 @@ export function NewPatientForm() {
       return next;
     });
   }
-  function updateCartPrice(id: string, value: string) { setCart((prev) => prev.map((item) => item.id === id ? { ...item, enteredPrice: value } : item)); }
+  function updateCartPrice(id: string, value: string) {
+    setCart((prev) => prev.map((item) => item.id === id ? { ...item, enteredPrice: value } : item));
+
+    const trimmed = value.trim();
+    const parsed = Number(trimmed);
+    if (!trimmed || !Number.isFinite(parsed) || parsed <= 0) return;
+    persistSavedPrice(id, trimmed);
+  }
 
   function updateRangeValue(
     testId: string,
