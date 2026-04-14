@@ -70,6 +70,7 @@ export async function syncPushSubscriptionWithServer(
   subscription: PushSubscription
 ) {
   let subRes: Response;
+  let errorMessage = "";
   try {
     subRes = await fetchWithTimeout("/api/push/subscription", {
       method: "POST",
@@ -79,8 +80,28 @@ export async function syncPushSubscriptionWithServer(
   } catch {
     return { ok: false as const, reason: "network_timeout" as const };
   }
+  const payload = await subRes.json().catch(() => null);
+  errorMessage = typeof payload?.error === "string" ? payload.error : "";
+  if (subRes.status === 401) {
+    return {
+      ok: false as const,
+      reason: "unauthorized" as const,
+      detail: errorMessage || "Session expired. Please sign in again.",
+    };
+  }
+  if (subRes.status === 503) {
+    return {
+      ok: false as const,
+      reason: "storage_not_ready" as const,
+      detail: errorMessage || "Push storage not ready on server.",
+    };
+  }
   if (!subRes.ok) {
-    return { ok: false as const, reason: "server_rejected_subscription" as const };
+    return {
+      ok: false as const,
+      reason: "server_rejected_subscription" as const,
+      detail: errorMessage || `Server rejected subscription (${subRes.status}).`,
+    };
   }
   return { ok: true as const };
 }

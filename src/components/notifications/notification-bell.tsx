@@ -223,8 +223,20 @@ export function NotificationBell({ role }: { role: string }) {
         return;
       }
       setPushEnabled(false);
+      const syncDetail = "detail" in sync ? sync.detail : "";
       if (sync.reason === "network_timeout") {
         setPushError("Could not verify device subscription (network timeout).");
+        return;
+      }
+      if (sync.reason === "unauthorized") {
+        setPushError(syncDetail || "Session expired. Sign in again and retry.");
+        return;
+      }
+      if (sync.reason === "storage_not_ready") {
+        setPushError(
+          syncDetail ||
+            "Push database storage is not ready on server. Run production DB sync."
+        );
         return;
       }
       setPushError("Device subscription exists, but server registration failed.");
@@ -241,6 +253,8 @@ export function NotificationBell({ role }: { role: string }) {
       | "permission_denied"
       | "unsupported"
       | "network_timeout"
+      | "unauthorized"
+      | "storage_not_ready"
       | "service_worker_timeout"
       | "service_worker_register_failed"
       | "subscribe_timeout"
@@ -250,6 +264,8 @@ export function NotificationBell({ role }: { role: string }) {
     if (reason === "server_rejected_subscription") return "Server rejected device subscription.";
     if (reason === "permission_denied") return "Browser notification permission was denied.";
     if (reason === "network_timeout") return "Network timed out while enabling push notifications.";
+    if (reason === "unauthorized") return "Session expired. Sign in again and retry.";
+    if (reason === "storage_not_ready") return "Push storage not ready on server. Run production DB sync.";
     if (reason === "service_worker_timeout") return "Service worker setup timed out. Reload and try again.";
     if (reason === "service_worker_register_failed") return "Service worker could not register on this browser.";
     if (reason === "subscribe_timeout") return "Browser subscription timed out. Try again.";
