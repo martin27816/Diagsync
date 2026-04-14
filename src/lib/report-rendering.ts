@@ -470,25 +470,25 @@ export function renderReportHtml(args: RenderArgs) {
     .culture-report p { margin: 3px 0; }
     .sensitivity-block { margin-top: 8px; }
     .sensitivity-title { text-align: center; letter-spacing: 0.03em; margin-bottom: 6px; }
-    .sensitivity-wrap { overflow-x: auto; }
-    .sensitivity-table { table-layout: fixed; min-width: 100%; }
+    .sensitivity-wrap { overflow: visible; }
+    .sensitivity-table { table-layout: fixed; width: 100%; min-width: 0; }
     .sensitivity-table th,
     .sensitivity-table td {
       border: 1px solid #9ca3af;
       text-align: center;
-      padding: 4px;
-      font-size: 11px;
+      padding: 2px 1px;
+      font-size: 10px;
     }
     .sensitivity-table .sens-row-title {
-      width: 70px;
-      min-width: 70px;
+      width: 54px;
+      min-width: 54px;
       font-weight: 700;
       background: #f9fafb;
     }
     .sensitivity-table .sens-drug {
-      width: 48px;
-      min-width: 48px;
-      height: 138px;
+      width: auto;
+      min-width: 0;
+      height: 112px;
       padding: 0;
       background: #ffffff;
       vertical-align: bottom;
@@ -497,9 +497,9 @@ export function renderReportHtml(args: RenderArgs) {
       display: inline-block;
       writing-mode: vertical-rl;
       transform: rotate(180deg);
-      line-height: 1.05;
+      line-height: 1.0;
       font-weight: 600;
-      padding: 6px 0;
+      padding: 3px 0;
     }
     .sensitivity-table .sens-result { font-weight: 700; color: #b91c1c; }
     .sensitivity-note { margin-top: 6px; font-size: 11px; }
@@ -563,6 +563,19 @@ export function renderReportHtml(args: RenderArgs) {
     }
     @media print {
       .preview-actions { display: none !important; }
+      .sensitivity-wrap { overflow: visible !important; }
+      .sensitivity-table th,
+      .sensitivity-table td {
+        font-size: 9px;
+        padding: 1px 1px;
+      }
+      .sensitivity-table .sens-row-title {
+        width: 46px;
+        min-width: 46px;
+      }
+      .sensitivity-table .sens-drug {
+        height: 98px;
+      }
     }
   </style>
 </head>

@@ -57,6 +57,40 @@ function normalizeResultData(value: Record<string, unknown>) {
   );
 }
 
+type MdSensitivityRow = { antibiotic: string; zone: string; interpretation: string };
+
+function parseMdSensitivity(raw: unknown): MdSensitivityRow[] {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text) return [];
+  return text
+    .split(/\r?\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      if (line.includes("||")) {
+        const [antibiotic = "", zone = "", interpretation = ""] = line.split("||");
+        return {
+          antibiotic: antibiotic.trim(),
+          zone: zone.trim(),
+          interpretation: interpretation.trim().toUpperCase(),
+        };
+      }
+      const interpretationMatch = line.match(/\b(S|R|I)\b/i);
+      const zoneMatch = line.match(/\b(\d+\+|\+\+\+|\+\+|\+|\d+(?:\.\d+)?\s*mm|\d+)\b/i);
+      const colonIdx = line.indexOf(":");
+      let antibiotic = line;
+      if (colonIdx > 0) antibiotic = line.slice(0, colonIdx).trim();
+      else if (interpretationMatch?.index !== undefined) antibiotic = line.slice(0, interpretationMatch.index).trim();
+      else if (zoneMatch?.index !== undefined) antibiotic = line.slice(0, zoneMatch.index).trim();
+      return {
+        antibiotic: antibiotic.replace(/[-–:,]+$/g, "").trim(),
+        zone: zoneMatch?.[1]?.trim() ?? "",
+        interpretation: interpretationMatch?.[1]?.toUpperCase() ?? "",
+      };
+    })
+    .filter((row) => row.antibiotic.length > 0);
+}
+
 function getHighlightFields(review: Item["review"]) {
   if (!review?.editedData || typeof review.editedData !== "object") return [];
   const data = review.editedData as { highlightFields?: unknown };
@@ -403,12 +437,51 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                                 <div className="space-y-2">
                                   {item.results.map((result) => (
                                     <div key={result.testOrderId} className="rounded border border-slate-100 p-2">
+                                      {(() => {
+                                        const resultData = result.resultData as Record<string, unknown>;
+                                        const sensitivityRows = parseMdSensitivity(resultData?.sensitivity);
+                                        const normalPairs = Object.entries(resultData)
+                                          .filter(
+                                            ([key, value]) =>
+                                              key !== "sensitivity" &&
+                                              value !== null &&
+                                              value !== undefined &&
+                                              `${value}`.trim()
+                                          )
+                                          .map(([k, v]) => `${k}: ${v}`);
+                                        return (
+                                          <>
                                       <p className="font-medium text-slate-800">{result.testOrder.test.name} <span className="font-mono text-slate-400 text-[11px]">v{result.currentVersion}</span></p>
                                       <p className="text-slate-500 mt-1">
-                                        {Object.entries(result.resultData as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined && `${v}`.trim()).map(([k, v]) => `${k}: ${v}`).join(" Â· ") || "â€”"}
+                                        {normalPairs.join(" · ") || "—"}
                                       </p>
+                                      {sensitivityRows.length > 0 ? (
+                                        <div className="mt-2 overflow-x-auto rounded border border-slate-200">
+                                          <table className="w-full border-collapse text-[11px]">
+                                            <thead>
+                                              <tr className="bg-slate-50">
+                                                <th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500">Sensitivity</th>
+                                                <th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500">Value</th>
+                                                <th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500">S/R/I</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {sensitivityRows.map((row, idx) => (
+                                                <tr key={`${result.testOrderId}-sens-${idx}`}>
+                                                  <td className="border border-slate-200 px-1.5 py-1 text-slate-700">{row.antibiotic}</td>
+                                                  <td className="border border-slate-200 px-1.5 py-1 text-slate-700">{row.zone || "-"}</td>
+                                                  <td className="border border-slate-200 px-1.5 py-1 text-slate-700">{row.interpretation || "-"}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      ) : null}
                                       {result.notes && <p className="text-slate-400 text-[11px] mt-0.5">Note: {result.notes}</p>}
                                       <ResultInsightBox messages={buildResultInsights(result.resultData)} />
+                                          </>
+                                        );
+                                      })()}
                                     </div>
                                   ))}
                                 </div>
