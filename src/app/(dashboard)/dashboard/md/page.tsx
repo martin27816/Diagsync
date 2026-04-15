@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { MdReviewBoard } from "@/components/md/md-review-board";
+import { MdStaffCallPanel } from "@/components/md/md-staff-call-panel";
 import Link from "next/link";
  
 export default async function MDDashboard({ searchParams }: { searchParams?: { status?: string } }) {
@@ -26,6 +27,7 @@ export default async function MDDashboard({ searchParams }: { searchParams?: { s
           Consultation Queue
         </Link>
       </div>
+      <MdStaffCallPanel />
       <MdReviewBoard initialStatus={initialStatus} />
     </div>
   );
