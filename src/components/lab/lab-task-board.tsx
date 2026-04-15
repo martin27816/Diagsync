@@ -777,7 +777,7 @@ export function LabTaskBoard() {
   const [tasks, setTasks] = useState<LabTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | TaskStatus>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ACTIVE" | "ALL" | TaskStatus>("ACTIVE");
   const [priorityFilter, setPriorityFilter] = useState<"ALL" | Priority>("ALL");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
@@ -787,6 +787,7 @@ export function LabTaskBoard() {
   const [selectedSignatureByTask, setSelectedSignatureByTask] = useState<Record<string, string>>({});
   const [sampleStatusByTask, setSampleStatusByTask] = useState<Record<string, SampleStatus>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [counts, setCounts] = useState({ pending: 0, inProgress: 0, completed: 0 });
   const signatureInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [isOnline, setIsOnline] = useState(true);
   const searchParams = useSearchParams();
@@ -794,7 +795,16 @@ export function LabTaskBoard() {
   const tasksRef = useRef<LabTask[]>([]);
   const submittingTaskIdsRef = useRef<Set<string>>(new Set());
   const loadTasksSeqRef = useRef(0);
-  const taskCacheRef = useRef<Map<string, { at: number; tasks: LabTask[] }>>(new Map());
+  const taskCacheRef = useRef<
+    Map<
+      string,
+      {
+        at: number;
+        tasks: LabTask[];
+        counts: { pending: number; inProgress: number; completed: number };
+      }
+    >
+  >(new Map());
   const consumedTaskParamRef = useRef<string | null>(null);
   function invalidateTaskCache() {
     taskCacheRef.current.clear();
@@ -862,6 +872,7 @@ export function LabTaskBoard() {
         setError("");
         setLoading(false);
         applyLoadedRows(cached.tasks);
+        setCounts(cached.counts);
         return;
       }
     }
@@ -874,15 +885,28 @@ export function LabTaskBoard() {
     try {
       const query = new URLSearchParams({ status: statusFilter, sort });
       const res = await fetch(`/api/lab/tasks?${query.toString()}`, { signal: opts?.signal });
-      const json = (await res.json()) as { success: boolean; error?: string; data?: { tasks: LabTask[] } };
+      const json = (await res.json()) as {
+        success: boolean;
+        error?: string;
+        data?: {
+          tasks: LabTask[];
+          counts?: { pending?: number; inProgress?: number; completed?: number };
+        };
+      };
       if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success || !json.data) {
         setError(json.error ?? "Failed to load tasks");
         return;
       }
       const rows = json.data.tasks;
-      taskCacheRef.current.set(cacheKey, { at: Date.now(), tasks: rows });
+      const nextCounts = {
+        pending: Number(json.data.counts?.pending ?? 0),
+        inProgress: Number(json.data.counts?.inProgress ?? 0),
+        completed: Number(json.data.counts?.completed ?? 0),
+      };
+      taskCacheRef.current.set(cacheKey, { at: Date.now(), tasks: rows, counts: nextCounts });
       applyLoadedRows(rows);
+      setCounts(nextCounts);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setError("Network error while loading tasks");
@@ -980,18 +1004,12 @@ export function LabTaskBoard() {
   }, [searchParams, tasks]);
 
   const filtered = useMemo(() => {
-    const base = statusFilter === "ALL" ? tasks.filter((task) => task.status !== "COMPLETED") : tasks;
+    const base =
+      statusFilter === "ACTIVE"
+        ? tasks.filter((task) => task.status === "PENDING" || task.status === "IN_PROGRESS")
+        : tasks;
     return base.filter((task) => priorityFilter === "ALL" || task.priority === priorityFilter);
   }, [tasks, priorityFilter, statusFilter]);
-
-  const counts = useMemo(
-    () => ({
-      pending: filtered.filter((task) => task.status === "PENDING").length,
-      inProgress: filtered.filter((task) => task.status === "IN_PROGRESS").length,
-      completed: filtered.filter((task) => task.status === "COMPLETED").length,
-    }),
-    [filtered]
-  );
 
   function getSampleStatus(task: LabTask): SampleStatus {
     return sampleStatusByTask[task.id] ?? task.sample?.status ?? "PENDING";
@@ -1486,10 +1504,11 @@ export function LabTaskBoard() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "ALL" | TaskStatus)}>
+        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "ACTIVE" | "ALL" | TaskStatus)}>
           <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">Active queue</SelectItem>
+            <SelectItem value="ACTIVE">Active queue</SelectItem>
+            <SelectItem value="ALL">All statuses</SelectItem>
             <SelectItem value="PENDING">Pending</SelectItem>
             <SelectItem value="IN_PROGRESS">In progress</SelectItem>
             <SelectItem value="COMPLETED">Completed</SelectItem>

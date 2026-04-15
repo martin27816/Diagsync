@@ -21,15 +21,35 @@ export default async function LabResultsPage() {
   const user = session.user as any;
   if (!["LAB_SCIENTIST", "SUPER_ADMIN"].includes(user.role)) redirect("/dashboard");
 
+  const ROW_LIMIT = 700;
   const labResults = await prisma.labResult.findMany({
     where: {
       organizationId: user.organizationId,
       isSubmitted: true,
       ...(user.role === "LAB_SCIENTIST" ? { staffId: user.id } : {}),
     },
-    include: {
-      task: { include: { visit: { include: { patient: true } } } },
-      testOrder: { include: { test: true } },
+    take: ROW_LIMIT,
+    select: {
+      resultData: true,
+      submittedAt: true,
+      task: {
+        select: {
+          visit: {
+            select: {
+              id: true,
+              visitNumber: true,
+              patient: {
+                select: {
+                  fullName: true,
+                  age: true,
+                  patientId: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      testOrder: { select: { test: { select: { name: true } } } },
     },
     orderBy: { submittedAt: "desc" },
   });
@@ -61,7 +81,9 @@ export default async function LabResultsPage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-base font-semibold text-slate-800">Submitted Results</h1>
-        <p className="text-xs text-slate-400 mt-0.5">{rows.length} visit{rows.length !== 1 ? "s" : ""} with submitted lab results</p>
+        <p className="text-xs text-slate-400 mt-0.5">
+          {rows.length} visit{rows.length !== 1 ? "s" : ""} with submitted lab results (latest {ROW_LIMIT} result entries)
+        </p>
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">

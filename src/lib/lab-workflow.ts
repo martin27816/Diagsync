@@ -68,7 +68,7 @@ async function assertTaskOwnership(taskId: string, actor: LabActor) {
 }
 
 export async function getLabTasks(actor: LabActor, opts?: {
-  status?: RoutingTaskStatus | "ALL";
+  status?: RoutingTaskStatus | "ALL" | "ACTIVE";
   sort?: "newest" | "oldest";
 }) {
   assertLabScientist(actor);
@@ -78,7 +78,11 @@ export async function getLabTasks(actor: LabActor, opts?: {
       organizationId: actor.organizationId,
       department: Department.LABORATORY,
       staffId: actor.id,
-      ...(opts?.status && opts.status !== "ALL" ? { status: opts.status } : {}),
+      ...(opts?.status === "ACTIVE"
+        ? { status: { in: [RoutingTaskStatus.PENDING, RoutingTaskStatus.IN_PROGRESS] } }
+        : opts?.status && opts.status !== "ALL"
+        ? { status: opts.status }
+        : {}),
     },
     include: {
       visit: {

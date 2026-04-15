@@ -20,6 +20,7 @@ export default async function LabQueuePage({
     redirect("/dashboard");
   }
   const statusFilter = (searchParams?.status ?? "ACTIVE").toUpperCase() as QueueFilter;
+  const ROW_LIMIT = 300;
   const statusWhere =
     statusFilter === "ALL"
       ? {}
@@ -38,7 +39,14 @@ export default async function LabQueuePage({
       ...(user.role === "LAB_SCIENTIST" ? { staffId: user.id } : {}),
       ...statusWhere,
     },
-    include: {
+    take: ROW_LIMIT,
+    select: {
+      id: true,
+      priority: true,
+      status: true,
+      testOrderIds: true,
+      createdAt: true,
+      updatedAt: true,
       visit: {
         select: {
           visitNumber: true,
@@ -60,12 +68,15 @@ export default async function LabQueuePage({
 
   const allOrderIds = tasks.flatMap((t) => t.testOrderIds);
   const orders = allOrderIds.length
-    ? await prisma.testOrder.findMany({
+      ? await prisma.testOrder.findMany({
         where: {
           organizationId: user.organizationId,
           id: { in: allOrderIds },
         },
-        include: { test: true },
+        select: {
+          id: true,
+          test: { select: { name: true } },
+        },
       })
     : [];
 
@@ -91,7 +102,7 @@ export default async function LabQueuePage({
       <div>
         <h1 className="text-2xl font-bold">Lab Queue</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Active queue first, with clear next actions to reduce clicks.
+          Active queue first, with clear next actions to reduce clicks. Showing latest {ROW_LIMIT} rows.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
