@@ -1,4 +1,5 @@
 import { PrismaClient, Department, TestType, FieldType } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 if (process.env.DIRECT_URL) {
   process.env.DATABASE_URL = process.env.DIRECT_URL;
@@ -60,10 +61,35 @@ async function main() {
   console.log(`✅ ${categories.length} test categories created`);
 
   // ── Get Organization ─────────────────────────────────────────────────────
-  const org = await prisma.organization.findFirst();
-
+  let org = await prisma.organization.findFirst();
   if (!org) {
-    throw new Error("No organization found. Please create one first.");
+    const defaultAdminEmail = "admin@diagsync.local";
+    const defaultAdminPassword = "Admin@123";
+    const passwordHash = await bcrypt.hash(defaultAdminPassword, 10);
+
+    org = await prisma.organization.create({
+      data: {
+        name: "DiagSync Demo Organization",
+        email: "info@diagsync.local",
+        phone: "+2340000000000",
+        address: "Demo Address",
+        staff: {
+          create: {
+            fullName: "DiagSync Super Admin",
+            email: defaultAdminEmail,
+            phone: "+2340000000001",
+            passwordHash,
+            role: "SUPER_ADMIN",
+            department: "HR_OPERATIONS",
+            status: "ACTIVE",
+          },
+        },
+      },
+    });
+
+    console.log("? Created default organization and super admin");
+    console.log(`   Admin email: ${defaultAdminEmail}`);
+    console.log(`   Admin password: ${defaultAdminPassword}`);
   }
 
   const orgId = org.id;
@@ -1732,4 +1758,6 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+
+
 
