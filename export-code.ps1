@@ -1,5 +1,5 @@
-# DiagOps Code Exporter - Run from project root
-$outputFile = "DiagOps-Code.html"
+# DiagSync Code Exporter - Run from project root
+$outputFile = "DiagSync-Code.html"
 $projectRoot = Get-Location
 
 # File extensions to include
@@ -46,7 +46,7 @@ Write-Host "Found $($allFiles.Count) files. Building HTML..." -ForegroundColor C
 
 # Build HTML
 $html = @"
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>DiagOps Code</title><style>
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>DiagSync Code</title><style>
 body{margin:0;padding:20px;background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:13px;line-height:1.6;}
 .file-block{margin-bottom:48px;}
 .file-header{background:#333;color:#9cdcfe;padding:8px 14px;font-weight:bold;font-size:13px;border-left:4px solid #569cd6;margin-bottom:0;}
@@ -77,3 +77,4 @@ $outputPath = Join-Path $projectRoot $outputFile
 Write-Host ""
 Write-Host "Done! File saved to: $outputPath" -ForegroundColor Green
 Write-Host "Total files included: $($allFiles.Count)" -ForegroundColor Cyan
+

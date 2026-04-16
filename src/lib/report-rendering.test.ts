@@ -5,7 +5,7 @@ import { renderReportHtml } from "./report-rendering";
 function testRadiologyExtraFieldsRender() {
   const html = renderReportHtml({
     organization: {
-      name: "DiagOps",
+      name: "DiagSync",
       address: "Address",
       phone: "123",
       email: "test@example.com",
@@ -42,3 +42,4 @@ function run() {
 }
 
 run();
+

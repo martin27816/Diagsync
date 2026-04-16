@@ -27,12 +27,12 @@ function testRequestMeta() {
   const req = new Request("https://example.com", {
     headers: {
       "x-forwarded-for": "10.0.0.1, 10.0.0.2",
-      "user-agent": "DiagOpsTest/1.0",
+      "user-agent": "DiagSyncTest/1.0",
     },
   });
   const meta = getAuditMetaFromRequest(req);
   assert.equal(meta.ipAddress, "10.0.0.1");
-  assert.equal(meta.userAgent, "DiagOpsTest/1.0");
+  assert.equal(meta.userAgent, "DiagSyncTest/1.0");
 }
 
 function run() {
@@ -43,3 +43,4 @@ function run() {
 }
 
 run();
+
