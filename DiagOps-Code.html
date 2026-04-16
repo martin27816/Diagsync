@@ -1,4 +1,4 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>DiagOps Code</title><style>
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>DiagSync Code</title><style>
 body{margin:0;padding:20px;background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:13px;line-height:1.6;}
 .file-block{margin-bottom:48px;}
 .file-header{background:#333;color:#9cdcfe;padding:8px 14px;font-weight:bold;font-size:13px;border-left:4px solid #569cd6;margin-bottom:0;}
@@ -29,7 +29,7 @@ AUTH_SECRET="your-super-secret-key-here-change-this"
 NEXTAUTH_URL="https://diagsync.vercel.app"
 
 # App
-NEXT_PUBLIC_APP_NAME="DiagOps"
+NEXT_PUBLIC_APP_NAME="DiagSync"
 NEXT_PUBLIC_APP_URL="https://diagsync.vercel.app"
 
 # Cloudinary signed upload (server-side only)
@@ -14221,12 +14221,12 @@ function testRequestMeta() {
   const req = new Request("https://example.com", {
     headers: {
       "x-forwarded-for": "10.0.0.1, 10.0.0.2",
-      "user-agent": "DiagOpsTest/1.0",
+      "user-agent": "DiagSyncTest/1.0",
     },
   });
   const meta = getAuditMetaFromRequest(req);
   assert.equal(meta.ipAddress, "10.0.0.1");
-  assert.equal(meta.userAgent, "DiagOpsTest/1.0");
+  assert.equal(meta.userAgent, "DiagSyncTest/1.0");
 }
 
 function run() {
@@ -18234,7 +18234,7 @@ import { renderReportHtml } from "./report-rendering";
 function testRadiologyExtraFieldsRender() {
   const html = renderReportHtml({
     organization: {
-      name: "DiagOps",
+      name: "DiagSync",
       address: "Address",
       phone: "123",
       email: "test@example.com",
@@ -20511,3 +20511,4 @@ export default config;
 
 </pre></div>
 </body></html>
+
