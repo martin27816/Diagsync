@@ -410,7 +410,7 @@ export function NotificationBell({ role }: { role: string }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-1 w-80 rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden">
+        <div className="fixed left-2 right-2 top-14 z-50 max-h-[calc(100dvh-4rem)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-1 sm:max-h-none sm:w-80">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">
             <div className="flex items-center gap-2">
@@ -479,3 +479,4 @@ export function NotificationBell({ role }: { role: string }) {
     </div>
   );
 }
+
