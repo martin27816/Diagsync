@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Menu } from "lucide-react";
 import { Switch } from "@/components/ui/index";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -11,6 +12,7 @@ interface HeaderBarProps {
   role: string;
   initialAvailability: boolean;
   showAvailabilityToggle?: boolean;
+  onOpenSidebar?: () => void;
 }
 
 export function HeaderBar({
@@ -19,6 +21,7 @@ export function HeaderBar({
   role,
   initialAvailability,
   showAvailabilityToggle = true,
+  onOpenSidebar,
 }: HeaderBarProps) {
   const [isAvailable, setIsAvailable] = useState(initialAvailability);
   const [loading, setLoading] = useState(false);
@@ -44,13 +47,25 @@ export function HeaderBar({
   }
 
   return (
-    <header className="flex h-12 items-center justify-between border-b border-slate-200 bg-white px-5">
-      <p className="text-sm text-slate-500">
+    <header className="flex h-12 items-center justify-between border-b border-slate-200 bg-white px-3 sm:px-4 md:px-5">
+      <div className="flex items-center gap-2">
+        {onOpenSidebar ? (
+          <button
+            type="button"
+            aria-label="Open menu"
+            onClick={onOpenSidebar}
+            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200 text-slate-600 hover:bg-slate-50 md:hidden"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+        ) : null}
+        <p className="text-sm text-slate-500">
         {getTimeOfDay()},{" "}
         <span className="font-semibold text-slate-800">{staffName.split(" ")[0]}</span>
       </p>
+      </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         {showToggle && (
           <div className="flex items-center gap-2">
             <span

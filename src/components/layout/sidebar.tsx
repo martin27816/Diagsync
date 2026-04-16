@@ -87,6 +87,8 @@ interface SidebarProps {
     role: Role;
     organizationName?: string;
   };
+  className?: string;
+  onNavigate?: () => void;
 }
 
 function notificationPathForRole(role: Role) {
@@ -97,12 +99,12 @@ function notificationPathForRole(role: Role) {
   return "/dashboard/hrm/notifications";
 }
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, className, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const navItems = navByRole[user.role] ?? [];
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-r border-slate-200 bg-white">
+    <aside className={cn("flex h-[100dvh] w-56 flex-col border-r border-slate-200 bg-white", className)}>
       {/* Logo */}
       <div className="flex h-14 items-center gap-2.5 border-b border-slate-200 px-4">
         <Image
@@ -138,6 +140,7 @@ export function Sidebar({ user }: SidebarProps) {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={onNavigate}
                   className={cn(
                     "flex items-center gap-2.5 rounded px-3 py-2 text-sm transition-colors",
                     isActive
@@ -158,6 +161,7 @@ export function Sidebar({ user }: SidebarProps) {
       <div className="border-t border-slate-200 px-2 py-1">
         <Link
           href={notificationPathForRole(user.role)}
+          onClick={onNavigate}
           className="flex items-center gap-2.5 rounded px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
         >
           <Bell className="h-4 w-4" />
@@ -187,3 +191,4 @@ export function Sidebar({ user }: SidebarProps) {
     </aside>
   );
 }
+

@@ -57,3 +57,15 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+    overflow-x: hidden;
+  }
+
+  * {
+    min-width: 0;
+  }
+}
