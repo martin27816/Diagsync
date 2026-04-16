@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html><html><head><meta charset="UTF-8"><title>DiagOps Code</title><style>
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>DiagOps Code</title><style>
 body{margin:0;padding:20px;background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:13px;line-height:1.6;}
 .file-block{margin-bottom:48px;}
 .file-header{background:#333;color:#9cdcfe;padding:8px 14px;font-weight:bold;font-size:13px;border-left:4px solid #569cd6;margin-bottom:0;}
@@ -8,10 +8,10 @@ DIRECT_URL="postgresql://postgres.cyjsobnepuihyiunlolj:Diagsync08145663184@aws-0
 
 AUTH_TRUST_HOST= "true"
 AUTH_SECRET="c7c92b4282bc4b28a8cc148ab965fda8a8913ea9648db8392dd762641fb67620"
-NEXTAUTH_URL="https://diagsync-production.up.railway.app"
+NEXTAUTH_URL="https://diagsync.vercel.app"
 
 NEXT_PUBLIC_APP_NAME="Diagsync"
-NEXT_PUBLIC_APP_URL="https://diagsync-production.up.railway.app"
+NEXT_PUBLIC_APP_URL="https://diagsync.vercel.app"
 
 # Cloudinary signed upload (server-side only)
 CLOUDINARY_CLOUD_NAME="dqnk5imdw"
@@ -896,9 +896,9 @@ type SeedField = {
 };
 
 async function main() {
-  console.log("ðŸŒ± Seeding Tests...");
+  console.log("🌱 Seeding Tests...");
 
-  // â”€â”€ Seed Test Categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Seed Test Categories ─────────────────────────────────────────────────
   const categories = await Promise.all([
     prisma.testCategory.upsert({
       where: { id: "cat-haematology" },
@@ -932,9 +932,9 @@ async function main() {
     }),
   ]);
 
-  console.log(`âœ… ${categories.length} test categories created`);
+  console.log(`✅ ${categories.length} test categories created`);
 
-  // â”€â”€ Get Organization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Get Organization ─────────────────────────────────────────────────────
   const org = await prisma.organization.findFirst();
 
   if (!org) {
@@ -942,9 +942,9 @@ async function main() {
   }
 
   const orgId = org.id;
-  console.log(`âœ… Organization found: ${org.name}`);
+  console.log(`✅ Organization found: ${org.name}`);
 
-  // â”€â”€ Helper: upsert test + fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Helper: upsert test + fields ────────────────────────────────────────
   async function seedTest(data: {
     code: string;
     name: string;
@@ -1151,7 +1151,7 @@ async function main() {
     ];
   }
 
-  // â”€â”€ LAB TESTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── LAB TESTS ────────────────────────────────────────────────────────────
 
   // 1. Full Blood Count
   await seedTest({
@@ -1167,12 +1167,12 @@ async function main() {
     fields: [
       { label: "Haemoglobin", fieldKey: "haemoglobin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 12, normalMax: 17, sortOrder: 1 },
       { label: "PCV / Haematocrit", fieldKey: "pcv", fieldType: FieldType.NUMBER, unit: "%", normalMin: 36, normalMax: 50, sortOrder: 2 },
-      { label: "WBC Count", fieldKey: "wbc", fieldType: FieldType.NUMBER, unit: "Ã—10Â³/ÂµL", normalMin: 4, normalMax: 11, sortOrder: 3 },
+      { label: "WBC Count", fieldKey: "wbc", fieldType: FieldType.NUMBER, unit: "×10³/µL", normalMin: 4, normalMax: 11, sortOrder: 3 },
       { label: "Neutrophils", fieldKey: "neutrophils", fieldType: FieldType.NUMBER, unit: "%", normalMin: 40, normalMax: 75, sortOrder: 4 },
       { label: "Lymphocytes", fieldKey: "lymphocytes", fieldType: FieldType.NUMBER, unit: "%", normalMin: 20, normalMax: 45, sortOrder: 5 },
       { label: "Monocytes", fieldKey: "monocytes", fieldType: FieldType.NUMBER, unit: "%", normalMin: 2, normalMax: 10, sortOrder: 6 },
       { label: "Eosinophils", fieldKey: "eosinophils", fieldType: FieldType.NUMBER, unit: "%", normalMin: 1, normalMax: 6, sortOrder: 7 },
-      { label: "Platelets", fieldKey: "platelets", fieldType: FieldType.NUMBER, unit: "Ã—10Â³/ÂµL", normalMin: 150, normalMax: 400, sortOrder: 8 },
+      { label: "Platelets", fieldKey: "platelets", fieldType: FieldType.NUMBER, unit: "×10³/µL", normalMin: 150, normalMax: 400, sortOrder: 8 },
       { label: "MCV", fieldKey: "mcv", fieldType: FieldType.NUMBER, unit: "fL", normalMin: 80, normalMax: 100, sortOrder: 9 },
       { label: "MCH", fieldKey: "mch", fieldType: FieldType.NUMBER, unit: "pg", normalMin: 27, normalMax: 33, sortOrder: 10 },
       { label: "MCHC", fieldKey: "mchc", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 32, normalMax: 36, sortOrder: 11 },
@@ -1295,9 +1295,9 @@ async function main() {
     turnaroundMinutes: 180,
     sampleType: "Serum",
     fields: [
-      { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 3.4, normalMax: 20.5, sortOrder: 1 },
-      { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 0, normalMax: 4.5, sortOrder: 2 },
-      { label: "Indirect Bilirubin", fieldKey: "indirect_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 0, normalMax: 17, sortOrder: 3 },
+      { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 3.4, normalMax: 20.5, sortOrder: 1 },
+      { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 4.5, sortOrder: 2 },
+      { label: "Indirect Bilirubin", fieldKey: "indirect_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 17, sortOrder: 3 },
       { label: "ALT (SGPT)", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 7, normalMax: 40, sortOrder: 4 },
       { label: "AST (SGOT)", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 10, normalMax: 40, sortOrder: 5 },
       { label: "ALP", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 44, normalMax: 147, sortOrder: 6 },
@@ -1320,7 +1320,7 @@ async function main() {
     sampleType: "Serum",
     fields: [
       { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 1.6, normalMax: 8.3, sortOrder: 1 },
-      { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 63, normalMax: 130, sortOrder: 2 },
+      { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 63, normalMax: 130, sortOrder: 2 },
       { label: "Uric Acid", fieldKey: "uric_acid", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.15, normalMax: 0.45, sortOrder: 3 },
       { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 134, normalMax: 146, sortOrder: 4 },
       { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.6, normalMax: 5.0, sortOrder: 5 },
@@ -1388,7 +1388,7 @@ async function main() {
     ],
   });
 
-  // â”€â”€ RADIOLOGY TESTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RADIOLOGY TESTS ──────────────────────────────────────────────────────
 
   // 12. Chest X-Ray
   await seedTest({
@@ -1465,7 +1465,7 @@ async function main() {
       create: { id: "cat-cardiac", name: "Cardiac Markers", description: "Cardiac and heart-related markers" },
     }),
   ]);
-  console.log(`âœ… ${extraCategories.length} additional categories ready`);
+  console.log(`✅ ${extraCategories.length} additional categories ready`);
 
   const rawLabTests = [
     "ALKALINE PHOSPHATASE (ALP)",
@@ -1769,11 +1769,11 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "TOTAL BILIRUBIN": [
-    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 2, normalMax: 21, sortOrder: 1 },
+    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 2, normalMax: 21, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "DIRECT BILIRUBIN": [
-    { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 0, normalMax: 5, sortOrder: 1 },
+    { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 5, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "LDL-C": [
@@ -1793,7 +1793,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "THYROID STIMULATING HORMONE (TSH)": [
-    { label: "TSH", fieldKey: "tsh", fieldType: FieldType.NUMBER, unit: "ÂµIU/mL", normalMin: 0.5, normalMax: 5.0, sortOrder: 1 },
+    { label: "TSH", fieldKey: "tsh", fieldType: FieldType.NUMBER, unit: "µIU/mL", normalMin: 0.5, normalMax: 5.0, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "THYROXINE (T4 FREE)": [
@@ -1801,7 +1801,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "THYROXINE (T4 TOTAL)": [
-    { label: "Total T4", fieldKey: "total_t4", fieldType: FieldType.NUMBER, unit: "Âµg/dL", normalMin: 5.0, normalMax: 12.0, sortOrder: 1 },
+    { label: "Total T4", fieldKey: "total_t4", fieldType: FieldType.NUMBER, unit: "µg/dL", normalMin: 5.0, normalMax: 12.0, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "TRIIODOTHYRONINE (T3 TOTAL)": [
@@ -1824,7 +1824,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CREATININE": [
-    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 53, normalMax: 115, sortOrder: 1 },
+    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 53, normalMax: 115, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "BLOOD GASES": [
@@ -1862,7 +1862,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "URIC ACID": [
-    { label: "Uric Acid", fieldKey: "uric_acid", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 155, normalMax: 400, sortOrder: 1 },
+    { label: "Uric Acid", fieldKey: "uric_acid", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 155, normalMax: 400, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "PREGNANCY TEST": [
@@ -1898,9 +1898,9 @@ async function main() {
     { label: "ALP", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 40, normalMax: 129, sortOrder: 9 },
     { label: "ALT", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 7, normalMax: 55, sortOrder: 10 },
     { label: "AST", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 8, normalMax: 48, sortOrder: 11 },
-    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 2, normalMax: 21, sortOrder: 12 },
+    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 2, normalMax: 21, sortOrder: 12 },
     { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.1, normalMax: 8.0, sortOrder: 13 },
-    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 53, normalMax: 115, sortOrder: 14 },
+    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 53, normalMax: 115, sortOrder: 14 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 15 },
   ],
   "PROTEIN ELECTROPHORESIS": [
@@ -1933,7 +1933,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CD4 T CELL COUNT": [
-    { label: "CD4 Count", fieldKey: "cd4_count", fieldType: FieldType.NUMBER, unit: "cells/ÂµL", normalMin: 500, normalMax: 1500, sortOrder: 1 },
+    { label: "CD4 Count", fieldKey: "cd4_count", fieldType: FieldType.NUMBER, unit: "cells/µL", normalMin: 500, normalMax: 1500, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CD4 T CELL PERCENTAGE": [
@@ -1941,7 +1941,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CD8 T CELL COUNT": [
-    { label: "CD8 Count", fieldKey: "cd8_count", fieldType: FieldType.NUMBER, unit: "cells/ÂµL", normalMin: 150, normalMax: 1000, sortOrder: 1 },
+    { label: "CD8 Count", fieldKey: "cd8_count", fieldType: FieldType.NUMBER, unit: "cells/µL", normalMin: 150, normalMax: 1000, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "HIV 1 &amp; II CONFIRMATORY TEST": [
@@ -1997,7 +1997,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "DEHYDROEPIANDROSTERONE SULFATE (DHEA-S)": [
-    { label: "DHEA-S", fieldKey: "dhea_s", fieldType: FieldType.NUMBER, unit: "Âµg/dL", sortOrder: 1 },
+    { label: "DHEA-S", fieldKey: "dhea_s", fieldType: FieldType.NUMBER, unit: "µg/dL", sortOrder: 1 },
     { label: "Sex / Age Group", fieldKey: "sex_age_group", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
@@ -2048,7 +2048,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "TROPONIN T": [
-    { label: "Troponin T", fieldKey: "troponin_t", fieldType: FieldType.NUMBER, unit: "Âµg/L", normalMin: 0, normalMax: 0.1, sortOrder: 1 },
+    { label: "Troponin T", fieldKey: "troponin_t", fieldType: FieldType.NUMBER, unit: "µg/L", normalMin: 0, normalMax: 0.1, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "TROPONIN I": [
@@ -2589,11 +2589,11 @@ async function main() {
     existingRadiologyNames.add(normalized);
   }
 
-  console.log(`âœ… Added/updated ${dedupedLab.length} expanded lab tests`);
-  console.log(`âœ… Added/updated ${dedupedRadiology.length} expanded radiology tests`);
+  console.log(`✅ Added/updated ${dedupedLab.length} expanded lab tests`);
+  console.log(`✅ Added/updated ${dedupedRadiology.length} expanded radiology tests`);
 
   const testCount = await prisma.diagnosticTest.count({ where: { organizationId: orgId } });
-  console.log(`\nâœ… Seeding complete!`);
+  console.log(`\n✅ Seeding complete!`);
   console.log(`   Tests in database: ${testCount}`);
   console.log(`   Categories: ${categories.length}`);
 }
@@ -2609,7 +2609,7 @@ main()
   });
 
 </pre></div>
-<div class='file-block'><div class='file-header'>README.md</div><pre># Diagsync â€” Medical Diagnostic Operations System
+<div class='file-block'><div class='file-header'>README.md</div><pre># Diagsync — Medical Diagnostic Operations System
 
 A multi-role diagnostic workflow operating system for medical labs.
 
@@ -2688,7 +2688,7 @@ Default login after seeding:
 - **Email:** superadmin@reenemedical.com
 - **Password:** Admin@1234
 
-&gt; âš ï¸ Change this password immediately after first login!
+&gt; ⚠️ Change this password immediately after first login!
 
 ### 7. Start development server
 ```bash
@@ -2808,7 +2808,7 @@ export function LoginClient() {
 
           &lt;div&gt;
             &lt;label className={labelCls}&gt;Password&lt;/label&gt;
-            &lt;input type="password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" autoComplete="current-password" {...register("password")} className={inputCls} /&gt;
+            &lt;input type="password" placeholder="••••••••" autoComplete="current-password" {...register("password")} className={inputCls} /&gt;
             {errors.password &amp;&amp; &lt;p className="mt-0.5 text-[11px] text-red-500"&gt;{errors.password.message}&lt;/p&gt;}
           &lt;/div&gt;
 
@@ -2916,7 +2916,7 @@ export default function RegisterPage() {
 
   if (registered) return (
     &lt;div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 text-center"&gt;
-      &lt;div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600 text-xl"&gt;âœ“&lt;/div&gt;
+      &lt;div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600 text-xl"&gt;✓&lt;/div&gt;
       &lt;h2 className="text-sm font-semibold text-slate-800"&gt;Registration Successful&lt;/h2&gt;
       &lt;p className="mt-1 text-xs text-slate-400"&gt;Your organisation is set up. Redirecting to login...&lt;/p&gt;
     &lt;/div&gt;
@@ -3246,7 +3246,7 @@ function shortValue(value: unknown): string {
   if (typeof value === "string") return value.length &gt; 60 ? `${value.slice(0, 60)}...` : value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) return `[${value.length} item${value.length === 1 ? "" : "s"}]`;
-  if (typeof value === "object") return "{â€¦}";
+  if (typeof value === "object") return "{…}";
   return String(value);
 }
 
@@ -3341,7 +3341,7 @@ export default async function AuditLogPage({
       &lt;div&gt;
         &lt;h1 className="text-base font-semibold text-slate-800"&gt;Audit Log&lt;/h1&gt;
         &lt;p className="text-xs text-slate-400 mt-0.5"&gt;
-          {logs.length} records Â· Full action history for your organisation
+          {logs.length} records · Full action history for your organisation
         &lt;/p&gt;
       &lt;/div&gt;
 
@@ -3476,11 +3476,11 @@ export default async function AuditLogPage({
                             ))}
                           &lt;/div&gt;
                         ) : (
-                          &lt;span className="text-slate-300"&gt;â€”&lt;/span&gt;
+                          &lt;span className="text-slate-300"&gt;—&lt;/span&gt;
                         )}
                       &lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
-                        {log.ipAddress ?? "â€”"}
+                        {log.ipAddress ?? "—"}
                       &lt;/td&gt;
                     &lt;/tr&gt;
                   );
@@ -3655,7 +3655,7 @@ export default async function HRMDashboardPage() {
           &lt;div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5"&gt;
             &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Analytics&lt;/span&gt;
             &lt;Link href="/dashboard/hrm/operations" className="text-xs text-blue-600 hover:underline"&gt;
-              View operations â†’
+              View operations →
             &lt;/Link&gt;
           &lt;/div&gt;
 
@@ -3719,7 +3719,7 @@ export default async function HRMDashboardPage() {
           &lt;div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5"&gt;
             &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Recent Activity&lt;/span&gt;
             &lt;Link href="/dashboard/hrm/audit" className="text-xs text-blue-600 hover:underline"&gt;
-              View all â†’
+              View all →
             &lt;/Link&gt;
           &lt;/div&gt;
 
@@ -3898,7 +3898,7 @@ export default async function StaffListPage() {
               href="/dashboard/hrm/staff/new"
               className="mt-2 inline-flex text-xs text-blue-600 hover:underline"
             &gt;
-              Add first staff member â†’
+              Add first staff member →
             &lt;/Link&gt;
           &lt;/div&gt;
         ) : (
@@ -3957,7 +3957,7 @@ export default async function StaffListPage() {
                         href={`/dashboard/hrm/staff/${s.id}`}
                         className="text-blue-600 hover:underline"
                       &gt;
-                        View â†’
+                        View →
                       &lt;/Link&gt;
                     &lt;/td&gt;
                   &lt;/tr&gt;
@@ -3994,7 +3994,7 @@ export default async function TestCatalogPage() {
   // OPTIMISED: use _count instead of include: { resultFields: [...] }
   // The page only displays the field count, not the field data itself.
   // Before: fetched 500-1000+ field rows just to count them.
-  // After: a single COUNT(*) per test in the same query â€” no extra rows.
+  // After: a single COUNT(*) per test in the same query — no extra rows.
   const [tests, categories] = await Promise.all([
     prisma.diagnosticTest.findMany({
       where: { organizationId: user.organizationId, isActive: true },
@@ -4074,8 +4074,8 @@ export default async function TestCatalogPage() {
                       {test.code}
                     &lt;/span&gt;
                   &lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{test.category?.name ?? "â€”"}&lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{test.sampleType ?? "â€”"}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{test.category?.name ?? "—"}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{test.sampleType ?? "—"}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;{turnaround(test.turnaroundMinutes)}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;{formatCurrency(Number(test.price))}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;{formatCurrency(Number((test as any).costPrice ?? 0))}&lt;/td&gt;
@@ -4121,7 +4121,7 @@ export default async function TestCatalogPage() {
                       {test.code}
                     &lt;/span&gt;
                   &lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{test.category?.name ?? "â€”"}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{test.category?.name ?? "—"}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;{turnaround(test.turnaroundMinutes)}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;{formatCurrency(Number(test.price))}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;{formatCurrency(Number((test as any).costPrice ?? 0))}&lt;/td&gt;
@@ -4246,7 +4246,7 @@ export default async function LabQueuePage() {
   );
 }
 </pre></div>
-<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/lab-scientist/results/page.tsx</div><pre>// â”€â”€ src/app/(dashboard)/dashboard/lab-scientist/results/page.tsx â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/lab-scientist/results/page.tsx</div><pre>// ── src/app/(dashboard)/dashboard/lab-scientist/results/page.tsx ──────────────
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -4254,13 +4254,13 @@ import { formatDateTime } from "@/lib/utils";
 import { redirect } from "next/navigation";
 
 function formatResultData(data: unknown): string {
-  if (data === null || data === undefined) return "â€”";
+  if (data === null || data === undefined) return "—";
   if (typeof data !== "object") return String(data);
   const record = data as Record&lt;string, unknown&gt;;
   const pairs = Object.entries(record)
     .filter(([, v]) =&gt; v !== null &amp;&amp; v !== undefined &amp;&amp; `${v}`.trim() !== "")
     .map(([key, value]) =&gt; `${key}: ${String(value)}`);
-  return pairs.length === 0 ? "â€”" : pairs.join(" Â· ");
+  return pairs.length === 0 ? "—" : pairs.join(" · ");
 }
 
 export default async function LabResultsPage() {
@@ -4330,7 +4330,7 @@ export default async function LabResultsPage() {
                 &lt;tr key={row.visitNumber} className="hover:bg-slate-50 transition-colors align-top"&gt;
                   &lt;td className="px-4 py-2.5"&gt;
                     &lt;p className="font-medium text-slate-800"&gt;{row.patientName}&lt;/p&gt;
-                    &lt;p className="font-mono text-slate-400"&gt;{row.patientId} Â· {row.age}y&lt;/p&gt;
+                    &lt;p className="font-mono text-slate-400"&gt;{row.patientId} · {row.age}y&lt;/p&gt;
                   &lt;/td&gt;
                   &lt;td className="px-4 py-2.5 font-mono text-slate-400"&gt;{row.visitNumber}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5"&gt;
@@ -4344,7 +4344,7 @@ export default async function LabResultsPage() {
                     &lt;/div&gt;
                   &lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
-                    {row.submittedAt ? formatDateTime(row.submittedAt) : "â€”"}
+                    {row.submittedAt ? formatDateTime(row.submittedAt) : "—"}
                   &lt;/td&gt;
                 &lt;/tr&gt;
               ))}
@@ -4609,7 +4609,7 @@ export default async function RadiologyReportsPage() {
                   &lt;td className="px-4 py-2.5"&gt;
                     &lt;p className="font-medium text-slate-800"&gt;{report.task.visit.patient.fullName}&lt;/p&gt;
                     &lt;p className="font-mono text-slate-400"&gt;
-                      {report.task.visit.patient.patientId} Â· {report.task.visit.visitNumber}
+                      {report.task.visit.patient.patientId} · {report.task.visit.visitNumber}
                     &lt;/p&gt;
                   &lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500 max-w-[200px]"&gt;{report.findings}&lt;/td&gt;
@@ -4629,7 +4629,7 @@ export default async function RadiologyReportsPage() {
                     )}
                   &lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
-                    {report.submittedAt ? formatDateTime(report.submittedAt) : "â€”"}
+                    {report.submittedAt ? formatDateTime(report.submittedAt) : "—"}
                   &lt;/td&gt;
                 &lt;/tr&gt;
               ))}
@@ -4826,7 +4826,7 @@ export default async function ReceptionistDashboard() {
             href="/dashboard/receptionist/patients"
             className="text-xs text-blue-600 hover:underline"
           &gt;
-            View all â†’
+            View all →
           &lt;/Link&gt;
         &lt;/div&gt;
 
@@ -4837,7 +4837,7 @@ export default async function ReceptionistDashboard() {
               href="/dashboard/receptionist/new-patient"
               className="mt-2 inline-flex text-xs text-blue-600 hover:underline"
             &gt;
-              Register first patient â†’
+              Register first patient →
             &lt;/Link&gt;
           &lt;/div&gt;
         ) : (
@@ -4861,7 +4861,7 @@ export default async function ReceptionistDashboard() {
                     &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{patient.fullName}&lt;/td&gt;
                     &lt;td className="px-4 py-2.5 text-slate-400 font-mono"&gt;{patient.patientId}&lt;/td&gt;
                     &lt;td className="px-4 py-2.5 text-slate-500"&gt;
-                      {patient.age}y Â· {patient.sex}
+                      {patient.age}y · {patient.sex}
                     &lt;/td&gt;
                     &lt;td className="px-4 py-2.5"&gt;
                       &lt;div className="flex flex-wrap gap-1"&gt;
@@ -5210,7 +5210,7 @@ export default async function PatientsListPage({
                       &lt;tr key={row.id} className="hover:bg-slate-50 transition-colors"&gt;
                         &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{row.fullName}&lt;/td&gt;
                         &lt;td className="px-4 py-2.5 font-mono text-slate-400"&gt;{row.patientId}&lt;/td&gt;
-                        &lt;td className="px-4 py-2.5 text-slate-500"&gt;{row.age}y Â· {row.sex}&lt;/td&gt;
+                        &lt;td className="px-4 py-2.5 text-slate-500"&gt;{row.age}y · {row.sex}&lt;/td&gt;
                         &lt;td className="px-4 py-2.5"&gt;
                           &lt;div className="flex flex-wrap gap-1"&gt;
                             {row.latestVisit?.testOrders.slice(0, 2).map((order) =&gt; (
@@ -5226,24 +5226,24 @@ export default async function PatientsListPage({
                           &lt;/div&gt;
                         &lt;/td&gt;
                         &lt;td className="px-4 py-2.5 font-medium text-slate-700"&gt;
-                          {row.latestVisit ? formatCurrency(row.latestVisit.totalAmount) : "â€”"}
+                          {row.latestVisit ? formatCurrency(row.latestVisit.totalAmount) : "—"}
                         &lt;/td&gt;
                         &lt;td className="px-4 py-2.5 font-medium text-slate-700"&gt;
-                          {row.latestVisit ? formatCurrency(row.latestVisit.amountPaid) : "â€”"}
+                          {row.latestVisit ? formatCurrency(row.latestVisit.amountPaid) : "—"}
                         &lt;/td&gt;
                         &lt;td className="px-4 py-2.5"&gt;
                           {row.latestVisit ? (
                             &lt;span className={`rounded px-1.5 py-0.5 font-medium ${priorityStyle[row.latestVisit.priority] ?? "bg-slate-100 text-slate-500"}`}&gt;
                               {row.latestVisit.priority}
                             &lt;/span&gt;
-                          ) : "â€”"}
+                          ) : "—"}
                         &lt;/td&gt;
                         &lt;td className="px-4 py-2.5"&gt;
                           {row.latestVisit ? (
                             &lt;span className={`rounded px-1.5 py-0.5 font-medium ${paymentStyle[row.latestVisit.paymentStatus] ?? "bg-slate-100 text-slate-500"}`}&gt;
                               {row.latestVisit.paymentStatus}
                             &lt;/span&gt;
-                          ) : "â€”"}
+                          ) : "—"}
                         &lt;/td&gt;
                         &lt;td className="px-4 py-2.5 text-slate-600 whitespace-nowrap"&gt;
                           {row.registeredById === user.id ? (
@@ -5302,7 +5302,7 @@ export default async function ReceptionistDispatchPage() {
     &lt;div className="space-y-4"&gt;
       &lt;div&gt;
         &lt;h1 className="text-base font-semibold text-slate-800"&gt;Dispatch Center&lt;/h1&gt;
-        &lt;p className="text-xs text-slate-400 mt-0.5"&gt;Handle released reports â€” print, download, or WhatsApp dispatch.&lt;/p&gt;
+        &lt;p className="text-xs text-slate-400 mt-0.5"&gt;Handle released reports — print, download, or WhatsApp dispatch.&lt;/p&gt;
       &lt;/div&gt;
       &lt;ReportWorkspace role={user.role} /&gt;
     &lt;/div&gt;
@@ -5986,7 +5986,7 @@ export async function POST(req: NextRequest) {
       return { org, admin };
     });
 
-    // Audit log â€” super admin creates themselves during registration
+    // Audit log — super admin creates themselves during registration
     await createAuditLog({
       actorId: result.admin.id,
       actorRole: Role.SUPER_ADMIN,
@@ -6063,7 +6063,7 @@ const registerPatientSchema = z.object({
     .min(1, "Provide prices for selected tests"),
 });
 
-// GET /api/patients â€” list patients for org
+// GET /api/patients — list patients for org
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
@@ -6133,7 +6133,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/patients â€” register new patient + visit + test orders
+// POST /api/patients — register new patient + visit + test orders
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
@@ -6450,7 +6450,7 @@ const createStaffSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
-// GET /api/staff â€” list all staff in the organization
+// GET /api/staff — list all staff in the organization
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
@@ -6529,7 +6529,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/staff â€” create a new staff member
+// POST /api/staff — create a new staff member
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
@@ -6647,7 +6647,7 @@ const createTestSchema = z.object({
   fields: z.array(fieldSchema).min(1, "Add at least one result field"),
 });
 
-// GET /api/tests â€” list all active tests for the org
+// GET /api/tests — list all active tests for the org
 // Query params: ?search=fbc&amp;type=LAB&amp;department=LABORATORY
 export async function GET(req: NextRequest) {
   try {
@@ -7000,7 +7000,7 @@ const features = [
   },
   {
     title: "Turnaround Visibility",
-    text: "Track every stage with timestamps â€” from front desk intake to final report dispatch.",
+    text: "Track every stage with timestamps — from front desk intake to final report dispatch.",
   },
   {
     title: "Full Audit Trail",
@@ -7035,7 +7035,7 @@ const roles = [
   },
   {
     name: "Super Admin",
-    text: "Full system access â€” staff management, test catalog, and org settings.",
+    text: "Full system access — staff management, test catalog, and org settings.",
   },
 ];
 
@@ -7125,7 +7125,7 @@ export default async function HomePage() {
               One platform for registration, testing, review, and release
             &lt;/h1&gt;
             &lt;p className="mt-4 text-sm leading-relaxed text-slate-500 max-w-lg"&gt;
-              Diagsync gives every role in your lab â€” from receptionist to MD â€” a focused dashboard
+              Diagsync gives every role in your lab — from receptionist to MD — a focused dashboard
               with the exact tools they need. Auto-routing, audit trails, and measurable turnaround
               times out of the box.
             &lt;/p&gt;
@@ -7257,7 +7257,7 @@ export default async function HomePage() {
         &lt;div className="mb-8 reveal"&gt;
           &lt;h2 className="text-xl font-semibold text-slate-800"&gt;A dashboard for every role&lt;/h2&gt;
           &lt;p className="mt-1.5 text-sm text-slate-400"&gt;
-            Each staff member sees only what they need â€” nothing more.
+            Each staff member sees only what they need — nothing more.
           &lt;/p&gt;
         &lt;/div&gt;
         &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
@@ -7714,16 +7714,16 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                   &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{row.fullName}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-600"&gt;{row.age}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-600"&gt;{row.contact}&lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{row.vitalsNote?.trim() ? row.vitalsNote : "â€”"}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{row.vitalsNote?.trim() ? row.vitalsNote : "—"}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5"&gt;
                     &lt;span className={`rounded px-1.5 py-0.5 font-medium ${statusStyle[row.status]}`}&gt;{row.status}&lt;/span&gt;
                   &lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;
-                    {row.createdBy?.fullName ?? "â€”"}
+                    {row.createdBy?.fullName ?? "—"}
                     {row.acknowledgedBy?.fullName ? ` / In: ${row.acknowledgedBy.fullName}` : ""}
                   &lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;
-                    {row.consultedBy?.fullName ?? row.calledBy?.fullName ?? "â€”"}
+                    {row.consultedBy?.fullName ?? row.calledBy?.fullName ?? "—"}
                   &lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;{formatDateTime(row.arrivalAt)}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5"&gt;
@@ -7787,15 +7787,15 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                 &lt;tr key={`history-${row.id}`} className="hover:bg-slate-50 transition-colors"&gt;
                   &lt;td className="px-4 py-2.5"&gt;
                     &lt;p className="font-medium text-slate-800"&gt;{row.fullName}&lt;/p&gt;
-                    &lt;p className="text-slate-400"&gt;{row.age}y Â· {row.contact}&lt;/p&gt;
+                    &lt;p className="text-slate-400"&gt;{row.age}y · {row.contact}&lt;/p&gt;
                   &lt;/td&gt;
                   &lt;td className="px-4 py-2.5"&gt;
                     &lt;span className={`rounded px-1.5 py-0.5 font-medium ${statusStyle[row.status]}`}&gt;{row.status}&lt;/span&gt;
                   &lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{row.createdBy?.fullName ?? "â€”"}&lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{row.consultedBy?.fullName ?? "â€”"}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{row.createdBy?.fullName ?? "—"}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-500"&gt;{row.consultedBy?.fullName ?? "—"}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;{formatDateTime(row.arrivalAt)}&lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;{row.consultedAt ? formatDateTime(row.consultedAt) : "â€”"}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;{row.consultedAt ? formatDateTime(row.consultedAt) : "—"}&lt;/td&gt;
                 &lt;/tr&gt;
               ))}
             &lt;/tbody&gt;
@@ -9073,7 +9073,7 @@ export function LabQueueTable({ rows }: { rows: QueueRow[] }) {
                 &lt;tr key={row.taskId} className="hover:bg-slate-50 transition-colors"&gt;
                   &lt;td className="px-4 py-2.5"&gt;
                     &lt;p className="font-medium text-slate-800"&gt;{row.patientName}&lt;/p&gt;
-                    &lt;p className="font-mono text-slate-400"&gt;{row.patientId} Â· {row.visitNumber}&lt;/p&gt;
+                    &lt;p className="font-mono text-slate-400"&gt;{row.patientId} · {row.visitNumber}&lt;/p&gt;
                   &lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;{row.tests.join(", ")}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5"&gt;
@@ -10948,7 +10948,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                     &lt;tr key={item.id} className={`hover:bg-slate-50 transition-colors ${isExpanded ? "bg-blue-50/20" : ""}`}&gt;
                       &lt;td className="px-4 py-2.5"&gt;
                         &lt;p className="font-medium text-slate-800"&gt;{item.visit.patient.fullName}&lt;/p&gt;
-                        &lt;p className="font-mono text-slate-400"&gt;{item.visit.patient.patientId} Â· {item.visit.patient.age}y Â· {item.visit.patient.sex}&lt;/p&gt;
+                        &lt;p className="font-mono text-slate-400"&gt;{item.visit.patient.patientId} · {item.visit.patient.age}y · {item.visit.patient.sex}&lt;/p&gt;
                       &lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-500"&gt;{item.department}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-500"&gt;
@@ -10962,7 +10962,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                       &lt;td className="px-4 py-2.5"&gt;
                         &lt;span className={`rounded px-1.5 py-0.5 font-medium ${reviewStyle[reviewStatus]}`}&gt;{reviewStatus}&lt;/span&gt;
                       &lt;/td&gt;
-                      &lt;td className="px-4 py-2.5 text-slate-500"&gt;{item.staff?.fullName ?? "â€”"}&lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-500"&gt;{item.staff?.fullName ?? "—"}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-400"&gt;{minutesAgoLabel(item.updatedAt)}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5"&gt;
                         {reviewStatus !== "APPROVED" &amp;&amp; (
@@ -10991,7 +10991,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                                     &lt;div key={result.testOrderId} className="rounded border border-slate-100 p-2"&gt;
                                       &lt;p className="font-medium text-slate-800"&gt;{result.testOrder.test.name} &lt;span className="font-mono text-slate-400 text-[11px]"&gt;v{result.currentVersion}&lt;/span&gt;&lt;/p&gt;
                                       &lt;p className="text-slate-500 mt-1"&gt;
-                                        {Object.entries(result.resultData as Record&lt;string, unknown&gt;).filter(([, v]) =&gt; v !== null &amp;&amp; v !== undefined &amp;&amp; `${v}`.trim()).map(([k, v]) =&gt; `${k}: ${v}`).join(" Â· ") || "â€”"}
+                                        {Object.entries(result.resultData as Record&lt;string, unknown&gt;).filter(([, v]) =&gt; v !== null &amp;&amp; v !== undefined &amp;&amp; `${v}`.trim()).map(([k, v]) =&gt; `${k}: ${v}`).join(" · ") || "—"}
                                       &lt;/p&gt;
                                       {result.notes &amp;&amp; &lt;p className="text-slate-400 text-[11px] mt-0.5"&gt;Note: {result.notes}&lt;/p&gt;}
                                       &lt;ResultInsightBox messages={buildResultInsights(result.resultData)} /&gt;
@@ -11000,8 +11000,8 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                                 &lt;/div&gt;
                               ) : (
                                 &lt;div className="space-y-1.5"&gt;
-                                  &lt;p className="text-slate-700"&gt;&lt;span className="font-medium"&gt;Findings:&lt;/span&gt; {item.radiologyReport?.findings ?? "â€”"}&lt;/p&gt;
-                                  &lt;p className="text-slate-700"&gt;&lt;span className="font-medium"&gt;Impression:&lt;/span&gt; {item.radiologyReport?.impression ?? "â€”"}&lt;/p&gt;
+                                  &lt;p className="text-slate-700"&gt;&lt;span className="font-medium"&gt;Findings:&lt;/span&gt; {item.radiologyReport?.findings ?? "—"}&lt;/p&gt;
+                                  &lt;p className="text-slate-700"&gt;&lt;span className="font-medium"&gt;Impression:&lt;/span&gt; {item.radiologyReport?.impression ?? "—"}&lt;/p&gt;
                                   {submittedRadExtraFields.map(([key, value]) =&gt; (
                                     &lt;p key={key} className="text-slate-700"&gt;
                                       &lt;span className="font-medium"&gt;{key}:&lt;/span&gt; {value}
@@ -11330,7 +11330,7 @@ export function NotificationBell({ role }: { role: string }) {
           {/* Footer */}
           &lt;div className="border-t border-slate-100 px-3 py-2"&gt;
             &lt;Link href={roleNotificationPath(role)} className="text-xs text-blue-600 hover:underline"&gt;
-              View all notifications â†’
+              View all notifications →
             &lt;/Link&gt;
           &lt;/div&gt;
         &lt;/div&gt;
@@ -11462,7 +11462,7 @@ export function PatientInsights({ insights }: Props) {
       &lt;ul className="mt-2 space-y-1"&gt;
         {insights.map((insight, idx) =&gt; (
           &lt;li key={`${insight}-${idx}`} className="text-xs text-slate-600"&gt;
-            â€¢ {insight}
+            • {insight}
           &lt;/li&gt;
         ))}
       &lt;/ul&gt;
@@ -11548,7 +11548,7 @@ export function RadiologyQueueTable({ rows }: { rows: Row[] }) {
                 &lt;tr key={row.taskId} className="hover:bg-slate-50 transition-colors"&gt;
                   &lt;td className="px-4 py-2.5"&gt;
                     &lt;p className="font-medium text-slate-800"&gt;{row.patientName}&lt;/p&gt;
-                    &lt;p className="font-mono text-slate-400"&gt;{row.patientId} Â· {row.visitNumber}&lt;/p&gt;
+                    &lt;p className="font-mono text-slate-400"&gt;{row.patientId} · {row.visitNumber}&lt;/p&gt;
                   &lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;{row.tests.join(", ")}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5"&gt;
@@ -11923,7 +11923,7 @@ export function RadiologyTaskBoard() {
                     &lt;tr key={task.id} className={`hover:bg-slate-50 transition-colors ${isExpanded ? "bg-blue-50/20" : ""}`}&gt;
                       &lt;td className="px-4 py-2.5"&gt;
                         &lt;p className="font-medium text-slate-800"&gt;{task.visit.patient.fullName}&lt;/p&gt;
-                        &lt;p className="font-mono text-slate-400"&gt;{task.visit.patient.patientId} Â· {task.visit.patient.age}y Â· {task.visit.patient.sex}&lt;/p&gt;
+                        &lt;p className="font-mono text-slate-400"&gt;{task.visit.patient.patientId} · {task.visit.patient.age}y · {task.visit.patient.sex}&lt;/p&gt;
                       &lt;/td&gt;
                       &lt;td className="px-4 py-2.5"&gt;
                         &lt;span className={`rounded px-1.5 py-0.5 font-medium ${priorityStyle[task.priority]}`}&gt;{task.priority}&lt;/span&gt;
@@ -11947,7 +11947,7 @@ export function RadiologyTaskBoard() {
                               {isExpanded ? "Close" : "Open Report"}
                             &lt;/button&gt;
                           )}
-                          {task.status === "COMPLETED" &amp;&amp; &lt;span className="text-green-600 font-medium"&gt;âœ“ Submitted&lt;/span&gt;}
+                          {task.status === "COMPLETED" &amp;&amp; &lt;span className="text-green-600 font-medium"&gt;✓ Submitted&lt;/span&gt;}
                         &lt;/div&gt;
                       &lt;/td&gt;
                     &lt;/tr&gt;
@@ -12457,7 +12457,7 @@ export function NewPatientForm() {
   // Success screen
   if (success &amp;&amp; savedData) return (
     &lt;div className="max-w-sm mx-auto rounded-lg border border-slate-200 bg-white p-6 text-center space-y-4"&gt;
-      &lt;div className="mx-auto h-12 w-12 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xl"&gt;âœ“&lt;/div&gt;
+      &lt;div className="mx-auto h-12 w-12 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xl"&gt;✓&lt;/div&gt;
       &lt;div&gt;
         &lt;h2 className="text-sm font-semibold text-slate-800"&gt;Patient Registered&lt;/h2&gt;
         &lt;p className="text-xs text-slate-400 mt-1"&gt;
@@ -12483,7 +12483,7 @@ export function NewPatientForm() {
     &lt;div className="space-y-3"&gt;
       {/* Online status */}
       &lt;div className={`rounded border px-3 py-1.5 text-xs ${isOnline ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"}`}&gt;
-        {isOnline ? (syncingOffline ? "Online â€” syncing offline registrations..." : "Online") : "Offline â€” registration will be saved locally."}
+        {isOnline ? (syncingOffline ? "Online — syncing offline registrations..." : "Online") : "Offline — registration will be saved locally."}
       &lt;/div&gt;
 
       &lt;div className="grid grid-cols-1 gap-4 lg:grid-cols-3"&gt;
@@ -12571,7 +12571,7 @@ export function NewPatientForm() {
                         className="flex w-full items-center justify-between px-3 py-2.5 text-xs hover:bg-slate-50 transition-colors text-left border-b border-slate-100 last:border-0"&gt;
                         &lt;div&gt;
                           &lt;p className="font-medium text-slate-800"&gt;{test.name}&lt;/p&gt;
-                          &lt;p className="text-slate-400"&gt;{test.code} Â· {test.category?.name ?? test.department}{test.sampleType ? ` Â· ${test.sampleType}` : ""}&lt;/p&gt;
+                          &lt;p className="text-slate-400"&gt;{test.code} · {test.category?.name ?? test.department}{test.sampleType ? ` · ${test.sampleType}` : ""}&lt;/p&gt;
                         &lt;/div&gt;
                         &lt;span className={`rounded px-1.5 py-0.5 font-medium text-[11px] ${test.type === "LAB" ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}&gt;
                           {test.type}
@@ -12597,7 +12597,7 @@ export function NewPatientForm() {
                     &lt;tr className="border-b border-slate-100"&gt;
                       &lt;th className="pb-2 text-left font-medium text-slate-400"&gt;Test&lt;/th&gt;
                       &lt;th className="pb-2 text-left font-medium text-slate-400"&gt;Type&lt;/th&gt;
-                      &lt;th className="pb-2 text-left font-medium text-slate-400 w-28"&gt;Price (â‚¦)&lt;/th&gt;
+                      &lt;th className="pb-2 text-left font-medium text-slate-400 w-28"&gt;Price (₦)&lt;/th&gt;
                       &lt;th className="pb-2 w-6"&gt;&lt;/th&gt;
                     &lt;/tr&gt;
                   &lt;/thead&gt;
@@ -12746,7 +12746,7 @@ export function NewPatientForm() {
                       : "border-slate-200 text-slate-500 hover:bg-slate-50"
                   }`}&gt;
                   {p.charAt(0) + p.slice(1).toLowerCase()}
-                  {priority === p &amp;&amp; &lt;span&gt;âœ“&lt;/span&gt;}
+                  {priority === p &amp;&amp; &lt;span&gt;✓&lt;/span&gt;}
                 &lt;/button&gt;
               ))}
             &lt;/div&gt;
@@ -12771,7 +12771,7 @@ export function NewPatientForm() {
               )}
 
               &lt;div&gt;
-                &lt;label className={labelCls}&gt;Discount (â‚¦)&lt;/label&gt;
+                &lt;label className={labelCls}&gt;Discount (₦)&lt;/label&gt;
                 &lt;input type="number" min="0" placeholder="0" value={discount} onChange={(e) =&gt; setDiscount(e.target.value)} className={inputCls} /&gt;
               &lt;/div&gt;
 
@@ -12782,7 +12782,7 @@ export function NewPatientForm() {
                 &lt;/div&gt;
                 {discountAmount &gt; 0 &amp;&amp; (
                   &lt;div className="flex justify-between text-green-700"&gt;
-                    &lt;span&gt;Discount&lt;/span&gt;&lt;span&gt;âˆ’{formatCurrency(discountAmount)}&lt;/span&gt;
+                    &lt;span&gt;Discount&lt;/span&gt;&lt;span&gt;−{formatCurrency(discountAmount)}&lt;/span&gt;
                   &lt;/div&gt;
                 )}
                 &lt;div className="flex justify-between font-semibold text-slate-800 border-t border-slate-200 pt-1.5"&gt;
@@ -12791,7 +12791,7 @@ export function NewPatientForm() {
               &lt;/div&gt;
 
               &lt;div&gt;
-                &lt;label className={labelCls}&gt;Amount Paid (â‚¦)&lt;/label&gt;
+                &lt;label className={labelCls}&gt;Amount Paid (₦)&lt;/label&gt;
                 &lt;input type="number" min="0" placeholder="0" value={amountPaid} onChange={(e) =&gt; setAmountPaid(e.target.value)} className={inputCls} /&gt;
               &lt;/div&gt;
 
@@ -13189,7 +13189,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                       {row.isReleased ? "Released" : "Draft"}
                     &lt;/span&gt;
                   &lt;/div&gt;
-                  &lt;p className="text-[11px] text-slate-400"&gt;{row.reportType === "lab" ? "Lab" : "Radiology"} Â· {row.visit.visitNumber}&lt;/p&gt;
+                  &lt;p className="text-[11px] text-slate-400"&gt;{row.reportType === "lab" ? "Lab" : "Radiology"} · {row.visit.visitNumber}&lt;/p&gt;
                   &lt;p className="text-[11px] text-slate-300"&gt;{formatDateTime(row.updatedAt)}&lt;/p&gt;
                 &lt;/button&gt;
               ))}
@@ -13207,9 +13207,9 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
               &lt;div className="flex items-center justify-between px-4 py-3"&gt;
                 &lt;div&gt;
                   &lt;p className="text-xs font-semibold text-slate-800"&gt;
-                    {details.reportType === "lab" ? "Lab Report" : "Radiology Report"} â€” {details.visit.patient.fullName}
+                    {details.reportType === "lab" ? "Lab Report" : "Radiology Report"} — {details.visit.patient.fullName}
                   &lt;/p&gt;
-                  &lt;p className="font-mono text-[11px] text-slate-400"&gt;{details.visit.patient.patientId} Â· {details.visit.visitNumber}&lt;/p&gt;
+                  &lt;p className="font-mono text-[11px] text-slate-400"&gt;{details.visit.patient.patientId} · {details.visit.visitNumber}&lt;/p&gt;
                 &lt;/div&gt;
                 &lt;div className="flex gap-1.5"&gt;
                   &lt;span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600"&gt;{details.department}&lt;/span&gt;
@@ -13727,7 +13727,7 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// â”€â”€â”€ Label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Label ───────────────────────────────────────────────────────────────────
 const labelVariants = cva(
   "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
 );
@@ -13741,7 +13741,7 @@ const Label = React.forwardRef&lt;
 ));
 Label.displayName = LabelPrimitive.Root.displayName;
 
-// â”€â”€â”€ Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Card ─────────────────────────────────────────────────────────────────────
 const Card = React.forwardRef&lt;HTMLDivElement, React.HTMLAttributes&lt;HTMLDivElement&gt;&gt;(
   ({ className, ...props }, ref) =&gt; (
     &lt;div
@@ -13793,7 +13793,7 @@ const CardFooter = React.forwardRef&lt;HTMLDivElement, React.HTMLAttributes&lt;H
 );
 CardFooter.displayName = "CardFooter";
 
-// â”€â”€â”€ Badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Badge ────────────────────────────────────────────────────────────────────
 const badgeVariants = cva(
   "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
@@ -13820,7 +13820,7 @@ function Badge({ className, variant, ...props }: BadgeProps) {
   return &lt;div className={cn(badgeVariants({ variant }), className)} {...props} /&gt;;
 }
 
-// â”€â”€â”€ Select â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Select ───────────────────────────────────────────────────────────────────
 const Select = SelectPrimitive.Root;
 const SelectGroup = SelectPrimitive.Group;
 const SelectValue = SelectPrimitive.Value;
@@ -13951,7 +13951,7 @@ const SelectSeparator = React.forwardRef&lt;
 ));
 SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
 
-// â”€â”€â”€ Switch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Switch ───────────────────────────────────────────────────────────────────
 const Switch = React.forwardRef&lt;
   React.ElementRef&lt;typeof SwitchPrimitive.Root&gt;,
   React.ComponentPropsWithoutRef&lt;typeof SwitchPrimitive.Root&gt;
@@ -14131,7 +14131,7 @@ export async function logAction(data: LogActionInput) {
       },
     });
   } catch (error) {
-    // Audit logs should never crash the app â€” log silently
+    // Audit logs should never crash the app — log silently
     console.error("[AUDIT_LOG_ERROR]", error);
   }
 }
@@ -14165,19 +14165,19 @@ export const AUDIT_ACTIONS = {
   STAFF_LOGOUT: "STAFF_LOGOUT",
   AVAILABILITY_CHANGED: "AVAILABILITY_CHANGED",
 
-  // Phase 3 â€” Patient &amp; Visit
+  // Phase 3 — Patient &amp; Visit
   PATIENT_REGISTERED: "PATIENT_REGISTERED",
   PATIENT_UPDATED: "PATIENT_UPDATED",
   VISIT_CREATED: "VISIT_CREATED",
   PAYMENT_UPDATED: "PAYMENT_UPDATED",
 
-  // Phase 3 â€” Test Orders &amp; Routing
+  // Phase 3 — Test Orders &amp; Routing
   TEST_ORDERED: "TEST_ORDERED",
   TEST_ASSIGNED: "TEST_ASSIGNED",
   TEST_REASSIGNED: "TEST_REASSIGNED",
   TEST_ACCEPTED: "TEST_ACCEPTED",
 
-  // Phase 5+ â€” Lab workflow
+  // Phase 5+ — Lab workflow
   SAMPLE_COLLECTED: "SAMPLE_COLLECTED",
   TEST_STARTED: "TEST_STARTED",
   RESULT_DRAFTED: "RESULT_DRAFTED",
@@ -14324,7 +14324,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const { email, password } = parsed.data;
 
-        // OPTIMISED: select only required fields â€” removed `include: { organization: true }`
+        // OPTIMISED: select only required fields — removed `include: { organization: true }`
         // which was doing an unnecessary JOIN on every login. We only need organizationId (the FK),
         // not the full org record. The JWT stores the ID, not org details.
         const staff = await prisma.staff.findUnique({
@@ -17051,7 +17051,7 @@ function toCreateData(
   };
 }
 
-// Single notification â€” kept for one-off sends
+// Single notification — kept for one-off sends
 export async function sendNotification(input: SendNotificationInput) {
   try {
     const created = await prisma.notification.create({
@@ -17258,7 +17258,7 @@ export async function emitDelayedTaskNotifications(organizationId: string) {
 
   if (notificationsToCreate.length === 0) return 0;
 
-  // OPTIMISED: single batch insert instead of NÃ—M sequential writes
+  // OPTIMISED: single batch insert instead of N×M sequential writes
   const result = await prisma.notification.createMany({
     data: notificationsToCreate,
     skipDuplicates: true,
@@ -20214,9 +20214,9 @@ export const config = {
   OrderStatus,
 } from "@prisma/client";
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // AUTH / STAFF
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface SessionUser {
   id: string;
@@ -20242,9 +20242,9 @@ export interface StaffWithOrg {
   organization: { id: string; name: string };
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // API WRAPPERS
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ApiResponse&lt;T = unknown&gt; {
   success: boolean;
@@ -20261,9 +20261,9 @@ export interface PaginatedResponse&lt;T&gt; {
   totalPages: number;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// PHASE 2 â€” TEST DATABASE TYPES
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 2 — TEST DATABASE TYPES
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ResultTemplateField {
   id: string;
@@ -20298,9 +20298,9 @@ export interface DiagnosticTestWithFields {
   resultFields: ResultTemplateField[];
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// PHASE 2 â€” PATIENT &amp; VISIT TYPES
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 2 — PATIENT &amp; VISIT TYPES
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface Patient {
   id: string;
