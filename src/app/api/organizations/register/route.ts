@@ -5,6 +5,15 @@ import { z } from "zod";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { Role, Department } from "@prisma/client";
 
+// Helper: accepts a valid URL, an empty string, null, or undefined — but never a non-URL string
+const optionalUrl = z
+  .string()
+  .url()
+  .or(z.literal(""))
+  .optional()
+  .nullable()
+  .transform((v) => (v === "" ? null : v)); // normalise "" → null before saving
+
 const registerSchema = z.object({
   // Organization details
   orgName: z.string().min(2, "Organization name is required"),
@@ -12,8 +21,8 @@ const registerSchema = z.object({
   orgPhone: z.string().min(7, "Phone number required"),
   orgAddress: z.string().min(5, "Address required"),
   orgContactInfo: z.string().max(1000).optional().nullable(),
-  orgLogo: z.string().url().optional().nullable(),
-  orgLetterheadUrl: z.string().url().optional().nullable(),
+  orgLogo: optionalUrl,
+  orgLetterheadUrl: optionalUrl,
   // Admin account details
   adminName: z.string().min(2, "Admin full name required"),
   adminEmail: z.string().email("Valid admin email required"),
