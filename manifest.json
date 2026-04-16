@@ -1,0 +1,46 @@
+{
+  "name": "DiagSync - Medical Diagnostics",
+  "short_name": "DiagSync",
+  "description": "Medical diagnostic lab management platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "DiagSync Dashboard"
+    }
+  ],
+  "categories": ["medical", "productivity", "business"],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "Go to dashboard"
+    },
+    {
+      "name": "Register Patient",
+      "url": "/dashboard/reception/register",
+      "description": "Register a new patient"
+    }
+  ]
+}
