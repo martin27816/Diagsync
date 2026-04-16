@@ -1,19 +1,21 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-4">
-        <h1 className="text-6xl font-bold text-muted-foreground">404</h1>
-        <h2 className="text-2xl font-semibold">Page not found</h2>
-        <p className="text-muted-foreground">
-          The page you are looking for does not exist or you don't have permission to view it.
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold text-slate-800">Page not found</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          The route may have moved or the link is no longer valid.
         </p>
-        <Link href="/">
-          <Button>Go to Dashboard</Button>
+        <Link
+          href="/dashboard"
+          className="mt-4 inline-flex rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+        >
+          Go to dashboard
         </Link>
       </div>
     </div>
   );
 }
+
