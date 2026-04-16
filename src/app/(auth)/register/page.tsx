@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 
 const schema = z.object({
   orgName: z.string().min(2, "Organisation name is required"),
@@ -13,8 +14,9 @@ const schema = z.object({
   orgPhone: z.string().min(7, "Phone number required"),
   orgAddress: z.string().min(5, "Address required"),
   orgContactInfo: z.string().optional(),
-  orgLogo: z.string().url().optional().or(z.literal("")),
-  orgLetterheadUrl: z.string().url().optional().or(z.literal("")),
+  // FIX: .or(z.literal("")) must come before .optional() so empty string is accepted
+  orgLogo: z.string().url().or(z.literal("")).optional(),
+  orgLetterheadUrl: z.string().url().or(z.literal("")).optional(),
   adminName: z.string().min(2, "Admin full name required"),
   adminEmail: z.string().email("Valid admin email required"),
   adminPhone: z.string().min(7, "Admin phone required"),
@@ -34,6 +36,44 @@ const errCls = "mt-0.5 text-[11px] text-red-500";
 function getFriendlyFileName(url: string) {
   try { return decodeURIComponent(new URL(url).pathname.split("/").pop() ?? ""); }
   catch { return decodeURIComponent(url.split("/").pop() ?? ""); }
+}
+
+function PasswordInput({
+  placeholder,
+  registration,
+  error,
+}: {
+  placeholder: string;
+  registration: ReturnType<ReturnType<typeof useForm<FormData>>["register"]>;
+  error?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div>
+      <div className="relative">
+        <input
+          type={show ? "text" : "password"}
+          placeholder={placeholder}
+          {...registration}
+          className={`${inputCls} pr-8`}
+        />
+        <button
+          type="button"
+          onClick={() => setShow((s) => !s)}
+          className="absolute inset-y-0 right-0 flex items-center px-2 text-slate-400 hover:text-slate-600 focus:outline-none"
+          tabIndex={-1}
+          aria-label={show ? "Hide password" : "Show password"}
+        >
+          {show ? (
+            <EyeOff className="h-3.5 w-3.5" />
+          ) : (
+            <Eye className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </div>
+      {error && <p className={errCls}>{error}</p>}
+    </div>
+  );
 }
 
 export default function RegisterPage() {
@@ -176,13 +216,19 @@ export default function RegisterPage() {
             </div>
             <div>
               <label className={labelCls}>Password *</label>
-              <input type="password" placeholder="Min 8 characters" {...register("adminPassword")} className={inputCls} />
-              {errors.adminPassword && <p className={errCls}>{errors.adminPassword.message}</p>}
+              <PasswordInput
+                placeholder="Min 8 characters"
+                registration={register("adminPassword")}
+                error={errors.adminPassword?.message}
+              />
             </div>
             <div>
               <label className={labelCls}>Confirm Password *</label>
-              <input type="password" placeholder="Repeat password" {...register("confirmPassword")} className={inputCls} />
-              {errors.confirmPassword && <p className={errCls}>{errors.confirmPassword.message}</p>}
+              <PasswordInput
+                placeholder="Repeat password"
+                registration={register("confirmPassword")}
+                error={errors.confirmPassword?.message}
+              />
             </div>
           </div>
 

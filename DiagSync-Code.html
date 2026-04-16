@@ -3720,6 +3720,7 @@ export default async function HRMDashboardPage() {
     { label: "Available", value: activeStaff },
     { label: "Unavailable", value: unavailableStaff },
   ];
+
   const focusItems = [
     overview.metrics.unacknowledgedAlerts &gt; 0
       ? `Acknowledge ${overview.metrics.unacknowledgedAlerts} vital alert(s) to reduce reliability risk.`
@@ -3735,22 +3736,22 @@ export default async function HRMDashboardPage() {
   return (
     &lt;div className="space-y-5"&gt;
       {/* Page header */}
-      &lt;div className="flex items-center justify-between"&gt;
+      &lt;div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"&gt;
         &lt;div&gt;
           &lt;h1 className="text-base font-semibold text-slate-800"&gt;Operations Overview&lt;/h1&gt;
           &lt;p className="text-xs text-slate-400 mt-0.5"&gt;Live workflow across your lab&lt;/p&gt;
         &lt;/div&gt;
-        &lt;div className="flex items-center gap-2"&gt;
+        &lt;div className="flex flex-wrap items-center gap-2"&gt;
           &lt;Link
             href="/dashboard/hrm/consultation"
-            className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors sm:py-1.5"
           &gt;
             Consultation Monitor
           &lt;/Link&gt;
           {user.role === "SUPER_ADMIN" &amp;&amp; (
             &lt;Link
               href="/dashboard/hrm/settings"
-              className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors sm:py-1.5"
             &gt;
               &lt;Settings2 className="h-3.5 w-3.5" /&gt;
               Settings
@@ -3759,19 +3760,20 @@ export default async function HRMDashboardPage() {
         &lt;/div&gt;
       &lt;/div&gt;
 
-      {/* Metrics strip */}
-      &lt;div className="grid grid-cols-4 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden lg:grid-cols-8"&gt;
+      {/* Metrics strip â€” 3-col on mobile, 4-col on sm, 8-col on lg */}
+      &lt;div className="grid grid-cols-3 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden sm:grid-cols-4 lg:grid-cols-9"&gt;
         {metrics.map((m) =&gt; (
-          &lt;div key={m.label} className="bg-white px-4 py-3"&gt;
-            &lt;p className="text-[11px] text-slate-400 uppercase tracking-wide"&gt;{m.label}&lt;/p&gt;
-            &lt;p className={`text-xl font-bold mt-0.5 ${m.alert ? "text-red-600" : "text-slate-800"}`}&gt;
+          &lt;div key={m.label} className="bg-white px-3 py-3 sm:px-4"&gt;
+            &lt;p className="text-[10px] text-slate-400 uppercase tracking-wide leading-tight"&gt;{m.label}&lt;/p&gt;
+            &lt;p className={`text-lg font-bold mt-0.5 sm:text-xl ${m.alert ? "text-red-600" : "text-slate-800"}`}&gt;
               {m.value}
             &lt;/p&gt;
           &lt;/div&gt;
         ))}
       &lt;/div&gt;
 
-      &lt;div className="grid grid-cols-2 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden lg:grid-cols-5"&gt;
+      {/* Score strip â€” 2-col on mobile, 5-col on lg */}
+      &lt;div className="grid grid-cols-2 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden sm:grid-cols-3 lg:grid-cols-5"&gt;
         {[
           { label: "Overall", value: overview.dominance.overallScore },
           { label: "Speed", value: overview.dominance.speedScore },
@@ -3779,10 +3781,10 @@ export default async function HRMDashboardPage() {
           { label: "Reliability", value: overview.dominance.reliabilityScore },
           { label: "Automation", value: overview.dominance.automationScore },
         ].map((item) =&gt; (
-          &lt;div key={item.label} className="bg-white px-4 py-3"&gt;
-            &lt;p className="text-[11px] text-slate-400 uppercase tracking-wide"&gt;{item.label} Score&lt;/p&gt;
+          &lt;div key={item.label} className="bg-white px-3 py-3 sm:px-4"&gt;
+            &lt;p className="text-[10px] text-slate-400 uppercase tracking-wide leading-tight"&gt;{item.label} Score&lt;/p&gt;
             &lt;p
-              className={`text-xl font-bold mt-0.5 ${
+              className={`text-lg font-bold mt-0.5 sm:text-xl ${
                 item.value &gt;= 85 ? "text-green-700" : item.value &gt;= 70 ? "text-amber-700" : "text-red-700"
               }`}
             &gt;
@@ -3792,6 +3794,7 @@ export default async function HRMDashboardPage() {
         ))}
       &lt;/div&gt;
 
+      {/* Today's focus */}
       &lt;div className="rounded-lg border border-slate-200 bg-white p-4"&gt;
         &lt;p className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Today's Focus&lt;/p&gt;
         &lt;div className="mt-2 space-y-1.5"&gt;
@@ -3803,7 +3806,7 @@ export default async function HRMDashboardPage() {
         &lt;/div&gt;
       &lt;/div&gt;
 
-      {/* Two column: analytics + activity */}
+      {/* Two column: analytics + activity â€” stacked on mobile, side-by-side on lg */}
       &lt;div className="grid grid-cols-1 gap-4 lg:grid-cols-2"&gt;
         {/* Analytics */}
         &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
@@ -3843,27 +3846,29 @@ export default async function HRMDashboardPage() {
               {overview.analytics.busiestStaff.length === 0 ? (
                 &lt;p className="text-xs text-slate-400"&gt;No active workload.&lt;/p&gt;
               ) : (
-                &lt;table className="w-full text-xs"&gt;
-                  &lt;tbody className="divide-y divide-slate-100"&gt;
-                    {overview.analytics.busiestStaff.map((s) =&gt; (
-                      &lt;tr key={s.id}&gt;
-                        &lt;td className="py-1.5 font-medium text-slate-700"&gt;{s.fullName}&lt;/td&gt;
-                        &lt;td className="py-1.5 text-slate-400"&gt;{ROLE_LABELS[s.role]}&lt;/td&gt;
-                        &lt;td className="py-1.5 text-right"&gt;
-                          &lt;span
-                            className={`rounded px-1.5 py-0.5 font-semibold ${
-                              s.overloaded
-                                ? "bg-red-50 text-red-600"
-                                : "bg-blue-50 text-blue-600"
-                            }`}
-                          &gt;
-                            {s.active} active
-                          &lt;/span&gt;
-                        &lt;/td&gt;
-                      &lt;/tr&gt;
-                    ))}
-                  &lt;/tbody&gt;
-                &lt;/table&gt;
+                &lt;div className="overflow-x-auto"&gt;
+                  &lt;table className="w-full text-xs"&gt;
+                    &lt;tbody className="divide-y divide-slate-100"&gt;
+                      {overview.analytics.busiestStaff.map((s) =&gt; (
+                        &lt;tr key={s.id}&gt;
+                          &lt;td className="py-1.5 font-medium text-slate-700"&gt;{s.fullName}&lt;/td&gt;
+                          &lt;td className="py-1.5 text-slate-400"&gt;{ROLE_LABELS[s.role]}&lt;/td&gt;
+                          &lt;td className="py-1.5 text-right"&gt;
+                            &lt;span
+                              className={`rounded px-1.5 py-0.5 font-semibold ${
+                                s.overloaded
+                                  ? "bg-red-50 text-red-600"
+                                  : "bg-blue-50 text-blue-600"
+                              }`}
+                            &gt;
+                              {s.active} active
+                            &lt;/span&gt;
+                          &lt;/td&gt;
+                        &lt;/tr&gt;
+                      ))}
+                    &lt;/tbody&gt;
+                  &lt;/table&gt;
+                &lt;/div&gt;
               )}
             &lt;/div&gt;
           &lt;/div&gt;
@@ -3881,35 +3886,56 @@ export default async function HRMDashboardPage() {
           {recentAuditLogs.length === 0 ? (
             &lt;p className="px-4 py-6 text-center text-xs text-slate-400"&gt;No activity logged yet.&lt;/p&gt;
           ) : (
-            &lt;table className="w-full text-xs"&gt;
-              &lt;thead&gt;
-                &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
-                  &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Staff&lt;/th&gt;
-                  &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Action&lt;/th&gt;
-                  &lt;th className="px-4 py-2 text-right font-medium text-slate-400"&gt;Time&lt;/th&gt;
-                &lt;/tr&gt;
-              &lt;/thead&gt;
-              &lt;tbody className="divide-y divide-slate-100"&gt;
+            &lt;&gt;
+              {/* Desktop table */}
+              &lt;div className="hidden sm:block overflow-x-auto"&gt;
+                &lt;table className="w-full text-xs"&gt;
+                  &lt;thead&gt;
+                    &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                      &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Staff&lt;/th&gt;
+                      &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Action&lt;/th&gt;
+                      &lt;th className="px-4 py-2 text-right font-medium text-slate-400"&gt;Time&lt;/th&gt;
+                    &lt;/tr&gt;
+                  &lt;/thead&gt;
+                  &lt;tbody className="divide-y divide-slate-100"&gt;
+                    {recentAuditLogs.map((log) =&gt; (
+                      &lt;tr key={log.id} className="hover:bg-slate-50"&gt;
+                        &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{log.actor.fullName}&lt;/td&gt;
+                        &lt;td className="px-4 py-2 text-slate-500 capitalize"&gt;
+                          {log.action.replaceAll("_", " ").toLowerCase()}
+                        &lt;/td&gt;
+                        &lt;td className="px-4 py-2 text-right text-slate-400 whitespace-nowrap"&gt;
+                          {formatDateTime(log.createdAt)}
+                        &lt;/td&gt;
+                      &lt;/tr&gt;
+                    ))}
+                  &lt;/tbody&gt;
+                &lt;/table&gt;
+              &lt;/div&gt;
+
+              {/* Mobile card list */}
+              &lt;div className="sm:hidden divide-y divide-slate-100"&gt;
                 {recentAuditLogs.map((log) =&gt; (
-                  &lt;tr key={log.id} className="hover:bg-slate-50"&gt;
-                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{log.actor.fullName}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-500 capitalize"&gt;
-                      {log.action.replaceAll("_", " ").toLowerCase()}
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-right text-slate-400 whitespace-nowrap"&gt;
+                  &lt;div key={log.id} className="px-4 py-2.5 flex items-start justify-between gap-2"&gt;
+                    &lt;div&gt;
+                      &lt;p className="text-xs font-medium text-slate-700"&gt;{log.actor.fullName}&lt;/p&gt;
+                      &lt;p className="text-[11px] text-slate-500 capitalize"&gt;
+                        {log.action.replaceAll("_", " ").toLowerCase()}
+                      &lt;/p&gt;
+                    &lt;/div&gt;
+                    &lt;p className="text-[11px] text-slate-400 whitespace-nowrap shrink-0"&gt;
                       {formatDateTime(log.createdAt)}
-                    &lt;/td&gt;
-                  &lt;/tr&gt;
+                    &lt;/p&gt;
+                  &lt;/div&gt;
                 ))}
-              &lt;/tbody&gt;
-            &lt;/table&gt;
+              &lt;/div&gt;
+            &lt;/&gt;
           )}
         &lt;/div&gt;
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/release/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ReportWorkspace } from "@/components/reports/report-workspace";
@@ -4309,13 +4335,13 @@ export default async function LabNotificationsPage() {
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/lab-scientist/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { LabTaskBoard } from "@/components/lab/lab-task-board";
- 
+
 export default async function LabScientistDashboard() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
   if (user.role !== "LAB_SCIENTIST" &amp;&amp; user.role !== "SUPER_ADMIN") redirect("/dashboard");
- 
+
   return (
     &lt;div className="space-y-4"&gt;
       &lt;div&gt;
@@ -4645,26 +4671,26 @@ import { redirect } from "next/navigation";
 import { MdReviewBoard } from "@/components/md/md-review-board";
 import { MdStaffCallPanel } from "@/components/md/md-staff-call-panel";
 import Link from "next/link";
- 
+
 export default async function MDDashboard({ searchParams }: { searchParams?: { status?: string } }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
   if (user.role !== "MD" &amp;&amp; user.role !== "SUPER_ADMIN") redirect("/dashboard");
- 
+
   const raw = searchParams?.status ?? "pending";
   const initialStatus = ["pending","approved","rejected","all"].includes(raw) ? raw as any : "pending";
- 
+
   return (
     &lt;div className="space-y-4"&gt;
-      &lt;div className="flex items-center justify-between"&gt;
+      &lt;div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"&gt;
         &lt;div&gt;
-        &lt;h1 className="text-base font-semibold text-slate-800"&gt;Medical Review&lt;/h1&gt;
-        &lt;p className="text-xs text-slate-400 mt-0.5"&gt;Review submitted lab and radiology outputs. Approve, edit, or reject.&lt;/p&gt;
+          &lt;h1 className="text-base font-semibold text-slate-800"&gt;Medical Review&lt;/h1&gt;
+          &lt;p className="text-xs text-slate-400 mt-0.5"&gt;Review submitted lab and radiology outputs. Approve, edit, or reject.&lt;/p&gt;
         &lt;/div&gt;
         &lt;Link
           href="/dashboard/md/consultation"
-          className="inline-flex items-center rounded border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          className="inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors sm:py-1.5"
         &gt;
           Consultation Queue
         &lt;/Link&gt;
@@ -4673,8 +4699,7 @@ export default async function MDDashboard({ searchParams }: { searchParams?: { s
       &lt;MdReviewBoard initialStatus={initialStatus} /&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/md/reports/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ReportWorkspace } from "@/components/reports/report-workspace";
@@ -4720,13 +4745,13 @@ export default async function RadiographerNotificationsPage() {
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/radiographer/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { RadiologyTaskBoard } from "@/components/radiology/radiology-task-board";
- 
+
 export default async function RadiographerDashboard() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
   if (user.role !== "RADIOGRAPHER" &amp;&amp; user.role !== "SUPER_ADMIN") redirect("/dashboard");
- 
+
   return (
     &lt;div className="space-y-4"&gt;
       &lt;div&gt;
@@ -5017,21 +5042,22 @@ export default async function ReceptionistDashboard() {
   return (
     &lt;div className="space-y-4"&gt;
       {/* Header */}
-      &lt;div className="flex items-center justify-between"&gt;
+      &lt;div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"&gt;
         &lt;div&gt;
           &lt;h1 className="text-base font-semibold text-slate-800"&gt;Reception&lt;/h1&gt;
           &lt;p className="text-xs text-slate-400 mt-0.5"&gt;{new Date().toDateString()}&lt;/p&gt;
         &lt;/div&gt;
-        &lt;div className="flex items-center gap-2"&gt;
+        {/* Action buttons: stacked on smallest mobile, row from sm up */}
+        &lt;div className="flex flex-col gap-2 xs:flex-row xs:flex-wrap sm:flex-row sm:items-center sm:gap-2"&gt;
           &lt;Link
             href="/dashboard/receptionist/consultation"
-            className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors sm:py-1.5"
           &gt;
             Consultation Queue
           &lt;/Link&gt;
           &lt;Link
             href="/dashboard/receptionist/new-patient"
-            className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-colors sm:py-1.5"
           &gt;
             &lt;UserPlus className="h-3.5 w-3.5" /&gt;
             New Patient
@@ -5039,8 +5065,8 @@ export default async function ReceptionistDashboard() {
         &lt;/div&gt;
       &lt;/div&gt;
 
-      {/* Stat strip */}
-      &lt;div className="grid grid-cols-4 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden"&gt;
+      {/* Stat strip â€” 2-col on mobile, 4-col on sm+ */}
+      &lt;div className="grid grid-cols-2 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden sm:grid-cols-4"&gt;
         {[
           { label: "Registered Today", value: todayPatients },
           { label: "Awaiting Payment", value: unpaidVisits, alert: unpaidVisits &gt; 0 },
@@ -5048,7 +5074,7 @@ export default async function ReceptionistDashboard() {
           { label: "Total Patients", value: totalPatients },
         ].map((s) =&gt; (
           &lt;div key={s.label} className="bg-white px-4 py-3"&gt;
-            &lt;p className="text-[11px] uppercase tracking-wide text-slate-400"&gt;{s.label}&lt;/p&gt;
+            &lt;p className="text-[11px] uppercase tracking-wide text-slate-400 leading-tight"&gt;{s.label}&lt;/p&gt;
             &lt;p className={`text-xl font-bold mt-0.5 ${s.alert ? "text-red-600" : "text-slate-800"}`}&gt;
               {s.value}
             &lt;/p&gt;
@@ -5081,81 +5107,135 @@ export default async function ReceptionistDashboard() {
             &lt;/Link&gt;
           &lt;/div&gt;
         ) : (
-          &lt;table className="w-full text-xs"&gt;
-            &lt;thead&gt;
-              &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
-                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Patient&lt;/th&gt;
-                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;ID&lt;/th&gt;
-                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Age / Sex&lt;/th&gt;
-                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Tests&lt;/th&gt;
-                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Priority&lt;/th&gt;
-                &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Payment&lt;/th&gt;
-                &lt;th className="px-4 py-2 text-right font-medium text-slate-400"&gt;Registered&lt;/th&gt;
-              &lt;/tr&gt;
-            &lt;/thead&gt;
-            &lt;tbody className="divide-y divide-slate-100"&gt;
+          &lt;&gt;
+            {/* Desktop table â€” hidden on mobile */}
+            &lt;div className="hidden sm:block overflow-x-auto"&gt;
+              &lt;table className="w-full text-xs"&gt;
+                &lt;thead&gt;
+                  &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                    &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Patient&lt;/th&gt;
+                    &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;ID&lt;/th&gt;
+                    &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Age / Sex&lt;/th&gt;
+                    &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Tests&lt;/th&gt;
+                    &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Priority&lt;/th&gt;
+                    &lt;th className="px-4 py-2 text-left font-medium text-slate-400"&gt;Payment&lt;/th&gt;
+                    &lt;th className="px-4 py-2 text-right font-medium text-slate-400"&gt;Registered&lt;/th&gt;
+                  &lt;/tr&gt;
+                &lt;/thead&gt;
+                &lt;tbody className="divide-y divide-slate-100"&gt;
+                  {recentPatients.map((patient) =&gt; {
+                    const visit = patient.visits[0];
+                    return (
+                      &lt;tr key={patient.id} className="hover:bg-slate-50 transition-colors"&gt;
+                        &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{patient.fullName}&lt;/td&gt;
+                        &lt;td className="px-4 py-2.5 text-slate-400 font-mono"&gt;{patient.patientId}&lt;/td&gt;
+                        &lt;td className="px-4 py-2.5 text-slate-500"&gt;
+                          {patient.age}y Â· {patient.sex}
+                        &lt;/td&gt;
+                        &lt;td className="px-4 py-2.5"&gt;
+                          &lt;div className="flex flex-wrap gap-1"&gt;
+                            {visit?.testOrders.slice(0, 2).map((o) =&gt; (
+                              &lt;span
+                                key={o.id}
+                                className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700"
+                              &gt;
+                                {o.test.name}
+                              &lt;/span&gt;
+                            ))}
+                            {(visit?.testOrders.length ?? 0) &gt; 2 &amp;&amp; (
+                              &lt;span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-500"&gt;
+                                +{(visit?.testOrders.length ?? 0) - 2}
+                              &lt;/span&gt;
+                            )}
+                          &lt;/div&gt;
+                        &lt;/td&gt;
+                        &lt;td className="px-4 py-2.5"&gt;
+                          {visit &amp;&amp; (
+                            &lt;span
+                              className={`rounded px-1.5 py-0.5 font-medium ${
+                                priorityBadge[visit.priority] ?? "bg-slate-100 text-slate-500"
+                              }`}
+                            &gt;
+                              {visit.priority}
+                            &lt;/span&gt;
+                          )}
+                        &lt;/td&gt;
+                        &lt;td className="px-4 py-2.5"&gt;
+                          {visit &amp;&amp; (
+                            &lt;span
+                              className={`rounded px-1.5 py-0.5 font-medium ${
+                                paymentBadge[visit.paymentStatus] ?? "bg-slate-100 text-slate-500"
+                              }`}
+                            &gt;
+                              {visit.paymentStatus}
+                            &lt;/span&gt;
+                          )}
+                        &lt;/td&gt;
+                        &lt;td className="px-4 py-2.5 text-right text-slate-400 whitespace-nowrap"&gt;
+                          {formatDateTime(patient.createdAt)}
+                        &lt;/td&gt;
+                      &lt;/tr&gt;
+                    );
+                  })}
+                &lt;/tbody&gt;
+              &lt;/table&gt;
+            &lt;/div&gt;
+
+            {/* Mobile card list â€” visible only on mobile */}
+            &lt;div className="sm:hidden divide-y divide-slate-100"&gt;
               {recentPatients.map((patient) =&gt; {
                 const visit = patient.visits[0];
                 return (
-                  &lt;tr key={patient.id} className="hover:bg-slate-50 transition-colors"&gt;
-                    &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{patient.fullName}&lt;/td&gt;
-                    &lt;td className="px-4 py-2.5 text-slate-400 font-mono"&gt;{patient.patientId}&lt;/td&gt;
-                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;
-                      {patient.age}y Â· {patient.sex}
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-2.5"&gt;
-                      &lt;div className="flex flex-wrap gap-1"&gt;
-                        {visit?.testOrders.slice(0, 2).map((o) =&gt; (
-                          &lt;span
-                            key={o.id}
-                            className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700"
-                          &gt;
+                  &lt;div key={patient.id} className="px-4 py-3 space-y-1.5"&gt;
+                    &lt;div className="flex items-start justify-between gap-2"&gt;
+                      &lt;div&gt;
+                        &lt;p className="text-xs font-medium text-slate-800"&gt;{patient.fullName}&lt;/p&gt;
+                        &lt;p className="text-[11px] font-mono text-slate-400"&gt;
+                          {patient.patientId} Â· {patient.age}y Â· {patient.sex}
+                        &lt;/p&gt;
+                      &lt;/div&gt;
+                      &lt;p className="text-[11px] text-slate-400 whitespace-nowrap shrink-0"&gt;
+                        {formatDateTime(patient.createdAt)}
+                      &lt;/p&gt;
+                    &lt;/div&gt;
+                    {visit &amp;&amp; (
+                      &lt;div className="flex flex-wrap items-center gap-1.5"&gt;
+                        {visit.testOrders.slice(0, 2).map((o) =&gt; (
+                          &lt;span key={o.id} className="rounded bg-blue-50 px-1.5 py-0.5 text-[11px] text-blue-700"&gt;
                             {o.test.name}
                           &lt;/span&gt;
                         ))}
-                        {(visit?.testOrders.length ?? 0) &gt; 2 &amp;&amp; (
-                          &lt;span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-500"&gt;
-                            +{(visit?.testOrders.length ?? 0) - 2}
+                        {visit.testOrders.length &gt; 2 &amp;&amp; (
+                          &lt;span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500"&gt;
+                            +{visit.testOrders.length - 2}
                           &lt;/span&gt;
                         )}
-                      &lt;/div&gt;
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-2.5"&gt;
-                      {visit &amp;&amp; (
                         &lt;span
-                          className={`rounded px-1.5 py-0.5 font-medium ${
+                          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
                             priorityBadge[visit.priority] ?? "bg-slate-100 text-slate-500"
                           }`}
                         &gt;
                           {visit.priority}
                         &lt;/span&gt;
-                      )}
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-2.5"&gt;
-                      {visit &amp;&amp; (
                         &lt;span
-                          className={`rounded px-1.5 py-0.5 font-medium ${
+                          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
                             paymentBadge[visit.paymentStatus] ?? "bg-slate-100 text-slate-500"
                           }`}
                         &gt;
                           {visit.paymentStatus}
                         &lt;/span&gt;
-                      )}
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-2.5 text-right text-slate-400 whitespace-nowrap"&gt;
-                      {formatDateTime(patient.createdAt)}
-                    &lt;/td&gt;
-                  &lt;/tr&gt;
+                      &lt;/div&gt;
+                    )}
+                  &lt;/div&gt;
                 );
               })}
-            &lt;/tbody&gt;
-          &lt;/table&gt;
+            &lt;/div&gt;
+          &lt;/&gt;
         )}
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/receptionist/patients/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
