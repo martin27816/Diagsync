@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -23,6 +24,7 @@ export function LoginClient() {
   const rawCallbackUrl = searchParams.get("callbackUrl");
   const callbackUrl = rawCallbackUrl && rawCallbackUrl !== "/" ? rawCallbackUrl : "/dashboard";
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } =
     useForm<FormData>({ resolver: zodResolver(schema) });
@@ -66,7 +68,22 @@ export function LoginClient() {
 
           <div>
             <label className={labelCls}>Password</label>
-            <input type="password" placeholder="••••••••" autoComplete="current-password" {...register("password")} className={inputCls} />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                {...register("password")}
+                className={`${inputCls} pr-9`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-2 inline-flex items-center text-slate-400 hover:text-slate-600"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {errors.password && <p className="mt-0.5 text-[11px] text-red-500">{errors.password.message}</p>}
           </div>
 
