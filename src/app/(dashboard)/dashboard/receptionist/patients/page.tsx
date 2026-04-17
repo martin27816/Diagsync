@@ -19,6 +19,7 @@ type DaySummary = {
     registeredBy: { fullName: string };
     latestVisit:
       | {
+          id: string;
           priority: string;
           paymentStatus: string;
           totalAmount: number;
@@ -165,6 +166,7 @@ export default async function PatientsListPage({
       registeredBy: { fullName: patient.registeredBy.fullName },
       latestVisit: visit
         ? {
+            id: visit.id,
             priority: visit.priority,
             paymentStatus: visit.paymentStatus,
             totalAmount: Number(visit.totalAmount),
@@ -178,6 +180,7 @@ export default async function PatientsListPage({
   const sections = dayKeys.map((key) => grouped.get(key)!);
   const visibleRows = sections.reduce((acc, s) => acc + s.rows.length, 0);
   const canCreatePatient = ["RECEPTIONIST", "SUPER_ADMIN"].includes(user.role);
+  const canEditPatient = ["RECEPTIONIST", "SUPER_ADMIN", "HRM"].includes(user.role);
 
   const priorityStyle: Record<string, string> = {
     EMERGENCY: "bg-red-50 text-red-600",
@@ -285,6 +288,7 @@ export default async function PatientsListPage({
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Payment</th>
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Registered By</th>
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Registered</th>
+                      {canEditPatient ? <th className="px-4 py-2.5 text-left font-medium text-slate-400">Action</th> : null}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -335,6 +339,20 @@ export default async function PatientsListPage({
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(row.createdAt)}</td>
+                        {canEditPatient ? (
+                          <td className="px-4 py-2.5">
+                            {row.latestVisit ? (
+                              <Link
+                                href={`/dashboard/receptionist/patients/${row.id}/edit`}
+                                className="rounded border border-blue-200 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50"
+                              >
+                                Edit Patient
+                              </Link>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>
@@ -343,7 +361,7 @@ export default async function PatientsListPage({
                       <td colSpan={4} className="px-4 py-2.5 font-semibold text-slate-700">Daily Summary</td>
                       <td className="px-4 py-2.5 font-semibold text-slate-700">{formatCurrency(section.totalBilled)}</td>
                       <td className="px-4 py-2.5 font-semibold text-slate-700">{formatCurrency(section.totalPaid)}</td>
-                      <td colSpan={4} className="px-4 py-2.5 text-slate-500">
+                      <td colSpan={canEditPatient ? 5 : 4} className="px-4 py-2.5 text-slate-500">
                         {section.totalTests} test{section.totalTests !== 1 ? "s" : ""} registered
                       </td>
                     </tr>

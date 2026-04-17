@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     }
 
     const user = session.user as { id: string; role: string; organizationId: string };
-    if (!["HRM", "SUPER_ADMIN"].includes(user.role)) {
+    if (!["RECEPTIONIST", "HRM", "SUPER_ADMIN"].includes(user.role)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { Search, X, Plus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { formatCurrency } from "@/lib/utils";
 import { enqueueOfflinePatient, listOfflinePatientItems, removeOfflinePatient, type OfflinePatientPayload } from "@/lib/offline-sync";
@@ -26,11 +26,48 @@ interface CartItem extends TestResult { enteredPrice: string }
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
 type PaymentStatus = "PENDING" | "PAID" | "PARTIAL" | "WAIVED";
 type Sex = "MALE" | "FEMALE" | "OTHER";
+type FieldType = "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
+type TestType = "LAB" | "RADIOLOGY";
+type Department = "LABORATORY" | "RADIOLOGY";
+
+type CreateFieldDraft = {
+  label: string;
+  fieldKey: string;
+  fieldType: FieldType;
+  unit: string;
+  normalMin: string;
+  normalMax: string;
+  normalText: string;
+  referenceNote: string;
+  options: string;
+};
 const TEST_PRICE_MEMORY_KEY = "diag_sync_test_price_memory_v1";
 
 function toNumberPrice(value: number | string): number {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toFieldKey(label: string) {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function emptyField(): CreateFieldDraft {
+  return {
+    label: "",
+    fieldKey: "",
+    fieldType: "TEXT",
+    unit: "",
+    normalMin: "",
+    normalMax: "",
+    normalText: "",
+    referenceNote: "",
+    options: "",
+  };
 }
 
 const inputCls = "h-8 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -56,6 +93,17 @@ export function NewPatientForm() {
   const [testSearch, setTestSearch] = useState("");
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [showCreateTest, setShowCreateTest] = useState(false);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createCode, setCreateCode] = useState("");
+  const [createType, setCreateType] = useState<TestType>("LAB");
+  const [createDepartment, setCreateDepartment] = useState<Department>("LABORATORY");
+  const [createPrice, setCreatePrice] = useState("");
+  const [createTurnaround, setCreateTurnaround] = useState("120");
+  const [createSampleType, setCreateSampleType] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
+  const [createFields, setCreateFields] = useState<CreateFieldDraft[]>([emptyField()]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [rangeDraftByTest, setRangeDraftByTest] = useState<Record<string, NonNullable<TestResult["resultFields"]>>>({});
   const [rangeSavingByTest, setRangeSavingByTest] = useState<Record<string, boolean>>({});
@@ -177,6 +225,101 @@ export function NewPatientForm() {
     const parsed = Number(trimmed);
     if (!trimmed || !Number.isFinite(parsed) || parsed <= 0) return;
     persistSavedPrice(id, trimmed);
+  }
+
+  function setCreateField(index: number, patch: Partial<CreateFieldDraft>) {
+    setCreateFields((prev) =>
+      prev.map((field, i) => {
+        if (i !== index) return field;
+        const next = { ...field, ...patch };
+        if ("label" in patch && (!next.fieldKey || next.fieldKey === toFieldKey(field.label))) {
+          next.fieldKey = toFieldKey(next.label);
+        }
+        return next;
+      })
+    );
+  }
+
+  function addCreateField() {
+    setCreateFields((prev) => [...prev, emptyField()]);
+  }
+
+  function removeCreateField(index: number) {
+    setCreateFields((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function createTestAndAddToCart() {
+    setError("");
+    if (!createName.trim() || !createCode.trim()) {
+      setError("Test name and code are required.");
+      return;
+    }
+    if (createFields.some((field) => !field.label.trim() || !field.fieldKey.trim())) {
+      setError("Each test field needs label and field key.");
+      return;
+    }
+
+    setCreateBusy(true);
+    try {
+      const res = await fetch("/api/tests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: createName.trim(),
+          code: createCode.trim().toUpperCase(),
+          type: createType,
+          department: createDepartment,
+          price: toNumberPrice(createPrice),
+          turnaroundMinutes: Math.max(1, Math.trunc(toNumberPrice(createTurnaround) || 120)),
+          sampleType: createSampleType.trim() || undefined,
+          description: createDescription.trim() || undefined,
+          fields: createFields.map((field) => ({
+            label: field.label.trim(),
+            fieldKey: field.fieldKey.trim(),
+            fieldType: field.fieldType,
+            unit: field.unit.trim() || undefined,
+            normalMin: field.normalMin.trim() ? Number(field.normalMin) : undefined,
+            normalMax: field.normalMax.trim() ? Number(field.normalMax) : undefined,
+            normalText: field.normalText.trim() || undefined,
+            referenceNote: field.referenceNote.trim() || undefined,
+            options: field.options.trim() || undefined,
+            isRequired: true,
+          })),
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error ?? "Failed to create test");
+        return;
+      }
+
+      const createdId = json.data?.id as string | undefined;
+      if (!createdId) {
+        setError("Test created but could not be added automatically.");
+        return;
+      }
+
+      const singleRes = await fetch(`/api/tests/${createdId}`);
+      const singleJson = await singleRes.json();
+      if (!singleJson.success) {
+        setError("Test created, but failed to load it back.");
+        return;
+      }
+
+      addToCart(singleJson.data as TestResult);
+      setShowCreateTest(false);
+      setCreateName("");
+      setCreateCode("");
+      setCreatePrice("");
+      setCreateTurnaround("120");
+      setCreateSampleType("");
+      setCreateDescription("");
+      setCreateFields([emptyField()]);
+    } catch {
+      setError("Network error while creating test.");
+    } finally {
+      setCreateBusy(false);
+    }
   }
 
   function updateRangeValue(
@@ -434,6 +577,114 @@ export function NewPatientForm() {
                   </div>
                 )}
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowCreateTest((prev) => !prev)}
+                className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {showCreateTest ? "Hide New Test Form" : "Create New Test"}
+              </button>
+
+              {showCreateTest && (
+                <div className="rounded border border-slate-200 bg-slate-50 p-3 space-y-3">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div>
+                      <label className={labelCls}>Test Name</label>
+                      <input className={inputCls} value={createName} onChange={(e) => setCreateName(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Code</label>
+                      <input className={inputCls} value={createCode} onChange={(e) => setCreateCode(e.target.value.toUpperCase())} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Type</label>
+                      <Select
+                        value={createType}
+                        onValueChange={(v) => {
+                          const next = v as TestType;
+                          setCreateType(next);
+                          setCreateDepartment(next === "LAB" ? "LABORATORY" : "RADIOLOGY");
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="LAB">Lab</SelectItem>
+                          <SelectItem value="RADIOLOGY">Radiology</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Department</label>
+                      <Select value={createDepartment} onValueChange={(v) => setCreateDepartment(v as Department)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="LABORATORY">Laboratory</SelectItem>
+                          <SelectItem value="RADIOLOGY">Radiology</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Price (N)</label>
+                      <input className={inputCls} type="number" min="0" value={createPrice} onChange={(e) => setCreatePrice(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Turnaround (mins)</label>
+                      <input className={inputCls} type="number" min="1" value={createTurnaround} onChange={(e) => setCreateTurnaround(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Sample Type</label>
+                      <input className={inputCls} value={createSampleType} onChange={(e) => setCreateSampleType(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Description</label>
+                      <input className={inputCls} value={createDescription} onChange={(e) => setCreateDescription(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-slate-600">Result Fields</p>
+                      <button type="button" onClick={addCreateField} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100">Add Field</button>
+                    </div>
+                    {createFields.map((field, idx) => (
+                      <div key={idx} className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-2 sm:grid-cols-2 lg:grid-cols-4">
+                        <input className={inputCls} placeholder="Label" value={field.label} onChange={(e) => setCreateField(idx, { label: e.target.value })} />
+                        <input className={inputCls} placeholder="field_key" value={field.fieldKey} onChange={(e) => setCreateField(idx, { fieldKey: e.target.value })} />
+                        <Select value={field.fieldType} onValueChange={(v) => setCreateField(idx, { fieldType: v as FieldType })}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NUMBER">NUMBER</SelectItem>
+                            <SelectItem value="TEXT">TEXT</SelectItem>
+                            <SelectItem value="TEXTAREA">TEXTAREA</SelectItem>
+                            <SelectItem value="DROPDOWN">DROPDOWN</SelectItem>
+                            <SelectItem value="CHECKBOX">CHECKBOX</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <input className={inputCls} placeholder="Unit" value={field.unit} onChange={(e) => setCreateField(idx, { unit: e.target.value })} />
+                        <input className={inputCls} placeholder="Normal min" value={field.normalMin} onChange={(e) => setCreateField(idx, { normalMin: e.target.value })} />
+                        <input className={inputCls} placeholder="Normal max" value={field.normalMax} onChange={(e) => setCreateField(idx, { normalMax: e.target.value })} />
+                        <input className={inputCls} placeholder="Normal text" value={field.normalText} onChange={(e) => setCreateField(idx, { normalText: e.target.value })} />
+                        <input className={inputCls} placeholder="Options (a,b,c)" value={field.options} onChange={(e) => setCreateField(idx, { options: e.target.value })} />
+                        <input className={inputCls} placeholder="Reference note" value={field.referenceNote} onChange={(e) => setCreateField(idx, { referenceNote: e.target.value })} />
+                        {createFields.length > 1 ? (
+                          <button type="button" onClick={() => removeCreateField(idx)} className="rounded border border-red-200 px-2 py-1 text-[11px] text-red-600 hover:bg-red-50">Remove</button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => void createTestAndAddToCart()}
+                    disabled={createBusy}
+                    className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {createBusy ? "Creating..." : "Create Test and Add"}
+                  </button>
+                </div>
+              )}
 
               {/* Cart */}
               {cart.length === 0 ? (
