@@ -77,7 +77,6 @@ export async function getLabTasks(actor: LabActor, opts?: {
     where: {
       organizationId: actor.organizationId,
       department: Department.LABORATORY,
-      staffId: actor.id,
       ...(opts?.status === "ACTIVE"
         ? { status: { in: [RoutingTaskStatus.PENDING, RoutingTaskStatus.IN_PROGRESS] } }
         : opts?.status && opts.status !== "ALL"
@@ -146,16 +145,38 @@ export async function getLabTasks(actor: LabActor, opts?: {
 
 export async function startLabTask(taskId: string, actor: LabActor) {
   assertLabScientist(actor);
-  const task = await assertTaskOwnership(taskId, actor);
+  const task = await prisma.routingTask.findFirst({
+    where: {
+      id: taskId,
+      organizationId: actor.organizationId,
+      department: Department.LABORATORY,
+    },
+    include: {
+      visit: { include: { patient: true } },
+    },
+  });
+
+  if (!task) throw new Error("TASK_NOT_FOUND");
+  if (task.staffId && task.staffId !== actor.id) {
+    throw new Error("FORBIDDEN_TASK");
+  }
 
   if (!canStartTask(task.status)) throw new Error("INVALID_TASK_STATE");
 
   const now = new Date();
   await prisma.$transaction(async (tx) => {
-    await tx.routingTask.update({
-      where: { id: task.id },
-      data: { status: RoutingTaskStatus.IN_PROGRESS },
+    const claimed = await tx.routingTask.updateMany({
+      where: {
+        id: task.id,
+        organizationId: actor.organizationId,
+        department: Department.LABORATORY,
+        ...(task.staffId ? { staffId: actor.id } : { staffId: null }),
+      },
+      data: { status: RoutingTaskStatus.IN_PROGRESS, staffId: actor.id },
     });
+    if (claimed.count === 0) {
+      throw new Error("TASK_ALREADY_CLAIMED");
+    }
 
     await tx.testOrder.updateMany({
       where: {

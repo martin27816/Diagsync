@@ -58,7 +58,6 @@ export async function GET(req: NextRequest) {
         where: {
           organizationId: user.organizationId,
           department: "LABORATORY",
-          staffId: user.id,
         },
         _count: { status: true },
       }),

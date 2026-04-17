@@ -38,6 +38,10 @@ export async function PATCH(
         endApiMetric(metric, { ok: false, status: 404, note: "task_not_found" });
         return NextResponse.json({ success: false, error: "Task not found" }, { status: 404 });
       }
+      if (error.message === "TASK_ALREADY_CLAIMED") {
+        endApiMetric(metric, { ok: false, status: 409, note: "task_already_claimed" });
+        return NextResponse.json({ success: false, error: "This task was already claimed by another lab scientist." }, { status: 409 });
+      }
       if (error.message === "INVALID_TASK_STATE") {
         endApiMetric(metric, { ok: false, status: 400, note: "invalid_state" });
         return NextResponse.json({ success: false, error: "Task cannot be started in current state" }, { status: 400 });

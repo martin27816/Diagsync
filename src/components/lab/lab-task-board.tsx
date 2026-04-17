@@ -96,6 +96,7 @@ const DEFAULT_SENSITIVITY_ANTIBIOTICS = [
 
 const SENSITIVITY_VALUE_OPTIONS = ["+", "2+", "3+", "4+", "5mm", "10mm", "15mm", "20mm", "25mm", "30mm"];
 const SENSITIVITY_INTERPRETATION_OPTIONS = ["S", "R", "I"];
+const SENSITIVITY_MEMORY_KEY = "diag_sync_sensitivity_memory_v1";
 
 function parseSensitivityPattern(raw: unknown): SensitivityCell[] {
   const text = typeof raw === "string" ? raw.trim() : "";
@@ -341,6 +342,10 @@ type OrderResultCardProps = {
   onResetCustomFields: (testOrderId: string) => void;
   onRemoveDefaultField: (testOrderId: string, fieldKey: string) => void;
   onRestoreDefaultFields: (testOrderId: string) => void;
+  sensitivityAntibioticOptions: string[];
+  sensitivityValueOptions: string[];
+  sensitivityInterpretationOptions: string[];
+  onRememberSensitivityCell: (cell: SensitivityCell) => void;
 };
 
 const OrderResultCard = memo(function OrderResultCard({
@@ -358,6 +363,10 @@ const OrderResultCard = memo(function OrderResultCard({
   onResetCustomFields,
   onRemoveDefaultField,
   onRestoreDefaultFields,
+  sensitivityAntibioticOptions,
+  sensitivityValueOptions,
+  sensitivityInterpretationOptions,
+  onRememberSensitivityCell,
 }: OrderResultCardProps) {
   const insightMessages = useMemo(() => buildResultInsights(draft.values ?? {}), [draft.values]);
   const highlightKey = useMemo(() => new Set(highlightFields), [highlightFields]);
@@ -443,11 +452,15 @@ const OrderResultCard = memo(function OrderResultCard({
                       </thead>
                       <tbody>
                         {cells.map((cell, index) => (
-                          <tr key={`${cell.antibiotic}-${index}`}>
+                          <tr key={`sens-row-${index}`}>
                             <td className="border border-slate-200 p-1.5">
                               <input
+                                list={`sens-antibiotic-options-${order.id}`}
                                 value={cell.antibiotic}
-                                onBlur={() => void onPersist(task).catch(() => undefined)}
+                                onBlur={() => {
+                                  onRememberSensitivityCell(cell);
+                                  void onPersist(task).catch(() => undefined);
+                                }}
                                 onChange={(e) => updateCell(index, { antibiotic: e.target.value })}
                                 className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 placeholder="Antibiotic name"
@@ -457,7 +470,10 @@ const OrderResultCard = memo(function OrderResultCard({
                               <input
                                 list={`sens-zone-options-${order.id}`}
                                 value={cell.zone}
-                                onBlur={() => void onPersist(task).catch(() => undefined)}
+                                onBlur={() => {
+                                  onRememberSensitivityCell(cell);
+                                  void onPersist(task).catch(() => undefined);
+                                }}
                                 onChange={(e) => updateCell(index, { zone: e.target.value })}
                                 className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 placeholder="+ / 2+ / 3+ / 20mm"
@@ -467,7 +483,10 @@ const OrderResultCard = memo(function OrderResultCard({
                               <input
                                 list={`sens-int-options-${order.id}`}
                                 value={cell.interpretation}
-                                onBlur={() => void onPersist(task).catch(() => undefined)}
+                                onBlur={() => {
+                                  onRememberSensitivityCell(cell);
+                                  void onPersist(task).catch(() => undefined);
+                                }}
                                 onChange={(e) =>
                                   updateCell(index, { interpretation: e.target.value.toUpperCase() })
                                 }
@@ -490,12 +509,17 @@ const OrderResultCard = memo(function OrderResultCard({
                       </tbody>
                     </table>
                     <datalist id={`sens-zone-options-${order.id}`}>
-                      {SENSITIVITY_VALUE_OPTIONS.map((option) => (
+                      {sensitivityValueOptions.map((option) => (
                         <option key={option} value={option} />
                       ))}
                     </datalist>
                     <datalist id={`sens-int-options-${order.id}`}>
-                      {SENSITIVITY_INTERPRETATION_OPTIONS.map((option) => (
+                      {sensitivityInterpretationOptions.map((option) => (
+                        <option key={option} value={option} />
+                      ))}
+                    </datalist>
+                    <datalist id={`sens-antibiotic-options-${order.id}`}>
+                      {sensitivityAntibioticOptions.map((option) => (
                         <option key={option} value={option} />
                       ))}
                     </datalist>
@@ -747,13 +771,8 @@ const OrderResultCard = memo(function OrderResultCard({
             onClick={() => {
               if (!customLabel.trim()) return;
               const nextKey = toCustomFieldKey(customLabel);
-              const hasDuplicate = customEntries.some(([key]) => key === nextKey);
               if (!nextKey) {
                 setCustomError("Field name is invalid.");
-                return;
-              }
-              if (hasDuplicate) {
-                setCustomError(`Field '${nextKey}' already exists.`);
                 return;
               }
               onAddCustomField(order.id, customLabel, customValue);
@@ -788,6 +807,9 @@ export function LabTaskBoard() {
   const [sampleStatusByTask, setSampleStatusByTask] = useState<Record<string, SampleStatus>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [counts, setCounts] = useState({ pending: 0, inProgress: 0, completed: 0 });
+  const [sensitivityAntibioticOptions, setSensitivityAntibioticOptions] = useState<string[]>(DEFAULT_SENSITIVITY_ANTIBIOTICS);
+  const [sensitivityValueOptions, setSensitivityValueOptions] = useState<string[]>(SENSITIVITY_VALUE_OPTIONS);
+  const [sensitivityInterpretationOptions, setSensitivityInterpretationOptions] = useState<string[]>(SENSITIVITY_INTERPRETATION_OPTIONS);
   const signatureInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [isOnline, setIsOnline] = useState(true);
   const searchParams = useSearchParams();
@@ -809,6 +831,72 @@ export function LabTaskBoard() {
   function invalidateTaskCache() {
     taskCacheRef.current.clear();
   }
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SENSITIVITY_MEMORY_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        antibiotics?: unknown;
+        values?: unknown;
+        interpretations?: unknown;
+      };
+      const normalize = (input: unknown, fallback: string[]) => {
+        const list = Array.isArray(input) ? input : [];
+        const merged = [...fallback, ...list.filter((item): item is string => typeof item === "string")];
+        return Array.from(new Set(merged.map((item) => item.trim()).filter(Boolean)));
+      };
+      setSensitivityAntibioticOptions(normalize(parsed.antibiotics, DEFAULT_SENSITIVITY_ANTIBIOTICS));
+      setSensitivityValueOptions(normalize(parsed.values, SENSITIVITY_VALUE_OPTIONS));
+      setSensitivityInterpretationOptions(
+        normalize(parsed.interpretations, SENSITIVITY_INTERPRETATION_OPTIONS).map((item) => item.toUpperCase())
+      );
+    } catch {
+      // Ignore malformed memory cache.
+    }
+  }, []);
+
+  const rememberSensitivityCell = useCallback((cell: SensitivityCell) => {
+    const addUnique = (base: string[], nextValue: string) => {
+      const trimmed = nextValue.trim();
+      if (!trimmed) return base;
+      if (base.includes(trimmed)) return base;
+      return [...base, trimmed];
+    };
+
+    let nextAntibiotics = sensitivityAntibioticOptions;
+    let nextValues = sensitivityValueOptions;
+    let nextInterpretations = sensitivityInterpretationOptions;
+
+    if (cell.antibiotic.trim()) {
+      nextAntibiotics = addUnique(nextAntibiotics, cell.antibiotic);
+      if (nextAntibiotics !== sensitivityAntibioticOptions) setSensitivityAntibioticOptions(nextAntibiotics);
+    }
+    if (cell.zone.trim()) {
+      nextValues = addUnique(nextValues, cell.zone);
+      if (nextValues !== sensitivityValueOptions) setSensitivityValueOptions(nextValues);
+    }
+    if (cell.interpretation.trim()) {
+      const token = cell.interpretation.trim().toUpperCase();
+      nextInterpretations = addUnique(nextInterpretations, token);
+      if (nextInterpretations !== sensitivityInterpretationOptions) {
+        setSensitivityInterpretationOptions(nextInterpretations);
+      }
+    }
+
+    try {
+      window.localStorage.setItem(
+        SENSITIVITY_MEMORY_KEY,
+        JSON.stringify({
+          antibiotics: nextAntibiotics,
+          values: nextValues,
+          interpretations: nextInterpretations,
+        })
+      );
+    } catch {
+      // Best-effort local memory only.
+    }
+  }, [sensitivityAntibioticOptions, sensitivityInterpretationOptions, sensitivityValueOptions]);
 
   const applyLoadedRows = useCallback((rows: LabTask[]) => {
     setTasks(rows);
@@ -1124,11 +1212,15 @@ export function LabTaskBoard() {
               </thead>
               <tbody>
                 {cells.map((cell, index) => (
-                  <tr key={`${cell.antibiotic}-${index}`}>
+                  <tr key={`shared-sens-row-${index}`}>
                     <td className="border border-slate-200 p-1.5">
                       <input
+                        list={`sens-antibiotic-options-shared-${task.id}`}
                         value={cell.antibiotic}
-                        onBlur={() => void persistDraft(task).catch(() => undefined)}
+                        onBlur={() => {
+                          rememberSensitivityCell(cell);
+                          void persistDraft(task).catch(() => undefined);
+                        }}
                         onChange={(e) => updateCell(index, { antibiotic: e.target.value })}
                         className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Antibiotic name"
@@ -1138,7 +1230,10 @@ export function LabTaskBoard() {
                       <input
                         list={`sens-zone-options-shared-${task.id}`}
                         value={cell.zone}
-                        onBlur={() => void persistDraft(task).catch(() => undefined)}
+                        onBlur={() => {
+                          rememberSensitivityCell(cell);
+                          void persistDraft(task).catch(() => undefined);
+                        }}
                         onChange={(e) => updateCell(index, { zone: e.target.value })}
                         className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="+ / 2+ / 3+ / 20mm"
@@ -1148,7 +1243,10 @@ export function LabTaskBoard() {
                       <input
                         list={`sens-int-options-shared-${task.id}`}
                         value={cell.interpretation}
-                        onBlur={() => void persistDraft(task).catch(() => undefined)}
+                        onBlur={() => {
+                          rememberSensitivityCell(cell);
+                          void persistDraft(task).catch(() => undefined);
+                        }}
                         onChange={(e) =>
                           updateCell(index, { interpretation: e.target.value.toUpperCase() })
                         }
@@ -1170,13 +1268,18 @@ export function LabTaskBoard() {
                 ))}
               </tbody>
             </table>
+            <datalist id={`sens-antibiotic-options-shared-${task.id}`}>
+              {sensitivityAntibioticOptions.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
             <datalist id={`sens-zone-options-shared-${task.id}`}>
-              {SENSITIVITY_VALUE_OPTIONS.map((option) => (
+              {sensitivityValueOptions.map((option) => (
                 <option key={option} value={option} />
               ))}
             </datalist>
             <datalist id={`sens-int-options-shared-${task.id}`}>
-              {SENSITIVITY_INTERPRETATION_OPTIONS.map((option) => (
+              {sensitivityInterpretationOptions.map((option) => (
                 <option key={option} value={option} />
               ))}
             </datalist>
@@ -1236,10 +1339,13 @@ export function LabTaskBoard() {
     if (!baseKey) return;
     updateDraft(testOrderId, (prev) => {
       const nextValues = { ...prev.values };
-      if (Object.prototype.hasOwnProperty.call(nextValues, baseKey)) {
-        return prev;
+      let nextKey = baseKey;
+      let counter = 2;
+      while (Object.prototype.hasOwnProperty.call(nextValues, nextKey)) {
+        nextKey = `${baseKey}_${counter}`;
+        counter += 1;
       }
-      nextValues[baseKey] = value;
+      nextValues[nextKey] = value;
       return { ...prev, values: nextValues };
     });
   }, []);
@@ -1726,6 +1832,10 @@ export function LabTaskBoard() {
                                 onResetCustomFields={resetCustomFields}
                                 onRemoveDefaultField={removeDefaultField}
                                 onRestoreDefaultFields={restoreDefaultFields}
+                                sensitivityAntibioticOptions={sensitivityAntibioticOptions}
+                                sensitivityValueOptions={sensitivityValueOptions}
+                                sensitivityInterpretationOptions={sensitivityInterpretationOptions}
+                                onRememberSensitivityCell={rememberSensitivityCell}
                               />
                             ))}
 
@@ -1752,4 +1862,3 @@ export function LabTaskBoard() {
     </div>
   );
 }
-
