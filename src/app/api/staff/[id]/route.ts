@@ -101,6 +101,13 @@ export async function PATCH(
 
     const data = parsed.data;
 
+    if (data.password && !isAdminOrHRM) {
+      return NextResponse.json(
+        { success: false, error: "Only HR can change staff passwords" },
+        { status: 403 }
+      );
+    }
+
     // Get old staff data for audit
     const oldStaff = await prisma.staff.findUnique({
       where: { id: params.id, organizationId: user.organizationId },
@@ -182,8 +189,8 @@ export async function DELETE(
 
     const user = session.user as any;
 
-    if (user.role !== "SUPER_ADMIN") {
-      return NextResponse.json({ success: false, error: "Only Super Admin can deactivate staff" }, { status: 403 });
+    if (!["SUPER_ADMIN", "HRM"].includes(user.role)) {
+      return NextResponse.json({ success: false, error: "Only HR can delete/deactivate staff" }, { status: 403 });
     }
 
     if (user.id === params.id) {

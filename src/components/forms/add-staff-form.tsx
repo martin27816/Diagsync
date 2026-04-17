@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { ROLE_LABELS, DEPARTMENT_LABELS } from "@/lib/utils";
 import { Role, Department, Shift } from "@prisma/client";
+import { Eye, EyeOff } from "lucide-react";
 
 const schema = z.object({
   fullName: z.string().min(2, "Full name is required"),
@@ -36,6 +37,7 @@ export function AddStaffForm() {
   const router = useRouter();
   const [serverError, setServerError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { register, handleSubmit, setValue, reset, formState: { errors, isSubmitting } } =
     useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { defaultShift: Shift.MORNING } });
@@ -146,13 +148,41 @@ export function AddStaffForm() {
 
           <div>
             <label className={labelCls}>Password *</label>
-            <input type="password" placeholder="Min 8 characters" {...register("password")} className={inputCls} />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Min 8 characters"
+                {...register("password")}
+                className={`${inputCls} pr-9`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-2 inline-flex items-center text-slate-400 hover:text-slate-600"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {errors.password && <p className={errCls}>{errors.password.message}</p>}
           </div>
 
           <div>
             <label className={labelCls}>Confirm Password *</label>
-            <input type="password" placeholder="Repeat password" {...register("confirmPassword")} className={inputCls} />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Repeat password"
+                {...register("confirmPassword")}
+                className={`${inputCls} pr-9`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-2 inline-flex items-center text-slate-400 hover:text-slate-600"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {errors.confirmPassword && <p className={errCls}>{errors.confirmPassword.message}</p>}
           </div>
         </div>
