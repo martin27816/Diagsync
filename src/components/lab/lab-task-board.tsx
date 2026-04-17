@@ -40,7 +40,7 @@ type ResultField = {
 type TestOrder = {
   id: string;
   status: string;
-  test: { name: string; code: string; sampleType?: string | null; resultFields: ResultField[] };
+  test: { id: string; name: string; code: string; sampleType?: string | null; resultFields: ResultField[] };
   labResults: Array<{ id: string; resultData: Record<string, unknown>; notes?: string | null; isSubmitted: boolean; abnormalFlags?: Record<string, string> }>;
 };
 
@@ -337,7 +337,7 @@ type OrderResultCardProps = {
   onPersist: (task: LabTask) => Promise<void>;
   onSetFieldValue: (testOrderId: string, fieldKey: string, value: unknown) => void;
   onSetNotes: (testOrderId: string, value: string) => void;
-  onAddCustomField: (testOrderId: string, label: string, value: string) => void;
+  onAddCustomField: (testOrderId: string, label: string, value: string) => Promise<void>;
   onRemoveCustomField: (testOrderId: string, fieldKey: string) => void;
   onResetCustomFields: (testOrderId: string) => void;
   onRemoveDefaultField: (testOrderId: string, fieldKey: string) => void;
@@ -775,10 +775,13 @@ const OrderResultCard = memo(function OrderResultCard({
                 setCustomError("Field name is invalid.");
                 return;
               }
-              onAddCustomField(order.id, customLabel, customValue);
-              setCustomLabel("");
-              setCustomValue("");
-              setCustomError("");
+              void onAddCustomField(order.id, customLabel, customValue)
+                .then(() => {
+                  setCustomLabel("");
+                  setCustomValue("");
+                  setCustomError("");
+                })
+                .catch(() => undefined);
             }}
             className="col-span-2 rounded border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
           >
@@ -1309,7 +1312,7 @@ export function LabTaskBoard() {
   }
 
   const setDraftFieldValue = useCallback((testOrderId: string, fieldKey: string, value: unknown) => {
-    const task = findTaskForOrder(testOrderId);
+    const task = tasksRef.current.find((item) => item.testOrders.some((row) => row.id === testOrderId));
     const shouldSyncSensitivity = Boolean(task && isSensitivityFieldKey(fieldKey));
     const sensitivityOrderIds = shouldSyncSensitivity
       ? task!.testOrders
@@ -1334,21 +1337,62 @@ export function LabTaskBoard() {
     updateDraft(testOrderId, (prev) => ({ ...prev, notes: value }));
   }, []);
 
-  const addCustomField = useCallback((testOrderId: string, label: string, value: string) => {
+  const addCustomField = useCallback(async (testOrderId: string, label: string, value: string) => {
+    const task = findTaskForOrder(testOrderId);
+    const order = task?.testOrders.find((row) => row.id === testOrderId);
+    if (!order) return;
+
     const baseKey = toCustomFieldKey(label);
     if (!baseKey) return;
-    updateDraft(testOrderId, (prev) => {
-      const nextValues = { ...prev.values };
-      let nextKey = baseKey;
-      let counter = 2;
-      while (Object.prototype.hasOwnProperty.call(nextValues, nextKey)) {
-        nextKey = `${baseKey}_${counter}`;
-        counter += 1;
+
+    const defaultFieldKeys = new Set(order.test.resultFields.map((field) => field.fieldKey));
+    const existingValues = draftsRef.current[testOrderId]?.values ?? {};
+    let nextKey = baseKey;
+    let counter = 2;
+    while (defaultFieldKeys.has(nextKey) || Object.prototype.hasOwnProperty.call(existingValues, nextKey)) {
+      nextKey = `${baseKey}_${counter}`;
+      counter += 1;
+    }
+
+    updateDraft(testOrderId, (prev) => ({
+      ...prev,
+      values: { ...prev.values, [nextKey]: value },
+    }));
+
+    try {
+      const res = await fetch(`/api/tests/${order.test.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          addFields: [{ label: label.trim(), fieldKey: nextKey, fieldType: "TEXT", isRequired: false }],
+        }),
+      });
+      const json = (await res.json()) as {
+        success: boolean;
+        error?: string;
+        data?: { resultFields?: Array<{ fieldKey: string; label: string }> };
+      };
+      if (!json.success) return;
+
+      const serverKey =
+        json.data?.resultFields?.find((field) => field.fieldKey === nextKey)?.fieldKey ?? nextKey;
+      if (serverKey !== nextKey) {
+        updateDraft(testOrderId, (prev) => {
+          const nextValues = { ...prev.values };
+          if (Object.prototype.hasOwnProperty.call(nextValues, nextKey)) {
+            nextValues[serverKey] = nextValues[nextKey];
+            delete nextValues[nextKey];
+          }
+          return { ...prev, values: nextValues };
+        });
       }
-      nextValues[nextKey] = value;
-      return { ...prev, values: nextValues };
-    });
-  }, []);
+
+      invalidateTaskCache();
+      await loadTasks({ force: true, silent: true });
+    } catch {
+      // Keep local draft even if template promotion fails.
+    }
+  }, [loadTasks]);
 
   const removeCustomField = useCallback((testOrderId: string, fieldKey: string) => {
     updateDraft(testOrderId, (prev) => {
