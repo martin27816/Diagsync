@@ -237,7 +237,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden">
+      <div className="grid grid-cols-1 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden sm:grid-cols-3">
         <div className="bg-white px-4 py-3">
           <p className="text-[11px] uppercase tracking-wide text-slate-400">Waiting</p>
           <p className="text-xl font-bold text-slate-800 mt-0.5">{waitingCount}</p>
@@ -254,13 +254,13 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
 
       <div className="rounded-lg border border-slate-200 bg-white p-3">
         <div className="flex flex-wrap items-end gap-2">
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-[11px] font-medium text-slate-500 mb-1">Search patient</label>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Name, contact..."
-              className="h-8 w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="h-8 w-full sm:w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
           <div>
@@ -298,7 +298,9 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
           >
             Reset
           </button>
-          <span className="ml-auto text-xs text-slate-400 pb-1">{rowsInView} consultation rows in view</span>
+          <span className="w-full text-left text-xs text-slate-400 pb-1 sm:ml-auto sm:w-auto sm:text-right">
+            {rowsInView} consultation rows in view
+          </span>
         </div>
       </div>
 
@@ -358,7 +360,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
           <p className="px-4 py-8 text-xs text-slate-400">No active consultation patients.</p>
         ) : (
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-xs">
+          <table className="w-full min-w-[1220px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">#</th>
@@ -371,7 +373,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Doctor</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Arrival Time</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Countdown</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400 w-[180px] min-w-[180px]">Action</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 min-w-[220px]">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -408,20 +410,20 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                       <span className="text-slate-400">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 w-[180px] min-w-[180px]">
+                  <td className="px-4 py-2.5 min-w-[220px]">
                     {isMd ? (
                       <div className="flex flex-wrap gap-1.5">
                         <button
                           disabled={busyId === row.id || row.status === "CONSULTED"}
                           onClick={() => void callPatient(row.id)}
-                          className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+                          className="inline-flex min-w-[110px] items-center justify-center rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
                         >
                           {busyId === row.id ? "Calling..." : "Call Patient"}
                         </button>
                         <button
                           disabled={busyId === row.id || row.status !== "CALLED"}
                           onClick={() => void markConsulted(row.id)}
-                          className="rounded bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+                          className="inline-flex min-w-[110px] items-center justify-center rounded bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors whitespace-nowrap"
                         >
                           {busyId === row.id ? "Updating..." : "Finish Consultation"}
                         </button>
@@ -431,7 +433,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                       <button
                         disabled={busyId === row.id || row.status !== "CALLED"}
                         onClick={() => void markPatientIn(row.id)}
-                        className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+                        className="inline-flex min-w-[110px] items-center justify-center rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
                       >
                         {busyId === row.id ? "Updating..." : "Patient In"}
                       </button>
@@ -454,7 +456,8 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
         ) : data.history.length === 0 ? (
           <p className="px-4 py-6 text-xs text-slate-400">No consultation records yet.</p>
         ) : (
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
@@ -482,7 +485,8 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
       </div>
     </div>

@@ -44,8 +44,8 @@ export default async function StaffDetailPage({ params }: { params: { id: string
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to Staff
         </Link>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-center gap-3 sm:gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary">
               {staff.fullName.charAt(0)}
             </div>
@@ -54,7 +54,7 @@ export default async function StaffDetailPage({ params }: { params: { id: string
               <p className="text-sm text-muted-foreground">{ROLE_LABELS[staff.role]}</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Badge variant={staff.status === "ACTIVE" ? "success" : "destructive"}>
               {staff.status}
             </Badge>
@@ -70,7 +70,7 @@ export default async function StaffDetailPage({ params }: { params: { id: string
         <div className="lg:col-span-2 space-y-6">
           <div className="rounded-lg border bg-card p-5 shadow-sm">
             <h2 className="font-semibold mb-4">Profile Information</h2>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div>
                 <p className="text-muted-foreground text-xs uppercase tracking-wide mb-1">Full Name</p>
                 <p className="font-medium">{staff.fullName}</p>

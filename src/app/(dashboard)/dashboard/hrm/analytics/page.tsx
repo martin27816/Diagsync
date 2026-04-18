@@ -31,7 +31,7 @@ export default async function HrmAnalyticsPage() {
       </div>
 
       {/* Stat strip */}
-      <div className="grid grid-cols-3 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden">
+      <div className="grid grid-cols-1 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden sm:grid-cols-3">
         {[
           { label: "Avg Completion Time", value: formatMinutes(overview.analytics.averageCompletionMinutes) },
           { label: "Delayed Tasks", value: overview.metrics.delayedTasks, alert: overview.metrics.delayedTasks > 0 },
@@ -69,7 +69,8 @@ export default async function HrmAnalyticsPage() {
         {overview.analytics.busiestStaff.length === 0 ? (
           <p className="px-4 py-6 text-xs text-slate-400">No active workload yet.</p>
         ) : (
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Name</th>
@@ -92,7 +93,8 @@ export default async function HrmAnalyticsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
       </div>
 
@@ -103,7 +105,7 @@ export default async function HrmAnalyticsPage() {
             Revenue + Leakage ({revenueOps.summary.windowDays}d)
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-px bg-slate-200 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-5">
           {[
             { label: "Ordered Value", value: formatCurrency(revenueOps.summary.orderedValue) },
             { label: "Billed Value", value: formatCurrency(revenueOps.summary.billedValue) },
@@ -131,7 +133,8 @@ export default async function HrmAnalyticsPage() {
         {revenueOps.profitByTestLine.length === 0 ? (
           <p className="px-4 py-6 text-xs text-slate-400">No billing data yet.</p>
         ) : (
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Test</th>
@@ -156,7 +159,8 @@ export default async function HrmAnalyticsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
       </div>
 
@@ -165,7 +169,7 @@ export default async function HrmAnalyticsPage() {
         <div className="border-b border-slate-100 px-4 py-2.5">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">No-show & Cancellation Forecast</span>
         </div>
-        <div className="grid grid-cols-2 gap-px bg-slate-200 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { label: "30d Rate", value: `${Math.round(revenueOps.noShowForecast.noShowCancelRate * 100)}%` },
             { label: "Last 7d", value: `${Math.round(revenueOps.noShowForecast.last7Rate * 100)}%` },

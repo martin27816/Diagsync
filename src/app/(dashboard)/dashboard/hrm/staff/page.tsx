@@ -31,7 +31,7 @@ export default async function StaffListPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-base font-semibold text-slate-800">Staff Management</h1>
           <p className="text-xs text-slate-400 mt-0.5">
