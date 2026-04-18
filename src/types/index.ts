@@ -21,7 +21,7 @@ export interface SessionUser {
   email: string;
   fullName: string;
   role: Role;
-  organizationId: string;
+  organizationId: string | null;
   department: Department;
 }
 

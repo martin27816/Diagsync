@@ -123,6 +123,12 @@ export async function POST(req: NextRequest) {
     }
 
     const data = parsed.data;
+    if (data.role === "MEGA_ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "Invalid role" },
+        { status: 400 }
+      );
+    }
 
     // Check email uniqueness
     const existing = await prisma.staff.findUnique({ where: { email: data.email } });

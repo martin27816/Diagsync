@@ -107,7 +107,7 @@ export default async function StaffDetailPage({ params }: { params: { id: string
               </div>
               <div>
                 <p className="text-muted-foreground text-xs uppercase tracking-wide mb-1">Organization</p>
-                <p className="font-medium">{staff.organization.name}</p>
+                <p className="font-medium">{staff.organization?.name ?? "Platform"}</p>
               </div>
               <div className="flex items-center gap-2">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />

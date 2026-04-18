@@ -9,6 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 // Map each role to its dashboard path
 export function getDashboardPath(role: Role): string {
   const map: Record<Role, string> = {
+    MEGA_ADMIN: "/admin/dashboard",
     SUPER_ADMIN: "/dashboard/hrm",
     HRM: "/dashboard/hrm",
     RECEPTIONIST: "/dashboard/receptionist",
@@ -70,6 +71,7 @@ export function generateVisitNumber(prefix: string, count: number): string {
 
 // Role display labels
 export const ROLE_LABELS: Record<Role, string> = {
+  MEGA_ADMIN: "Platform Admin",
   SUPER_ADMIN: "Super Admin",
   HRM: "HRM / Operations",
   RECEPTIONIST: "Receptionist",

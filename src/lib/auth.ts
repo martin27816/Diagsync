@@ -21,6 +21,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.role = (user as any).role;
         token.organizationId = (user as any).organizationId;
+        token.organizationStatus = (user as any).organizationStatus;
         token.fullName = (user as any).fullName;
         token.department = (user as any).department;
       }
@@ -31,6 +32,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string;
         (session.user as any).role = token.role;
         (session.user as any).organizationId = token.organizationId;
+        (session.user as any).organizationStatus = token.organizationStatus;
         (session.user as any).fullName = token.fullName;
         (session.user as any).department = token.department;
       }
@@ -64,14 +66,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             department: true,
             organizationId: true,
             status: true,
+            organization: {
+              select: {
+                status: true,
+              },
+            },
           },
         });
 
         if (!staff) return null;
         if (staff.status !== "ACTIVE") return null;
+        if (staff.role !== "MEGA_ADMIN") {
+          if (!staff.organizationId) return null;
+          if (!staff.organization || staff.organization.status !== "ACTIVE") return null;
+        }
 
         const passwordMatch = await bcrypt.compare(password, staff.passwordHash);
         if (!passwordMatch) return null;
+
+        await prisma.staff.update({
+          where: { id: staff.id },
+          data: { lastSeen: new Date() },
+        });
 
         return {
           id: staff.id,
@@ -79,6 +95,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: staff.fullName,
           role: staff.role,
           organizationId: staff.organizationId,
+          organizationStatus: staff.organization?.status ?? null,
           fullName: staff.fullName,
           department: staff.department,
         };

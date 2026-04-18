@@ -27,7 +27,9 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-const ROLES_FOR_FORM = Object.entries(ROLE_LABELS).filter(([key]) => key !== "SUPER_ADMIN");
+const ROLES_FOR_FORM = Object.entries(ROLE_LABELS).filter(
+  ([key]) => key !== "SUPER_ADMIN" && key !== "MEGA_ADMIN"
+);
 
 const inputCls = "h-8 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
 const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";

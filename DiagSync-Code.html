@@ -49,6 +49,13 @@ CLOUDINARY_CLOUD_NAME=""
 CLOUDINARY_API_KEY=""
 CLOUDINARY_API_SECRET=""
 </pre></div>
+<div class='file-block'><div class='file-header'>global.d.ts</div><pre>declare module '*.css';
+declare module '*.scss';
+declare module '*.sass';
+declare module '*.module.css';
+declare module '*.module.scss';
+declare module '*.module.sass';
+</pre></div>
 <div class='file-block'><div class='file-header'>next-env.d.ts</div><pre>/// &lt;reference types="next" /&gt;
 /// &lt;reference types="next/image-types/global" /&gt;
 
@@ -69,7 +76,7 @@ CLOUDINARY_API_SECRET=""
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "ts-node --project tsconfig.json prisma/seed.ts",
+    "db:seed": "ts-node --project tsconfig.seed.json prisma/seed.ts",
     "test:routing": "ts-node --project tsconfig.test.json src/lib/routing-core.test.ts",
     "test:lab": "ts-node --project tsconfig.test.json src/lib/lab-workflow-core.test.ts",
     "test:radiology": "ts-node --project tsconfig.test.json src/lib/radiology-workflow-core.test.ts",
@@ -129,10 +136,7 @@ CLOUDINARY_API_SECRET=""
 }
 
 </pre></div>
-<div class='file-block'><div class='file-header'>prisma/schema.prisma</div><pre>// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
+<div class='file-block'><div class='file-header'>prisma/schema.prisma</div><pre>generator client {
   provider = "prisma-client-js"
 }
 
@@ -140,6 +144,594 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+}
+
+model Organization {
+  id                         String              @id @default(cuid())
+  name                       String
+  email                      String              @unique
+  phone                      String
+  address                    String
+  logo                       String?
+  contactInfo                String?
+  letterheadUrl              String?
+  consultationTimeoutMinutes Int                 @default(10)
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  consultationQueueEntries   ConsultationQueue[]
+  reports                    DiagnosticReport[]
+  tests                      DiagnosticTest[]
+  patients                   Patient[]
+  staff                      Staff[]
+
+  @@map("organizations")
+}
+
+model Staff {
+  id                                   String                    @id @default(cuid())
+  organizationId                       String
+  fullName                             String
+  email                                String                    @unique
+  phone                                String
+  passwordHash                         String
+  role                                 Role
+  department                           Department
+  gender                               String?
+  dateJoined                           DateTime                  @default(now())
+  defaultShift                         Shift                     @default(MORNING)
+  status                               StaffStatus               @default(ACTIVE)
+  availabilityStatus                   AvailabilityStatus        @default(UNAVAILABLE)
+  lastAvailableAt                      DateTime?
+  lastUnavailableAt                    DateTime?
+  createdAt                            DateTime                  @default(now())
+  updatedAt                            DateTime                  @updatedAt
+  createdById                          String?
+  auditLogs                            AuditLog[]
+  availabilityLogs                     AvailabilityLog[]
+  acknowledgedConsultationQueueEntries ConsultationQueue[]       @relation("ConsultationAcknowledgedBy")
+  calledConsultationQueueEntries       ConsultationQueue[]       @relation("ConsultationCalledBy")
+  consultedConsultationQueueEntries    ConsultationQueue[]       @relation("ConsultationConsultedBy")
+  createdConsultationQueueEntries      ConsultationQueue[]       @relation("ConsultationCreatedBy")
+  editedReportVersions                 DiagnosticReportVersion[]
+  generatedReports                     DiagnosticReport[]        @relation("ReportGeneratedBy")
+  releasedReports                      DiagnosticReport[]        @relation("ReportReleasedBy")
+  imagingFiles                         ImagingFile[]
+  editedLabResultVersions              LabResultVersion[]        @relation("LabResultVersionEditedBy")
+  labResults                           LabResult[]
+  labSamples                           LabSample[]
+  notifications                        Notification[]
+  registeredPatients                   Patient[]                 @relation("RegisteredBy")
+  pushSubscriptions                    PushSubscription[]
+  editedRadiologyReportVersions        RadiologyReportVersion[]  @relation("RadiologyReportVersionEditedBy")
+  radiologyReports                     RadiologyReport[]
+  reviews                              Review[]
+  routingTasks                         RoutingTask[]
+  sessions                             Session[]
+  createdBy                            Staff?                    @relation("StaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff                         Staff[]                   @relation("StaffCreatedBy")
+  organization                         Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTestOrders                   TestOrder[]               @relation("AssignedTestOrders")
+  overriddenTestOrders                 TestOrder[]               @relation("OverriddenTestOrders")
+  visitPayments                        VisitPayment[]
+
+  @@map("staff")
+}
+
+model ConsultationQueue {
+  id               String             @id @default(cuid())
+  organizationId   String
+  fullName         String
+  age              Int
+  contact          String
+  vitalsNote       String?
+  status           ConsultationStatus @default(WAITING)
+  arrivalAt        DateTime           @default(now())
+  calledAt         DateTime?
+  calledById       String?
+  acknowledgedAt   DateTime?
+  acknowledgedById String?
+  consultedAt      DateTime?
+  consultedById    String?
+  createdById      String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  acknowledgedBy   Staff?             @relation("ConsultationAcknowledgedBy", fields: [acknowledgedById], references: [id])
+  calledBy         Staff?             @relation("ConsultationCalledBy", fields: [calledById], references: [id])
+  consultedBy      Staff?             @relation("ConsultationConsultedBy", fields: [consultedById], references: [id])
+  createdBy        Staff              @relation("ConsultationCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, arrivalAt])
+  @@index([organizationId, consultedAt])
+  @@map("consultation_queue")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  staffId      String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  staff        Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model AvailabilityLog {
+  id        String             @id @default(cuid())
+  staffId   String
+  oldStatus AvailabilityStatus
+  newStatus AvailabilityStatus
+  reason    String?
+  changedAt DateTime           @default(now())
+  staff     Staff              @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("availability_logs")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actorRole  Role
+  action     String
+  entityType String
+  entityId   String?
+  changes    Json?
+  oldValue   Json?
+  newValue   Json?
+  notes      String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  actor      Staff    @relation(fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, createdAt])
+  @@map("audit_logs")
+}
+
+model TestCategory {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  tests       DiagnosticTest[]
+
+  @@map("test_categories")
+}
+
+model DiagnosticTest {
+  id                String                @id @default(cuid())
+  organizationId    String
+  categoryId        String?
+  name              String
+  code              String
+  type              TestType
+  department        Department
+  price             Decimal               @db.Decimal(10, 2)
+  costPrice         Decimal               @default(0) @db.Decimal(10, 2)
+  turnaroundMinutes Int
+  sampleType        String?
+  description       String?
+  isActive          Boolean               @default(true)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  category          TestCategory?         @relation(fields: [categoryId], references: [id])
+  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  resultFields      ResultTemplateField[]
+  testOrders        TestOrder[]
+
+  @@unique([organizationId, code])
+  @@map("diagnostic_tests")
+}
+
+model ResultTemplateField {
+  id            String         @id @default(cuid())
+  testId        String
+  label         String
+  fieldKey      String
+  fieldType     FieldType
+  unit          String?
+  normalMin     Decimal?       @db.Decimal(10, 3)
+  normalMax     Decimal?       @db.Decimal(10, 3)
+  normalText    String?
+  referenceNote String?
+  options       String?
+  isRequired    Boolean        @default(true)
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  test          DiagnosticTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@map("result_template_fields")
+}
+
+model Patient {
+  id              String       @id @default(cuid())
+  organizationId  String
+  patientId       String
+  fullName        String
+  age             Int
+  sex             Sex
+  phone           String
+  email           String?
+  address         String?
+  dateOfBirth     DateTime?
+  referringDoctor String?
+  clinicalNote    String?
+  registeredById  String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registeredBy    Staff        @relation("RegisteredBy", fields: [registeredById], references: [id])
+  visits          Visit[]
+
+  @@unique([organizationId, patientId])
+  @@map("patients")
+}
+
+model Visit {
+  id              String             @id @default(cuid())
+  patientId       String
+  organizationId  String
+  visitNumber     String
+  priority        Priority           @default(ROUTINE)
+  status          VisitStatus        @default(ACTIVE)
+  paymentStatus   PaymentStatus      @default(PENDING)
+  totalAmount     Decimal            @default(0) @db.Decimal(10, 2)
+  amountPaid      Decimal            @default(0) @db.Decimal(10, 2)
+  discount        Decimal            @default(0) @db.Decimal(10, 2)
+  paymentMethod   String?
+  notes           String?
+  cancelledAt     DateTime?
+  cancelledReason String?
+  noShowAt        DateTime?
+  noShowReason    String?
+  registeredAt    DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  reports         DiagnosticReport[]
+  labSamples      LabSample[]
+  reviews         Review[]
+  routingTasks    RoutingTask[]
+  testOrders      TestOrder[]
+  payments        VisitPayment[]
+  patient         Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, registeredAt])
+  @@map("visits")
+}
+
+model TestOrder {
+  id                  String         @id @default(cuid())
+  visitId             String
+  testId              String
+  organizationId      String
+  assignedToId        String?
+  priceOverriddenById String?
+  status              OrderStatus    @default(REGISTERED)
+  defaultPrice        Decimal        @default(0) @db.Decimal(10, 2)
+  price               Decimal        @db.Decimal(10, 2)
+  priceOverrideReason String?
+  notes               String?
+  registeredAt        DateTime       @default(now())
+  assignedAt          DateTime?
+  openedAt            DateTime?
+  sampleCollectedAt   DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  submittedAt         DateTime?
+  reviewedAt          DateTime?
+  approvedAt          DateTime?
+  releasedAt          DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  labResults          LabResult[]
+  assignedTo          Staff?         @relation("AssignedTestOrders", fields: [assignedToId], references: [id])
+  priceOverriddenBy   Staff?         @relation("OverriddenTestOrders", fields: [priceOverriddenById], references: [id])
+  test                DiagnosticTest @relation(fields: [testId], references: [id])
+  visit               Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, assignedToId, status])
+  @@index([organizationId, priceOverriddenById, createdAt])
+  @@map("test_orders")
+}
+
+model VisitPayment {
+  id             String           @id @default(cuid())
+  organizationId String
+  visitId        String
+  recordedById   String
+  amount         Decimal          @db.Decimal(10, 2)
+  paymentType    PaymentEntryType @default(PAYMENT)
+  paymentMethod  String?
+  notes          String?
+  createdAt      DateTime         @default(now())
+  recordedBy     Staff            @relation(fields: [recordedById], references: [id], onDelete: Cascade)
+  visit          Visit            @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, visitId, createdAt])
+  @@index([organizationId, paymentType, createdAt])
+  @@map("visit_payments")
+}
+
+model RoutingTask {
+  id              String            @id @default(cuid())
+  organizationId  String
+  visitId         String
+  department      Department
+  staffId         String?
+  priority        Priority          @default(ROUTINE)
+  status          RoutingTaskStatus @default(PENDING)
+  testOrderIds    String[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  imagingFiles    ImagingFile[]
+  results         LabResult[]
+  sample          LabSample?
+  radiologyReport RadiologyReport?
+  review          Review?
+  staff           Staff?            @relation(fields: [staffId], references: [id])
+  visit           Visit             @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, department, status, priority])
+  @@index([organizationId, department, staffId, status, createdAt])
+  @@index([organizationId, department, staffId, createdAt])
+  @@index([visitId, department])
+  @@map("routing_tasks")
+}
+
+model LabSample {
+  id             String       @id @default(cuid())
+  organizationId String
+  visitId        String
+  taskId         String       @unique
+  staffId        String
+  status         SampleStatus @default(PENDING)
+  notes          String?
+  collectedAt    DateTime?
+  receivedAt     DateTime?
+  processingAt   DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  staff          Staff        @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  task           RoutingTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  visit          Visit        @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, staffId, status])
+  @@map("lab_samples")
+}
+
+model LabResult {
+  id             String             @id @default(cuid())
+  organizationId String
+  taskId         String
+  testOrderId    String
+  staffId        String
+  resultData     Json
+  notes          String?
+  isSubmitted    Boolean            @default(false)
+  submittedAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  versions       LabResultVersion[]
+  staff          Staff              @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  task           RoutingTask        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  testOrder      TestOrder          @relation(fields: [testOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, testOrderId])
+  @@index([organizationId, staffId, isSubmitted])
+  @@map("lab_results")
+}
+
+model ImagingFile {
+  id             String      @id @default(cuid())
+  organizationId String
+  taskId         String
+  uploadedById   String
+  fileUrl        String
+  fileType       String
+  fileName       String
+  fileSizeBytes  Int
+  metadata       Json?
+  createdAt      DateTime    @default(now())
+  task           RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy     Staff       @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, taskId])
+  @@map("imaging_files")
+}
+
+model RadiologyReport {
+  id             String                   @id @default(cuid())
+  organizationId String
+  taskId         String                   @unique
+  staffId        String
+  findings       String
+  impression     String
+  notes          String?
+  extraFields    Json?
+  isSubmitted    Boolean                  @default(false)
+  submittedAt    DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  versions       RadiologyReportVersion[]
+  staff          Staff                    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  task           RoutingTask              @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, staffId, isSubmitted])
+  @@map("radiology_reports")
+}
+
+model Review {
+  id              String       @id @default(cuid())
+  organizationId  String
+  taskId          String       @unique
+  visitId         String?
+  reviewedById    String
+  status          ReviewStatus @default(PENDING)
+  comments        String?
+  editedData      Json?
+  rejectionReason String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  reviewedBy      Staff        @relation(fields: [reviewedById], references: [id], onDelete: Cascade)
+  task            RoutingTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  visit           Visit?       @relation(fields: [visitId], references: [id])
+
+  @@index([organizationId, status, updatedAt])
+  @@index([visitId])
+  @@map("reviews")
+}
+
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  type           NotificationType
+  title          String
+  message        String
+  isRead         Boolean          @default(false)
+  readAt         DateTime?
+  entityId       String?
+  entityType     String?
+  dedupeKey      String?          @unique
+  createdAt      DateTime         @default(now())
+  user           Staff            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, createdAt])
+  @@index([userId, isRead, createdAt])
+  @@index([organizationId, type, createdAt])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  endpoint       String   @unique
+  p256dh         String
+  auth           String
+  userAgent      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastSeenAt     DateTime @default(now())
+  user           Staff    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, updatedAt])
+  @@map("push_subscriptions")
+}
+
+model DiagnosticReport {
+  id                  String                    @id @default(cuid())
+  organizationId      String
+  visitId             String
+  department          Department
+  reportType          ReportType                @default(lab)
+  sourceTaskId        String?
+  status              ReportStatus              @default(DRAFT)
+  reportContent       Json
+  comments            String?
+  prescription        String?
+  previewFileUrl      String?
+  finalFileUrl        String?
+  generatedById       String?
+  lastEditedById      String?
+  lastEditedAt        DateTime?
+  isReleased          Boolean                   @default(false)
+  releasedAt          DateTime?
+  releasedById        String?
+  releaseInstructions String?
+  lastActionAt        DateTime?
+  publicShareToken    String?                   @unique
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  versions            DiagnosticReportVersion[]
+  generatedBy         Staff?                    @relation("ReportGeneratedBy", fields: [generatedById], references: [id])
+  organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  releasedBy          Staff?                    @relation("ReportReleasedBy", fields: [releasedById], references: [id])
+  visit               Visit                     @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@unique([visitId, department])
+  @@index([organizationId, department, status, updatedAt])
+  @@index([organizationId, reportType, status, updatedAt])
+  @@index([organizationId, isReleased, updatedAt])
+  @@index([sourceTaskId])
+  @@map("diagnostic_reports")
+}
+
+model DiagnosticReportVersion {
+  id           String                    @id @default(cuid())
+  reportId     String
+  version      Int
+  content      Json
+  comments     String?
+  prescription String?
+  isActive     Boolean                   @default(true)
+  parentId     String?
+  editedById   String
+  editReason   String
+  createdAt    DateTime                  @default(now())
+  editedBy     Staff                     @relation(fields: [editedById], references: [id], onDelete: Cascade)
+  parent       DiagnosticReportVersion?  @relation("DiagnosticReportVersionChain", fields: [parentId], references: [id])
+  children     DiagnosticReportVersion[] @relation("DiagnosticReportVersionChain")
+  report       DiagnosticReport          @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, version])
+  @@index([reportId, isActive])
+  @@index([parentId])
+  @@index([editedById, createdAt])
+  @@map("diagnostic_report_versions")
+}
+
+model LabResultVersion {
+  id          String             @id @default(cuid())
+  labResultId String
+  version     Int
+  resultData  Json
+  notes       String?
+  isActive    Boolean            @default(true)
+  parentId    String?
+  editedById  String
+  editReason  String
+  createdAt   DateTime           @default(now())
+  editedBy    Staff              @relation("LabResultVersionEditedBy", fields: [editedById], references: [id], onDelete: Cascade)
+  labResult   LabResult          @relation(fields: [labResultId], references: [id], onDelete: Cascade)
+  parent      LabResultVersion?  @relation("LabResultVersionChain", fields: [parentId], references: [id])
+  children    LabResultVersion[] @relation("LabResultVersionChain")
+
+  @@unique([labResultId, version])
+  @@index([labResultId, isActive])
+  @@index([parentId])
+  @@index([createdAt])
+  @@index([editedById, createdAt])
+  @@map("lab_result_versions")
+}
+
+model RadiologyReportVersion {
+  id          String                   @id @default(cuid())
+  reportId    String
+  version     Int
+  findings    String
+  impression  String
+  notes       String?
+  extraFields Json?
+  isActive    Boolean                  @default(true)
+  parentId    String?
+  editedById  String
+  editReason  String
+  createdAt   DateTime                 @default(now())
+  editedBy    Staff                    @relation("RadiologyReportVersionEditedBy", fields: [editedById], references: [id], onDelete: Cascade)
+  parent      RadiologyReportVersion?  @relation("RadiologyReportVersionChain", fields: [parentId], references: [id])
+  children    RadiologyReportVersion[] @relation("RadiologyReportVersionChain")
+  report      RadiologyReport          @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, version])
+  @@index([reportId, isActive])
+  @@index([parentId])
+  @@index([createdAt])
+  @@index([editedById, createdAt])
+  @@map("radiology_report_versions")
 }
 
 enum Role {
@@ -294,619 +886,6 @@ enum ConsultationStatus {
   CONSULTED
   CANCELLED
 }
-
-model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  phone     String
-  address   String
-  logo      String?
-  contactInfo String?
-  letterheadUrl String?
-  consultationTimeoutMinutes Int @default(10)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  staff    Staff[]
-  patients Patient[]
-  tests    DiagnosticTest[]
-  reports  DiagnosticReport[]
-  consultationQueueEntries ConsultationQueue[]
-
-  @@map("organizations")
-}
-
-model Staff {
-  id                 String             @id @default(cuid())
-  organizationId     String
-  fullName           String
-  email              String             @unique
-  phone              String
-  passwordHash       String
-  role               Role
-  department         Department
-  gender             String?
-  dateJoined         DateTime           @default(now())
-  defaultShift       Shift              @default(MORNING)
-  status             StaffStatus        @default(ACTIVE)
-  availabilityStatus AvailabilityStatus @default(UNAVAILABLE)
-  lastAvailableAt    DateTime?
-  lastUnavailableAt  DateTime?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  createdById        String?
-
-  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy         Staff?            @relation("StaffCreatedBy", fields: [createdById], references: [id])
-  createdStaff      Staff[]           @relation("StaffCreatedBy")
-  sessions          Session[]
-  availabilityLogs  AvailabilityLog[]
-  auditLogs         AuditLog[]
-  registeredPatients Patient[]        @relation("RegisteredBy")
-  assignedTestOrders TestOrder[]      @relation("AssignedTestOrders")
-  overriddenTestOrders TestOrder[]    @relation("OverriddenTestOrders")
-  visitPayments      VisitPayment[]
-  routingTasks      RoutingTask[]
-  labSamples        LabSample[]
-  labResults        LabResult[]
-  editedLabResultVersions LabResultVersion[] @relation("LabResultVersionEditedBy")
-  imagingFiles      ImagingFile[]
-  radiologyReports  RadiologyReport[]
-  editedRadiologyReportVersions RadiologyReportVersion[] @relation("RadiologyReportVersionEditedBy")
-  reviews           Review[]
-  notifications     Notification[]
-  pushSubscriptions PushSubscription[]
-  generatedReports  DiagnosticReport[] @relation("ReportGeneratedBy")
-  releasedReports   DiagnosticReport[] @relation("ReportReleasedBy")
-  editedReportVersions DiagnosticReportVersion[]
-  createdConsultationQueueEntries ConsultationQueue[] @relation("ConsultationCreatedBy")
-  calledConsultationQueueEntries ConsultationQueue[] @relation("ConsultationCalledBy")
-  acknowledgedConsultationQueueEntries ConsultationQueue[] @relation("ConsultationAcknowledgedBy")
-  consultedConsultationQueueEntries ConsultationQueue[] @relation("ConsultationConsultedBy")
-
-  @@map("staff")
-}
-
-model ConsultationQueue {
-  id             String             @id @default(cuid())
-  organizationId String
-  fullName       String
-  age            Int
-  contact        String
-  vitalsNote     String?
-  status         ConsultationStatus @default(WAITING)
-  arrivalAt      DateTime           @default(now())
-  calledAt       DateTime?
-  calledById     String?
-  acknowledgedAt DateTime?
-  acknowledgedById String?
-  consultedAt    DateTime?
-  consultedById  String?
-  createdById    String
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy    Staff        @relation("ConsultationCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
-  calledBy     Staff?       @relation("ConsultationCalledBy", fields: [calledById], references: [id], onDelete: SetNull)
-  acknowledgedBy Staff?     @relation("ConsultationAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
-  consultedBy  Staff?       @relation("ConsultationConsultedBy", fields: [consultedById], references: [id], onDelete: SetNull)
-
-  @@index([organizationId, status, arrivalAt])
-  @@index([organizationId, consultedAt])
-  @@map("consultation_queue")
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  staffId      String
-  expires      DateTime
-  createdAt    DateTime @default(now())
-
-  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
-
-model AvailabilityLog {
-  id        String             @id @default(cuid())
-  staffId   String
-  oldStatus AvailabilityStatus
-  newStatus AvailabilityStatus
-  reason    String?
-  changedAt DateTime           @default(now())
-
-  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
-
-  @@map("availability_logs")
-}
-
-model AuditLog {
-  id         String   @id @default(cuid())
-  actorId    String
-  actorRole  Role
-  action     String
-  entityType String
-  entityId   String?
-  changes    Json?
-  oldValue   Json?
-  newValue   Json?
-  notes      String?
-  ipAddress  String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
-
-  actor Staff @relation(fields: [actorId], references: [id])
-
-  @@index([actorId, createdAt])
-  @@index([action, createdAt])
-  @@index([entityType, createdAt])
-  @@map("audit_logs")
-}
-
-model TestCategory {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-
-  tests DiagnosticTest[]
-
-  @@map("test_categories")
-}
-
-model DiagnosticTest {
-  id                String     @id @default(cuid())
-  organizationId    String
-  categoryId        String?
-  name              String
-  code              String
-  type              TestType
-  department        Department
-  price             Decimal    @db.Decimal(10, 2)
-  costPrice         Decimal    @db.Decimal(10, 2) @default(0)
-  turnaroundMinutes Int
-  sampleType        String?
-  description       String?
-  isActive          Boolean    @default(true)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-
-  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  category     TestCategory?        @relation(fields: [categoryId], references: [id])
-  resultFields ResultTemplateField[]
-  testOrders   TestOrder[]
-
-  @@unique([organizationId, code])
-  @@map("diagnostic_tests")
-}
-
-model ResultTemplateField {
-  id         String    @id @default(cuid())
-  testId     String
-  label      String
-  fieldKey   String
-  fieldType  FieldType
-  unit       String?
-  normalMin  Decimal?  @db.Decimal(10, 3)
-  normalMax  Decimal?  @db.Decimal(10, 3)
-  normalText String?
-  referenceNote String?
-  options    String?
-  isRequired Boolean   @default(true)
-  sortOrder  Int       @default(0)
-  createdAt  DateTime  @default(now())
-
-  test DiagnosticTest @relation(fields: [testId], references: [id], onDelete: Cascade)
-
-  @@map("result_template_fields")
-}
-
-model Patient {
-  id              String    @id @default(cuid())
-  organizationId  String
-  patientId       String
-  fullName        String
-  age             Int
-  sex             Sex
-  phone           String
-  email           String?
-  address         String?
-  dateOfBirth     DateTime?
-  referringDoctor String?
-  clinicalNote    String?
-  registeredById  String
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  registeredBy Staff        @relation("RegisteredBy", fields: [registeredById], references: [id])
-  visits       Visit[]
-
-  @@unique([organizationId, patientId])
-  @@map("patients")
-}
-
-model Visit {
-  id             String        @id @default(cuid())
-  patientId      String
-  organizationId String
-  visitNumber    String
-  priority       Priority      @default(ROUTINE)
-  status         VisitStatus   @default(ACTIVE)
-  paymentStatus  PaymentStatus @default(PENDING)
-  totalAmount    Decimal       @db.Decimal(10, 2) @default(0)
-  amountPaid     Decimal       @db.Decimal(10, 2) @default(0)
-  discount       Decimal       @db.Decimal(10, 2) @default(0)
-  paymentMethod  String?
-  notes          String?
-  cancelledAt    DateTime?
-  cancelledReason String?
-  noShowAt       DateTime?
-  noShowReason   String?
-  registeredAt   DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  patient    Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  testOrders TestOrder[]
-  routingTasks RoutingTask[]
-  labSamples LabSample[]
-  reviews Review[]
-  reports DiagnosticReport[]
-  payments VisitPayment[]
-
-  @@index([organizationId, status, registeredAt])
-  @@map("visits")
-}
-
-model TestOrder {
-  id                String      @id @default(cuid())
-  visitId           String
-  testId            String
-  organizationId    String
-  assignedToId      String?
-  priceOverriddenById String?
-  status            OrderStatus @default(REGISTERED)
-  defaultPrice      Decimal     @db.Decimal(10, 2) @default(0)
-  price             Decimal     @db.Decimal(10, 2)
-  priceOverrideReason String?
-  notes             String?
-  registeredAt      DateTime    @default(now())
-  assignedAt        DateTime?
-  openedAt          DateTime?
-  sampleCollectedAt DateTime?
-  startedAt         DateTime?
-  completedAt       DateTime?
-  submittedAt       DateTime?
-  reviewedAt        DateTime?
-  approvedAt        DateTime?
-  releasedAt        DateTime?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-
-  visit Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  test  DiagnosticTest @relation(fields: [testId], references: [id])
-  assignedTo Staff?    @relation("AssignedTestOrders", fields: [assignedToId], references: [id])
-  priceOverriddenBy Staff? @relation("OverriddenTestOrders", fields: [priceOverriddenById], references: [id])
-  labResults LabResult[]
-
-  @@index([organizationId, assignedToId, status])
-  @@index([organizationId, priceOverriddenById, createdAt])
-  @@map("test_orders")
-}
-
-model VisitPayment {
-  id             String           @id @default(cuid())
-  organizationId String
-  visitId        String
-  recordedById   String
-  amount         Decimal          @db.Decimal(10, 2)
-  paymentType    PaymentEntryType @default(PAYMENT)
-  paymentMethod  String?
-  notes          String?
-  createdAt      DateTime         @default(now())
-
-  visit      Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  recordedBy Staff @relation(fields: [recordedById], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, visitId, createdAt])
-  @@index([organizationId, paymentType, createdAt])
-  @@map("visit_payments")
-}
-
-model RoutingTask {
-  id             String            @id @default(cuid())
-  organizationId String
-  visitId        String
-  department     Department
-  staffId        String?
-  priority       Priority          @default(ROUTINE)
-  status         RoutingTaskStatus @default(PENDING)
-  testOrderIds   String[]
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-
-  visit  Visit  @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  staff  Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
-  sample LabSample?
-  results LabResult[]
-  imagingFiles ImagingFile[]
-  radiologyReport RadiologyReport?
-  review Review?
-
-  @@index([organizationId, department, status, priority])
-  @@index([organizationId, department, staffId, status, createdAt])
-  @@index([organizationId, department, staffId, createdAt])
-  @@index([visitId, department])
-  @@map("routing_tasks")
-}
-
-model LabSample {
-  id             String       @id @default(cuid())
-  organizationId String
-  visitId        String
-  taskId         String       @unique
-  staffId        String
-  status         SampleStatus @default(PENDING)
-  notes          String?
-  collectedAt    DateTime?
-  receivedAt     DateTime?
-  processingAt   DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  task  RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  staff Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  visit Visit       @relation(fields: [visitId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, staffId, status])
-  @@map("lab_samples")
-}
-
-model LabResult {
-  id          String   @id @default(cuid())
-  organizationId String
-  taskId       String
-  testOrderId  String
-  staffId      String
-  resultData   Json
-  notes        String?
-  isSubmitted  Boolean  @default(false)
-  submittedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  task      RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  testOrder TestOrder   @relation(fields: [testOrderId], references: [id], onDelete: Cascade)
-  staff     Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  versions  LabResultVersion[]
-
-  @@unique([taskId, testOrderId])
-  @@index([organizationId, staffId, isSubmitted])
-  @@map("lab_results")
-}
-
-model ImagingFile {
-  id             String   @id @default(cuid())
-  organizationId String
-  taskId         String
-  uploadedById   String
-  fileUrl        String
-  fileType       String
-  fileName       String
-  fileSizeBytes  Int
-  metadata       Json?
-  createdAt      DateTime @default(now())
-
-  task       RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  uploadedBy Staff       @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, taskId])
-  @@map("imaging_files")
-}
-
-model RadiologyReport {
-  id             String   @id @default(cuid())
-  organizationId String
-  taskId         String   @unique
-  staffId        String
-  findings       String
-  impression     String
-  notes          String?
-  extraFields    Json?
-  isSubmitted    Boolean  @default(false)
-  submittedAt    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  task  RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  staff Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  versions RadiologyReportVersion[]
-
-  @@index([organizationId, staffId, isSubmitted])
-  @@map("radiology_reports")
-}
-
-model Review {
-  id             String       @id @default(cuid())
-  organizationId String
-  taskId         String       @unique
-  visitId        String?
-  reviewedById   String
-  status         ReviewStatus @default(PENDING)
-  comments       String?
-  editedData     Json?
-  rejectionReason String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  task       RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  visit      Visit?      @relation(fields: [visitId], references: [id], onDelete: SetNull)
-  reviewedBy Staff       @relation(fields: [reviewedById], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, status, updatedAt])
-  @@index([visitId])
-  @@map("reviews")
-}
-
-model Notification {
-  id             String           @id @default(cuid())
-  organizationId String
-  userId         String
-  type           NotificationType
-  title          String
-  message        String
-  isRead         Boolean          @default(false)
-  readAt         DateTime?
-  entityId       String?
-  entityType     String?
-  dedupeKey      String?          @unique
-  createdAt      DateTime         @default(now())
-
-  user Staff @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, userId, createdAt])
-  @@index([userId, isRead, createdAt])
-  @@index([organizationId, type, createdAt])
-  @@map("notifications")
-}
-
-model PushSubscription {
-  id             String   @id @default(cuid())
-  organizationId String
-  userId         String
-  endpoint       String   @unique
-  p256dh         String
-  auth           String
-  userAgent      String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  lastSeenAt     DateTime @default(now())
-
-  user Staff @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, userId, updatedAt])
-  @@map("push_subscriptions")
-}
-
-model DiagnosticReport {
-  id             String       @id @default(cuid())
-  organizationId String
-  visitId        String
-  department     Department
-  reportType     ReportType   @default(lab)
-  sourceTaskId   String?
-  status         ReportStatus @default(DRAFT)
-  reportContent  Json
-  comments       String?
-  prescription   String?
-  previewFileUrl String?
-  finalFileUrl   String?
-  generatedById  String?
-  lastEditedById String?
-  lastEditedAt   DateTime?
-  isReleased     Boolean      @default(false)
-  releasedAt     DateTime?
-  releasedById   String?
-  releaseInstructions String?
-  lastActionAt   DateTime?
-  publicShareToken String?    @unique
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  visit         Visit         @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  generatedBy   Staff?        @relation("ReportGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull)
-  releasedBy    Staff?        @relation("ReportReleasedBy", fields: [releasedById], references: [id], onDelete: SetNull)
-  versions      DiagnosticReportVersion[]
-
-  @@unique([visitId, department])
-  @@index([organizationId, department, status, updatedAt])
-  @@index([organizationId, reportType, status, updatedAt])
-  @@index([organizationId, isReleased, updatedAt])
-  @@index([sourceTaskId])
-  @@map("diagnostic_reports")
-}
-
-model DiagnosticReportVersion {
-  id         String   @id @default(cuid())
-  reportId   String
-  version    Int
-  content    Json
-  comments   String?
-  prescription String?
-  isActive   Boolean  @default(true)
-  parentId   String?
-  editedById String
-  editReason String
-  createdAt  DateTime @default(now())
-
-  report   DiagnosticReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  editedBy Staff            @relation(fields: [editedById], references: [id], onDelete: Cascade)
-  parent   DiagnosticReportVersion?  @relation("DiagnosticReportVersionChain", fields: [parentId], references: [id], onDelete: SetNull)
-  children DiagnosticReportVersion[] @relation("DiagnosticReportVersionChain")
-
-  @@unique([reportId, version])
-  @@index([reportId, isActive])
-  @@index([parentId])
-  @@index([editedById, createdAt])
-  @@map("diagnostic_report_versions")
-}
-
-model LabResultVersion {
-  id          String   @id @default(cuid())
-  labResultId String
-  version     Int
-  resultData  Json
-  notes       String?
-  isActive    Boolean  @default(true)
-  parentId    String?
-  editedById  String
-  editReason  String
-  createdAt   DateTime @default(now())
-
-  labResult LabResult @relation(fields: [labResultId], references: [id], onDelete: Cascade)
-  editedBy  Staff     @relation("LabResultVersionEditedBy", fields: [editedById], references: [id], onDelete: Cascade)
-  parent    LabResultVersion?  @relation("LabResultVersionChain", fields: [parentId], references: [id], onDelete: SetNull)
-  children  LabResultVersion[] @relation("LabResultVersionChain")
-
-  @@unique([labResultId, version])
-  @@index([labResultId, isActive])
-  @@index([parentId])
-  @@index([createdAt])
-  @@index([editedById, createdAt])
-  @@map("lab_result_versions")
-}
-
-model RadiologyReportVersion {
-  id         String   @id @default(cuid())
-  reportId   String
-  version    Int
-  findings   String
-  impression String
-  notes      String?
-  extraFields Json?
-  isActive   Boolean  @default(true)
-  parentId   String?
-  editedById String
-  editReason String
-  createdAt  DateTime @default(now())
-
-  report   RadiologyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  editedBy Staff           @relation("RadiologyReportVersionEditedBy", fields: [editedById], references: [id], onDelete: Cascade)
-  parent   RadiologyReportVersion?  @relation("RadiologyReportVersionChain", fields: [parentId], references: [id], onDelete: SetNull)
-  children RadiologyReportVersion[] @relation("RadiologyReportVersionChain")
-
-  @@unique([reportId, version])
-  @@index([reportId, isActive])
-  @@index([parentId])
-  @@index([createdAt])
-  @@index([editedById, createdAt])
-  @@map("radiology_report_versions")
-}
 </pre></div>
 <div class='file-block'><div class='file-header'>prisma/seed.ts</div><pre>import { PrismaClient, Department, TestType, FieldType } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -934,7 +913,7 @@ type SeedField = {
 async function main() {
   console.log("ðŸŒ± Seeding Tests...");
 
-  // â”€â”€ Seed Test Categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ Seed Test Categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const categories = await Promise.all([
     prisma.testCategory.upsert({
       where: { id: "cat-haematology" },
@@ -970,7 +949,7 @@ async function main() {
 
   console.log(`âœ… ${categories.length} test categories created`);
 
-  // â”€â”€ Get Organization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ Get Organization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let org = await prisma.organization.findFirst();
   if (!org) {
     const defaultAdminEmail = "admin@diagsync.local";
@@ -997,7 +976,7 @@ async function main() {
       },
     });
 
-    console.log("? Created default organization and super admin");
+    console.log("âœ… Created default organization and super admin");
     console.log(`   Admin email: ${defaultAdminEmail}`);
     console.log(`   Admin password: ${defaultAdminPassword}`);
   }
@@ -1005,7 +984,7 @@ async function main() {
   const orgId = org.id;
   console.log(`âœ… Organization found: ${org.name}`);
 
-  // â”€â”€ Helper: upsert test + fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ Helper: upsert test + fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function seedTest(data: {
     code: string;
     name: string;
@@ -1212,9 +1191,9 @@ async function main() {
     ];
   }
 
-  // â”€â”€ LAB TESTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ LAB TESTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // 1. Full Blood Count
+  // 1. Full Blood Count â€” added Basophils field
   await seedTest({
     code: "FBC",
     name: "Full Blood Count",
@@ -1233,11 +1212,12 @@ async function main() {
       { label: "Lymphocytes", fieldKey: "lymphocytes", fieldType: FieldType.NUMBER, unit: "%", normalMin: 20, normalMax: 45, sortOrder: 5 },
       { label: "Monocytes", fieldKey: "monocytes", fieldType: FieldType.NUMBER, unit: "%", normalMin: 2, normalMax: 10, sortOrder: 6 },
       { label: "Eosinophils", fieldKey: "eosinophils", fieldType: FieldType.NUMBER, unit: "%", normalMin: 1, normalMax: 6, sortOrder: 7 },
-      { label: "Platelets", fieldKey: "platelets", fieldType: FieldType.NUMBER, unit: "Ã—10Â³/ÂµL", normalMin: 150, normalMax: 400, sortOrder: 8 },
-      { label: "MCV", fieldKey: "mcv", fieldType: FieldType.NUMBER, unit: "fL", normalMin: 80, normalMax: 100, sortOrder: 9 },
-      { label: "MCH", fieldKey: "mch", fieldType: FieldType.NUMBER, unit: "pg", normalMin: 27, normalMax: 33, sortOrder: 10 },
-      { label: "MCHC", fieldKey: "mchc", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 32, normalMax: 36, sortOrder: 11 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 12 },
+      { label: "Basophils", fieldKey: "basophils", fieldType: FieldType.NUMBER, unit: "%", normalMin: 0, normalMax: 1, sortOrder: 8 },
+      { label: "Platelets", fieldKey: "platelets", fieldType: FieldType.NUMBER, unit: "Ã—10Â³/ÂµL", normalMin: 150, normalMax: 400, sortOrder: 9 },
+      { label: "MCV", fieldKey: "mcv", fieldType: FieldType.NUMBER, unit: "fL", normalMin: 80, normalMax: 100, sortOrder: 10 },
+      { label: "MCH", fieldKey: "mch", fieldType: FieldType.NUMBER, unit: "pg", normalMin: 27, normalMax: 33, sortOrder: 11 },
+      { label: "MCHC", fieldKey: "mchc", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 32, normalMax: 36, sortOrder: 12 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 13 },
     ],
   });
 
@@ -1261,7 +1241,7 @@ async function main() {
     ],
   });
 
-  // 3. Urinalysis
+  // 3. Urinalysis â€” added Ascorbic Acid and WBC/HPF fields
   await seedTest({
     code: "URA",
     name: "Urinalysis",
@@ -1284,11 +1264,14 @@ async function main() {
       { label: "Urobilinogen", fieldKey: "urobilinogen", fieldType: FieldType.DROPDOWN, options: "Normal,Increased", sortOrder: 10 },
       { label: "Nitrite", fieldKey: "nitrite", fieldType: FieldType.DROPDOWN, options: "Negative,Positive", sortOrder: 11 },
       { label: "Leucocytes", fieldKey: "leucocytes", fieldType: FieldType.DROPDOWN, options: "Negative,Trace,+,++,+++", sortOrder: 12 },
-      { label: "Pus Cells (hpf)", fieldKey: "pus_cells", fieldType: FieldType.TEXT, sortOrder: 13 },
-      { label: "RBCs (hpf)", fieldKey: "rbcs", fieldType: FieldType.TEXT, sortOrder: 14 },
-      { label: "Epithelial Cells", fieldKey: "epithelial_cells", fieldType: FieldType.DROPDOWN, options: "Nil,Few,Moderate,Many", isRequired: false, sortOrder: 15 },
-      { label: "Casts", fieldKey: "casts", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 16 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 17 },
+      { label: "Ascorbic Acid", fieldKey: "ascorbic_acid", fieldType: FieldType.DROPDOWN, options: "Negative,Trace,+,++,+++", isRequired: false, sortOrder: 13 },
+      { label: "WBC / HPF", fieldKey: "wbc_hpf", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 14 },
+      { label: "Pus Cells (hpf)", fieldKey: "pus_cells", fieldType: FieldType.TEXT, sortOrder: 15 },
+      { label: "RBCs (hpf)", fieldKey: "rbcs", fieldType: FieldType.TEXT, sortOrder: 16 },
+      { label: "Epithelial Cells", fieldKey: "epithelial_cells", fieldType: FieldType.DROPDOWN, options: "Nil,Few,Moderate,Many", isRequired: false, sortOrder: 17 },
+      { label: "Casts", fieldKey: "casts", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 18 },
+      { label: "Calcium Oxalate Crystals", fieldKey: "calcium_oxalate", fieldType: FieldType.DROPDOWN, options: "Absent,Present", isRequired: false, sortOrder: 19 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 20 },
     ],
   });
 
@@ -1337,15 +1320,17 @@ async function main() {
     fields: [
       { label: "S. Typhi O", fieldKey: "typhi_o", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320,1:640", sortOrder: 1 },
       { label: "S. Typhi H", fieldKey: "typhi_h", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320,1:640", sortOrder: 2 },
-      { label: "S. Paratyphi AO", fieldKey: "paratyphi_ao", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 3 },
-      { label: "S. Paratyphi BH", fieldKey: "paratyphi_bh", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 4 },
-      { label: "S. Paratyphi C (O/H)", fieldKey: "paratyphi_c", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", isRequired: false, sortOrder: 5 },
-      { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 7 },
+      { label: "S. Paratyphi A (O)", fieldKey: "paratyphi_ao", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 3 },
+      { label: "S. Paratyphi A (H)", fieldKey: "paratyphi_ah", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 4 },
+      { label: "S. Paratyphi B (O)", fieldKey: "paratyphi_bo", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", isRequired: false, sortOrder: 5 },
+      { label: "S. Paratyphi B (H)", fieldKey: "paratyphi_bh", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 6 },
+      { label: "S. Paratyphi C (O/H)", fieldKey: "paratyphi_c", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", isRequired: false, sortOrder: 7 },
+      { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, sortOrder: 8 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
     ],
   });
 
-  // 7. Liver Function Test
+  // 7. Liver Function Test â€” added A/G Ratio
   await seedTest({
     code: "LFT",
     name: "Liver Function Test",
@@ -1357,19 +1342,20 @@ async function main() {
     sampleType: "Serum",
     fields: [
       { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 3.4, normalMax: 20.5, sortOrder: 1 },
-      { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 0, normalMax: 4.5, sortOrder: 2 },
+      { label: "Direct Bilirubin (Conjugated)", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 0, normalMax: 4.5, sortOrder: 2 },
       { label: "Indirect Bilirubin", fieldKey: "indirect_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 0, normalMax: 17, sortOrder: 3 },
       { label: "ALT (SGPT)", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 7, normalMax: 40, sortOrder: 4 },
       { label: "AST (SGOT)", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 10, normalMax: 40, sortOrder: 5 },
       { label: "ALP", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 44, normalMax: 147, sortOrder: 6 },
-      { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 60, normalMax: 83, sortOrder: 7 },
-      { label: "Albumin", fieldKey: "albumin", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 35, normalMax: 50, sortOrder: 8 },
-      { label: "Globulin", fieldKey: "globulin", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 20, normalMax: 35, sortOrder: 9 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 10 },
+      { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 60, normalMax: 84, sortOrder: 7 },
+      { label: "Albumin", fieldKey: "albumin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 30, normalMax: 45, sortOrder: 8 },
+      { label: "Globulin", fieldKey: "globulin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 20, normalMax: 35, sortOrder: 9 },
+      { label: "A/G Ratio", fieldKey: "ag_ratio", fieldType: FieldType.NUMBER, unit: "", normalMin: 1.0, normalMax: 2.5, isRequired: false, sortOrder: 10 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 11 },
     ],
   });
 
-  // 8. Kidney Function Test
+  // 8. Kidney Function Test â€” added Calcium and eGFR
   await seedTest({
     code: "KFT",
     name: "Kidney Function Test",
@@ -1382,12 +1368,14 @@ async function main() {
     fields: [
       { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 1.6, normalMax: 8.3, sortOrder: 1 },
       { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 63, normalMax: 130, sortOrder: 2 },
-      { label: "Uric Acid", fieldKey: "uric_acid", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.15, normalMax: 0.45, sortOrder: 3 },
-      { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 134, normalMax: 146, sortOrder: 4 },
-      { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.6, normalMax: 5.0, sortOrder: 5 },
-      { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 98, normalMax: 107, sortOrder: 6 },
-      { label: "Bicarbonate", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 23, normalMax: 31, sortOrder: 7 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
+      { label: "eGFR", fieldKey: "egfr", fieldType: FieldType.NUMBER, unit: "mL/min/1.73mÂ²", normalMin: 90, normalMax: 120, isRequired: false, sortOrder: 3 },
+      { label: "Uric Acid", fieldKey: "uric_acid", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.15, normalMax: 0.45, sortOrder: 4 },
+      { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 134, normalMax: 146, sortOrder: 5 },
+      { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.6, normalMax: 5.0, sortOrder: 6 },
+      { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 98, normalMax: 107, sortOrder: 7 },
+      { label: "Bicarbonate", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 23, normalMax: 31, sortOrder: 8 },
+      { label: "Calcium", fieldKey: "calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.0, normalMax: 2.6, isRequired: false, sortOrder: 9 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 10 },
     ],
   });
 
@@ -1426,7 +1414,7 @@ async function main() {
     ],
   });
 
-  // 11. Stool Analysis
+  // 11. Stool Analysis â€” added Scolex, Yeast Cells, Calcium Oxalate, Occult Blood
   await seedTest({
     code: "STOOL",
     name: "Stool Analysis",
@@ -1441,17 +1429,187 @@ async function main() {
       { label: "Consistency", fieldKey: "consistency", fieldType: FieldType.DROPDOWN, options: "Formed,Semi-formed,Loose,Watery", sortOrder: 2 },
       { label: "Mucus", fieldKey: "mucus", fieldType: FieldType.DROPDOWN, options: "Absent,Present", sortOrder: 3 },
       { label: "Blood", fieldKey: "blood", fieldType: FieldType.DROPDOWN, options: "Absent,Present", sortOrder: 4 },
-      { label: "Ova / Cyst", fieldKey: "ova_cyst", fieldType: FieldType.TEXT, sortOrder: 5 },
-      { label: "Trophozoites", fieldKey: "trophozoites", fieldType: FieldType.TEXT, sortOrder: 6 },
-      { label: "Pus Cells (hpf)", fieldKey: "pus_cells", fieldType: FieldType.TEXT, sortOrder: 7 },
-      { label: "RBCs (hpf)", fieldKey: "rbcs", fieldType: FieldType.TEXT, sortOrder: 8 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
+      { label: "Scolex", fieldKey: "scolex", fieldType: FieldType.DROPDOWN, options: "Absent,Present", isRequired: false, sortOrder: 5 },
+      { label: "Trophozoites", fieldKey: "trophozoites", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 6 },
+      { label: "Cyst(s)", fieldKey: "cysts", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 7 },
+      { label: "Ova / Eggs", fieldKey: "ova_cyst", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 8 },
+      { label: "Yeast Cells", fieldKey: "yeast_cells", fieldType: FieldType.DROPDOWN, options: "Absent,+,++,+++", isRequired: false, sortOrder: 9 },
+      { label: "Calcium Oxalate", fieldKey: "calcium_oxalate", fieldType: FieldType.DROPDOWN, options: "Absent,Present", isRequired: false, sortOrder: 10 },
+      { label: "Pus Cells (hpf)", fieldKey: "pus_cells", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 11 },
+      { label: "RBCs (hpf)", fieldKey: "rbcs", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 12 },
+      { label: "Occult Blood (FOB)", fieldKey: "occult_blood", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", isRequired: false, sortOrder: 13 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 14 },
     ],
   });
 
-  // â”€â”€ RADIOLOGY TESTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // 12. Faecal Occult Blood (FOB) â€” standalone test from docx
+  await seedTest({
+    code: "FOB",
+    name: "Faecal Occult Blood (FOB)",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-micro",
+    price: 1500,
+    turnaroundMinutes: 60,
+    sampleType: "Stool",
+    description: "Test for hidden blood in stool",
+    fields: [
+      { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+      { label: "Method", fieldKey: "method", fieldType: FieldType.DROPDOWN, options: "Rapid Immunoassay,Guaiac-based", isRequired: false, sortOrder: 2 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ],
+  });
 
-  // 12. Chest X-Ray
+  // 13. Sickling Test
+  await seedTest({
+    code: "SICK",
+    name: "Sickling Test",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-haematology",
+    price: 1000,
+    turnaroundMinutes: 60,
+    sampleType: "EDTA Blood",
+    description: "Screening test for sickle cell trait or disease",
+    fields: [
+      { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    ],
+  });
+
+  // 14. G6PD Screening
+  await seedTest({
+    code: "G6PD",
+    name: "G6PD Screening",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-haematology",
+    price: 2500,
+    turnaroundMinutes: 120,
+    sampleType: "EDTA Blood",
+    description: "Glucose-6-phosphate dehydrogenase deficiency screening",
+    fields: [
+      { label: "G6PD Activity", fieldKey: "g6pd_activity", fieldType: FieldType.NUMBER, unit: "U/g Hb", normalMin: 6.9, normalMax: 20.0, isRequired: false, sortOrder: 1 },
+      { label: "Qualitative Result", fieldKey: "qualitative_result", fieldType: FieldType.DROPDOWN, options: "Normal,Deficient,Severely Deficient", sortOrder: 2 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ],
+  });
+
+  // 15. Bleeding Time &amp; Clotting Time
+  await seedTest({
+    code: "BTCT",
+    name: "Bleeding Time &amp; Clotting Time",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-haematology",
+    price: 1500,
+    turnaroundMinutes: 60,
+    sampleType: "Whole Blood",
+    description: "Primary haemostasis screening tests",
+    fields: [
+      { label: "Bleeding Time", fieldKey: "bleeding_time", fieldType: FieldType.TEXT, sortOrder: 1 },
+      { label: "Clotting Time", fieldKey: "clotting_time", fieldType: FieldType.TEXT, sortOrder: 2 },
+      { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    ],
+  });
+
+  // 16. Typhoid IgM / IgG Rapid Test
+  await seedTest({
+    code: "TYPHRDT",
+    name: "Typhoid IgM/IgG Rapid Test",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 2000,
+    turnaroundMinutes: 60,
+    sampleType: "Whole Blood / Serum",
+    description: "Rapid immunochromatographic test for Salmonella typhi antibodies",
+    fields: [
+      { label: "IgM Result", fieldKey: "igm_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+      { label: "IgG Result", fieldKey: "igg_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 2 },
+      { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    ],
+  });
+
+  // 17. Dengue NS1 Antigen
+  await seedTest({
+    code: "DENGNS1",
+    name: "Dengue NS1 Antigen",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 3500,
+    turnaroundMinutes: 90,
+    sampleType: "Serum",
+    description: "Dengue virus non-structural protein 1 antigen rapid test",
+    fields: [
+      { label: "NS1 Antigen", fieldKey: "ns1_antigen", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+      { label: "Dengue IgM", fieldKey: "dengue_igm", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Not Done", isRequired: false, sortOrder: 2 },
+      { label: "Dengue IgG", fieldKey: "dengue_igg", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Not Done", isRequired: false, sortOrder: 3 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    ],
+  });
+
+  // 18. H. Pylori Antibody (Serum)
+  await seedTest({
+    code: "HPYLS",
+    name: "H. Pylori Antibody (Serum)",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 2000,
+    turnaroundMinutes: 60,
+    sampleType: "Serum",
+    description: "Serum screened for H. pylori antibodies",
+    fields: [
+      { label: "H. Pylori IgG Result", fieldKey: "hpylori_igg", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
+      { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ],
+  });
+
+  // 19. H. Pylori Antigen (Stool)
+  await seedTest({
+    code: "HPYLST",
+    name: "H. Pylori Antigen (Stool)",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 2500,
+    turnaroundMinutes: 60,
+    sampleType: "Stool",
+    description: "Stool screened for H. pylori antigens",
+    fields: [
+      { label: "H. Pylori Antigen Result", fieldKey: "hpylori_antigen", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
+      { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ],
+  });
+
+  // 20. Leptospira Screening
+  await seedTest({
+    code: "LEPTO",
+    name: "Leptospira Screening",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 3000,
+    turnaroundMinutes: 120,
+    sampleType: "Serum",
+    description: "Screening for Leptospira antibodies",
+    fields: [
+      { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
+      { label: "Titre", fieldKey: "titre", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+      { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 3 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    ],
+  });
+
+  // â”€â”€ RADIOLOGY TESTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  // 21. Chest X-Ray
   await seedTest({
     code: "CXR",
     name: "Chest X-Ray",
@@ -1464,7 +1622,7 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
-  // 13. Abdominal Ultrasound
+  // 22. Abdominal Ultrasound
   await seedTest({
     code: "AUS",
     name: "Abdominal Ultrasound",
@@ -1477,7 +1635,7 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
-  // 14. Pelvic Ultrasound
+  // 23. Pelvic Ultrasound
   await seedTest({
     code: "PUS",
     name: "Pelvic Ultrasound",
@@ -1489,7 +1647,7 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
-  // 15. Obstetric Ultrasound
+  // 24. Obstetric Ultrasound
   await seedTest({
     code: "OBS",
     name: "Obstetric Ultrasound",
@@ -1501,7 +1659,7 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
-  // 16. Skull X-Ray
+  // 25. Skull X-Ray
   await seedTest({
     code: "SKX",
     name: "Skull X-Ray",
@@ -1513,7 +1671,7 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
-  // 17. Bulk catalog expansion (Lab + Radiology master list)
+  // 26. Bulk catalog expansion (Lab + Radiology master list)
   const extraCategories = await Promise.all([
     prisma.testCategory.upsert({
       where: { id: "cat-molecular" },
@@ -1565,6 +1723,7 @@ async function main() {
     "CREATINE KINASE",
     "PROCALCITONIN",
     "AMYLASE",
+    "LIPASE",
     "COMPREHENSIVE METABOLIC PANEL (CMP)",
     "PROTEIN ELECTROPHORESIS",
     "PROSTATE SPECIFIC ANTIGEN (PSA)",
@@ -1572,6 +1731,7 @@ async function main() {
     "CARCINOEMBRYONIC ANTIGEN (CEA)",
     "ALPHA-FETOPROTEIN (AFP)",
     "CA-125 TEST",
+    "CA 19-9",
     "CD4 T CELL COUNT",
     "CD4 T CELL PERCENTAGE",
     "CD8 T CELL COUNT",
@@ -1585,6 +1745,8 @@ async function main() {
     "VITAMIN B12",
     "VITAMIN D",
     "FERRITIN",
+    "SERUM IRON",
+    "TOTAL IRON BINDING CAPACITY (TIBC)",
     "PARATHYROID HORMONE (PTH)",
     "DEHYDROEPIANDROSTERONE SULFATE (DHEA-S)",
     "CORTISOL",
@@ -1661,6 +1823,56 @@ async function main() {
     "CHLAMYDIA",
     "VDRL",
     "BRUCELLA SCREENING",
+    // New entries from docx / Nigerian lab practice
+    "GONORRHOEA SCREENING",
+    "TRICHOMONAS VAGINALIS",
+    "CANDIDA SCREENING",
+    "AFLATOXIN B1",
+    "DRUG SCREEN (URINE)",
+    "ALCOHOL LEVEL",
+    "CERULOPLASMIN",
+    "COPPER (SERUM)",
+    "ZINC (SERUM)",
+    "MAGNESIUM (SERUM)",
+    "PHOSPHATE (SERUM)",
+    "IMMUNOGLOBULIN G (IgG)",
+    "IMMUNOGLOBULIN M (IgM)",
+    "IMMUNOGLOBULIN A (IgA)",
+    "IMMUNOGLOBULIN E (IgE)",
+    "COMPLEMENT C3",
+    "COMPLEMENT C4",
+    "ANTI-STREPTOLYSIN O (ASO) TITRE",
+    "ANTI-CCP ANTIBODY",
+    "ANTI-dsDNA ANTIBODY",
+    "ANTI-TPO ANTIBODY",
+    "ANTI-THYROGLOBULIN ANTIBODY",
+    "SERUM PROTEIN C",
+    "SERUM PROTEIN S",
+    "D-DIMER",
+    "ACTIVATED PROTEIN C RESISTANCE",
+    "LUPUS ANTICOAGULANT",
+    "ANTIPHOSPHOLIPID ANTIBODIES",
+    "PERIPHERAL BLOOD FILM",
+    "RETICULOCYTE COUNT",
+    "OSMOTIC FRAGILITY TEST",
+    "HAEMATOCRIT (PCV)",
+    "FAECAL OCCULT BLOOD (FOB)",
+    "TYPHOID IGM/IGG RAPID TEST",
+    "DENGUE NS1 ANTIGEN",
+    "YELLOW FEVER IGM",
+    "MONKEYPOX PCR",
+    "COVID-19 ANTIGEN",
+    "COVID-19 ANTIBODY (IGM/IGG)",
+    "HEPATITIS E SCREENING",
+    "HEPATITIS D SCREENING",
+    "CYTOMEGALOVIRUS (CMV) IGM",
+    "EPSTEIN-BARR VIRUS (EBV) IGM",
+    "TOXOPLASMA IGM",
+    "RUBELLA IGM",
+    "MEASLES IGM",
+    "MENINGITIS SCREENING",
+    "BLOOD LEAD LEVEL",
+    "SERUM FOLATE",
   ];
 
   const rawRadiologyTests = [
@@ -1740,6 +1952,30 @@ async function main() {
     "CT LUMBO-SACRAL SPINE",
     "CT PELVIS",
     "CT UPPER EXTREMITIES",
+    // Additional Nigeria-relevant radiology
+    "THYROID SCAN",
+    "SCROTAL/TESTICULAR SCAN",
+    "RENAL SCAN",
+    "NECK SCAN",
+    "LIVER/GALLBLADDER SCAN",
+    "MUSCULOSKELETAL SCAN",
+    "DIGITAL X-RAY CLAVICLE",
+    "DIGITAL X-RAY RIBS",
+    "DIGITAL X-RAY STERNUM",
+    "DIGITAL X-RAY SACRUM/COCCYX",
+    "DIGITAL X-RAY ABDOMEN (ERECT)",
+    "DIGITAL X-RAY ABDOMEN (SUPINE)",
+    "SALIVARY GLAND SCAN",
+    "SOFT TISSUE SCAN",
+    "MRI BRAIN",
+    "MRI SPINE (CERVICAL)",
+    "MRI SPINE (LUMBAR)",
+    "MRI KNEE",
+    "MRI SHOULDER",
+    "MRI ABDOMEN/PELVIS",
+    "PLAIN X-RAY ABDOMEN",
+    "DIGITAL X-RAY FACIAL BONES",
+    "DIGITAL X-RAY MASTOID",
   ];
 
   function normalizeName(input: string) {
@@ -1770,13 +2006,13 @@ async function main() {
     if (n.includes("pcr") || n.includes("dna") || n.includes("rna") || n.includes("viral load") || n.includes("genotyping")) {
       return "cat-molecular";
     }
-    if (n.includes("coombs") || n.includes("blood film") || n.includes("haemoglobin") || n.includes("fibrinogen") || n.includes("aptt") || n.includes("esr") || n.includes("cross match") || n.includes("blood group")) {
+    if (n.includes("coombs") || n.includes("blood film") || n.includes("haemoglobin") || n.includes("fibrinogen") || n.includes("aptt") || n.includes("esr") || n.includes("cross match") || n.includes("blood group") || n.includes("reticulocyte") || n.includes("sickling") || n.includes("haematocrit") || n.includes("g6pd") || n.includes("bleeding time") || n.includes("peripheral blood")) {
       return "cat-haematology";
     }
     if (n.includes("troponin") || n.includes("ck-mb") || n.includes("nt-probnp") || n.includes("cardiac")) {
       return "cat-cardiac";
     }
-    if (n.includes("hiv") || n.includes("hepatitis") || n.includes("vdrl") || n.includes("brucella") || n.includes("hbs") || n.includes("hbe") || n.includes("hbcab") || n.includes("rf") || n.includes("ana")) {
+    if (n.includes("hiv") || n.includes("hepatitis") || n.includes("vdrl") || n.includes("brucella") || n.includes("hbs") || n.includes("hbe") || n.includes("hbcab") || n.includes("rf\b") || n.includes("ana") || n.includes("dengue") || n.includes("typhoid") || n.includes("leptospira") || n.includes("igm") || n.includes("igg") || n.includes("antigen") || n.includes("antibody") || n.includes("h. pylori")) {
       return "cat-serology";
     }
     if (n.includes("urine") || n.includes("urinalysis") || n.includes("microalbumin")) {
@@ -1785,7 +2021,6 @@ async function main() {
     return "cat-chemistry";
   }
 
-  
   const LAB_FIELD_LIBRARY: Record&lt;string, SeedField[]&gt; = {
   "ALKALINE PHOSPHATASE (ALP)": [
     { label: "Alkaline Phosphatase (ALP)", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 44, normalMax: 147, sortOrder: 1 },
@@ -1947,6 +2182,10 @@ async function main() {
     { label: "Amylase", fieldKey: "amylase", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 40, normalMax: 140, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
+  "LIPASE": [
+    { label: "Lipase", fieldKey: "lipase", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 0, normalMax: 60, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
   "COMPREHENSIVE METABOLIC PANEL (CMP)": [
     { label: "Glucose", fieldKey: "glucose", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.9, normalMax: 5.6, sortOrder: 1 },
     { label: "Calcium", fieldKey: "calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.12, normalMax: 2.62, sortOrder: 2 },
@@ -1962,7 +2201,8 @@ async function main() {
     { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 2, normalMax: 21, sortOrder: 12 },
     { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.1, normalMax: 8.0, sortOrder: 13 },
     { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 53, normalMax: 115, sortOrder: 14 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 15 },
+    { label: "eGFR", fieldKey: "egfr", fieldType: FieldType.NUMBER, unit: "mL/min/1.73mÂ²", normalMin: 90, normalMax: 120, isRequired: false, sortOrder: 15 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 16 },
   ],
   "PROTEIN ELECTROPHORESIS": [
     { label: "Albumin Fraction", fieldKey: "albumin_fraction", fieldType: FieldType.NUMBER, unit: "%", normalMin: 54, normalMax: 65, isRequired: false, sortOrder: 1 },
@@ -1991,6 +2231,10 @@ async function main() {
   ],
   "CA-125 TEST": [
     { label: "CA-125", fieldKey: "ca125", fieldType: FieldType.NUMBER, unit: "U/mL", normalMin: 0, normalMax: 35, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CA 19-9": [
+    { label: "CA 19-9", fieldKey: "ca19_9", fieldType: FieldType.NUMBER, unit: "U/mL", normalMin: 0, normalMax: 37, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CD4 T CELL COUNT": [
@@ -2051,6 +2295,15 @@ async function main() {
   "FERRITIN": [
     { label: "Ferritin", fieldKey: "ferritin", fieldType: FieldType.NUMBER, unit: "ng/mL", sortOrder: 1 },
     { label: "Sex", fieldKey: "sex", fieldType: FieldType.DROPDOWN, options: "Male,Female", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "SERUM IRON": [
+    { label: "Serum Iron", fieldKey: "serum_iron", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 9, normalMax: 30, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "TOTAL IRON BINDING CAPACITY (TIBC)": [
+    { label: "TIBC", fieldKey: "tibc", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 45, normalMax: 72, sortOrder: 1 },
+    { label: "Transferrin Saturation", fieldKey: "transferrin_sat", fieldType: FieldType.NUMBER, unit: "%", normalMin: 20, normalMax: 55, isRequired: false, sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "PARATHYROID HORMONE (PTH)": [
@@ -2165,15 +2418,23 @@ async function main() {
     { label: "HBcAb", fieldKey: "hbcab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
+  // Semen Analysis â€” expanded with all docx fields
   "SEMEN ANALYSIS": [
-    { label: "Volume", fieldKey: "volume", fieldType: FieldType.NUMBER, unit: "mL", normalMin: 1.4, sortOrder: 1 },
-    { label: "pH", fieldKey: "ph", fieldType: FieldType.NUMBER, unit: "pH", normalMin: 7.2, normalMax: 8.0, sortOrder: 2 },
-    { label: "Sperm Concentration", fieldKey: "sperm_concentration", fieldType: FieldType.NUMBER, unit: "million/mL", normalMin: 15, sortOrder: 3 },
-    { label: "Total Motility", fieldKey: "motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 40, normalMax: 100, sortOrder: 4 },
-    { label: "Progressive Motility", fieldKey: "progressive_motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 32, normalMax: 100, isRequired: false, sortOrder: 5 },
-    { label: "Morphology", fieldKey: "morphology", fieldType: FieldType.NUMBER, unit: "%", normalMin: 4, normalMax: 100, isRequired: false, sortOrder: 6 },
+    { label: "Time Produced", fieldKey: "time_produced", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 1 },
+    { label: "Time Examined", fieldKey: "time_examined", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Days Abstained", fieldKey: "days_abstained", fieldType: FieldType.NUMBER, unit: "days", normalMin: 2, normalMax: 7, isRequired: false, sortOrder: 3 },
+    { label: "Volume", fieldKey: "volume", fieldType: FieldType.NUMBER, unit: "mL", normalMin: 1.4, sortOrder: 4 },
+    { label: "pH", fieldKey: "ph", fieldType: FieldType.NUMBER, unit: "pH", normalMin: 7.2, normalMax: 8.0, sortOrder: 5 },
+    { label: "Appearance", fieldKey: "appearance", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 6 },
     { label: "Liquefaction Time", fieldKey: "liquefaction_time", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 7 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
+    { label: "Sperm Count (Total)", fieldKey: "sperm_count", fieldType: FieldType.NUMBER, unit: "Ã—10â¶", normalMin: 39, isRequired: false, sortOrder: 8 },
+    { label: "Sperm Concentration", fieldKey: "sperm_concentration", fieldType: FieldType.NUMBER, unit: "million/mL", normalMin: 15, sortOrder: 9 },
+    { label: "Progressively Motile", fieldKey: "progressive_motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 32, normalMax: 100, sortOrder: 10 },
+    { label: "Non-Progressively Motile", fieldKey: "non_progressive_motility", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 11 },
+    { label: "Non-Motile", fieldKey: "non_motile", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 12 },
+    { label: "Total Motility", fieldKey: "motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 40, normalMax: 100, sortOrder: 13 },
+    { label: "Morphology (Normal)", fieldKey: "morphology", fieldType: FieldType.NUMBER, unit: "%", normalMin: 4, normalMax: 100, isRequired: false, sortOrder: 14 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 15 },
   ],
   "BLOOD GROUP": [
     { label: "ABO Group", fieldKey: "abo_group", fieldType: FieldType.DROPDOWN, options: "A,B,AB,O", sortOrder: 1 },
@@ -2227,6 +2488,26 @@ async function main() {
   ],
   "HAEMOGLOBIN (HB)": [
     { label: "Haemoglobin", fieldKey: "haemoglobin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 12, normalMax: 17, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HAEMATOCRIT (PCV)": [
+    { label: "PCV / Haematocrit", fieldKey: "pcv", fieldType: FieldType.NUMBER, unit: "%", normalMin: 36, normalMax: 50, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "RETICULOCYTE COUNT": [
+    { label: "Reticulocyte Count", fieldKey: "reticulocyte", fieldType: FieldType.NUMBER, unit: "%", normalMin: 0.5, normalMax: 2.5, sortOrder: 1 },
+    { label: "Absolute Reticulocyte Count", fieldKey: "abs_reticulocyte", fieldType: FieldType.NUMBER, unit: "Ã—10â¹/L", normalMin: 25, normalMax: 100, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "PERIPHERAL BLOOD FILM": [
+    { label: "Film Appearance", fieldKey: "film_appearance", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Red Cell Morphology", fieldKey: "rbc_morphology", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "WBC Differential Comment", fieldKey: "wbc_comment", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Platelet Comment", fieldKey: "platelet_comment", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+  ],
+  "D-DIMER": [
+    { label: "D-Dimer", fieldKey: "d_dimer", fieldType: FieldType.NUMBER, unit: "mg/L FEU", normalMin: 0, normalMax: 0.5, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "DNA PATERNITY TEST": [
@@ -2381,9 +2662,14 @@ async function main() {
     { label: "ASO Titre", fieldKey: "aso_titre", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 200, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
+  "ANTI-STREPTOLYSIN O (ASO) TITRE": [
+    { label: "ASO Titre", fieldKey: "aso_titre", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 200, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
   "RHEUMATOID FACTOR": [
     { label: "Rheumatoid Factor", fieldKey: "rf", fieldType: FieldType.NUMBER, unit: "kIU/L", normalMin: 0, normalMax: 20, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Qualitative", fieldKey: "rf_qual", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "HEPATITIS A SCREENING": [
     { label: "HAV Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
@@ -2418,6 +2704,33 @@ async function main() {
     { label: "AFB Smear 1", fieldKey: "afb1", fieldType: FieldType.DROPDOWN, options: "Negative,Scanty,1+,2+,3+", sortOrder: 1 },
     { label: "AFB Smear 2", fieldKey: "afb2", fieldType: FieldType.DROPDOWN, options: "Negative,Scanty,1+,2+,3+", sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "FAECAL OCCULT BLOOD (FOB)": [
+    { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Method", fieldKey: "method", fieldType: FieldType.DROPDOWN, options: "Rapid Immunoassay,Guaiac-based", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "TYPHOID IGM/IGG RAPID TEST": [
+    { label: "IgM Result", fieldKey: "igm_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+    { label: "IgG Result", fieldKey: "igg_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 2 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ],
+  "DENGUE NS1 ANTIGEN": [
+    { label: "NS1 Antigen", fieldKey: "ns1_antigen", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+    { label: "Dengue IgM", fieldKey: "dengue_igm", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Not Done", isRequired: false, sortOrder: 2 },
+    { label: "Dengue IgG", fieldKey: "dengue_igg", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Not Done", isRequired: false, sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ],
+  "DRUG SCREEN (URINE)": [
+    { label: "Cannabinoids (THC)", fieldKey: "thc", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 1 },
+    { label: "Opiates", fieldKey: "opiates", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 2 },
+    { label: "Cocaine", fieldKey: "cocaine", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 3 },
+    { label: "Amphetamines", fieldKey: "amphetamines", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 4 },
+    { label: "Benzodiazepines", fieldKey: "benzodiazepines", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 5 },
+    { label: "Methamphetamine", fieldKey: "methamphetamine", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 6 },
+    { label: "Overall Interpretation", fieldKey: "overall", fieldType: FieldType.DROPDOWN, options: "Negative for all substances,Positive â€” see details", sortOrder: 7 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
   ],
 };
 
@@ -2461,9 +2774,42 @@ async function main() {
     { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
   ],
   "TRANSRECTAL/PROSTATE SCAN": [
-    { label: "Prostate", fieldKey: "prostate", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
-    { label: "Seminal Vesicles", fieldKey: "seminal_vesicles", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
-    { label: "Bladder", fieldKey: "bladder", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Prostate Volume", fieldKey: "prostate_volume", fieldType: FieldType.NUMBER, unit: "mL", normalMin: 15, normalMax: 30, isRequired: false, sortOrder: 1 },
+    { label: "Prostate", fieldKey: "prostate", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Seminal Vesicles", fieldKey: "seminal_vesicles", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Bladder", fieldKey: "bladder", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+  ],
+  "SCROTAL/TESTICULAR SCAN": [
+    { label: "Right Testis", fieldKey: "right_testis", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Left Testis", fieldKey: "left_testis", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Epididymis", fieldKey: "epididymis", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Vascularity", fieldKey: "vascularity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+  ],
+  "THYROID SCAN": [
+    { label: "Right Lobe", fieldKey: "right_lobe", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Left Lobe", fieldKey: "left_lobe", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Isthmus", fieldKey: "isthmus", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Nodules", fieldKey: "nodules", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Vascularity", fieldKey: "vascularity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
+  ],
+  "RENAL SCAN": [
+    { label: "Right Kidney", fieldKey: "right_kidney", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Left Kidney", fieldKey: "left_kidney", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Urinary Bladder", fieldKey: "bladder", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+  ],
+  "NECK SCAN": [
+    { label: "Lymph Nodes", fieldKey: "lymph_nodes", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Soft Tissue Findings", fieldKey: "soft_tissue", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+  ],
+  "LIVER/GALLBLADDER SCAN": [
+    { label: "Liver", fieldKey: "liver", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Gallbladder", fieldKey: "gallbladder", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Common Bile Duct", fieldKey: "cbd", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
     { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
   ],
   "FOLLICULOMETRY": [
@@ -2580,7 +2926,8 @@ async function main() {
   }
 
   function buildRadiologyMainFields(testName: string) {
-    void RADIOLOGY_FIELD_LIBRARY[testName];
+    const specific = RADIOLOGY_FIELD_LIBRARY[testName];
+    if (specific) return specific;
     return makeRadiologyWorkflowFields();
   }
 
@@ -2667,11 +3014,7 @@ main()
     console.error(e);
     await prisma.$disconnect();
     process.exit(1);
-  });
-
-
-
-</pre></div>
+  });</pre></div>
 <div class='file-block'><div class='file-header'>public/sw.js</div><pre>self.addEventListener("install", (event) =&gt; {
   self.skipWaiting();
 });
@@ -2959,6 +3302,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 
 const schema = z.object({
   orgName: z.string().min(2, "Organisation name is required"),
@@ -2966,8 +3310,9 @@ const schema = z.object({
   orgPhone: z.string().min(7, "Phone number required"),
   orgAddress: z.string().min(5, "Address required"),
   orgContactInfo: z.string().optional(),
-  orgLogo: z.string().url().optional().or(z.literal("")),
-  orgLetterheadUrl: z.string().url().optional().or(z.literal("")),
+  // FIX: .or(z.literal("")) must come before .optional() so empty string is accepted
+  orgLogo: z.string().url().or(z.literal("")).optional(),
+  orgLetterheadUrl: z.string().url().or(z.literal("")).optional(),
   adminName: z.string().min(2, "Admin full name required"),
   adminEmail: z.string().email("Valid admin email required"),
   adminPhone: z.string().min(7, "Admin phone required"),
@@ -2987,6 +3332,44 @@ const errCls = "mt-0.5 text-[11px] text-red-500";
 function getFriendlyFileName(url: string) {
   try { return decodeURIComponent(new URL(url).pathname.split("/").pop() ?? ""); }
   catch { return decodeURIComponent(url.split("/").pop() ?? ""); }
+}
+
+function PasswordInput({
+  placeholder,
+  registration,
+  error,
+}: {
+  placeholder: string;
+  registration: ReturnType&lt;ReturnType&lt;typeof useForm&lt;FormData&gt;&gt;["register"]&gt;;
+  error?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    &lt;div&gt;
+      &lt;div className="relative"&gt;
+        &lt;input
+          type={show ? "text" : "password"}
+          placeholder={placeholder}
+          {...registration}
+          className={`${inputCls} pr-8`}
+        /&gt;
+        &lt;button
+          type="button"
+          onClick={() =&gt; setShow((s) =&gt; !s)}
+          className="absolute inset-y-0 right-0 flex items-center px-2 text-slate-400 hover:text-slate-600 focus:outline-none"
+          tabIndex={-1}
+          aria-label={show ? "Hide password" : "Show password"}
+        &gt;
+          {show ? (
+            &lt;EyeOff className="h-3.5 w-3.5" /&gt;
+          ) : (
+            &lt;Eye className="h-3.5 w-3.5" /&gt;
+          )}
+        &lt;/button&gt;
+      &lt;/div&gt;
+      {error &amp;&amp; &lt;p className={errCls}&gt;{error}&lt;/p&gt;}
+    &lt;/div&gt;
+  );
 }
 
 export default function RegisterPage() {
@@ -3129,13 +3512,19 @@ export default function RegisterPage() {
             &lt;/div&gt;
             &lt;div&gt;
               &lt;label className={labelCls}&gt;Password *&lt;/label&gt;
-              &lt;input type="password" placeholder="Min 8 characters" {...register("adminPassword")} className={inputCls} /&gt;
-              {errors.adminPassword &amp;&amp; &lt;p className={errCls}&gt;{errors.adminPassword.message}&lt;/p&gt;}
+              &lt;PasswordInput
+                placeholder="Min 8 characters"
+                registration={register("adminPassword")}
+                error={errors.adminPassword?.message}
+              /&gt;
             &lt;/div&gt;
             &lt;div&gt;
               &lt;label className={labelCls}&gt;Confirm Password *&lt;/label&gt;
-              &lt;input type="password" placeholder="Repeat password" {...register("confirmPassword")} className={inputCls} /&gt;
-              {errors.confirmPassword &amp;&amp; &lt;p className={errCls}&gt;{errors.confirmPassword.message}&lt;/p&gt;}
+              &lt;PasswordInput
+                placeholder="Repeat password"
+                registration={register("confirmPassword")}
+                error={errors.confirmPassword?.message}
+              /&gt;
             &lt;/div&gt;
           &lt;/div&gt;
 
@@ -6409,6 +6798,15 @@ import { z } from "zod";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { Role, Department } from "@prisma/client";
 
+// Helper: accepts a valid URL, an empty string, null, or undefined â€” but never a non-URL string
+const optionalUrl = z
+  .string()
+  .url()
+  .or(z.literal(""))
+  .optional()
+  .nullable()
+  .transform((v) =&gt; (v === "" ? null : v)); // normalise "" â†’ null before saving
+
 const registerSchema = z.object({
   // Organization details
   orgName: z.string().min(2, "Organization name is required"),
@@ -6416,8 +6814,8 @@ const registerSchema = z.object({
   orgPhone: z.string().min(7, "Phone number required"),
   orgAddress: z.string().min(5, "Address required"),
   orgContactInfo: z.string().max(1000).optional().nullable(),
-  orgLogo: z.string().url().optional().nullable(),
-  orgLetterheadUrl: z.string().url().optional().nullable(),
+  orgLogo: optionalUrl,
+  orgLetterheadUrl: optionalUrl,
   // Admin account details
   adminName: z.string().min(2, "Admin full name required"),
   adminEmail: z.string().email("Valid admin email required"),
@@ -6525,8 +6923,7 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/patients/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -24291,6 +24688,21 @@ const config: Config = {
 
 export default config;
 </pre></div>
+<div class='file-block'><div class='file-header'>tmp-db-check.js</div><pre>const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+async function main() {
+  const orgs = await prisma.organization.findMany({ select: { id: true, name: true } });
+  const counts = await prisma.diagnosticTest.groupBy({ by: ['organizationId'], _count: { _all: true } });
+  const active = await prisma.diagnosticTest.count({ where: { isActive: true } });
+  const inactive = await prisma.diagnosticTest.count({ where: { isActive: false } });
+  console.log('ORGS:', JSON.stringify(orgs, null, 2));
+  console.log('TEST COUNTS BY ORG:', JSON.stringify(counts, null, 2));
+  console.log('Active tests:', active, '| Inactive tests:', inactive);
+  await prisma.$disconnect();
+}
+
+main().catch(console.error);</pre></div>
 <div class='file-block'><div class='file-header'>tsconfig.json</div><pre>{
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext"],
@@ -24314,10 +24726,20 @@ export default config;
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "**/*.d.ts", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>tsconfig.seed.json</div><pre>{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "types": ["node"]
+  },
+  "include": ["prisma/seed.ts"]
+}</pre></div>
 <div class='file-block'><div class='file-header'>tsconfig.test.json</div><pre>{
   "extends": "./tsconfig.json",
   "compilerOptions": {

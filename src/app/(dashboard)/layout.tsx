@@ -19,6 +19,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
+  if (staff.role === "MEGA_ADMIN") {
+    redirect("/admin/dashboard");
+  }
+
+  if (!staff.organizationId || !staff.organization || staff.organization.status !== "ACTIVE") {
+    redirect("/login?suspended=1");
+  }
+
   const operationalRoles: Role[] = ["LAB_SCIENTIST", "RADIOGRAPHER", "MD", "RECEPTIONIST"];
   const showAvailability = operationalRoles.includes(staff.role);
 
@@ -28,7 +36,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         fullName: staff.fullName,
         email: staff.email,
         role: staff.role,
-        organizationName: staff.organization.name,
+        organizationName: staff.organization?.name,
       }}
       staffId={staff.id}
       staffName={staff.fullName}

@@ -1,4 +1,4 @@
-import { PrismaClient, Department, TestType, FieldType } from "@prisma/client";
+import { PrismaClient, Department, TestType, FieldType, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 if (process.env.DIRECT_URL) {
@@ -21,8 +21,48 @@ type SeedField = {
   sortOrder: number;
 };
 
+async function bootstrapMegaAdmin() {
+  const megaAdminEmail = (process.env.mega_ADMIN_EMAIL ?? process.env.MEGA_ADMIN_EMAIL ?? "").trim();
+  const megaAdminPassword = (process.env.mega_ADMIN_PASSWORD ?? process.env.MEGA_ADMIN_PASSWORD ?? "").trim();
+  const megaAdminName = (process.env.mega_ADMIN_NAME ?? process.env.MEGA_ADMIN_NAME ?? "").trim();
+
+  if (!megaAdminEmail || !megaAdminPassword || !megaAdminName) {
+    throw new Error(
+      "Missing required env vars: mega_ADMIN_EMAIL, mega_ADMIN_PASSWORD, mega_ADMIN_NAME"
+    );
+  }
+
+  const existing = await prisma.staff.findUnique({
+    where: { email: megaAdminEmail },
+    select: { id: true },
+  });
+
+  if (existing) {
+    console.log("mega admin already exists");
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(megaAdminPassword, 12);
+  await prisma.staff.create({
+    data: {
+      fullName: megaAdminName,
+      email: megaAdminEmail,
+      phone: "+0000000000000",
+      passwordHash,
+      role: Role.MEGA_ADMIN,
+      department: "HR_OPERATIONS",
+      status: "ACTIVE",
+      availabilityStatus: "UNAVAILABLE",
+    },
+    select: { id: true },
+  });
+
+  console.log("mega admin created");
+}
+
 async function main() {
   console.log("🌱 Seeding Tests...");
+  await bootstrapMegaAdmin();
 
   // ── Seed Test Categories ─────────────────────────────────────────────────────
   const categories = await Promise.all([

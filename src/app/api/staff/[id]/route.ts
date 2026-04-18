@@ -100,6 +100,12 @@ export async function PATCH(
     }
 
     const data = parsed.data;
+    if (data.role === "MEGA_ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "Invalid role" },
+        { status: 400 }
+      );
+    }
 
     if (data.password && !isAdminOrHRM) {
       return NextResponse.json(

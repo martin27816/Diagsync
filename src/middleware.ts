@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { getDashboardPath } from "@/lib/utils";
-import { Role } from "@prisma/client";
+import { OrganizationStatus, Role } from "@prisma/client";
 
-const publicRoutes = ["/", "/login", "/register", "/api/auth"];
+const publicRoutes = new Set(["/", "/login", "/register"]);
 
 const roleRouteMap: Record<string, Role[]> = {
   "/dashboard/receptionist": ["RECEPTIONIST", "SUPER_ADMIN"],
@@ -23,7 +23,7 @@ export default async function middleware(req: NextRequest) {
     secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   });
 
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
+  const isPublicRoute = publicRoutes.has(pathname) || pathname.startsWith("/api/auth");
   if (isPublicRoute) {
     if (token && (pathname === "/login" || pathname === "/register")) {
       const role = token.role as Role;
@@ -39,9 +39,28 @@ export default async function middleware(req: NextRequest) {
   }
 
   const userRole = token.role as Role;
+  const organizationStatus = token.organizationStatus as OrganizationStatus | undefined;
+
+  if (
+    userRole !== "MEGA_ADMIN" &&
+    organizationStatus === "SUSPENDED" &&
+    !pathname.startsWith("/admin")
+  ) {
+    const loginUrl = new URL("/login", nextUrl.origin);
+    loginUrl.searchParams.set("suspended", "1");
+    return NextResponse.redirect(loginUrl);
+  }
 
   if (pathname === "/dashboard") {
     return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
+  }
+
+  if (pathname.startsWith("/admin") && userRole !== "MEGA_ADMIN") {
+    return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
+  }
+
+  if (userRole === "MEGA_ADMIN" && pathname.startsWith("/dashboard")) {
+    return NextResponse.redirect(new URL("/admin/dashboard", nextUrl.origin));
   }
 
   for (const [route, allowedRoles] of Object.entries(roleRouteMap)) {

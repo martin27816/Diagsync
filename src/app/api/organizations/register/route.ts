@@ -74,6 +74,8 @@ export async function POST(req: NextRequest) {
         data: {
           name: data.orgName,
           email: data.orgEmail,
+          plan: "STARTER",
+          status: "ACTIVE",
           phone: data.orgPhone,
           address: data.orgAddress,
           contactInfo: data.orgContactInfo ?? null,
