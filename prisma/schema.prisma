@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,6 +6,594 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+}
+
+model Organization {
+  id                         String              @id @default(cuid())
+  name                       String
+  email                      String              @unique
+  phone                      String
+  address                    String
+  logo                       String?
+  contactInfo                String?
+  letterheadUrl              String?
+  consultationTimeoutMinutes Int                 @default(10)
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  consultationQueueEntries   ConsultationQueue[]
+  reports                    DiagnosticReport[]
+  tests                      DiagnosticTest[]
+  patients                   Patient[]
+  staff                      Staff[]
+
+  @@map("organizations")
+}
+
+model Staff {
+  id                                   String                    @id @default(cuid())
+  organizationId                       String
+  fullName                             String
+  email                                String                    @unique
+  phone                                String
+  passwordHash                         String
+  role                                 Role
+  department                           Department
+  gender                               String?
+  dateJoined                           DateTime                  @default(now())
+  defaultShift                         Shift                     @default(MORNING)
+  status                               StaffStatus               @default(ACTIVE)
+  availabilityStatus                   AvailabilityStatus        @default(UNAVAILABLE)
+  lastAvailableAt                      DateTime?
+  lastUnavailableAt                    DateTime?
+  createdAt                            DateTime                  @default(now())
+  updatedAt                            DateTime                  @updatedAt
+  createdById                          String?
+  auditLogs                            AuditLog[]
+  availabilityLogs                     AvailabilityLog[]
+  acknowledgedConsultationQueueEntries ConsultationQueue[]       @relation("ConsultationAcknowledgedBy")
+  calledConsultationQueueEntries       ConsultationQueue[]       @relation("ConsultationCalledBy")
+  consultedConsultationQueueEntries    ConsultationQueue[]       @relation("ConsultationConsultedBy")
+  createdConsultationQueueEntries      ConsultationQueue[]       @relation("ConsultationCreatedBy")
+  editedReportVersions                 DiagnosticReportVersion[]
+  generatedReports                     DiagnosticReport[]        @relation("ReportGeneratedBy")
+  releasedReports                      DiagnosticReport[]        @relation("ReportReleasedBy")
+  imagingFiles                         ImagingFile[]
+  editedLabResultVersions              LabResultVersion[]        @relation("LabResultVersionEditedBy")
+  labResults                           LabResult[]
+  labSamples                           LabSample[]
+  notifications                        Notification[]
+  registeredPatients                   Patient[]                 @relation("RegisteredBy")
+  pushSubscriptions                    PushSubscription[]
+  editedRadiologyReportVersions        RadiologyReportVersion[]  @relation("RadiologyReportVersionEditedBy")
+  radiologyReports                     RadiologyReport[]
+  reviews                              Review[]
+  routingTasks                         RoutingTask[]
+  sessions                             Session[]
+  createdBy                            Staff?                    @relation("StaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff                         Staff[]                   @relation("StaffCreatedBy")
+  organization                         Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTestOrders                   TestOrder[]               @relation("AssignedTestOrders")
+  overriddenTestOrders                 TestOrder[]               @relation("OverriddenTestOrders")
+  visitPayments                        VisitPayment[]
+
+  @@map("staff")
+}
+
+model ConsultationQueue {
+  id               String             @id @default(cuid())
+  organizationId   String
+  fullName         String
+  age              Int
+  contact          String
+  vitalsNote       String?
+  status           ConsultationStatus @default(WAITING)
+  arrivalAt        DateTime           @default(now())
+  calledAt         DateTime?
+  calledById       String?
+  acknowledgedAt   DateTime?
+  acknowledgedById String?
+  consultedAt      DateTime?
+  consultedById    String?
+  createdById      String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  acknowledgedBy   Staff?             @relation("ConsultationAcknowledgedBy", fields: [acknowledgedById], references: [id])
+  calledBy         Staff?             @relation("ConsultationCalledBy", fields: [calledById], references: [id])
+  consultedBy      Staff?             @relation("ConsultationConsultedBy", fields: [consultedById], references: [id])
+  createdBy        Staff              @relation("ConsultationCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, arrivalAt])
+  @@index([organizationId, consultedAt])
+  @@map("consultation_queue")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  staffId      String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  staff        Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model AvailabilityLog {
+  id        String             @id @default(cuid())
+  staffId   String
+  oldStatus AvailabilityStatus
+  newStatus AvailabilityStatus
+  reason    String?
+  changedAt DateTime           @default(now())
+  staff     Staff              @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@map("availability_logs")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actorRole  Role
+  action     String
+  entityType String
+  entityId   String?
+  changes    Json?
+  oldValue   Json?
+  newValue   Json?
+  notes      String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  actor      Staff    @relation(fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, createdAt])
+  @@map("audit_logs")
+}
+
+model TestCategory {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  tests       DiagnosticTest[]
+
+  @@map("test_categories")
+}
+
+model DiagnosticTest {
+  id                String                @id @default(cuid())
+  organizationId    String
+  categoryId        String?
+  name              String
+  code              String
+  type              TestType
+  department        Department
+  price             Decimal               @db.Decimal(10, 2)
+  costPrice         Decimal               @default(0) @db.Decimal(10, 2)
+  turnaroundMinutes Int
+  sampleType        String?
+  description       String?
+  isActive          Boolean               @default(true)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  category          TestCategory?         @relation(fields: [categoryId], references: [id])
+  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  resultFields      ResultTemplateField[]
+  testOrders        TestOrder[]
+
+  @@unique([organizationId, code])
+  @@map("diagnostic_tests")
+}
+
+model ResultTemplateField {
+  id            String         @id @default(cuid())
+  testId        String
+  label         String
+  fieldKey      String
+  fieldType     FieldType
+  unit          String?
+  normalMin     Decimal?       @db.Decimal(10, 3)
+  normalMax     Decimal?       @db.Decimal(10, 3)
+  normalText    String?
+  referenceNote String?
+  options       String?
+  isRequired    Boolean        @default(true)
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  test          DiagnosticTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@map("result_template_fields")
+}
+
+model Patient {
+  id              String       @id @default(cuid())
+  organizationId  String
+  patientId       String
+  fullName        String
+  age             Int
+  sex             Sex
+  phone           String
+  email           String?
+  address         String?
+  dateOfBirth     DateTime?
+  referringDoctor String?
+  clinicalNote    String?
+  registeredById  String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registeredBy    Staff        @relation("RegisteredBy", fields: [registeredById], references: [id])
+  visits          Visit[]
+
+  @@unique([organizationId, patientId])
+  @@map("patients")
+}
+
+model Visit {
+  id              String             @id @default(cuid())
+  patientId       String
+  organizationId  String
+  visitNumber     String
+  priority        Priority           @default(ROUTINE)
+  status          VisitStatus        @default(ACTIVE)
+  paymentStatus   PaymentStatus      @default(PENDING)
+  totalAmount     Decimal            @default(0) @db.Decimal(10, 2)
+  amountPaid      Decimal            @default(0) @db.Decimal(10, 2)
+  discount        Decimal            @default(0) @db.Decimal(10, 2)
+  paymentMethod   String?
+  notes           String?
+  cancelledAt     DateTime?
+  cancelledReason String?
+  noShowAt        DateTime?
+  noShowReason    String?
+  registeredAt    DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  reports         DiagnosticReport[]
+  labSamples      LabSample[]
+  reviews         Review[]
+  routingTasks    RoutingTask[]
+  testOrders      TestOrder[]
+  payments        VisitPayment[]
+  patient         Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, registeredAt])
+  @@map("visits")
+}
+
+model TestOrder {
+  id                  String         @id @default(cuid())
+  visitId             String
+  testId              String
+  organizationId      String
+  assignedToId        String?
+  priceOverriddenById String?
+  status              OrderStatus    @default(REGISTERED)
+  defaultPrice        Decimal        @default(0) @db.Decimal(10, 2)
+  price               Decimal        @db.Decimal(10, 2)
+  priceOverrideReason String?
+  notes               String?
+  registeredAt        DateTime       @default(now())
+  assignedAt          DateTime?
+  openedAt            DateTime?
+  sampleCollectedAt   DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  submittedAt         DateTime?
+  reviewedAt          DateTime?
+  approvedAt          DateTime?
+  releasedAt          DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  labResults          LabResult[]
+  assignedTo          Staff?         @relation("AssignedTestOrders", fields: [assignedToId], references: [id])
+  priceOverriddenBy   Staff?         @relation("OverriddenTestOrders", fields: [priceOverriddenById], references: [id])
+  test                DiagnosticTest @relation(fields: [testId], references: [id])
+  visit               Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, assignedToId, status])
+  @@index([organizationId, priceOverriddenById, createdAt])
+  @@map("test_orders")
+}
+
+model VisitPayment {
+  id             String           @id @default(cuid())
+  organizationId String
+  visitId        String
+  recordedById   String
+  amount         Decimal          @db.Decimal(10, 2)
+  paymentType    PaymentEntryType @default(PAYMENT)
+  paymentMethod  String?
+  notes          String?
+  createdAt      DateTime         @default(now())
+  recordedBy     Staff            @relation(fields: [recordedById], references: [id], onDelete: Cascade)
+  visit          Visit            @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, visitId, createdAt])
+  @@index([organizationId, paymentType, createdAt])
+  @@map("visit_payments")
+}
+
+model RoutingTask {
+  id              String            @id @default(cuid())
+  organizationId  String
+  visitId         String
+  department      Department
+  staffId         String?
+  priority        Priority          @default(ROUTINE)
+  status          RoutingTaskStatus @default(PENDING)
+  testOrderIds    String[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  imagingFiles    ImagingFile[]
+  results         LabResult[]
+  sample          LabSample?
+  radiologyReport RadiologyReport?
+  review          Review?
+  staff           Staff?            @relation(fields: [staffId], references: [id])
+  visit           Visit             @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, department, status, priority])
+  @@index([organizationId, department, staffId, status, createdAt])
+  @@index([organizationId, department, staffId, createdAt])
+  @@index([visitId, department])
+  @@map("routing_tasks")
+}
+
+model LabSample {
+  id             String       @id @default(cuid())
+  organizationId String
+  visitId        String
+  taskId         String       @unique
+  staffId        String
+  status         SampleStatus @default(PENDING)
+  notes          String?
+  collectedAt    DateTime?
+  receivedAt     DateTime?
+  processingAt   DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  staff          Staff        @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  task           RoutingTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  visit          Visit        @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, staffId, status])
+  @@map("lab_samples")
+}
+
+model LabResult {
+  id             String             @id @default(cuid())
+  organizationId String
+  taskId         String
+  testOrderId    String
+  staffId        String
+  resultData     Json
+  notes          String?
+  isSubmitted    Boolean            @default(false)
+  submittedAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  versions       LabResultVersion[]
+  staff          Staff              @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  task           RoutingTask        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  testOrder      TestOrder          @relation(fields: [testOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, testOrderId])
+  @@index([organizationId, staffId, isSubmitted])
+  @@map("lab_results")
+}
+
+model ImagingFile {
+  id             String      @id @default(cuid())
+  organizationId String
+  taskId         String
+  uploadedById   String
+  fileUrl        String
+  fileType       String
+  fileName       String
+  fileSizeBytes  Int
+  metadata       Json?
+  createdAt      DateTime    @default(now())
+  task           RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy     Staff       @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, taskId])
+  @@map("imaging_files")
+}
+
+model RadiologyReport {
+  id             String                   @id @default(cuid())
+  organizationId String
+  taskId         String                   @unique
+  staffId        String
+  findings       String
+  impression     String
+  notes          String?
+  extraFields    Json?
+  isSubmitted    Boolean                  @default(false)
+  submittedAt    DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  versions       RadiologyReportVersion[]
+  staff          Staff                    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  task           RoutingTask              @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, staffId, isSubmitted])
+  @@map("radiology_reports")
+}
+
+model Review {
+  id              String       @id @default(cuid())
+  organizationId  String
+  taskId          String       @unique
+  visitId         String?
+  reviewedById    String
+  status          ReviewStatus @default(PENDING)
+  comments        String?
+  editedData      Json?
+  rejectionReason String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  reviewedBy      Staff        @relation(fields: [reviewedById], references: [id], onDelete: Cascade)
+  task            RoutingTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  visit           Visit?       @relation(fields: [visitId], references: [id])
+
+  @@index([organizationId, status, updatedAt])
+  @@index([visitId])
+  @@map("reviews")
+}
+
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  type           NotificationType
+  title          String
+  message        String
+  isRead         Boolean          @default(false)
+  readAt         DateTime?
+  entityId       String?
+  entityType     String?
+  dedupeKey      String?          @unique
+  createdAt      DateTime         @default(now())
+  user           Staff            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, createdAt])
+  @@index([userId, isRead, createdAt])
+  @@index([organizationId, type, createdAt])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  endpoint       String   @unique
+  p256dh         String
+  auth           String
+  userAgent      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastSeenAt     DateTime @default(now())
+  user           Staff    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, updatedAt])
+  @@map("push_subscriptions")
+}
+
+model DiagnosticReport {
+  id                  String                    @id @default(cuid())
+  organizationId      String
+  visitId             String
+  department          Department
+  reportType          ReportType                @default(lab)
+  sourceTaskId        String?
+  status              ReportStatus              @default(DRAFT)
+  reportContent       Json
+  comments            String?
+  prescription        String?
+  previewFileUrl      String?
+  finalFileUrl        String?
+  generatedById       String?
+  lastEditedById      String?
+  lastEditedAt        DateTime?
+  isReleased          Boolean                   @default(false)
+  releasedAt          DateTime?
+  releasedById        String?
+  releaseInstructions String?
+  lastActionAt        DateTime?
+  publicShareToken    String?                   @unique
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  versions            DiagnosticReportVersion[]
+  generatedBy         Staff?                    @relation("ReportGeneratedBy", fields: [generatedById], references: [id])
+  organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  releasedBy          Staff?                    @relation("ReportReleasedBy", fields: [releasedById], references: [id])
+  visit               Visit                     @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@unique([visitId, department])
+  @@index([organizationId, department, status, updatedAt])
+  @@index([organizationId, reportType, status, updatedAt])
+  @@index([organizationId, isReleased, updatedAt])
+  @@index([sourceTaskId])
+  @@map("diagnostic_reports")
+}
+
+model DiagnosticReportVersion {
+  id           String                    @id @default(cuid())
+  reportId     String
+  version      Int
+  content      Json
+  comments     String?
+  prescription String?
+  isActive     Boolean                   @default(true)
+  parentId     String?
+  editedById   String
+  editReason   String
+  createdAt    DateTime                  @default(now())
+  editedBy     Staff                     @relation(fields: [editedById], references: [id], onDelete: Cascade)
+  parent       DiagnosticReportVersion?  @relation("DiagnosticReportVersionChain", fields: [parentId], references: [id])
+  children     DiagnosticReportVersion[] @relation("DiagnosticReportVersionChain")
+  report       DiagnosticReport          @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, version])
+  @@index([reportId, isActive])
+  @@index([parentId])
+  @@index([editedById, createdAt])
+  @@map("diagnostic_report_versions")
+}
+
+model LabResultVersion {
+  id          String             @id @default(cuid())
+  labResultId String
+  version     Int
+  resultData  Json
+  notes       String?
+  isActive    Boolean            @default(true)
+  parentId    String?
+  editedById  String
+  editReason  String
+  createdAt   DateTime           @default(now())
+  editedBy    Staff              @relation("LabResultVersionEditedBy", fields: [editedById], references: [id], onDelete: Cascade)
+  labResult   LabResult          @relation(fields: [labResultId], references: [id], onDelete: Cascade)
+  parent      LabResultVersion?  @relation("LabResultVersionChain", fields: [parentId], references: [id])
+  children    LabResultVersion[] @relation("LabResultVersionChain")
+
+  @@unique([labResultId, version])
+  @@index([labResultId, isActive])
+  @@index([parentId])
+  @@index([createdAt])
+  @@index([editedById, createdAt])
+  @@map("lab_result_versions")
+}
+
+model RadiologyReportVersion {
+  id          String                   @id @default(cuid())
+  reportId    String
+  version     Int
+  findings    String
+  impression  String
+  notes       String?
+  extraFields Json?
+  isActive    Boolean                  @default(true)
+  parentId    String?
+  editedById  String
+  editReason  String
+  createdAt   DateTime                 @default(now())
+  editedBy    Staff                    @relation("RadiologyReportVersionEditedBy", fields: [editedById], references: [id], onDelete: Cascade)
+  parent      RadiologyReportVersion?  @relation("RadiologyReportVersionChain", fields: [parentId], references: [id])
+  children    RadiologyReportVersion[] @relation("RadiologyReportVersionChain")
+  report      RadiologyReport          @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, version])
+  @@index([reportId, isActive])
+  @@index([parentId])
+  @@index([createdAt])
+  @@index([editedById, createdAt])
+  @@map("radiology_report_versions")
 }
 
 enum Role {
@@ -162,617 +747,4 @@ enum ConsultationStatus {
   CALLED
   CONSULTED
   CANCELLED
-}
-
-model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  phone     String
-  address   String
-  logo      String?
-  contactInfo String?
-  letterheadUrl String?
-  consultationTimeoutMinutes Int @default(10)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  staff    Staff[]
-  patients Patient[]
-  tests    DiagnosticTest[]
-  reports  DiagnosticReport[]
-  consultationQueueEntries ConsultationQueue[]
-
-  @@map("organizations")
-}
-
-model Staff {
-  id                 String             @id @default(cuid())
-  organizationId     String
-  fullName           String
-  email              String             @unique
-  phone              String
-  passwordHash       String
-  role               Role
-  department         Department
-  gender             String?
-  dateJoined         DateTime           @default(now())
-  defaultShift       Shift              @default(MORNING)
-  status             StaffStatus        @default(ACTIVE)
-  availabilityStatus AvailabilityStatus @default(UNAVAILABLE)
-  lastAvailableAt    DateTime?
-  lastUnavailableAt  DateTime?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  createdById        String?
-
-  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy         Staff?            @relation("StaffCreatedBy", fields: [createdById], references: [id])
-  createdStaff      Staff[]           @relation("StaffCreatedBy")
-  sessions          Session[]
-  availabilityLogs  AvailabilityLog[]
-  auditLogs         AuditLog[]
-  registeredPatients Patient[]        @relation("RegisteredBy")
-  assignedTestOrders TestOrder[]      @relation("AssignedTestOrders")
-  overriddenTestOrders TestOrder[]    @relation("OverriddenTestOrders")
-  visitPayments      VisitPayment[]
-  routingTasks      RoutingTask[]
-  labSamples        LabSample[]
-  labResults        LabResult[]
-  editedLabResultVersions LabResultVersion[] @relation("LabResultVersionEditedBy")
-  imagingFiles      ImagingFile[]
-  radiologyReports  RadiologyReport[]
-  editedRadiologyReportVersions RadiologyReportVersion[] @relation("RadiologyReportVersionEditedBy")
-  reviews           Review[]
-  notifications     Notification[]
-  pushSubscriptions PushSubscription[]
-  generatedReports  DiagnosticReport[] @relation("ReportGeneratedBy")
-  releasedReports   DiagnosticReport[] @relation("ReportReleasedBy")
-  editedReportVersions DiagnosticReportVersion[]
-  createdConsultationQueueEntries ConsultationQueue[] @relation("ConsultationCreatedBy")
-  calledConsultationQueueEntries ConsultationQueue[] @relation("ConsultationCalledBy")
-  acknowledgedConsultationQueueEntries ConsultationQueue[] @relation("ConsultationAcknowledgedBy")
-  consultedConsultationQueueEntries ConsultationQueue[] @relation("ConsultationConsultedBy")
-
-  @@map("staff")
-}
-
-model ConsultationQueue {
-  id             String             @id @default(cuid())
-  organizationId String
-  fullName       String
-  age            Int
-  contact        String
-  vitalsNote     String?
-  status         ConsultationStatus @default(WAITING)
-  arrivalAt      DateTime           @default(now())
-  calledAt       DateTime?
-  calledById     String?
-  acknowledgedAt DateTime?
-  acknowledgedById String?
-  consultedAt    DateTime?
-  consultedById  String?
-  createdById    String
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy    Staff        @relation("ConsultationCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
-  calledBy     Staff?       @relation("ConsultationCalledBy", fields: [calledById], references: [id], onDelete: SetNull)
-  acknowledgedBy Staff?     @relation("ConsultationAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
-  consultedBy  Staff?       @relation("ConsultationConsultedBy", fields: [consultedById], references: [id], onDelete: SetNull)
-
-  @@index([organizationId, status, arrivalAt])
-  @@index([organizationId, consultedAt])
-  @@map("consultation_queue")
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  staffId      String
-  expires      DateTime
-  createdAt    DateTime @default(now())
-
-  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
-
-model AvailabilityLog {
-  id        String             @id @default(cuid())
-  staffId   String
-  oldStatus AvailabilityStatus
-  newStatus AvailabilityStatus
-  reason    String?
-  changedAt DateTime           @default(now())
-
-  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
-
-  @@map("availability_logs")
-}
-
-model AuditLog {
-  id         String   @id @default(cuid())
-  actorId    String
-  actorRole  Role
-  action     String
-  entityType String
-  entityId   String?
-  changes    Json?
-  oldValue   Json?
-  newValue   Json?
-  notes      String?
-  ipAddress  String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
-
-  actor Staff @relation(fields: [actorId], references: [id])
-
-  @@index([actorId, createdAt])
-  @@index([action, createdAt])
-  @@index([entityType, createdAt])
-  @@map("audit_logs")
-}
-
-model TestCategory {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-
-  tests DiagnosticTest[]
-
-  @@map("test_categories")
-}
-
-model DiagnosticTest {
-  id                String     @id @default(cuid())
-  organizationId    String
-  categoryId        String?
-  name              String
-  code              String
-  type              TestType
-  department        Department
-  price             Decimal    @db.Decimal(10, 2)
-  costPrice         Decimal    @db.Decimal(10, 2) @default(0)
-  turnaroundMinutes Int
-  sampleType        String?
-  description       String?
-  isActive          Boolean    @default(true)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-
-  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  category     TestCategory?        @relation(fields: [categoryId], references: [id])
-  resultFields ResultTemplateField[]
-  testOrders   TestOrder[]
-
-  @@unique([organizationId, code])
-  @@map("diagnostic_tests")
-}
-
-model ResultTemplateField {
-  id         String    @id @default(cuid())
-  testId     String
-  label      String
-  fieldKey   String
-  fieldType  FieldType
-  unit       String?
-  normalMin  Decimal?  @db.Decimal(10, 3)
-  normalMax  Decimal?  @db.Decimal(10, 3)
-  normalText String?
-  referenceNote String?
-  options    String?
-  isRequired Boolean   @default(true)
-  sortOrder  Int       @default(0)
-  createdAt  DateTime  @default(now())
-
-  test DiagnosticTest @relation(fields: [testId], references: [id], onDelete: Cascade)
-
-  @@map("result_template_fields")
-}
-
-model Patient {
-  id              String    @id @default(cuid())
-  organizationId  String
-  patientId       String
-  fullName        String
-  age             Int
-  sex             Sex
-  phone           String
-  email           String?
-  address         String?
-  dateOfBirth     DateTime?
-  referringDoctor String?
-  clinicalNote    String?
-  registeredById  String
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  registeredBy Staff        @relation("RegisteredBy", fields: [registeredById], references: [id])
-  visits       Visit[]
-
-  @@unique([organizationId, patientId])
-  @@map("patients")
-}
-
-model Visit {
-  id             String        @id @default(cuid())
-  patientId      String
-  organizationId String
-  visitNumber    String
-  priority       Priority      @default(ROUTINE)
-  status         VisitStatus   @default(ACTIVE)
-  paymentStatus  PaymentStatus @default(PENDING)
-  totalAmount    Decimal       @db.Decimal(10, 2) @default(0)
-  amountPaid     Decimal       @db.Decimal(10, 2) @default(0)
-  discount       Decimal       @db.Decimal(10, 2) @default(0)
-  paymentMethod  String?
-  notes          String?
-  cancelledAt    DateTime?
-  cancelledReason String?
-  noShowAt       DateTime?
-  noShowReason   String?
-  registeredAt   DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  patient    Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  testOrders TestOrder[]
-  routingTasks RoutingTask[]
-  labSamples LabSample[]
-  reviews Review[]
-  reports DiagnosticReport[]
-  payments VisitPayment[]
-
-  @@index([organizationId, status, registeredAt])
-  @@map("visits")
-}
-
-model TestOrder {
-  id                String      @id @default(cuid())
-  visitId           String
-  testId            String
-  organizationId    String
-  assignedToId      String?
-  priceOverriddenById String?
-  status            OrderStatus @default(REGISTERED)
-  defaultPrice      Decimal     @db.Decimal(10, 2) @default(0)
-  price             Decimal     @db.Decimal(10, 2)
-  priceOverrideReason String?
-  notes             String?
-  registeredAt      DateTime    @default(now())
-  assignedAt        DateTime?
-  openedAt          DateTime?
-  sampleCollectedAt DateTime?
-  startedAt         DateTime?
-  completedAt       DateTime?
-  submittedAt       DateTime?
-  reviewedAt        DateTime?
-  approvedAt        DateTime?
-  releasedAt        DateTime?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-
-  visit Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  test  DiagnosticTest @relation(fields: [testId], references: [id])
-  assignedTo Staff?    @relation("AssignedTestOrders", fields: [assignedToId], references: [id])
-  priceOverriddenBy Staff? @relation("OverriddenTestOrders", fields: [priceOverriddenById], references: [id])
-  labResults LabResult[]
-
-  @@index([organizationId, assignedToId, status])
-  @@index([organizationId, priceOverriddenById, createdAt])
-  @@map("test_orders")
-}
-
-model VisitPayment {
-  id             String           @id @default(cuid())
-  organizationId String
-  visitId        String
-  recordedById   String
-  amount         Decimal          @db.Decimal(10, 2)
-  paymentType    PaymentEntryType @default(PAYMENT)
-  paymentMethod  String?
-  notes          String?
-  createdAt      DateTime         @default(now())
-
-  visit      Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  recordedBy Staff @relation(fields: [recordedById], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, visitId, createdAt])
-  @@index([organizationId, paymentType, createdAt])
-  @@map("visit_payments")
-}
-
-model RoutingTask {
-  id             String            @id @default(cuid())
-  organizationId String
-  visitId        String
-  department     Department
-  staffId        String?
-  priority       Priority          @default(ROUTINE)
-  status         RoutingTaskStatus @default(PENDING)
-  testOrderIds   String[]
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-
-  visit  Visit  @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  staff  Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
-  sample LabSample?
-  results LabResult[]
-  imagingFiles ImagingFile[]
-  radiologyReport RadiologyReport?
-  review Review?
-
-  @@index([organizationId, department, status, priority])
-  @@index([organizationId, department, staffId, status, createdAt])
-  @@index([organizationId, department, staffId, createdAt])
-  @@index([visitId, department])
-  @@map("routing_tasks")
-}
-
-model LabSample {
-  id             String       @id @default(cuid())
-  organizationId String
-  visitId        String
-  taskId         String       @unique
-  staffId        String
-  status         SampleStatus @default(PENDING)
-  notes          String?
-  collectedAt    DateTime?
-  receivedAt     DateTime?
-  processingAt   DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  task  RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  staff Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  visit Visit       @relation(fields: [visitId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, staffId, status])
-  @@map("lab_samples")
-}
-
-model LabResult {
-  id          String   @id @default(cuid())
-  organizationId String
-  taskId       String
-  testOrderId  String
-  staffId      String
-  resultData   Json
-  notes        String?
-  isSubmitted  Boolean  @default(false)
-  submittedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  task      RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  testOrder TestOrder   @relation(fields: [testOrderId], references: [id], onDelete: Cascade)
-  staff     Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  versions  LabResultVersion[]
-
-  @@unique([taskId, testOrderId])
-  @@index([organizationId, staffId, isSubmitted])
-  @@map("lab_results")
-}
-
-model ImagingFile {
-  id             String   @id @default(cuid())
-  organizationId String
-  taskId         String
-  uploadedById   String
-  fileUrl        String
-  fileType       String
-  fileName       String
-  fileSizeBytes  Int
-  metadata       Json?
-  createdAt      DateTime @default(now())
-
-  task       RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  uploadedBy Staff       @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, taskId])
-  @@map("imaging_files")
-}
-
-model RadiologyReport {
-  id             String   @id @default(cuid())
-  organizationId String
-  taskId         String   @unique
-  staffId        String
-  findings       String
-  impression     String
-  notes          String?
-  extraFields    Json?
-  isSubmitted    Boolean  @default(false)
-  submittedAt    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  task  RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  staff Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  versions RadiologyReportVersion[]
-
-  @@index([organizationId, staffId, isSubmitted])
-  @@map("radiology_reports")
-}
-
-model Review {
-  id             String       @id @default(cuid())
-  organizationId String
-  taskId         String       @unique
-  visitId        String?
-  reviewedById   String
-  status         ReviewStatus @default(PENDING)
-  comments       String?
-  editedData     Json?
-  rejectionReason String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  task       RoutingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  visit      Visit?      @relation(fields: [visitId], references: [id], onDelete: SetNull)
-  reviewedBy Staff       @relation(fields: [reviewedById], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, status, updatedAt])
-  @@index([visitId])
-  @@map("reviews")
-}
-
-model Notification {
-  id             String           @id @default(cuid())
-  organizationId String
-  userId         String
-  type           NotificationType
-  title          String
-  message        String
-  isRead         Boolean          @default(false)
-  readAt         DateTime?
-  entityId       String?
-  entityType     String?
-  dedupeKey      String?          @unique
-  createdAt      DateTime         @default(now())
-
-  user Staff @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, userId, createdAt])
-  @@index([userId, isRead, createdAt])
-  @@index([organizationId, type, createdAt])
-  @@map("notifications")
-}
-
-model PushSubscription {
-  id             String   @id @default(cuid())
-  organizationId String
-  userId         String
-  endpoint       String   @unique
-  p256dh         String
-  auth           String
-  userAgent      String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  lastSeenAt     DateTime @default(now())
-
-  user Staff @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, userId, updatedAt])
-  @@map("push_subscriptions")
-}
-
-model DiagnosticReport {
-  id             String       @id @default(cuid())
-  organizationId String
-  visitId        String
-  department     Department
-  reportType     ReportType   @default(lab)
-  sourceTaskId   String?
-  status         ReportStatus @default(DRAFT)
-  reportContent  Json
-  comments       String?
-  prescription   String?
-  previewFileUrl String?
-  finalFileUrl   String?
-  generatedById  String?
-  lastEditedById String?
-  lastEditedAt   DateTime?
-  isReleased     Boolean      @default(false)
-  releasedAt     DateTime?
-  releasedById   String?
-  releaseInstructions String?
-  lastActionAt   DateTime?
-  publicShareToken String?    @unique
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  visit         Visit         @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  generatedBy   Staff?        @relation("ReportGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull)
-  releasedBy    Staff?        @relation("ReportReleasedBy", fields: [releasedById], references: [id], onDelete: SetNull)
-  versions      DiagnosticReportVersion[]
-
-  @@unique([visitId, department])
-  @@index([organizationId, department, status, updatedAt])
-  @@index([organizationId, reportType, status, updatedAt])
-  @@index([organizationId, isReleased, updatedAt])
-  @@index([sourceTaskId])
-  @@map("diagnostic_reports")
-}
-
-model DiagnosticReportVersion {
-  id         String   @id @default(cuid())
-  reportId   String
-  version    Int
-  content    Json
-  comments   String?
-  prescription String?
-  isActive   Boolean  @default(true)
-  parentId   String?
-  editedById String
-  editReason String
-  createdAt  DateTime @default(now())
-
-  report   DiagnosticReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  editedBy Staff            @relation(fields: [editedById], references: [id], onDelete: Cascade)
-  parent   DiagnosticReportVersion?  @relation("DiagnosticReportVersionChain", fields: [parentId], references: [id], onDelete: SetNull)
-  children DiagnosticReportVersion[] @relation("DiagnosticReportVersionChain")
-
-  @@unique([reportId, version])
-  @@index([reportId, isActive])
-  @@index([parentId])
-  @@index([editedById, createdAt])
-  @@map("diagnostic_report_versions")
-}
-
-model LabResultVersion {
-  id          String   @id @default(cuid())
-  labResultId String
-  version     Int
-  resultData  Json
-  notes       String?
-  isActive    Boolean  @default(true)
-  parentId    String?
-  editedById  String
-  editReason  String
-  createdAt   DateTime @default(now())
-
-  labResult LabResult @relation(fields: [labResultId], references: [id], onDelete: Cascade)
-  editedBy  Staff     @relation("LabResultVersionEditedBy", fields: [editedById], references: [id], onDelete: Cascade)
-  parent    LabResultVersion?  @relation("LabResultVersionChain", fields: [parentId], references: [id], onDelete: SetNull)
-  children  LabResultVersion[] @relation("LabResultVersionChain")
-
-  @@unique([labResultId, version])
-  @@index([labResultId, isActive])
-  @@index([parentId])
-  @@index([createdAt])
-  @@index([editedById, createdAt])
-  @@map("lab_result_versions")
-}
-
-model RadiologyReportVersion {
-  id         String   @id @default(cuid())
-  reportId   String
-  version    Int
-  findings   String
-  impression String
-  notes      String?
-  extraFields Json?
-  isActive   Boolean  @default(true)
-  parentId   String?
-  editedById String
-  editReason String
-  createdAt  DateTime @default(now())
-
-  report   RadiologyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  editedBy Staff           @relation("RadiologyReportVersionEditedBy", fields: [editedById], references: [id], onDelete: Cascade)
-  parent   RadiologyReportVersion?  @relation("RadiologyReportVersionChain", fields: [parentId], references: [id], onDelete: SetNull)
-  children RadiologyReportVersion[] @relation("RadiologyReportVersionChain")
-
-  @@unique([reportId, version])
-  @@index([reportId, isActive])
-  @@index([parentId])
-  @@index([createdAt])
-  @@index([editedById, createdAt])
-  @@map("radiology_report_versions")
 }

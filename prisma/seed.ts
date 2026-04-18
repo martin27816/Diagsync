@@ -24,7 +24,7 @@ type SeedField = {
 async function main() {
   console.log("🌱 Seeding Tests...");
 
-  // ── Seed Test Categories ─────────────────────────────────────────────────
+  // ── Seed Test Categories ─────────────────────────────────────────────────────
   const categories = await Promise.all([
     prisma.testCategory.upsert({
       where: { id: "cat-haematology" },
@@ -60,7 +60,7 @@ async function main() {
 
   console.log(`✅ ${categories.length} test categories created`);
 
-  // ── Get Organization ─────────────────────────────────────────────────────
+  // ── Get Organization ─────────────────────────────────────────────────────────
   let org = await prisma.organization.findFirst();
   if (!org) {
     const defaultAdminEmail = "admin@diagsync.local";
@@ -87,7 +87,7 @@ async function main() {
       },
     });
 
-    console.log("? Created default organization and super admin");
+    console.log("✅ Created default organization and super admin");
     console.log(`   Admin email: ${defaultAdminEmail}`);
     console.log(`   Admin password: ${defaultAdminPassword}`);
   }
@@ -95,7 +95,7 @@ async function main() {
   const orgId = org.id;
   console.log(`✅ Organization found: ${org.name}`);
 
-  // ── Helper: upsert test + fields ────────────────────────────────────────
+  // ── Helper: upsert test + fields ──────────────────────────────────────────
   async function seedTest(data: {
     code: string;
     name: string;
@@ -162,6 +162,7 @@ async function main() {
   }
 
   const COMPLEX_REFERENCE_FIELDS = new Set([
+    "amh",
     "psa_total",
     "psa_free",
     "fsh",
@@ -302,9 +303,43 @@ async function main() {
     ];
   }
 
-  // ── LAB TESTS ────────────────────────────────────────────────────────────
+  async function syncExistingTestFieldsByName(params: {
+    name: string;
+    type: TestType;
+    fields: SeedField[];
+  }) {
+    const targets = await prisma.diagnosticTest.findMany({
+      where: { organizationId: orgId, name: params.name },
+      select: { id: true },
+    });
+    if (targets.length === 0) return 0;
 
-  // 1. Full Blood Count
+    const enriched = withReferenceMetadata(params.name, params.type, params.fields);
+    for (const target of targets) {
+      await prisma.resultTemplateField.deleteMany({ where: { testId: target.id } });
+      await prisma.resultTemplateField.createMany({
+        data: enriched.map((field) => ({
+          testId: target.id,
+          label: field.label,
+          fieldKey: field.fieldKey,
+          fieldType: field.fieldType,
+          unit: field.unit,
+          normalMin: field.normalMin,
+          normalMax: field.normalMax,
+          normalText: field.normalText,
+          referenceNote: field.referenceNote,
+          options: field.options,
+          isRequired: field.isRequired ?? true,
+          sortOrder: field.sortOrder,
+        })),
+      });
+    }
+    return targets.length;
+  }
+
+  // ── LAB TESTS ────────────────────────────────────────────────────────────────
+
+  // 1. Full Blood Count — added Basophils field
   await seedTest({
     code: "FBC",
     name: "Full Blood Count",
@@ -323,11 +358,12 @@ async function main() {
       { label: "Lymphocytes", fieldKey: "lymphocytes", fieldType: FieldType.NUMBER, unit: "%", normalMin: 20, normalMax: 45, sortOrder: 5 },
       { label: "Monocytes", fieldKey: "monocytes", fieldType: FieldType.NUMBER, unit: "%", normalMin: 2, normalMax: 10, sortOrder: 6 },
       { label: "Eosinophils", fieldKey: "eosinophils", fieldType: FieldType.NUMBER, unit: "%", normalMin: 1, normalMax: 6, sortOrder: 7 },
-      { label: "Platelets", fieldKey: "platelets", fieldType: FieldType.NUMBER, unit: "×10³/µL", normalMin: 150, normalMax: 400, sortOrder: 8 },
-      { label: "MCV", fieldKey: "mcv", fieldType: FieldType.NUMBER, unit: "fL", normalMin: 80, normalMax: 100, sortOrder: 9 },
-      { label: "MCH", fieldKey: "mch", fieldType: FieldType.NUMBER, unit: "pg", normalMin: 27, normalMax: 33, sortOrder: 10 },
-      { label: "MCHC", fieldKey: "mchc", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 32, normalMax: 36, sortOrder: 11 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 12 },
+      { label: "Basophils", fieldKey: "basophils", fieldType: FieldType.NUMBER, unit: "%", normalMin: 0, normalMax: 1, sortOrder: 8 },
+      { label: "Platelets", fieldKey: "platelets", fieldType: FieldType.NUMBER, unit: "×10³/µL", normalMin: 150, normalMax: 400, sortOrder: 9 },
+      { label: "MCV", fieldKey: "mcv", fieldType: FieldType.NUMBER, unit: "fL", normalMin: 80, normalMax: 100, sortOrder: 10 },
+      { label: "MCH", fieldKey: "mch", fieldType: FieldType.NUMBER, unit: "pg", normalMin: 27, normalMax: 33, sortOrder: 11 },
+      { label: "MCHC", fieldKey: "mchc", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 32, normalMax: 36, sortOrder: 12 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 13 },
     ],
   });
 
@@ -351,7 +387,7 @@ async function main() {
     ],
   });
 
-  // 3. Urinalysis
+  // 3. Urinalysis — added Ascorbic Acid and WBC/HPF fields
   await seedTest({
     code: "URA",
     name: "Urinalysis",
@@ -374,11 +410,14 @@ async function main() {
       { label: "Urobilinogen", fieldKey: "urobilinogen", fieldType: FieldType.DROPDOWN, options: "Normal,Increased", sortOrder: 10 },
       { label: "Nitrite", fieldKey: "nitrite", fieldType: FieldType.DROPDOWN, options: "Negative,Positive", sortOrder: 11 },
       { label: "Leucocytes", fieldKey: "leucocytes", fieldType: FieldType.DROPDOWN, options: "Negative,Trace,+,++,+++", sortOrder: 12 },
-      { label: "Pus Cells (hpf)", fieldKey: "pus_cells", fieldType: FieldType.TEXT, sortOrder: 13 },
-      { label: "RBCs (hpf)", fieldKey: "rbcs", fieldType: FieldType.TEXT, sortOrder: 14 },
-      { label: "Epithelial Cells", fieldKey: "epithelial_cells", fieldType: FieldType.DROPDOWN, options: "Nil,Few,Moderate,Many", isRequired: false, sortOrder: 15 },
-      { label: "Casts", fieldKey: "casts", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 16 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 17 },
+      { label: "Ascorbic Acid", fieldKey: "ascorbic_acid", fieldType: FieldType.DROPDOWN, options: "Negative,Trace,+,++,+++", isRequired: false, sortOrder: 13 },
+      { label: "WBC / HPF", fieldKey: "wbc_hpf", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 14 },
+      { label: "Pus Cells (hpf)", fieldKey: "pus_cells", fieldType: FieldType.TEXT, sortOrder: 15 },
+      { label: "RBCs (hpf)", fieldKey: "rbcs", fieldType: FieldType.TEXT, sortOrder: 16 },
+      { label: "Epithelial Cells", fieldKey: "epithelial_cells", fieldType: FieldType.DROPDOWN, options: "Nil,Few,Moderate,Many", isRequired: false, sortOrder: 17 },
+      { label: "Casts", fieldKey: "casts", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 18 },
+      { label: "Calcium Oxalate Crystals", fieldKey: "calcium_oxalate", fieldType: FieldType.DROPDOWN, options: "Absent,Present", isRequired: false, sortOrder: 19 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 20 },
     ],
   });
 
@@ -427,15 +466,17 @@ async function main() {
     fields: [
       { label: "S. Typhi O", fieldKey: "typhi_o", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320,1:640", sortOrder: 1 },
       { label: "S. Typhi H", fieldKey: "typhi_h", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320,1:640", sortOrder: 2 },
-      { label: "S. Paratyphi AO", fieldKey: "paratyphi_ao", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 3 },
-      { label: "S. Paratyphi BH", fieldKey: "paratyphi_bh", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 4 },
-      { label: "S. Paratyphi C (O/H)", fieldKey: "paratyphi_c", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", isRequired: false, sortOrder: 5 },
-      { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 7 },
+      { label: "S. Paratyphi A (O)", fieldKey: "paratyphi_ao", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 3 },
+      { label: "S. Paratyphi A (H)", fieldKey: "paratyphi_ah", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 4 },
+      { label: "S. Paratyphi B (O)", fieldKey: "paratyphi_bo", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", isRequired: false, sortOrder: 5 },
+      { label: "S. Paratyphi B (H)", fieldKey: "paratyphi_bh", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 6 },
+      { label: "S. Paratyphi C (O/H)", fieldKey: "paratyphi_c", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", isRequired: false, sortOrder: 7 },
+      { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, sortOrder: 8 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
     ],
   });
 
-  // 7. Liver Function Test
+  // 7. Liver Function Test — added A/G Ratio
   await seedTest({
     code: "LFT",
     name: "Liver Function Test",
@@ -447,19 +488,20 @@ async function main() {
     sampleType: "Serum",
     fields: [
       { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 3.4, normalMax: 20.5, sortOrder: 1 },
-      { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 4.5, sortOrder: 2 },
+      { label: "Direct Bilirubin (Conjugated)", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 4.5, sortOrder: 2 },
       { label: "Indirect Bilirubin", fieldKey: "indirect_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 17, sortOrder: 3 },
       { label: "ALT (SGPT)", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 7, normalMax: 40, sortOrder: 4 },
       { label: "AST (SGOT)", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 10, normalMax: 40, sortOrder: 5 },
       { label: "ALP", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 44, normalMax: 147, sortOrder: 6 },
-      { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 60, normalMax: 83, sortOrder: 7 },
-      { label: "Albumin", fieldKey: "albumin", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 35, normalMax: 50, sortOrder: 8 },
-      { label: "Globulin", fieldKey: "globulin", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 20, normalMax: 35, sortOrder: 9 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 10 },
+      { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 60, normalMax: 84, sortOrder: 7 },
+      { label: "Albumin", fieldKey: "albumin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 30, normalMax: 45, sortOrder: 8 },
+      { label: "Globulin", fieldKey: "globulin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 20, normalMax: 35, sortOrder: 9 },
+      { label: "A/G Ratio", fieldKey: "ag_ratio", fieldType: FieldType.NUMBER, unit: "", normalMin: 1.0, normalMax: 2.5, isRequired: false, sortOrder: 10 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 11 },
     ],
   });
 
-  // 8. Kidney Function Test
+  // 8. Kidney Function Test — added Calcium and eGFR
   await seedTest({
     code: "KFT",
     name: "Kidney Function Test",
@@ -472,12 +514,14 @@ async function main() {
     fields: [
       { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 1.6, normalMax: 8.3, sortOrder: 1 },
       { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 63, normalMax: 130, sortOrder: 2 },
-      { label: "Uric Acid", fieldKey: "uric_acid", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.15, normalMax: 0.45, sortOrder: 3 },
-      { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 134, normalMax: 146, sortOrder: 4 },
-      { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.6, normalMax: 5.0, sortOrder: 5 },
-      { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 98, normalMax: 107, sortOrder: 6 },
-      { label: "Bicarbonate", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 23, normalMax: 31, sortOrder: 7 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
+      { label: "eGFR", fieldKey: "egfr", fieldType: FieldType.NUMBER, unit: "mL/min/1.73m²", normalMin: 90, normalMax: 120, isRequired: false, sortOrder: 3 },
+      { label: "Uric Acid", fieldKey: "uric_acid", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.15, normalMax: 0.45, sortOrder: 4 },
+      { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 134, normalMax: 146, sortOrder: 5 },
+      { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.6, normalMax: 5.0, sortOrder: 6 },
+      { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 98, normalMax: 107, sortOrder: 7 },
+      { label: "Bicarbonate", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 23, normalMax: 31, sortOrder: 8 },
+      { label: "Calcium", fieldKey: "calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.0, normalMax: 2.6, isRequired: false, sortOrder: 9 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 10 },
     ],
   });
 
@@ -516,7 +560,7 @@ async function main() {
     ],
   });
 
-  // 11. Stool Analysis
+  // 11. Stool Analysis — added Scolex, Yeast Cells, Calcium Oxalate, Occult Blood
   await seedTest({
     code: "STOOL",
     name: "Stool Analysis",
@@ -531,17 +575,187 @@ async function main() {
       { label: "Consistency", fieldKey: "consistency", fieldType: FieldType.DROPDOWN, options: "Formed,Semi-formed,Loose,Watery", sortOrder: 2 },
       { label: "Mucus", fieldKey: "mucus", fieldType: FieldType.DROPDOWN, options: "Absent,Present", sortOrder: 3 },
       { label: "Blood", fieldKey: "blood", fieldType: FieldType.DROPDOWN, options: "Absent,Present", sortOrder: 4 },
-      { label: "Ova / Cyst", fieldKey: "ova_cyst", fieldType: FieldType.TEXT, sortOrder: 5 },
-      { label: "Trophozoites", fieldKey: "trophozoites", fieldType: FieldType.TEXT, sortOrder: 6 },
-      { label: "Pus Cells (hpf)", fieldKey: "pus_cells", fieldType: FieldType.TEXT, sortOrder: 7 },
-      { label: "RBCs (hpf)", fieldKey: "rbcs", fieldType: FieldType.TEXT, sortOrder: 8 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
+      { label: "Scolex", fieldKey: "scolex", fieldType: FieldType.DROPDOWN, options: "Absent,Present", isRequired: false, sortOrder: 5 },
+      { label: "Trophozoites", fieldKey: "trophozoites", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 6 },
+      { label: "Cyst(s)", fieldKey: "cysts", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 7 },
+      { label: "Ova / Eggs", fieldKey: "ova_cyst", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 8 },
+      { label: "Yeast Cells", fieldKey: "yeast_cells", fieldType: FieldType.DROPDOWN, options: "Absent,+,++,+++", isRequired: false, sortOrder: 9 },
+      { label: "Calcium Oxalate", fieldKey: "calcium_oxalate", fieldType: FieldType.DROPDOWN, options: "Absent,Present", isRequired: false, sortOrder: 10 },
+      { label: "Pus Cells (hpf)", fieldKey: "pus_cells", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 11 },
+      { label: "RBCs (hpf)", fieldKey: "rbcs", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 12 },
+      { label: "Occult Blood (FOB)", fieldKey: "occult_blood", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", isRequired: false, sortOrder: 13 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 14 },
     ],
   });
 
-  // ── RADIOLOGY TESTS ──────────────────────────────────────────────────────
+  // 12. Faecal Occult Blood (FOB) — standalone test from docx
+  await seedTest({
+    code: "FOB",
+    name: "Faecal Occult Blood (FOB)",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-micro",
+    price: 1500,
+    turnaroundMinutes: 60,
+    sampleType: "Stool",
+    description: "Test for hidden blood in stool",
+    fields: [
+      { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+      { label: "Method", fieldKey: "method", fieldType: FieldType.DROPDOWN, options: "Rapid Immunoassay,Guaiac-based", isRequired: false, sortOrder: 2 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ],
+  });
 
-  // 12. Chest X-Ray
+  // 13. Sickling Test
+  await seedTest({
+    code: "SICK",
+    name: "Sickling Test",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-haematology",
+    price: 1000,
+    turnaroundMinutes: 60,
+    sampleType: "EDTA Blood",
+    description: "Screening test for sickle cell trait or disease",
+    fields: [
+      { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    ],
+  });
+
+  // 14. G6PD Screening
+  await seedTest({
+    code: "G6PD",
+    name: "G6PD Screening",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-haematology",
+    price: 2500,
+    turnaroundMinutes: 120,
+    sampleType: "EDTA Blood",
+    description: "Glucose-6-phosphate dehydrogenase deficiency screening",
+    fields: [
+      { label: "G6PD Activity", fieldKey: "g6pd_activity", fieldType: FieldType.NUMBER, unit: "U/g Hb", normalMin: 6.9, normalMax: 20.0, isRequired: false, sortOrder: 1 },
+      { label: "Qualitative Result", fieldKey: "qualitative_result", fieldType: FieldType.DROPDOWN, options: "Normal,Deficient,Severely Deficient", sortOrder: 2 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ],
+  });
+
+  // 15. Bleeding Time & Clotting Time
+  await seedTest({
+    code: "BTCT",
+    name: "Bleeding Time & Clotting Time",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-haematology",
+    price: 1500,
+    turnaroundMinutes: 60,
+    sampleType: "Whole Blood",
+    description: "Primary haemostasis screening tests",
+    fields: [
+      { label: "Bleeding Time", fieldKey: "bleeding_time", fieldType: FieldType.TEXT, sortOrder: 1 },
+      { label: "Clotting Time", fieldKey: "clotting_time", fieldType: FieldType.TEXT, sortOrder: 2 },
+      { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    ],
+  });
+
+  // 16. Typhoid IgM / IgG Rapid Test
+  await seedTest({
+    code: "TYPHRDT",
+    name: "Typhoid IgM/IgG Rapid Test",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 2000,
+    turnaroundMinutes: 60,
+    sampleType: "Whole Blood / Serum",
+    description: "Rapid immunochromatographic test for Salmonella typhi antibodies",
+    fields: [
+      { label: "IgM Result", fieldKey: "igm_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+      { label: "IgG Result", fieldKey: "igg_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 2 },
+      { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    ],
+  });
+
+  // 17. Dengue NS1 Antigen
+  await seedTest({
+    code: "DENGNS1",
+    name: "Dengue NS1 Antigen",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 3500,
+    turnaroundMinutes: 90,
+    sampleType: "Serum",
+    description: "Dengue virus non-structural protein 1 antigen rapid test",
+    fields: [
+      { label: "NS1 Antigen", fieldKey: "ns1_antigen", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+      { label: "Dengue IgM", fieldKey: "dengue_igm", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Not Done", isRequired: false, sortOrder: 2 },
+      { label: "Dengue IgG", fieldKey: "dengue_igg", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Not Done", isRequired: false, sortOrder: 3 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    ],
+  });
+
+  // 18. H. Pylori Antibody (Serum)
+  await seedTest({
+    code: "HPYLS",
+    name: "H. Pylori Antibody (Serum)",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 2000,
+    turnaroundMinutes: 60,
+    sampleType: "Serum",
+    description: "Serum screened for H. pylori antibodies",
+    fields: [
+      { label: "H. Pylori IgG Result", fieldKey: "hpylori_igg", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
+      { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ],
+  });
+
+  // 19. H. Pylori Antigen (Stool)
+  await seedTest({
+    code: "HPYLST",
+    name: "H. Pylori Antigen (Stool)",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 2500,
+    turnaroundMinutes: 60,
+    sampleType: "Stool",
+    description: "Stool screened for H. pylori antigens",
+    fields: [
+      { label: "H. Pylori Antigen Result", fieldKey: "hpylori_antigen", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
+      { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ],
+  });
+
+  // 20. Leptospira Screening
+  await seedTest({
+    code: "LEPTO",
+    name: "Leptospira Screening",
+    type: TestType.LAB,
+    department: Department.LABORATORY,
+    categoryId: "cat-serology",
+    price: 3000,
+    turnaroundMinutes: 120,
+    sampleType: "Serum",
+    description: "Screening for Leptospira antibodies",
+    fields: [
+      { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Inconclusive", sortOrder: 1 },
+      { label: "Titre", fieldKey: "titre", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+      { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 3 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    ],
+  });
+
+  // ── RADIOLOGY TESTS ──────────────────────────────────────────────────────────
+
+  // 21. Chest X-Ray
   await seedTest({
     code: "CXR",
     name: "Chest X-Ray",
@@ -554,7 +768,7 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
-  // 13. Abdominal Ultrasound
+  // 22. Abdominal Ultrasound
   await seedTest({
     code: "AUS",
     name: "Abdominal Ultrasound",
@@ -567,7 +781,7 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
-  // 14. Pelvic Ultrasound
+  // 23. Pelvic Ultrasound
   await seedTest({
     code: "PUS",
     name: "Pelvic Ultrasound",
@@ -579,7 +793,7 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
-  // 15. Obstetric Ultrasound
+  // 24. Obstetric Ultrasound
   await seedTest({
     code: "OBS",
     name: "Obstetric Ultrasound",
@@ -591,7 +805,7 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
-  // 16. Skull X-Ray
+  // 25. Skull X-Ray
   await seedTest({
     code: "SKX",
     name: "Skull X-Ray",
@@ -603,7 +817,133 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
-  // 17. Bulk catalog expansion (Lab + Radiology master list)
+  // 25b. Force-sync PSA templates for existing databases (even when test names already exist)
+  const psaPanelFields: SeedField[] = [
+    {
+      label: "Total PSA",
+      fieldKey: "psa_total",
+      fieldType: FieldType.NUMBER,
+      unit: "ng/mL",
+      normalMin: 0,
+      normalMax: 4.0,
+      referenceNote: "Typical adult male range 0.0-4.0 ng/mL; may be acceptable up to 10.0 ng/mL in men over 70 years.",
+      sortOrder: 1,
+    },
+    {
+      label: "Free PSA",
+      fieldKey: "psa_free",
+      fieldType: FieldType.NUMBER,
+      unit: "ng/mL",
+      normalMin: 0,
+      normalMax: 1.0,
+      sortOrder: 2,
+    },
+    {
+      label: "Percentage Free PSA",
+      fieldKey: "psa_percent_free",
+      fieldType: FieldType.NUMBER,
+      unit: "%",
+      normalMin: 24,
+      normalMax: 100,
+      referenceNote: "Normal cutoff >=24%.",
+      sortOrder: 3,
+    },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ];
+
+  await syncExistingTestFieldsByName({
+    name: "PROSTATE SPECIFIC ANTIGEN (PSA)",
+    type: TestType.LAB,
+    fields: psaPanelFields,
+  });
+
+  await syncExistingTestFieldsByName({
+    name: "PROSTATE SPECIFIC ANTIGEN (FREE)",
+    type: TestType.LAB,
+    fields: [
+      {
+        label: "Free PSA",
+        fieldKey: "psa_free",
+        fieldType: FieldType.NUMBER,
+        unit: "ng/mL",
+        normalMin: 0,
+        normalMax: 1.0,
+        sortOrder: 1,
+      },
+      {
+        label: "Percentage Free PSA",
+        fieldKey: "psa_percent_free",
+        fieldType: FieldType.NUMBER,
+        unit: "%",
+        normalMin: 24,
+        normalMax: 100,
+        isRequired: false,
+        referenceNote: "Normal cutoff >=24%.",
+        sortOrder: 2,
+      },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ],
+  });
+
+  // Fallback: sync any legacy/custom PSA tests by name fragment (e.g. existing LB****PSA codes)
+  const legacyPsaTests = await prisma.diagnosticTest.findMany({
+    where: {
+      organizationId: orgId,
+      name: { contains: "PROSTATE SPECIFIC ANTIGEN", mode: "insensitive" },
+      type: TestType.LAB,
+    },
+    select: { id: true, name: true },
+  });
+
+  for (const test of legacyPsaTests) {
+    const isFree = test.name.toUpperCase().includes("(FREE)");
+    const fields = isFree
+      ? [
+          {
+            label: "Free PSA",
+            fieldKey: "psa_free",
+            fieldType: FieldType.NUMBER,
+            unit: "ng/mL",
+            normalMin: 0,
+            normalMax: 1.0,
+            sortOrder: 1,
+          },
+          {
+            label: "Percentage Free PSA",
+            fieldKey: "psa_percent_free",
+            fieldType: FieldType.NUMBER,
+            unit: "%",
+            normalMin: 24,
+            normalMax: 100,
+            isRequired: false,
+            referenceNote: "Normal cutoff >=24%.",
+            sortOrder: 2,
+          },
+          { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+        ]
+      : psaPanelFields;
+
+    const enriched = withReferenceMetadata(test.name, TestType.LAB, fields);
+    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
+    await prisma.resultTemplateField.createMany({
+      data: enriched.map((field) => ({
+        testId: test.id,
+        label: field.label,
+        fieldKey: field.fieldKey,
+        fieldType: field.fieldType,
+        unit: field.unit,
+        normalMin: field.normalMin,
+        normalMax: field.normalMax,
+        normalText: field.normalText,
+        referenceNote: field.referenceNote,
+        options: field.options,
+        isRequired: field.isRequired ?? true,
+        sortOrder: field.sortOrder,
+      })),
+    });
+  }
+
+  // 26. Bulk catalog expansion (Lab + Radiology master list)
   const extraCategories = await Promise.all([
     prisma.testCategory.upsert({
       where: { id: "cat-molecular" },
@@ -639,6 +979,8 @@ async function main() {
     "THYROXINE (T4 TOTAL)",
     "TRIIODOTHYRONINE (T3 TOTAL)",
     "TRIIODOTHYRONINE (T3 FREE)",
+    "THYROID FUNCTION TESTS (TFT)",
+    "THYROID ANTIBODY RECEPTOR (TRAb)",
     "ELECTROLYTES",
     "UREA",
     "CREATININE",
@@ -655,6 +997,7 @@ async function main() {
     "CREATINE KINASE",
     "PROCALCITONIN",
     "AMYLASE",
+    "LIPASE",
     "COMPREHENSIVE METABOLIC PANEL (CMP)",
     "PROTEIN ELECTROPHORESIS",
     "PROSTATE SPECIFIC ANTIGEN (PSA)",
@@ -662,6 +1005,7 @@ async function main() {
     "CARCINOEMBRYONIC ANTIGEN (CEA)",
     "ALPHA-FETOPROTEIN (AFP)",
     "CA-125 TEST",
+    "CA 19-9",
     "CD4 T CELL COUNT",
     "CD4 T CELL PERCENTAGE",
     "CD8 T CELL COUNT",
@@ -671,10 +1015,14 @@ async function main() {
     "FOLLICLE STIMULATING HORMONE (FSH)",
     "LUTEINIZING HORMONE (LH)",
     "PROLACTIN",
+    "HORMONAL IMMUNOASSAY PANEL",
+    "ANTI-MULLERIAN HORMONE (AMH)",
     "OESTROGEN (E2)",
     "VITAMIN B12",
     "VITAMIN D",
     "FERRITIN",
+    "SERUM IRON",
+    "TOTAL IRON BINDING CAPACITY (TIBC)",
     "PARATHYROID HORMONE (PTH)",
     "DEHYDROEPIANDROSTERONE SULFATE (DHEA-S)",
     "CORTISOL",
@@ -751,6 +1099,56 @@ async function main() {
     "CHLAMYDIA",
     "VDRL",
     "BRUCELLA SCREENING",
+    // New entries from docx / Nigerian lab practice
+    "GONORRHOEA SCREENING",
+    "TRICHOMONAS VAGINALIS",
+    "CANDIDA SCREENING",
+    "AFLATOXIN B1",
+    "DRUG SCREEN (URINE)",
+    "ALCOHOL LEVEL",
+    "CERULOPLASMIN",
+    "COPPER (SERUM)",
+    "ZINC (SERUM)",
+    "MAGNESIUM (SERUM)",
+    "PHOSPHATE (SERUM)",
+    "IMMUNOGLOBULIN G (IgG)",
+    "IMMUNOGLOBULIN M (IgM)",
+    "IMMUNOGLOBULIN A (IgA)",
+    "IMMUNOGLOBULIN E (IgE)",
+    "COMPLEMENT C3",
+    "COMPLEMENT C4",
+    "ANTI-STREPTOLYSIN O (ASO) TITRE",
+    "ANTI-CCP ANTIBODY",
+    "ANTI-dsDNA ANTIBODY",
+    "ANTI-TPO ANTIBODY",
+    "ANTI-THYROGLOBULIN ANTIBODY",
+    "SERUM PROTEIN C",
+    "SERUM PROTEIN S",
+    "D-DIMER",
+    "ACTIVATED PROTEIN C RESISTANCE",
+    "LUPUS ANTICOAGULANT",
+    "ANTIPHOSPHOLIPID ANTIBODIES",
+    "PERIPHERAL BLOOD FILM",
+    "RETICULOCYTE COUNT",
+    "OSMOTIC FRAGILITY TEST",
+    "HAEMATOCRIT (PCV)",
+    "FAECAL OCCULT BLOOD (FOB)",
+    "TYPHOID IGM/IGG RAPID TEST",
+    "DENGUE NS1 ANTIGEN",
+    "YELLOW FEVER IGM",
+    "MONKEYPOX PCR",
+    "COVID-19 ANTIGEN",
+    "COVID-19 ANTIBODY (IGM/IGG)",
+    "HEPATITIS E SCREENING",
+    "HEPATITIS D SCREENING",
+    "CYTOMEGALOVIRUS (CMV) IGM",
+    "EPSTEIN-BARR VIRUS (EBV) IGM",
+    "TOXOPLASMA IGM",
+    "RUBELLA IGM",
+    "MEASLES IGM",
+    "MENINGITIS SCREENING",
+    "BLOOD LEAD LEVEL",
+    "SERUM FOLATE",
   ];
 
   const rawRadiologyTests = [
@@ -830,6 +1228,30 @@ async function main() {
     "CT LUMBO-SACRAL SPINE",
     "CT PELVIS",
     "CT UPPER EXTREMITIES",
+    // Additional Nigeria-relevant radiology
+    "THYROID SCAN",
+    "SCROTAL/TESTICULAR SCAN",
+    "RENAL SCAN",
+    "NECK SCAN",
+    "LIVER/GALLBLADDER SCAN",
+    "MUSCULOSKELETAL SCAN",
+    "DIGITAL X-RAY CLAVICLE",
+    "DIGITAL X-RAY RIBS",
+    "DIGITAL X-RAY STERNUM",
+    "DIGITAL X-RAY SACRUM/COCCYX",
+    "DIGITAL X-RAY ABDOMEN (ERECT)",
+    "DIGITAL X-RAY ABDOMEN (SUPINE)",
+    "SALIVARY GLAND SCAN",
+    "SOFT TISSUE SCAN",
+    "MRI BRAIN",
+    "MRI SPINE (CERVICAL)",
+    "MRI SPINE (LUMBAR)",
+    "MRI KNEE",
+    "MRI SHOULDER",
+    "MRI ABDOMEN/PELVIS",
+    "PLAIN X-RAY ABDOMEN",
+    "DIGITAL X-RAY FACIAL BONES",
+    "DIGITAL X-RAY MASTOID",
   ];
 
   function normalizeName(input: string) {
@@ -860,13 +1282,13 @@ async function main() {
     if (n.includes("pcr") || n.includes("dna") || n.includes("rna") || n.includes("viral load") || n.includes("genotyping")) {
       return "cat-molecular";
     }
-    if (n.includes("coombs") || n.includes("blood film") || n.includes("haemoglobin") || n.includes("fibrinogen") || n.includes("aptt") || n.includes("esr") || n.includes("cross match") || n.includes("blood group")) {
+    if (n.includes("coombs") || n.includes("blood film") || n.includes("haemoglobin") || n.includes("fibrinogen") || n.includes("aptt") || n.includes("esr") || n.includes("cross match") || n.includes("blood group") || n.includes("reticulocyte") || n.includes("sickling") || n.includes("haematocrit") || n.includes("g6pd") || n.includes("bleeding time") || n.includes("peripheral blood")) {
       return "cat-haematology";
     }
     if (n.includes("troponin") || n.includes("ck-mb") || n.includes("nt-probnp") || n.includes("cardiac")) {
       return "cat-cardiac";
     }
-    if (n.includes("hiv") || n.includes("hepatitis") || n.includes("vdrl") || n.includes("brucella") || n.includes("hbs") || n.includes("hbe") || n.includes("hbcab") || n.includes("rf") || n.includes("ana")) {
+    if (n.includes("hiv") || n.includes("hepatitis") || n.includes("vdrl") || n.includes("brucella") || n.includes("hbs") || n.includes("hbe") || n.includes("hbcab") || n.includes("rf\b") || n.includes("ana") || n.includes("dengue") || n.includes("typhoid") || n.includes("leptospira") || n.includes("igm") || n.includes("igg") || n.includes("antigen") || n.includes("antibody") || n.includes("h. pylori")) {
       return "cat-serology";
     }
     if (n.includes("urine") || n.includes("urinalysis") || n.includes("microalbumin")) {
@@ -875,7 +1297,6 @@ async function main() {
     return "cat-chemistry";
   }
 
-  
   const LAB_FIELD_LIBRARY: Record<string, SeedField[]> = {
   "ALKALINE PHOSPHATASE (ALP)": [
     { label: "Alkaline Phosphatase (ALP)", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 44, normalMax: 147, sortOrder: 1 },
@@ -944,8 +1365,13 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "THYROID STIMULATING HORMONE (TSH)": [
-    { label: "TSH", fieldKey: "tsh", fieldType: FieldType.NUMBER, unit: "µIU/mL", normalMin: 0.5, normalMax: 5.0, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "TSH", fieldKey: "tsh", fieldType: FieldType.NUMBER, unit: "uIU/mL", normalMin: 0.4, normalMax: 4.5, sortOrder: 1 },
+    { label: "Free T4", fieldKey: "free_t4", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 0.8, normalMax: 1.9, isRequired: false, sortOrder: 2 },
+    { label: "Free T3", fieldKey: "free_t3", fieldType: FieldType.NUMBER, unit: "pg/mL", normalMin: 2.3, normalMax: 4.2, isRequired: false, sortOrder: 3 },
+    { label: "Total T4", fieldKey: "total_t4", fieldType: FieldType.NUMBER, unit: "ug/dL", normalMin: 5.0, normalMax: 12.0, isRequired: false, sortOrder: 4 },
+    { label: "Total T3", fieldKey: "total_t3", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 80, normalMax: 200, isRequired: false, sortOrder: 5 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 7 },
   ],
   "THYROXINE (T4 FREE)": [
     { label: "Free T4", fieldKey: "free_t4", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 0.8, normalMax: 1.9, sortOrder: 1 },
@@ -962,6 +1388,25 @@ async function main() {
   "TRIIODOTHYRONINE (T3 FREE)": [
     { label: "Free T3", fieldKey: "free_t3", fieldType: FieldType.NUMBER, unit: "pg/dL", normalMin: 130, normalMax: 450, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "THYROID FUNCTION TESTS (TFT)": [
+    { label: "TSH", fieldKey: "tsh", fieldType: FieldType.NUMBER, unit: "uIU/mL", normalMin: 0.4, normalMax: 4.5, sortOrder: 1 },
+    { label: "Free T4", fieldKey: "free_t4", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 0.8, normalMax: 1.9, sortOrder: 2 },
+    { label: "Free T3", fieldKey: "free_t3", fieldType: FieldType.NUMBER, unit: "pg/mL", normalMin: 2.3, normalMax: 4.2, sortOrder: 3 },
+    { label: "Total T4", fieldKey: "total_t4", fieldType: FieldType.NUMBER, unit: "ug/dL", normalMin: 5.0, normalMax: 12.0, isRequired: false, sortOrder: 4 },
+    { label: "Total T3", fieldKey: "total_t3", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 80, normalMax: 200, isRequired: false, sortOrder: 5 },
+    { label: "TSH Receptor Antibody (TRAb)", fieldKey: "trab", fieldType: FieldType.NUMBER, unit: "IU/L", normalMin: 0, normalMax: 1.75, isRequired: false, sortOrder: 6 },
+    { label: "Anti-TPO Antibody", fieldKey: "anti_tpo", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 34, isRequired: false, sortOrder: 7 },
+    { label: "Anti-Thyroglobulin Antibody", fieldKey: "anti_thyroglobulin", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 115, isRequired: false, sortOrder: 8 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 10 },
+  ],
+  "THYROID ANTIBODY RECEPTOR (TRAb)": [
+    { label: "TSH Receptor Antibody (TRAb)", fieldKey: "trab", fieldType: FieldType.NUMBER, unit: "IU/L", normalMin: 0, normalMax: 1.75, sortOrder: 1 },
+    { label: "Anti-TPO Antibody", fieldKey: "anti_tpo", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 34, isRequired: false, sortOrder: 2 },
+    { label: "Anti-Thyroglobulin Antibody", fieldKey: "anti_thyroglobulin", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 115, isRequired: false, sortOrder: 3 },
+    { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 4 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
   ],
   "ELECTROLYTES": [
     { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 135, normalMax: 145, sortOrder: 1 },
@@ -1037,6 +1482,10 @@ async function main() {
     { label: "Amylase", fieldKey: "amylase", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 40, normalMax: 140, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
+  "LIPASE": [
+    { label: "Lipase", fieldKey: "lipase", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 0, normalMax: 60, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
   "COMPREHENSIVE METABOLIC PANEL (CMP)": [
     { label: "Glucose", fieldKey: "glucose", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.9, normalMax: 5.6, sortOrder: 1 },
     { label: "Calcium", fieldKey: "calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.12, normalMax: 2.62, sortOrder: 2 },
@@ -1052,7 +1501,8 @@ async function main() {
     { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 2, normalMax: 21, sortOrder: 12 },
     { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.1, normalMax: 8.0, sortOrder: 13 },
     { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 53, normalMax: 115, sortOrder: 14 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 15 },
+    { label: "eGFR", fieldKey: "egfr", fieldType: FieldType.NUMBER, unit: "mL/min/1.73m²", normalMin: 90, normalMax: 120, isRequired: false, sortOrder: 15 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 16 },
   ],
   "PROTEIN ELECTROPHORESIS": [
     { label: "Albumin Fraction", fieldKey: "albumin_fraction", fieldType: FieldType.NUMBER, unit: "%", normalMin: 54, normalMax: 65, isRequired: false, sortOrder: 1 },
@@ -1063,12 +1513,14 @@ async function main() {
     { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
   ],
   "PROSTATE SPECIFIC ANTIGEN (PSA)": [
-    { label: "Total PSA", fieldKey: "psa_total", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 4.0, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Total PSA", fieldKey: "psa_total", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 4.0, referenceNote: "Typical adult male range 0.0-4.0 ng/mL; may be acceptable up to 10.0 ng/mL in men over 70 years.", sortOrder: 1 },
+    { label: "Free PSA", fieldKey: "psa_free", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 1.0, sortOrder: 2 },
+    { label: "Percentage Free PSA", fieldKey: "psa_percent_free", fieldType: FieldType.NUMBER, unit: "%", normalMin: 24, normalMax: 100, referenceNote: "Normal cutoff >=24%.", sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
   ],
   "PROSTATE SPECIFIC ANTIGEN (FREE)": [
-    { label: "Free PSA", fieldKey: "psa_free", fieldType: FieldType.NUMBER, unit: "ng/mL", sortOrder: 1 },
-    { label: "Free/Total PSA Ratio", fieldKey: "free_total_ratio", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 2 },
+    { label: "Free PSA", fieldKey: "psa_free", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 1.0, sortOrder: 1 },
+    { label: "Percentage Free PSA", fieldKey: "psa_percent_free", fieldType: FieldType.NUMBER, unit: "%", normalMin: 24, normalMax: 100, isRequired: false, referenceNote: "Normal cutoff >=24%.", sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "CARCINOEMBRYONIC ANTIGEN (CEA)": [
@@ -1081,6 +1533,10 @@ async function main() {
   ],
   "CA-125 TEST": [
     { label: "CA-125", fieldKey: "ca125", fieldType: FieldType.NUMBER, unit: "U/mL", normalMin: 0, normalMax: 35, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "CA 19-9": [
+    { label: "CA 19-9", fieldKey: "ca19_9", fieldType: FieldType.NUMBER, unit: "U/mL", normalMin: 0, normalMax: 37, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CD4 T CELL COUNT": [
@@ -1125,6 +1581,24 @@ async function main() {
     { label: "Sex", fieldKey: "sex", fieldType: FieldType.DROPDOWN, options: "Male,Female", isRequired: false, sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
+  "HORMONAL IMMUNOASSAY PANEL": [
+    { label: "FSH", fieldKey: "fsh", fieldType: FieldType.NUMBER, unit: "IU/L", isRequired: false, sortOrder: 1 },
+    { label: "LH", fieldKey: "lh", fieldType: FieldType.NUMBER, unit: "IU/L", isRequired: false, sortOrder: 2 },
+    { label: "Prolactin", fieldKey: "prolactin", fieldType: FieldType.NUMBER, unit: "ng/mL", isRequired: false, sortOrder: 3 },
+    { label: "Estradiol (E2)", fieldKey: "estradiol", fieldType: FieldType.NUMBER, unit: "pg/mL", isRequired: false, sortOrder: 4 },
+    { label: "Progesterone", fieldKey: "progesterone", fieldType: FieldType.NUMBER, unit: "ng/mL", isRequired: false, sortOrder: 5 },
+    { label: "Total Testosterone", fieldKey: "testosterone", fieldType: FieldType.NUMBER, unit: "ng/dL", isRequired: false, sortOrder: 6 },
+    { label: "Beta hCG", fieldKey: "beta_hcg", fieldType: FieldType.NUMBER, unit: "mIU/mL", isRequired: false, sortOrder: 7 },
+    { label: "Cycle Day / Clinical Context", fieldKey: "clinical_context", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 8 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 10 },
+  ],
+  "ANTI-MULLERIAN HORMONE (AMH)": [
+    { label: "AMH", fieldKey: "amh", fieldType: FieldType.NUMBER, unit: "ng/mL", sortOrder: 1 },
+    { label: "Reference Group", fieldKey: "reference_group", fieldType: FieldType.DROPDOWN, options: "Female reproductive age,Female peri-menopause,Female post-menopause,Male", isRequired: false, sortOrder: 2 },
+    { label: "Ovarian Reserve Comment", fieldKey: "ovarian_reserve_comment", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ],
   "OESTROGEN (E2)": [
     { label: "Estradiol (E2)", fieldKey: "estradiol", fieldType: FieldType.NUMBER, unit: "pmol/L", sortOrder: 1 },
     { label: "Cycle Phase / Sex", fieldKey: "phase", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
@@ -1141,6 +1615,15 @@ async function main() {
   "FERRITIN": [
     { label: "Ferritin", fieldKey: "ferritin", fieldType: FieldType.NUMBER, unit: "ng/mL", sortOrder: 1 },
     { label: "Sex", fieldKey: "sex", fieldType: FieldType.DROPDOWN, options: "Male,Female", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "SERUM IRON": [
+    { label: "Serum Iron", fieldKey: "serum_iron", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 9, normalMax: 30, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "TOTAL IRON BINDING CAPACITY (TIBC)": [
+    { label: "TIBC", fieldKey: "tibc", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 45, normalMax: 72, sortOrder: 1 },
+    { label: "Transferrin Saturation", fieldKey: "transferrin_sat", fieldType: FieldType.NUMBER, unit: "%", normalMin: 20, normalMax: 55, isRequired: false, sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "PARATHYROID HORMONE (PTH)": [
@@ -1255,15 +1738,23 @@ async function main() {
     { label: "HBcAb", fieldKey: "hbcab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
+  // Semen Analysis — expanded with all docx fields
   "SEMEN ANALYSIS": [
-    { label: "Volume", fieldKey: "volume", fieldType: FieldType.NUMBER, unit: "mL", normalMin: 1.4, sortOrder: 1 },
-    { label: "pH", fieldKey: "ph", fieldType: FieldType.NUMBER, unit: "pH", normalMin: 7.2, normalMax: 8.0, sortOrder: 2 },
-    { label: "Sperm Concentration", fieldKey: "sperm_concentration", fieldType: FieldType.NUMBER, unit: "million/mL", normalMin: 15, sortOrder: 3 },
-    { label: "Total Motility", fieldKey: "motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 40, normalMax: 100, sortOrder: 4 },
-    { label: "Progressive Motility", fieldKey: "progressive_motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 32, normalMax: 100, isRequired: false, sortOrder: 5 },
-    { label: "Morphology", fieldKey: "morphology", fieldType: FieldType.NUMBER, unit: "%", normalMin: 4, normalMax: 100, isRequired: false, sortOrder: 6 },
+    { label: "Time Produced", fieldKey: "time_produced", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 1 },
+    { label: "Time Examined", fieldKey: "time_examined", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+    { label: "Days Abstained", fieldKey: "days_abstained", fieldType: FieldType.NUMBER, unit: "days", normalMin: 2, normalMax: 7, isRequired: false, sortOrder: 3 },
+    { label: "Volume", fieldKey: "volume", fieldType: FieldType.NUMBER, unit: "mL", normalMin: 1.4, sortOrder: 4 },
+    { label: "pH", fieldKey: "ph", fieldType: FieldType.NUMBER, unit: "pH", normalMin: 7.2, normalMax: 8.0, sortOrder: 5 },
+    { label: "Appearance", fieldKey: "appearance", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 6 },
     { label: "Liquefaction Time", fieldKey: "liquefaction_time", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 7 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
+    { label: "Sperm Count (Total)", fieldKey: "sperm_count", fieldType: FieldType.NUMBER, unit: "×10⁶", normalMin: 39, isRequired: false, sortOrder: 8 },
+    { label: "Sperm Concentration", fieldKey: "sperm_concentration", fieldType: FieldType.NUMBER, unit: "million/mL", normalMin: 15, sortOrder: 9 },
+    { label: "Progressively Motile", fieldKey: "progressive_motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 32, normalMax: 100, sortOrder: 10 },
+    { label: "Non-Progressively Motile", fieldKey: "non_progressive_motility", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 11 },
+    { label: "Non-Motile", fieldKey: "non_motile", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 12 },
+    { label: "Total Motility", fieldKey: "motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 40, normalMax: 100, sortOrder: 13 },
+    { label: "Morphology (Normal)", fieldKey: "morphology", fieldType: FieldType.NUMBER, unit: "%", normalMin: 4, normalMax: 100, isRequired: false, sortOrder: 14 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 15 },
   ],
   "BLOOD GROUP": [
     { label: "ABO Group", fieldKey: "abo_group", fieldType: FieldType.DROPDOWN, options: "A,B,AB,O", sortOrder: 1 },
@@ -1317,6 +1808,26 @@ async function main() {
   ],
   "HAEMOGLOBIN (HB)": [
     { label: "Haemoglobin", fieldKey: "haemoglobin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 12, normalMax: 17, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "HAEMATOCRIT (PCV)": [
+    { label: "PCV / Haematocrit", fieldKey: "pcv", fieldType: FieldType.NUMBER, unit: "%", normalMin: 36, normalMax: 50, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "RETICULOCYTE COUNT": [
+    { label: "Reticulocyte Count", fieldKey: "reticulocyte", fieldType: FieldType.NUMBER, unit: "%", normalMin: 0.5, normalMax: 2.5, sortOrder: 1 },
+    { label: "Absolute Reticulocyte Count", fieldKey: "abs_reticulocyte", fieldType: FieldType.NUMBER, unit: "×10⁹/L", normalMin: 25, normalMax: 100, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "PERIPHERAL BLOOD FILM": [
+    { label: "Film Appearance", fieldKey: "film_appearance", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Red Cell Morphology", fieldKey: "rbc_morphology", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "WBC Differential Comment", fieldKey: "wbc_comment", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Platelet Comment", fieldKey: "platelet_comment", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+  ],
+  "D-DIMER": [
+    { label: "D-Dimer", fieldKey: "d_dimer", fieldType: FieldType.NUMBER, unit: "mg/L FEU", normalMin: 0, normalMax: 0.5, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "DNA PATERNITY TEST": [
@@ -1471,9 +1982,30 @@ async function main() {
     { label: "ASO Titre", fieldKey: "aso_titre", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 200, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
+  "ANTI-STREPTOLYSIN O (ASO) TITRE": [
+    { label: "ASO Titre", fieldKey: "aso_titre", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 200, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ANTI-CCP ANTIBODY": [
+    { label: "Anti-CCP", fieldKey: "anti_ccp", fieldType: FieldType.NUMBER, unit: "U/mL", normalMin: 0, normalMax: 17, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ANTI-dsDNA ANTIBODY": [
+    { label: "Anti-dsDNA", fieldKey: "anti_dsdna", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 30, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ANTI-TPO ANTIBODY": [
+    { label: "Anti-TPO Antibody", fieldKey: "anti_tpo", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 34, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ANTI-THYROGLOBULIN ANTIBODY": [
+    { label: "Anti-Thyroglobulin Antibody", fieldKey: "anti_thyroglobulin", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 115, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
   "RHEUMATOID FACTOR": [
     { label: "Rheumatoid Factor", fieldKey: "rf", fieldType: FieldType.NUMBER, unit: "kIU/L", normalMin: 0, normalMax: 20, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Qualitative", fieldKey: "rf_qual", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "HEPATITIS A SCREENING": [
     { label: "HAV Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
@@ -1508,6 +2040,33 @@ async function main() {
     { label: "AFB Smear 1", fieldKey: "afb1", fieldType: FieldType.DROPDOWN, options: "Negative,Scanty,1+,2+,3+", sortOrder: 1 },
     { label: "AFB Smear 2", fieldKey: "afb2", fieldType: FieldType.DROPDOWN, options: "Negative,Scanty,1+,2+,3+", sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "FAECAL OCCULT BLOOD (FOB)": [
+    { label: "Result", fieldKey: "result", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
+    { label: "Method", fieldKey: "method", fieldType: FieldType.DROPDOWN, options: "Rapid Immunoassay,Guaiac-based", isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "TYPHOID IGM/IGG RAPID TEST": [
+    { label: "IgM Result", fieldKey: "igm_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+    { label: "IgG Result", fieldKey: "igg_result", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 2 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ],
+  "DENGUE NS1 ANTIGEN": [
+    { label: "NS1 Antigen", fieldKey: "ns1_antigen", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", sortOrder: 1 },
+    { label: "Dengue IgM", fieldKey: "dengue_igm", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Not Done", isRequired: false, sortOrder: 2 },
+    { label: "Dengue IgG", fieldKey: "dengue_igg", fieldType: FieldType.DROPDOWN, options: "Positive,Negative,Not Done", isRequired: false, sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ],
+  "DRUG SCREEN (URINE)": [
+    { label: "Cannabinoids (THC)", fieldKey: "thc", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 1 },
+    { label: "Opiates", fieldKey: "opiates", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 2 },
+    { label: "Cocaine", fieldKey: "cocaine", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 3 },
+    { label: "Amphetamines", fieldKey: "amphetamines", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 4 },
+    { label: "Benzodiazepines", fieldKey: "benzodiazepines", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 5 },
+    { label: "Methamphetamine", fieldKey: "methamphetamine", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 6 },
+    { label: "Overall Interpretation", fieldKey: "overall", fieldType: FieldType.DROPDOWN, options: "Negative for all substances,Positive — see details", sortOrder: 7 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
   ],
 };
 
@@ -1551,9 +2110,42 @@ async function main() {
     { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
   ],
   "TRANSRECTAL/PROSTATE SCAN": [
-    { label: "Prostate", fieldKey: "prostate", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
-    { label: "Seminal Vesicles", fieldKey: "seminal_vesicles", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
-    { label: "Bladder", fieldKey: "bladder", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Prostate Volume", fieldKey: "prostate_volume", fieldType: FieldType.NUMBER, unit: "mL", normalMin: 15, normalMax: 30, isRequired: false, sortOrder: 1 },
+    { label: "Prostate", fieldKey: "prostate", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Seminal Vesicles", fieldKey: "seminal_vesicles", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Bladder", fieldKey: "bladder", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+  ],
+  "SCROTAL/TESTICULAR SCAN": [
+    { label: "Right Testis", fieldKey: "right_testis", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Left Testis", fieldKey: "left_testis", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Epididymis", fieldKey: "epididymis", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Vascularity", fieldKey: "vascularity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+  ],
+  "THYROID SCAN": [
+    { label: "Right Lobe", fieldKey: "right_lobe", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Left Lobe", fieldKey: "left_lobe", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Isthmus", fieldKey: "isthmus", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Nodules", fieldKey: "nodules", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+    { label: "Vascularity", fieldKey: "vascularity", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
+  ],
+  "RENAL SCAN": [
+    { label: "Right Kidney", fieldKey: "right_kidney", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Left Kidney", fieldKey: "left_kidney", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Urinary Bladder", fieldKey: "bladder", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+  ],
+  "NECK SCAN": [
+    { label: "Lymph Nodes", fieldKey: "lymph_nodes", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Soft Tissue Findings", fieldKey: "soft_tissue", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+  ],
+  "LIVER/GALLBLADDER SCAN": [
+    { label: "Liver", fieldKey: "liver", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+    { label: "Gallbladder", fieldKey: "gallbladder", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+    { label: "Common Bile Duct", fieldKey: "cbd", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
     { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
   ],
   "FOLLICULOMETRY": [
@@ -1670,7 +2262,8 @@ async function main() {
   }
 
   function buildRadiologyMainFields(testName: string) {
-    void RADIOLOGY_FIELD_LIBRARY[testName];
+    const specific = RADIOLOGY_FIELD_LIBRARY[testName];
+    if (specific) return specific;
     return makeRadiologyWorkflowFields();
   }
 
@@ -1758,6 +2351,5 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
-
 
 
