@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireMegaAdmin } from "@/lib/admin-auth";
+import { AdminSignOutButton } from "@/components/admin/admin-sign-out-button";
 
 const links = [
   { href: "/admin/dashboard", label: "Dashboard" },
@@ -32,6 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <div className="mt-6 border-t border-slate-100 pt-3">
             <p className="truncate text-xs font-medium text-slate-700">{user.fullName}</p>
             <p className="truncate text-xs text-slate-400">{user.email}</p>
+            <AdminSignOutButton className="mt-2 w-full justify-start text-xs" />
           </div>
         </aside>
 
@@ -50,6 +52,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                   {link.label}
                 </Link>
               ))}
+              <AdminSignOutButton className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:text-red-600" />
             </div>
           </div>
           {children}
