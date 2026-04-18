@@ -4,12 +4,18 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
+const AUTH_SECRET =
+  process.env.AUTH_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  (process.env.NODE_ENV !== "production" ? "diagsync-local-dev-auth-secret" : undefined);
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: AUTH_SECRET,
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",

@@ -5,6 +5,10 @@ import { getDashboardPath } from "@/lib/utils";
 import { OrganizationStatus, Role } from "@prisma/client";
 
 const publicRoutes = new Set(["/", "/login", "/register"]);
+const AUTH_SECRET =
+  process.env.AUTH_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  (process.env.NODE_ENV !== "production" ? "diagsync-local-dev-auth-secret" : undefined);
 
 const roleRouteMap: Record<string, Role[]> = {
   "/dashboard/receptionist": ["RECEPTIONIST", "SUPER_ADMIN"],
@@ -20,7 +24,7 @@ export default async function middleware(req: NextRequest) {
 
   const token = await getToken({
     req,
-    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+    secret: AUTH_SECRET,
   });
 
   const isPublicRoute = publicRoutes.has(pathname) || pathname.startsWith("/api/auth");
