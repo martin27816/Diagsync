@@ -14,7 +14,7 @@ export function AdminSignOutButton({ className }: AdminSignOutButtonProps) {
       type="button"
       onClick={() => signOut({ callbackUrl: "/login" })}
       className={cn(
-        "inline-flex items-center gap-2 rounded px-2 py-2 text-sm text-slate-600 transition-colors hover:bg-red-50 hover:text-red-600",
+        "inline-flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-2 text-sm text-red-200 transition-colors hover:bg-red-500/20 hover:text-red-100",
         className
       )}
     >
