@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { Role, Department } from "@prisma/client";
+import { syncFullTestCatalogToOrganization } from "@/lib/test-catalog";
 
 // Helper: accepts a valid URL, an empty string, null, or undefined — but never a non-URL string
 const optionalUrl = z
@@ -95,6 +96,8 @@ export async function POST(req: NextRequest) {
           department: Department.HR_OPERATIONS,
         },
       });
+
+      await syncFullTestCatalogToOrganization(tx, org.id);
 
       return { org, admin };
     });

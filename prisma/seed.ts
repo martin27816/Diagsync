@@ -1,9 +1,9 @@
 import { PrismaClient, Department, TestType, FieldType, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-if (process.env.DIRECT_URL) {
-  process.env.DATABASE_URL = process.env.DIRECT_URL;
-}
+//if (process.env.DIRECT_URL) {
+ // process.env.DATABASE_URL = process.env.DIRECT_URL;
+//}
 
 const prisma = new PrismaClient();
 
