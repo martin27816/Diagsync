@@ -25,6 +25,10 @@ export default async function middleware(req: NextRequest) {
   const token = await getToken({
     req,
     secret: AUTH_SECRET,
+    cookieName:
+      process.env.NODE_ENV === "production"
+        ? "__Secure-authjs.session-token"
+        : "authjs.session-token",
   });
 
   const isPublicRoute = publicRoutes.has(pathname) || pathname.startsWith("/api/auth");
