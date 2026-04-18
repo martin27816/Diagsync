@@ -1691,16 +1691,17 @@ export function LabTaskBoard() {
         {filtered.length === 0 ? (
           <p className="px-4 py-8 text-center text-xs text-slate-400">No assigned tests. You're all caught up.</p>
         ) : (
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[960px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Tests</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Priority</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Status</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Sample</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Updated</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Action</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Patient</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Tests</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Priority</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Status</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Sample</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Updated</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1719,12 +1720,12 @@ export function LabTaskBoard() {
                         <p className="text-[11px] text-slate-400">Last updated {getMinutesAgoLabel(task.updatedAt)} by {task.staff?.fullName ?? "assigned staff"}</p>
                         <p className="text-[11px] text-blue-600">{getNextStep(task)}</p>
                       </td>
-                      <td className="px-4 py-2.5 text-slate-500">{task.testOrders.map((order) => order.test.name).join(", ")}</td>
+                      <td className="px-4 py-2.5 text-slate-500 min-w-[220px]">{task.testOrders.map((order) => order.test.name).join(", ")}</td>
                       <td className="px-4 py-2.5"><span className={`rounded px-1.5 py-0.5 font-medium ${priorityStyle[task.priority]}`}>{task.priority}</span></td>
                       <td className="px-4 py-2.5"><span className={`rounded px-1.5 py-0.5 font-medium ${statusStyle[task.status]}`}>{task.status.replace("_", " ")}</span></td>
                       <td className="px-4 py-2.5 text-slate-500">{getSampleStatus(task)}</td>
                       <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(task.updatedAt)}</td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-2.5 whitespace-nowrap">
                         <div className="flex gap-1.5">
                           {task.status !== "COMPLETED" ? (
                             <button
@@ -1900,7 +1901,8 @@ export function LabTaskBoard() {
                 );
               })}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
       </div>
     </div>
