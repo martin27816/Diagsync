@@ -1,60 +1,167 @@
 import Link from "next/link";
 import { requireMegaAdmin } from "@/lib/admin-auth";
-import { AdminSignOutButton } from "@/components/admin/admin-sign-out-button";
 
 const links = [
-  { href: "/admin/dashboard", label: "Dashboard" },
-  { href: "/admin/labs", label: "Labs" },
-  { href: "/admin/users", label: "Users" },
-  { href: "/admin/analytics", label: "Analytics" },
+  { href: "/admin/dashboard", label: "COMMAND CENTER", icon: "⬡" },
+  { href: "/admin/labs", label: "LAB REGISTRY", icon: "◈" },
+  { href: "/admin/users", label: "PERSONNEL", icon: "◉" },
+  { href: "/admin/analytics", label: "INTEL FEED", icon: "◎" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireMegaAdmin();
 
   return (
-    <div className="min-h-screen bg-[#05070d] text-[#d7e3ff] [background-image:radial-gradient(circle_at_20%_0%,rgba(57,111,255,0.18),transparent_40%),radial-gradient(circle_at_90%_10%,rgba(0,201,255,0.12),transparent_35%),linear-gradient(180deg,#05070d_0%,#060a12_35%,#04060c_100%)]">
-      <div className="mx-auto flex w-full max-w-[1440px] gap-4 px-4 py-4 lg:px-6">
-        <aside className="hidden w-60 shrink-0 rounded-xl border border-cyan-500/20 bg-[#080d18]/85 p-3 shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_18px_40px_rgba(2,8,23,0.7)] backdrop-blur lg:block">
-          <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-200/70">
-            Platform Admin
-          </p>
-          <nav className="mt-3 space-y-1">
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="block rounded-lg border border-transparent px-2 py-2 text-sm text-[#b6c7ee] transition-colors hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-100"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="mt-6 border-t border-cyan-500/20 pt-3">
-            <p className="truncate text-xs font-semibold text-cyan-100">{user.fullName}</p>
-            <p className="truncate text-xs text-[#90a8d9]">{user.email}</p>
-            <AdminSignOutButton className="mt-2 w-full justify-start text-xs" />
-          </div>
-        </aside>
+    <div
+      className="min-h-screen"
+      style={{
+        background: "#020408",
+        backgroundImage: `
+          radial-gradient(ellipse at 20% 0%, rgba(0,255,136,0.05) 0%, transparent 55%),
+          radial-gradient(ellipse at 80% 100%, rgba(0,160,255,0.04) 0%, transparent 55%),
+          repeating-linear-gradient(0deg, transparent, transparent 49px, rgba(0,255,136,0.025) 49px, rgba(0,255,136,0.025) 50px),
+          repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(0,255,136,0.025) 49px, rgba(0,255,136,0.025) 50px)
+        `,
+        fontFamily: "'Courier New', Courier, monospace",
+        color: "#a0ffcc",
+      }}
+    >
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&display=swap');
+        .adm { font-family: 'Share Tech Mono', 'Courier New', monospace; }
+        .adm-title { font-family: 'Orbitron', monospace; }
+        @keyframes adm-blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        @keyframes adm-flicker { 0%,19%,21%,23%,25%,54%,56%,100%{opacity:1} 20%,24%,55%{opacity:0.7} }
+        .adm-blink { animation: adm-blink 1.2s step-end infinite; }
+        .adm-flicker { animation: adm-flicker 10s linear infinite; }
+        .adm-nav-link {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 9px 12px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          color: rgba(0,255,136,0.5);
+          border: 1px solid transparent;
+          border-radius: 2px;
+          text-decoration: none;
+          transition: all 0.15s ease;
+        }
+        .adm-nav-link:hover {
+          color: #00ff88;
+          border-color: rgba(0,255,136,0.35);
+          background: rgba(0,255,136,0.07);
+          box-shadow: 0 0 16px rgba(0,255,136,0.12), inset 0 0 8px rgba(0,255,136,0.05);
+          padding-left: 16px;
+        }
+        .adm-card {
+          border: 1px solid rgba(0,255,136,0.18);
+          border-radius: 3px;
+          background: rgba(0,8,4,0.8);
+          backdrop-filter: blur(10px);
+        }
+        .adm-dot {
+          width: 7px; height: 7px; border-radius: 50%;
+          background: #00ff88;
+          box-shadow: 0 0 6px #00ff88, 0 0 14px rgba(0,255,136,0.5);
+          flex-shrink: 0;
+        }
+      `}</style>
 
-        <div className="min-w-0 flex-1 space-y-4">
-          <div className="rounded-xl border border-cyan-500/20 bg-[#080d18]/85 p-3 shadow-[0_10px_28px_rgba(2,8,23,0.65)] backdrop-blur lg:hidden">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-200/70">
-              Platform Admin
-            </p>
-            <div className="flex flex-wrap gap-2">
+      {/* TOP BAR */}
+      <header style={{
+        borderBottom: "1px solid rgba(0,255,136,0.12)",
+        background: "rgba(2,4,8,0.9)",
+        backdropFilter: "blur(12px)",
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
+        padding: "9px 20px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="adm-dot adm-blink" />
+          <span className="adm-title adm-flicker" style={{ fontSize: 10, letterSpacing: "0.28em", color: "#00ff88", fontWeight: 700 }}>
+            DIAGSYNC // MEGA ADMIN TERMINAL
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <span style={{ fontSize: 9, color: "rgba(0,255,136,0.35)", letterSpacing: "0.12em" }}>
+            CLEARANCE: <span style={{ color: "rgba(255,60,60,0.85)" }}>LEVEL 5</span>
+          </span>
+          <span style={{ fontSize: 9, color: "rgba(0,255,136,0.4)", letterSpacing: "0.1em" }}>
+            SESSION ACTIVE <span className="adm-blink" style={{ color: "#00ff88" }}>▮</span>
+          </span>
+        </div>
+      </header>
+
+      <div style={{ display: "flex", maxWidth: 1400, margin: "0 auto", padding: "16px", gap: 14 }}>
+
+        {/* SIDEBAR desktop */}
+        <aside className="adm hidden lg:block" style={{ width: 210, flexShrink: 0 }}>
+          <div className="adm-card" style={{ padding: 14, position: "sticky", top: 52 }}>
+            <div style={{
+              fontSize: 9, letterSpacing: "0.18em", color: "rgba(255,50,50,0.8)",
+              padding: "4px 8px", border: "1px solid rgba(255,50,50,0.25)",
+              background: "rgba(255,50,50,0.06)", borderRadius: 2,
+              marginBottom: 14, textAlign: "center",
+            }}>
+              ⚠ TOP SECRET / SCI
+            </div>
+            <nav style={{ display: "flex", flexDirection: "column", gap: 3 }}>
               {links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-xs text-cyan-100"
-                >
+                <Link key={link.href} href={link.href} className="adm-nav-link">
+                  <span style={{ color: "rgba(0,255,136,0.35)", fontSize: 12 }}>{link.icon}</span>
                   {link.label}
                 </Link>
               ))}
-              <AdminSignOutButton className="rounded-lg border border-red-400/40 bg-red-500/10 px-2 py-1 text-xs text-red-200 hover:bg-red-500/20 hover:text-red-100" />
+            </nav>
+            <div style={{ margin: "16px 0", height: 1, background: "rgba(0,255,136,0.1)" }} />
+            <div>
+              <div style={{ fontSize: 8, color: "rgba(0,255,136,0.3)", letterSpacing: "0.18em", marginBottom: 8 }}>OPERATOR IDENTIFICATION</div>
+              <div style={{ fontSize: 11, color: "#00ff88", letterSpacing: "0.04em", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {user.fullName}
+              </div>
+              <div style={{ fontSize: 10, color: "rgba(0,255,136,0.38)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {user.email}
+              </div>
+              <div style={{
+                marginTop: 10, display: "inline-block", fontSize: 8, letterSpacing: "0.12em",
+                color: "rgba(255,180,0,0.85)", background: "rgba(255,180,0,0.07)",
+                border: "1px solid rgba(255,180,0,0.25)", padding: "3px 7px", borderRadius: 2,
+              }}>
+                ◈ MEGA_ADMIN
+              </div>
+            </div>
+            <div style={{ marginTop: 20, fontSize: 8, color: "rgba(0,255,136,0.18)", letterSpacing: "0.08em", lineHeight: 1.9 }}>
+              UNAUTHORIZED ACCESS IS A<br />FEDERAL CRIME — 18 U.S.C § 1030<br />ALL ACTIONS ARE LOGGED
             </div>
           </div>
+        </aside>
+
+        {/* MOBILE NAV */}
+        <div className="adm lg:hidden w-full">
+          <div className="adm-card" style={{ padding: 12, marginBottom: 14 }}>
+            <div style={{ fontSize: 8, color: "rgba(255,50,50,0.7)", letterSpacing: "0.2em", marginBottom: 8 }}>⚠ TOP SECRET // PLATFORM CONTROL</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {links.map((link) => (
+                <Link key={link.href} href={link.href} style={{
+                  fontSize: 9, padding: "5px 10px", border: "1px solid rgba(0,255,136,0.3)",
+                  borderRadius: 2, color: "#00ff88", textDecoration: "none",
+                  letterSpacing: "0.1em", background: "rgba(0,255,136,0.04)",
+                }}>
+                  {link.icon} {link.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div>{children}</div>
+        </div>
+
+        {/* DESKTOP MAIN */}
+        <div className="adm hidden lg:block min-w-0 flex-1">
           {children}
         </div>
       </div>

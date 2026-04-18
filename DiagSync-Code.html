@@ -22,7 +22,10 @@ CLOUDINARY_API_SECRET="jXop_IslpytJjC69fjsFfOfK5JE"
 NEXT_PUBLIC_VAPID_PUBLIC_KEY="BFUGMonqc9lbOJo7r5Pk4XTclEoBO0ioQ0wHgZ4MGDdJSfd523wjbvaQq-YfX5sixbXsaghoIHbgL9wX10El38k"
 VAPID_PRIVATE_KEY="736P0W_BZL8ev96VouyCcrQ4SDx66GtrpP6lrmrqj8s"
 VAPID_SUBJECT="mailto:admin@example.com"
-</pre></div>
+
+mega_ADMIN_EMAIL= "admin@diagsync.com"
+mega_ADMIN_PASSWORD="Admin@1234"
+mega_ADMIN_NAME="Mega Admin Dev"</pre></div>
 <div class='file-block'><div class='file-header'>.env.example</div><pre># Copy this file to .env.local and fill in your values
 
 # Database - PostgreSQL connection strings
@@ -37,6 +40,11 @@ NEXTAUTH_URL="https://diagsync.vercel.app"
 # App
 NEXT_PUBLIC_APP_NAME="DiagOps"
 NEXT_PUBLIC_APP_URL="https://diagsync.vercel.app"
+
+# Platform mega admin bootstrap (seed only)
+mega_ADMIN_EMAIL="admin@diagsync.com"
+mega_ADMIN_PASSWORD="change-this-password"
+mega_ADMIN_NAME="DiagSync Admin"
 
 # Web Push (service worker push notifications)
 # Generate once with: npx web-push generate-vapid-keys
@@ -150,6 +158,8 @@ model Organization {
   id                         String              @id @default(cuid())
   name                       String
   email                      String              @unique
+  plan                       OrganizationPlan    @default(STARTER)
+  status                     OrganizationStatus  @default(ACTIVE)
   phone                      String
   address                    String
   logo                       String?
@@ -169,7 +179,7 @@ model Organization {
 
 model Staff {
   id                                   String                    @id @default(cuid())
-  organizationId                       String
+  organizationId                       String?
   fullName                             String
   email                                String                    @unique
   phone                                String
@@ -183,6 +193,7 @@ model Staff {
   availabilityStatus                   AvailabilityStatus        @default(UNAVAILABLE)
   lastAvailableAt                      DateTime?
   lastUnavailableAt                    DateTime?
+  lastSeen                             DateTime?
   createdAt                            DateTime                  @default(now())
   updatedAt                            DateTime                  @updatedAt
   createdById                          String?
@@ -209,7 +220,7 @@ model Staff {
   sessions                             Session[]
   createdBy                            Staff?                    @relation("StaffCreatedBy", fields: [createdById], references: [id])
   createdStaff                         Staff[]                   @relation("StaffCreatedBy")
-  organization                         Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization                         Organization?             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   assignedTestOrders                   TestOrder[]               @relation("AssignedTestOrders")
   overriddenTestOrders                 TestOrder[]               @relation("OverriddenTestOrders")
   visitPayments                        VisitPayment[]
@@ -735,12 +746,23 @@ model RadiologyReportVersion {
 }
 
 enum Role {
+  MEGA_ADMIN
   SUPER_ADMIN
   RECEPTIONIST
   LAB_SCIENTIST
   RADIOGRAPHER
   MD
   HRM
+}
+
+enum OrganizationPlan {
+  STARTER
+  ENTERPRISE
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
 }
 
 enum Department {
@@ -887,12 +909,12 @@ enum ConsultationStatus {
   CANCELLED
 }
 </pre></div>
-<div class='file-block'><div class='file-header'>prisma/seed.ts</div><pre>import { PrismaClient, Department, TestType, FieldType } from "@prisma/client";
+<div class='file-block'><div class='file-header'>prisma/seed.ts</div><pre>import { PrismaClient, Department, TestType, FieldType, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-if (process.env.DIRECT_URL) {
-  process.env.DATABASE_URL = process.env.DIRECT_URL;
-}
+//if (process.env.DIRECT_URL) {
+ // process.env.DATABASE_URL = process.env.DIRECT_URL;
+//}
 
 const prisma = new PrismaClient();
 
@@ -910,8 +932,48 @@ type SeedField = {
   sortOrder: number;
 };
 
+async function bootstrapMegaAdmin() {
+  const megaAdminEmail = (process.env.mega_ADMIN_EMAIL ?? process.env.MEGA_ADMIN_EMAIL ?? "").trim();
+  const megaAdminPassword = (process.env.mega_ADMIN_PASSWORD ?? process.env.MEGA_ADMIN_PASSWORD ?? "").trim();
+  const megaAdminName = (process.env.mega_ADMIN_NAME ?? process.env.MEGA_ADMIN_NAME ?? "").trim();
+
+  if (!megaAdminEmail || !megaAdminPassword || !megaAdminName) {
+    throw new Error(
+      "Missing required env vars: mega_ADMIN_EMAIL, mega_ADMIN_PASSWORD, mega_ADMIN_NAME"
+    );
+  }
+
+  const existing = await prisma.staff.findUnique({
+    where: { email: megaAdminEmail },
+    select: { id: true },
+  });
+
+  if (existing) {
+    console.log("mega admin already exists");
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(megaAdminPassword, 12);
+  await prisma.staff.create({
+    data: {
+      fullName: megaAdminName,
+      email: megaAdminEmail,
+      phone: "+0000000000000",
+      passwordHash,
+      role: Role.MEGA_ADMIN,
+      department: "HR_OPERATIONS",
+      status: "ACTIVE",
+      availabilityStatus: "UNAVAILABLE",
+    },
+    select: { id: true },
+  });
+
+  console.log("mega admin created");
+}
+
 async function main() {
   console.log("ðŸŒ± Seeding Tests...");
+  await bootstrapMegaAdmin();
 
   // â”€â”€ Seed Test Categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const categories = await Promise.all([
@@ -1051,6 +1113,7 @@ async function main() {
   }
 
   const COMPLEX_REFERENCE_FIELDS = new Set([
+    "amh",
     "psa_total",
     "psa_free",
     "fsh",
@@ -1189,6 +1252,40 @@ async function main() {
       { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
       { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
     ];
+  }
+
+  async function syncExistingTestFieldsByName(params: {
+    name: string;
+    type: TestType;
+    fields: SeedField[];
+  }) {
+    const targets = await prisma.diagnosticTest.findMany({
+      where: { organizationId: orgId, name: params.name },
+      select: { id: true },
+    });
+    if (targets.length === 0) return 0;
+
+    const enriched = withReferenceMetadata(params.name, params.type, params.fields);
+    for (const target of targets) {
+      await prisma.resultTemplateField.deleteMany({ where: { testId: target.id } });
+      await prisma.resultTemplateField.createMany({
+        data: enriched.map((field) =&gt; ({
+          testId: target.id,
+          label: field.label,
+          fieldKey: field.fieldKey,
+          fieldType: field.fieldType,
+          unit: field.unit,
+          normalMin: field.normalMin,
+          normalMax: field.normalMax,
+          normalText: field.normalText,
+          referenceNote: field.referenceNote,
+          options: field.options,
+          isRequired: field.isRequired ?? true,
+          sortOrder: field.sortOrder,
+        })),
+      });
+    }
+    return targets.length;
   }
 
   // â”€â”€ LAB TESTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1671,6 +1768,132 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
+  // 25b. Force-sync PSA templates for existing databases (even when test names already exist)
+  const psaPanelFields: SeedField[] = [
+    {
+      label: "Total PSA",
+      fieldKey: "psa_total",
+      fieldType: FieldType.NUMBER,
+      unit: "ng/mL",
+      normalMin: 0,
+      normalMax: 4.0,
+      referenceNote: "Typical adult male range 0.0-4.0 ng/mL; may be acceptable up to 10.0 ng/mL in men over 70 years.",
+      sortOrder: 1,
+    },
+    {
+      label: "Free PSA",
+      fieldKey: "psa_free",
+      fieldType: FieldType.NUMBER,
+      unit: "ng/mL",
+      normalMin: 0,
+      normalMax: 1.0,
+      sortOrder: 2,
+    },
+    {
+      label: "Percentage Free PSA",
+      fieldKey: "psa_percent_free",
+      fieldType: FieldType.NUMBER,
+      unit: "%",
+      normalMin: 24,
+      normalMax: 100,
+      referenceNote: "Normal cutoff &gt;=24%.",
+      sortOrder: 3,
+    },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+  ];
+
+  await syncExistingTestFieldsByName({
+    name: "PROSTATE SPECIFIC ANTIGEN (PSA)",
+    type: TestType.LAB,
+    fields: psaPanelFields,
+  });
+
+  await syncExistingTestFieldsByName({
+    name: "PROSTATE SPECIFIC ANTIGEN (FREE)",
+    type: TestType.LAB,
+    fields: [
+      {
+        label: "Free PSA",
+        fieldKey: "psa_free",
+        fieldType: FieldType.NUMBER,
+        unit: "ng/mL",
+        normalMin: 0,
+        normalMax: 1.0,
+        sortOrder: 1,
+      },
+      {
+        label: "Percentage Free PSA",
+        fieldKey: "psa_percent_free",
+        fieldType: FieldType.NUMBER,
+        unit: "%",
+        normalMin: 24,
+        normalMax: 100,
+        isRequired: false,
+        referenceNote: "Normal cutoff &gt;=24%.",
+        sortOrder: 2,
+      },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    ],
+  });
+
+  // Fallback: sync any legacy/custom PSA tests by name fragment (e.g. existing LB****PSA codes)
+  const legacyPsaTests = await prisma.diagnosticTest.findMany({
+    where: {
+      organizationId: orgId,
+      name: { contains: "PROSTATE SPECIFIC ANTIGEN", mode: "insensitive" },
+      type: TestType.LAB,
+    },
+    select: { id: true, name: true },
+  });
+
+  for (const test of legacyPsaTests) {
+    const isFree = test.name.toUpperCase().includes("(FREE)");
+    const fields = isFree
+      ? [
+          {
+            label: "Free PSA",
+            fieldKey: "psa_free",
+            fieldType: FieldType.NUMBER,
+            unit: "ng/mL",
+            normalMin: 0,
+            normalMax: 1.0,
+            sortOrder: 1,
+          },
+          {
+            label: "Percentage Free PSA",
+            fieldKey: "psa_percent_free",
+            fieldType: FieldType.NUMBER,
+            unit: "%",
+            normalMin: 24,
+            normalMax: 100,
+            isRequired: false,
+            referenceNote: "Normal cutoff &gt;=24%.",
+            sortOrder: 2,
+          },
+          { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+        ]
+      : psaPanelFields;
+
+    const enriched = withReferenceMetadata(test.name, TestType.LAB, fields);
+    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
+    await prisma.resultTemplateField.createMany({
+      data: enriched.map((field) =&gt; ({
+        testId: test.id,
+        label: field.label,
+        fieldKey: field.fieldKey,
+        fieldType: field.fieldType,
+        unit: field.unit,
+        normalMin: field.normalMin,
+        normalMax: field.normalMax,
+        normalText: field.normalText,
+        referenceNote: field.referenceNote,
+        options: field.options,
+        isRequired: field.isRequired ?? true,
+        sortOrder: field.sortOrder,
+      })),
+    });
+  }
+
   // 26. Bulk catalog expansion (Lab + Radiology master list)
   const extraCategories = await Promise.all([
     prisma.testCategory.upsert({
@@ -1707,6 +1930,8 @@ async function main() {
     "THYROXINE (T4 TOTAL)",
     "TRIIODOTHYRONINE (T3 TOTAL)",
     "TRIIODOTHYRONINE (T3 FREE)",
+    "THYROID FUNCTION TESTS (TFT)",
+    "THYROID ANTIBODY RECEPTOR (TRAb)",
     "ELECTROLYTES",
     "UREA",
     "CREATININE",
@@ -1741,6 +1966,8 @@ async function main() {
     "FOLLICLE STIMULATING HORMONE (FSH)",
     "LUTEINIZING HORMONE (LH)",
     "PROLACTIN",
+    "HORMONAL IMMUNOASSAY PANEL",
+    "ANTI-MULLERIAN HORMONE (AMH)",
     "OESTROGEN (E2)",
     "VITAMIN B12",
     "VITAMIN D",
@@ -2089,8 +2316,13 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "THYROID STIMULATING HORMONE (TSH)": [
-    { label: "TSH", fieldKey: "tsh", fieldType: FieldType.NUMBER, unit: "ÂµIU/mL", normalMin: 0.5, normalMax: 5.0, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "TSH", fieldKey: "tsh", fieldType: FieldType.NUMBER, unit: "uIU/mL", normalMin: 0.4, normalMax: 4.5, sortOrder: 1 },
+    { label: "Free T4", fieldKey: "free_t4", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 0.8, normalMax: 1.9, isRequired: false, sortOrder: 2 },
+    { label: "Free T3", fieldKey: "free_t3", fieldType: FieldType.NUMBER, unit: "pg/mL", normalMin: 2.3, normalMax: 4.2, isRequired: false, sortOrder: 3 },
+    { label: "Total T4", fieldKey: "total_t4", fieldType: FieldType.NUMBER, unit: "ug/dL", normalMin: 5.0, normalMax: 12.0, isRequired: false, sortOrder: 4 },
+    { label: "Total T3", fieldKey: "total_t3", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 80, normalMax: 200, isRequired: false, sortOrder: 5 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 7 },
   ],
   "THYROXINE (T4 FREE)": [
     { label: "Free T4", fieldKey: "free_t4", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 0.8, normalMax: 1.9, sortOrder: 1 },
@@ -2107,6 +2339,25 @@ async function main() {
   "TRIIODOTHYRONINE (T3 FREE)": [
     { label: "Free T3", fieldKey: "free_t3", fieldType: FieldType.NUMBER, unit: "pg/dL", normalMin: 130, normalMax: 450, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "THYROID FUNCTION TESTS (TFT)": [
+    { label: "TSH", fieldKey: "tsh", fieldType: FieldType.NUMBER, unit: "uIU/mL", normalMin: 0.4, normalMax: 4.5, sortOrder: 1 },
+    { label: "Free T4", fieldKey: "free_t4", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 0.8, normalMax: 1.9, sortOrder: 2 },
+    { label: "Free T3", fieldKey: "free_t3", fieldType: FieldType.NUMBER, unit: "pg/mL", normalMin: 2.3, normalMax: 4.2, sortOrder: 3 },
+    { label: "Total T4", fieldKey: "total_t4", fieldType: FieldType.NUMBER, unit: "ug/dL", normalMin: 5.0, normalMax: 12.0, isRequired: false, sortOrder: 4 },
+    { label: "Total T3", fieldKey: "total_t3", fieldType: FieldType.NUMBER, unit: "ng/dL", normalMin: 80, normalMax: 200, isRequired: false, sortOrder: 5 },
+    { label: "TSH Receptor Antibody (TRAb)", fieldKey: "trab", fieldType: FieldType.NUMBER, unit: "IU/L", normalMin: 0, normalMax: 1.75, isRequired: false, sortOrder: 6 },
+    { label: "Anti-TPO Antibody", fieldKey: "anti_tpo", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 34, isRequired: false, sortOrder: 7 },
+    { label: "Anti-Thyroglobulin Antibody", fieldKey: "anti_thyroglobulin", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 115, isRequired: false, sortOrder: 8 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 10 },
+  ],
+  "THYROID ANTIBODY RECEPTOR (TRAb)": [
+    { label: "TSH Receptor Antibody (TRAb)", fieldKey: "trab", fieldType: FieldType.NUMBER, unit: "IU/L", normalMin: 0, normalMax: 1.75, sortOrder: 1 },
+    { label: "Anti-TPO Antibody", fieldKey: "anti_tpo", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 34, isRequired: false, sortOrder: 2 },
+    { label: "Anti-Thyroglobulin Antibody", fieldKey: "anti_thyroglobulin", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 115, isRequired: false, sortOrder: 3 },
+    { label: "Method", fieldKey: "method", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 4 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
   ],
   "ELECTROLYTES": [
     { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 135, normalMax: 145, sortOrder: 1 },
@@ -2213,12 +2464,14 @@ async function main() {
     { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
   ],
   "PROSTATE SPECIFIC ANTIGEN (PSA)": [
-    { label: "Total PSA", fieldKey: "psa_total", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 4.0, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Total PSA", fieldKey: "psa_total", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 4.0, referenceNote: "Typical adult male range 0.0-4.0 ng/mL; may be acceptable up to 10.0 ng/mL in men over 70 years.", sortOrder: 1 },
+    { label: "Free PSA", fieldKey: "psa_free", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 1.0, sortOrder: 2 },
+    { label: "Percentage Free PSA", fieldKey: "psa_percent_free", fieldType: FieldType.NUMBER, unit: "%", normalMin: 24, normalMax: 100, referenceNote: "Normal cutoff &gt;=24%.", sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
   ],
   "PROSTATE SPECIFIC ANTIGEN (FREE)": [
-    { label: "Free PSA", fieldKey: "psa_free", fieldType: FieldType.NUMBER, unit: "ng/mL", sortOrder: 1 },
-    { label: "Free/Total PSA Ratio", fieldKey: "free_total_ratio", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 2 },
+    { label: "Free PSA", fieldKey: "psa_free", fieldType: FieldType.NUMBER, unit: "ng/mL", normalMin: 0, normalMax: 1.0, sortOrder: 1 },
+    { label: "Percentage Free PSA", fieldKey: "psa_percent_free", fieldType: FieldType.NUMBER, unit: "%", normalMin: 24, normalMax: 100, isRequired: false, referenceNote: "Normal cutoff &gt;=24%.", sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "CARCINOEMBRYONIC ANTIGEN (CEA)": [
@@ -2278,6 +2531,24 @@ async function main() {
     { label: "Prolactin", fieldKey: "prolactin", fieldType: FieldType.NUMBER, unit: "mIU/L", normalMin: 41, normalMax: 520, sortOrder: 1 },
     { label: "Sex", fieldKey: "sex", fieldType: FieldType.DROPDOWN, options: "Male,Female", isRequired: false, sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+  ],
+  "HORMONAL IMMUNOASSAY PANEL": [
+    { label: "FSH", fieldKey: "fsh", fieldType: FieldType.NUMBER, unit: "IU/L", isRequired: false, sortOrder: 1 },
+    { label: "LH", fieldKey: "lh", fieldType: FieldType.NUMBER, unit: "IU/L", isRequired: false, sortOrder: 2 },
+    { label: "Prolactin", fieldKey: "prolactin", fieldType: FieldType.NUMBER, unit: "ng/mL", isRequired: false, sortOrder: 3 },
+    { label: "Estradiol (E2)", fieldKey: "estradiol", fieldType: FieldType.NUMBER, unit: "pg/mL", isRequired: false, sortOrder: 4 },
+    { label: "Progesterone", fieldKey: "progesterone", fieldType: FieldType.NUMBER, unit: "ng/mL", isRequired: false, sortOrder: 5 },
+    { label: "Total Testosterone", fieldKey: "testosterone", fieldType: FieldType.NUMBER, unit: "ng/dL", isRequired: false, sortOrder: 6 },
+    { label: "Beta hCG", fieldKey: "beta_hcg", fieldType: FieldType.NUMBER, unit: "mIU/mL", isRequired: false, sortOrder: 7 },
+    { label: "Cycle Day / Clinical Context", fieldKey: "clinical_context", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 8 },
+    { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 10 },
+  ],
+  "ANTI-MULLERIAN HORMONE (AMH)": [
+    { label: "AMH", fieldKey: "amh", fieldType: FieldType.NUMBER, unit: "ng/mL", sortOrder: 1 },
+    { label: "Reference Group", fieldKey: "reference_group", fieldType: FieldType.DROPDOWN, options: "Female reproductive age,Female peri-menopause,Female post-menopause,Male", isRequired: false, sortOrder: 2 },
+    { label: "Ovarian Reserve Comment", fieldKey: "ovarian_reserve_comment", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
   ],
   "OESTROGEN (E2)": [
     { label: "Estradiol (E2)", fieldKey: "estradiol", fieldType: FieldType.NUMBER, unit: "pmol/L", sortOrder: 1 },
@@ -2666,6 +2937,22 @@ async function main() {
     { label: "ASO Titre", fieldKey: "aso_titre", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 200, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
+  "ANTI-CCP ANTIBODY": [
+    { label: "Anti-CCP", fieldKey: "anti_ccp", fieldType: FieldType.NUMBER, unit: "U/mL", normalMin: 0, normalMax: 17, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ANTI-dsDNA ANTIBODY": [
+    { label: "Anti-dsDNA", fieldKey: "anti_dsdna", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 30, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ANTI-TPO ANTIBODY": [
+    { label: "Anti-TPO Antibody", fieldKey: "anti_tpo", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 34, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
+  "ANTI-THYROGLOBULIN ANTIBODY": [
+    { label: "Anti-Thyroglobulin Antibody", fieldKey: "anti_thyroglobulin", fieldType: FieldType.NUMBER, unit: "IU/mL", normalMin: 0, normalMax: 115, sortOrder: 1 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+  ],
   "RHEUMATOID FACTOR": [
     { label: "Rheumatoid Factor", fieldKey: "rf", fieldType: FieldType.NUMBER, unit: "kIU/L", normalMin: 0, normalMax: 20, sortOrder: 1 },
     { label: "Qualitative", fieldKey: "rf_qual", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", isRequired: false, sortOrder: 2 },
@@ -3014,7 +3301,10 @@ main()
     console.error(e);
     await prisma.$disconnect();
     process.exit(1);
-  });</pre></div>
+  });
+
+
+</pre></div>
 <div class='file-block'><div class='file-header'>public/sw.js</div><pre>self.addEventListener("install", (event) =&gt; {
   self.skipWaiting();
 });
@@ -3186,6 +3476,591 @@ npm run db:seed      # Re-seed the database
 - Visit model
 
 </pre></div>
+<div class='file-block'><div class='file-header'>src/app/(admin)/admin/analytics/page.tsx</div><pre>import { getAdminAnalytics } from "@/lib/admin-analytics";
+import { requireMegaAdmin } from "@/lib/admin-auth";
+
+export default async function AdminAnalyticsPage() {
+  await requireMegaAdmin();
+  const analytics = await getAdminAnalytics();
+
+  return (
+    &lt;div className="space-y-4"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-lg font-semibold text-slate-800"&gt;Platform Analytics&lt;/h1&gt;
+        &lt;p className="text-xs text-slate-500"&gt;Growth and activity across all labs.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;div className="grid grid-cols-1 gap-3 sm:grid-cols-3"&gt;
+        &lt;div className="rounded-lg border border-slate-200 bg-white p-4"&gt;
+          &lt;p className="text-xs uppercase tracking-wide text-slate-400"&gt;Labs Growth Rows&lt;/p&gt;
+          &lt;p className="mt-1 text-2xl font-bold text-slate-800"&gt;{analytics.growthSeries.length}&lt;/p&gt;
+        &lt;/div&gt;
+        &lt;div className="rounded-lg border border-slate-200 bg-white p-4"&gt;
+          &lt;p className="text-xs uppercase tracking-wide text-slate-400"&gt;Most Active Labs&lt;/p&gt;
+          &lt;p className="mt-1 text-2xl font-bold text-slate-800"&gt;{analytics.activity.mostActiveLabs.length}&lt;/p&gt;
+        &lt;/div&gt;
+        &lt;div className="rounded-lg border border-slate-200 bg-white p-4"&gt;
+          &lt;p className="text-xs uppercase tracking-wide text-slate-400"&gt;Activity Counts&lt;/p&gt;
+          &lt;p className="mt-1 text-2xl font-bold text-slate-800"&gt;{analytics.summary.activeToday}&lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;div className="overflow-hidden rounded-lg border border-slate-200 bg-white"&gt;
+        &lt;div className="border-b border-slate-100 px-4 py-3"&gt;
+          &lt;p className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Growth Over Time&lt;/p&gt;
+        &lt;/div&gt;
+        {analytics.growthSeries.length === 0 ? (
+          &lt;p className="px-4 py-8 text-sm text-slate-400"&gt;No growth data available yet.&lt;/p&gt;
+        ) : (
+          &lt;div className="overflow-x-auto"&gt;
+            &lt;table className="w-full min-w-[560px] text-sm"&gt;
+              &lt;thead&gt;
+                &lt;tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"&gt;
+                  &lt;th className="px-4 py-2"&gt;Month&lt;/th&gt;
+                  &lt;th className="px-4 py-2 text-right"&gt;Labs Created&lt;/th&gt;
+                  &lt;th className="px-4 py-2 text-right"&gt;Users Created&lt;/th&gt;
+                &lt;/tr&gt;
+              &lt;/thead&gt;
+              &lt;tbody&gt;
+                {analytics.growthSeries.map((row) =&gt; (
+                  &lt;tr key={row.month} className="border-b border-slate-100"&gt;
+                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{row.month}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-right text-slate-700"&gt;{row.labs}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-right text-slate-700"&gt;{row.users}&lt;/td&gt;
+                  &lt;/tr&gt;
+                ))}
+              &lt;/tbody&gt;
+            &lt;/table&gt;
+          &lt;/div&gt;
+        )}
+      &lt;/div&gt;
+
+      &lt;div className="overflow-hidden rounded-lg border border-slate-200 bg-white"&gt;
+        &lt;div className="border-b border-slate-100 px-4 py-3"&gt;
+          &lt;p className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Most Active Labs&lt;/p&gt;
+        &lt;/div&gt;
+        {analytics.activity.mostActiveLabs.length === 0 ? (
+          &lt;p className="px-4 py-8 text-sm text-slate-400"&gt;No active labs found.&lt;/p&gt;
+        ) : (
+          &lt;div className="overflow-x-auto"&gt;
+            &lt;table className="w-full min-w-[700px] text-sm"&gt;
+              &lt;thead&gt;
+                &lt;tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"&gt;
+                  &lt;th className="px-4 py-2"&gt;Lab&lt;/th&gt;
+                  &lt;th className="px-4 py-2"&gt;Email&lt;/th&gt;
+                  &lt;th className="px-4 py-2 text-right"&gt;Activity Count&lt;/th&gt;
+                &lt;/tr&gt;
+              &lt;/thead&gt;
+              &lt;tbody&gt;
+                {analytics.activity.mostActiveLabs.map((lab) =&gt; (
+                  &lt;tr key={lab.organizationId ?? lab.name} className="border-b border-slate-100"&gt;
+                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{lab.name}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-500"&gt;{lab.email || "-"}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-right font-semibold text-slate-700"&gt;
+                      {lab.activityCount}
+                    &lt;/td&gt;
+                  &lt;/tr&gt;
+                ))}
+              &lt;/tbody&gt;
+            &lt;/table&gt;
+          &lt;/div&gt;
+        )}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(admin)/admin/dashboard/page.tsx</div><pre>import { getAdminAnalytics } from "@/lib/admin-analytics";
+import { requireMegaAdmin } from "@/lib/admin-auth";
+
+export default async function AdminDashboardPage() {
+  await requireMegaAdmin();
+  const analytics = await getAdminAnalytics();
+  const summary = analytics.summary;
+
+  const cards = [
+    { label: "Total Labs", value: summary.totalLabs },
+    { label: "Active Labs", value: summary.activeLabs },
+    { label: "Suspended Labs", value: summary.suspendedLabs },
+    { label: "Total Users", value: summary.totalUsers },
+    { label: "Total Patients", value: summary.totalPatients },
+    { label: "Active Today", value: summary.activeToday },
+    { label: "Total Test Requests", value: summary.totalTestRequests },
+    { label: "Labs This Month", value: summary.labsCreatedThisMonth },
+    { label: "Users Active This Week", value: summary.usersActiveThisWeek },
+  ];
+
+  return (
+    &lt;div className="space-y-4"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-lg font-semibold text-slate-800"&gt;Platform Dashboard&lt;/h1&gt;
+        &lt;p className="text-xs text-slate-500"&gt;Top-level metrics across all organizations.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"&gt;
+        {cards.map((card) =&gt; (
+          &lt;div key={card.label} className="rounded-lg border border-slate-200 bg-white p-4"&gt;
+            &lt;p className="text-xs uppercase tracking-wide text-slate-400"&gt;{card.label}&lt;/p&gt;
+            &lt;p className="mt-1 text-2xl font-bold text-slate-800"&gt;{card.value}&lt;/p&gt;
+          &lt;/div&gt;
+        ))}
+      &lt;/div&gt;
+
+      &lt;div className="rounded-lg border border-slate-200 bg-white"&gt;
+        &lt;div className="border-b border-slate-100 px-4 py-3"&gt;
+          &lt;p className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;
+            Most Active Labs (This Week)
+          &lt;/p&gt;
+        &lt;/div&gt;
+        {analytics.activity.mostActiveLabs.length === 0 ? (
+          &lt;p className="px-4 py-6 text-sm text-slate-400"&gt;No lab activity found this week.&lt;/p&gt;
+        ) : (
+          &lt;div className="overflow-x-auto"&gt;
+            &lt;table className="w-full text-sm"&gt;
+              &lt;thead&gt;
+                &lt;tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"&gt;
+                  &lt;th className="px-4 py-2"&gt;Lab&lt;/th&gt;
+                  &lt;th className="px-4 py-2"&gt;Email&lt;/th&gt;
+                  &lt;th className="px-4 py-2 text-right"&gt;Activity Count&lt;/th&gt;
+                &lt;/tr&gt;
+              &lt;/thead&gt;
+              &lt;tbody&gt;
+                {analytics.activity.mostActiveLabs.map((lab) =&gt; (
+                  &lt;tr key={lab.organizationId ?? lab.name} className="border-b border-slate-100"&gt;
+                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{lab.name}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-500"&gt;{lab.email || "-"}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-right font-semibold text-slate-700"&gt;
+                      {lab.activityCount}
+                    &lt;/td&gt;
+                  &lt;/tr&gt;
+                ))}
+              &lt;/tbody&gt;
+            &lt;/table&gt;
+          &lt;/div&gt;
+        )}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(admin)/admin/labs/actions.ts</div><pre>"use server";
+
+import { requireMegaAdmin } from "@/lib/admin-auth";
+import { setOrganizationStatus } from "@/lib/admin-data";
+import { revalidatePath } from "next/cache";
+
+export async function suspendLabAction(formData: FormData) {
+  await requireMegaAdmin();
+  const id = String(formData.get("organizationId") ?? "");
+  if (!id) return;
+
+  await setOrganizationStatus(id, "SUSPENDED");
+  revalidatePath("/admin/labs");
+  revalidatePath(`/admin/labs/${id}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/analytics");
+}
+
+export async function activateLabAction(formData: FormData) {
+  await requireMegaAdmin();
+  const id = String(formData.get("organizationId") ?? "");
+  if (!id) return;
+
+  await setOrganizationStatus(id, "ACTIVE");
+  revalidatePath("/admin/labs");
+  revalidatePath(`/admin/labs/${id}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/analytics");
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(admin)/admin/labs/page.tsx</div><pre>import Link from "next/link";
+import { listOrganizations } from "@/lib/admin-data";
+import { requireMegaAdmin } from "@/lib/admin-auth";
+import { formatDateTime } from "@/lib/utils";
+import { activateLabAction, suspendLabAction } from "./actions";
+
+type SearchParams = {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+  plan?: string;
+  status?: string;
+};
+
+export default async function AdminLabsPage({ searchParams }: { searchParams: SearchParams }) {
+  await requireMegaAdmin();
+
+  const page = Number(searchParams.page ?? "1");
+  const pageSize = Number(searchParams.pageSize ?? "20");
+  const search = searchParams.search ?? "";
+  const plan = searchParams.plan ?? "";
+  const status = searchParams.status ?? "";
+
+  const data = await listOrganizations({
+    page,
+    pageSize,
+    search: search || undefined,
+    plan: plan || undefined,
+    status: status || undefined,
+  });
+
+  return (
+    &lt;div className="space-y-4"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-lg font-semibold text-slate-800"&gt;Labs&lt;/h1&gt;
+        &lt;p className="text-xs text-slate-500"&gt;Monitor and manage organizations on the platform.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;form className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4"&gt;
+        &lt;input
+          type="text"
+          name="search"
+          defaultValue={search}
+          placeholder="Search lab name or email"
+          className="rounded border border-slate-200 px-3 py-2 text-sm"
+        /&gt;
+        &lt;select name="plan" defaultValue={plan} className="rounded border border-slate-200 px-3 py-2 text-sm"&gt;
+          &lt;option value=""&gt;All plans&lt;/option&gt;
+          &lt;option value="STARTER"&gt;STARTER&lt;/option&gt;
+          &lt;option value="ENTERPRISE"&gt;ENTERPRISE&lt;/option&gt;
+        &lt;/select&gt;
+        &lt;select
+          name="status"
+          defaultValue={status}
+          className="rounded border border-slate-200 px-3 py-2 text-sm"
+        &gt;
+          &lt;option value=""&gt;All statuses&lt;/option&gt;
+          &lt;option value="ACTIVE"&gt;ACTIVE&lt;/option&gt;
+          &lt;option value="SUSPENDED"&gt;SUSPENDED&lt;/option&gt;
+        &lt;/select&gt;
+        &lt;button className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white"&gt;Apply&lt;/button&gt;
+      &lt;/form&gt;
+
+      &lt;div className="overflow-hidden rounded-lg border border-slate-200 bg-white"&gt;
+        &lt;div className="overflow-x-auto"&gt;
+          &lt;table className="w-full min-w-[900px] text-sm"&gt;
+            &lt;thead&gt;
+              &lt;tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"&gt;
+                &lt;th className="px-4 py-2"&gt;Lab Name&lt;/th&gt;
+                &lt;th className="px-4 py-2"&gt;Email&lt;/th&gt;
+                &lt;th className="px-4 py-2"&gt;Plan&lt;/th&gt;
+                &lt;th className="px-4 py-2"&gt;Status&lt;/th&gt;
+                &lt;th className="px-4 py-2 text-right"&gt;Total Users&lt;/th&gt;
+                &lt;th className="px-4 py-2"&gt;Created&lt;/th&gt;
+                &lt;th className="px-4 py-2"&gt;Last Activity&lt;/th&gt;
+                &lt;th className="px-4 py-2"&gt;Actions&lt;/th&gt;
+              &lt;/tr&gt;
+            &lt;/thead&gt;
+            &lt;tbody&gt;
+              {data.items.length === 0 ? (
+                &lt;tr&gt;
+                  &lt;td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400"&gt;
+                    No labs found
+                  &lt;/td&gt;
+                &lt;/tr&gt;
+              ) : (
+                data.items.map((lab) =&gt; (
+                  &lt;tr key={lab.id} className="border-b border-slate-100"&gt;
+                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{lab.name}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-500"&gt;{lab.email}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-600"&gt;{lab.plan}&lt;/td&gt;
+                    &lt;td className="px-4 py-2"&gt;
+                      &lt;span
+                        className={`rounded px-2 py-1 text-xs font-medium ${
+                          lab.status === "ACTIVE"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-red-50 text-red-700"
+                        }`}
+                      &gt;
+                        {lab.status}
+                      &lt;/span&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-right text-slate-700"&gt;{lab.totalUsers}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-500"&gt;{formatDateTime(lab.createdAt)}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-500"&gt;
+                      {lab.lastActivity ? formatDateTime(lab.lastActivity) : "-"}
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2"&gt;
+                      &lt;div className="flex items-center gap-2"&gt;
+                        &lt;Link
+                          href={`/admin/labs/${lab.id}`}
+                          className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600"
+                        &gt;
+                          View
+                        &lt;/Link&gt;
+                        {lab.status === "ACTIVE" ? (
+                          &lt;form action={suspendLabAction}&gt;
+                            &lt;input type="hidden" name="organizationId" value={lab.id} /&gt;
+                            &lt;button className="rounded border border-red-200 px-2 py-1 text-xs text-red-600"&gt;
+                              Suspend
+                            &lt;/button&gt;
+                          &lt;/form&gt;
+                        ) : (
+                          &lt;form action={activateLabAction}&gt;
+                            &lt;input type="hidden" name="organizationId" value={lab.id} /&gt;
+                            &lt;button className="rounded border border-emerald-200 px-2 py-1 text-xs text-emerald-700"&gt;
+                              Activate
+                            &lt;/button&gt;
+                          &lt;/form&gt;
+                        )}
+                      &lt;/div&gt;
+                    &lt;/td&gt;
+                  &lt;/tr&gt;
+                ))
+              )}
+            &lt;/tbody&gt;
+          &lt;/table&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm"&gt;
+        &lt;p className="text-slate-500"&gt;
+          Page {data.page} of {Math.max(data.totalPages, 1)} - {data.total} labs
+        &lt;/p&gt;
+        &lt;div className="flex items-center gap-2"&gt;
+          &lt;Link
+            href={`/admin/labs?page=${Math.max(1, data.page - 1)}&amp;pageSize=${data.pageSize}&amp;search=${encodeURIComponent(search)}&amp;plan=${plan}&amp;status=${status}`}
+            className={`rounded border px-3 py-1 ${data.page &lt;= 1 ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-200 text-slate-700"}`}
+          &gt;
+            Previous
+          &lt;/Link&gt;
+          &lt;Link
+            href={`/admin/labs?page=${Math.min(data.totalPages || 1, data.page + 1)}&amp;pageSize=${data.pageSize}&amp;search=${encodeURIComponent(search)}&amp;plan=${plan}&amp;status=${status}`}
+            className={`rounded border px-3 py-1 ${data.page &gt;= data.totalPages ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-200 text-slate-700"}`}
+          &gt;
+            Next
+          &lt;/Link&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(admin)/admin/layout.tsx</div><pre>import Link from "next/link";
+import { requireMegaAdmin } from "@/lib/admin-auth";
+
+const links = [
+  { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/labs", label: "Labs" },
+  { href: "/admin/users", label: "Users" },
+  { href: "/admin/analytics", label: "Analytics" },
+];
+
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const user = await requireMegaAdmin();
+
+  return (
+    &lt;div className="min-h-screen bg-slate-50"&gt;
+      &lt;div className="mx-auto flex w-full max-w-[1400px] gap-4 px-4 py-4 lg:px-6"&gt;
+        &lt;aside className="hidden w-56 shrink-0 rounded-lg border border-slate-200 bg-white p-3 lg:block"&gt;
+          &lt;p className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-400"&gt;
+            Platform Admin
+          &lt;/p&gt;
+          &lt;nav className="mt-3 space-y-1"&gt;
+            {links.map((link) =&gt; (
+              &lt;Link
+                key={link.href}
+                href={link.href}
+                className="block rounded px-2 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              &gt;
+                {link.label}
+              &lt;/Link&gt;
+            ))}
+          &lt;/nav&gt;
+          &lt;div className="mt-6 border-t border-slate-100 pt-3"&gt;
+            &lt;p className="truncate text-xs font-medium text-slate-700"&gt;{user.fullName}&lt;/p&gt;
+            &lt;p className="truncate text-xs text-slate-400"&gt;{user.email}&lt;/p&gt;
+          &lt;/div&gt;
+        &lt;/aside&gt;
+
+        &lt;div className="min-w-0 flex-1 space-y-4"&gt;
+          &lt;div className="rounded-lg border border-slate-200 bg-white p-3 lg:hidden"&gt;
+            &lt;p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400"&gt;
+              Platform Admin
+            &lt;/p&gt;
+            &lt;div className="flex flex-wrap gap-2"&gt;
+              {links.map((link) =&gt; (
+                &lt;Link
+                  key={link.href}
+                  href={link.href}
+                  className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-700"
+                &gt;
+                  {link.label}
+                &lt;/Link&gt;
+              ))}
+            &lt;/div&gt;
+          &lt;/div&gt;
+          {children}
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(admin)/admin/loading.tsx</div><pre>import { Skeleton } from "@/components/ui/skeleton";
+
+export default function AdminLoading() {
+  return (
+    &lt;div className="space-y-4"&gt;
+      &lt;Skeleton className="h-6 w-40" /&gt;
+      &lt;div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"&gt;
+        &lt;Skeleton className="h-24" /&gt;
+        &lt;Skeleton className="h-24" /&gt;
+        &lt;Skeleton className="h-24" /&gt;
+      &lt;/div&gt;
+      &lt;Skeleton className="h-72" /&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(admin)/admin/page.tsx</div><pre>import { redirect } from "next/navigation";
+
+export default function AdminIndexPage() {
+  redirect("/admin/dashboard");
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(admin)/admin/users/page.tsx</div><pre>import Link from "next/link";
+import { listPlatformUsers } from "@/lib/admin-data";
+import { requireMegaAdmin } from "@/lib/admin-auth";
+import { formatDateTime } from "@/lib/utils";
+
+type SearchParams = {
+  page?: string;
+  pageSize?: string;
+  search?: string;
+  role?: string;
+  organizationId?: string;
+  status?: string;
+};
+
+export default async function AdminUsersPage({ searchParams }: { searchParams: SearchParams }) {
+  await requireMegaAdmin();
+
+  const page = Number(searchParams.page ?? "1");
+  const pageSize = Number(searchParams.pageSize ?? "20");
+  const search = searchParams.search ?? "";
+  const role = searchParams.role ?? "";
+  const organizationId = searchParams.organizationId ?? "";
+  const status = searchParams.status ?? "";
+
+  const data = await listPlatformUsers({
+    page,
+    pageSize,
+    search: search || undefined,
+    role: role || undefined,
+    organizationId: organizationId || undefined,
+    status: status || undefined,
+  });
+
+  return (
+    &lt;div className="space-y-4"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-lg font-semibold text-slate-800"&gt;Users&lt;/h1&gt;
+        &lt;p className="text-xs text-slate-500"&gt;Platform-wide user list across all organizations.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;form className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4"&gt;
+        &lt;input
+          type="text"
+          name="search"
+          defaultValue={search}
+          placeholder="Search name or email"
+          className="rounded border border-slate-200 px-3 py-2 text-sm"
+        /&gt;
+        &lt;input
+          type="text"
+          name="organizationId"
+          defaultValue={organizationId}
+          placeholder="Filter by organization ID"
+          className="rounded border border-slate-200 px-3 py-2 text-sm"
+        /&gt;
+        &lt;select name="role" defaultValue={role} className="rounded border border-slate-200 px-3 py-2 text-sm"&gt;
+          &lt;option value=""&gt;All roles&lt;/option&gt;
+          &lt;option value="MEGA_ADMIN"&gt;MEGA_ADMIN&lt;/option&gt;
+          &lt;option value="SUPER_ADMIN"&gt;SUPER_ADMIN&lt;/option&gt;
+          &lt;option value="HRM"&gt;HRM&lt;/option&gt;
+          &lt;option value="RECEPTIONIST"&gt;RECEPTIONIST&lt;/option&gt;
+          &lt;option value="LAB_SCIENTIST"&gt;LAB_SCIENTIST&lt;/option&gt;
+          &lt;option value="RADIOGRAPHER"&gt;RADIOGRAPHER&lt;/option&gt;
+          &lt;option value="MD"&gt;MD&lt;/option&gt;
+        &lt;/select&gt;
+        &lt;select
+          name="status"
+          defaultValue={status}
+          className="rounded border border-slate-200 px-3 py-2 text-sm"
+        &gt;
+          &lt;option value=""&gt;All statuses&lt;/option&gt;
+          &lt;option value="ACTIVE"&gt;ACTIVE&lt;/option&gt;
+          &lt;option value="INACTIVE"&gt;INACTIVE&lt;/option&gt;
+          &lt;option value="SUSPENDED"&gt;SUSPENDED&lt;/option&gt;
+        &lt;/select&gt;
+        &lt;button className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white sm:col-span-4"&gt;
+          Apply Filters
+        &lt;/button&gt;
+      &lt;/form&gt;
+
+      &lt;div className="overflow-hidden rounded-lg border border-slate-200 bg-white"&gt;
+        &lt;div className="overflow-x-auto"&gt;
+          &lt;table className="w-full min-w-[980px] text-sm"&gt;
+            &lt;thead&gt;
+              &lt;tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"&gt;
+                &lt;th className="px-4 py-2"&gt;Name&lt;/th&gt;
+                &lt;th className="px-4 py-2"&gt;Email&lt;/th&gt;
+                &lt;th className="px-4 py-2"&gt;Role&lt;/th&gt;
+                &lt;th className="px-4 py-2"&gt;Organization&lt;/th&gt;
+                &lt;th className="px-4 py-2"&gt;Last Seen&lt;/th&gt;
+                &lt;th className="px-4 py-2"&gt;Created&lt;/th&gt;
+              &lt;/tr&gt;
+            &lt;/thead&gt;
+            &lt;tbody&gt;
+              {data.items.length === 0 ? (
+                &lt;tr&gt;
+                  &lt;td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400"&gt;
+                    No users match this filter
+                  &lt;/td&gt;
+                &lt;/tr&gt;
+              ) : (
+                data.items.map((user) =&gt; (
+                  &lt;tr key={user.id} className="border-b border-slate-100"&gt;
+                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{user.name}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-500"&gt;{user.email}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-600"&gt;{user.role}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-500"&gt;{user.organization?.name ?? "Platform"}&lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-500"&gt;
+                      {user.lastSeen ? formatDateTime(user.lastSeen) : "-"}
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2 text-slate-500"&gt;{formatDateTime(user.createdAt)}&lt;/td&gt;
+                  &lt;/tr&gt;
+                ))
+              )}
+            &lt;/tbody&gt;
+          &lt;/table&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm"&gt;
+        &lt;p className="text-slate-500"&gt;
+          Page {data.page} of {Math.max(data.totalPages, 1)} - {data.total} users
+        &lt;/p&gt;
+        &lt;div className="flex items-center gap-2"&gt;
+          &lt;Link
+            href={`/admin/users?page=${Math.max(1, data.page - 1)}&amp;pageSize=${data.pageSize}&amp;search=${encodeURIComponent(search)}&amp;role=${role}&amp;organizationId=${organizationId}&amp;status=${status}`}
+            className={`rounded border px-3 py-1 ${data.page &lt;= 1 ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-200 text-slate-700"}`}
+          &gt;
+            Previous
+          &lt;/Link&gt;
+          &lt;Link
+            href={`/admin/users?page=${Math.min(data.totalPages || 1, data.page + 1)}&amp;pageSize=${data.pageSize}&amp;search=${encodeURIComponent(search)}&amp;role=${role}&amp;organizationId=${organizationId}&amp;status=${status}`}
+            className={`rounded border px-3 py-1 ${data.page &gt;= data.totalPages ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-200 text-slate-700"}`}
+          &gt;
+            Next
+          &lt;/Link&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(auth)/layout.tsx</div><pre>export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     &lt;div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4"&gt;
@@ -3203,6 +4078,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -3218,7 +4094,9 @@ export function LoginClient() {
   const searchParams = useSearchParams();
   const rawCallbackUrl = searchParams.get("callbackUrl");
   const callbackUrl = rawCallbackUrl &amp;&amp; rawCallbackUrl !== "/" ? rawCallbackUrl : "/dashboard";
+  const suspended = searchParams.get("suspended") === "1";
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } =
     useForm&lt;FormData&gt;({ resolver: zodResolver(schema) });
@@ -3250,8 +4128,10 @@ export function LoginClient() {
 
       &lt;div className="rounded-lg border border-slate-200 bg-white p-6"&gt;
         &lt;form onSubmit={handleSubmit(onSubmit)} className="space-y-4"&gt;
-          {error &amp;&amp; (
-            &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt;
+          {(error || suspended) &amp;&amp; (
+            &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;
+              {error || "This organization is currently suspended. Please contact platform support."}
+            &lt;/div&gt;
           )}
 
           &lt;div&gt;
@@ -3262,7 +4142,22 @@ export function LoginClient() {
 
           &lt;div&gt;
             &lt;label className={labelCls}&gt;Password&lt;/label&gt;
-            &lt;input type="password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" autoComplete="current-password" {...register("password")} className={inputCls} /&gt;
+            &lt;div className="relative"&gt;
+              &lt;input
+                type={showPassword ? "text" : "password"}
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                autoComplete="current-password"
+                {...register("password")}
+                className={`${inputCls} pr-9`}
+              /&gt;
+              &lt;button
+                type="button"
+                onClick={() =&gt; setShowPassword((prev) =&gt; !prev)}
+                className="absolute inset-y-0 right-2 inline-flex items-center text-slate-400 hover:text-slate-600"
+              &gt;
+                {showPassword ? &lt;EyeOff className="h-4 w-4" /&gt; : &lt;Eye className="h-4 w-4" /&gt;}
+              &lt;/button&gt;
+            &lt;/div&gt;
             {errors.password &amp;&amp; &lt;p className="mt-0.5 text-[11px] text-red-500"&gt;{errors.password.message}&lt;/p&gt;}
           &lt;/div&gt;
 
@@ -3576,7 +4471,7 @@ export default async function HrmAnalyticsPage() {
       &lt;/div&gt;
 
       {/* Stat strip */}
-      &lt;div className="grid grid-cols-3 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden"&gt;
+      &lt;div className="grid grid-cols-1 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden sm:grid-cols-3"&gt;
         {[
           { label: "Avg Completion Time", value: formatMinutes(overview.analytics.averageCompletionMinutes) },
           { label: "Delayed Tasks", value: overview.metrics.delayedTasks, alert: overview.metrics.delayedTasks &gt; 0 },
@@ -3614,7 +4509,8 @@ export default async function HrmAnalyticsPage() {
         {overview.analytics.busiestStaff.length === 0 ? (
           &lt;p className="px-4 py-6 text-xs text-slate-400"&gt;No active workload yet.&lt;/p&gt;
         ) : (
-          &lt;table className="w-full text-xs"&gt;
+          &lt;div className="overflow-x-auto"&gt;
+            &lt;table className="w-full min-w-[640px] text-xs"&gt;
             &lt;thead&gt;
               &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Name&lt;/th&gt;
@@ -3637,7 +4533,8 @@ export default async function HrmAnalyticsPage() {
                 &lt;/tr&gt;
               ))}
             &lt;/tbody&gt;
-          &lt;/table&gt;
+            &lt;/table&gt;
+          &lt;/div&gt;
         )}
       &lt;/div&gt;
 
@@ -3648,7 +4545,7 @@ export default async function HrmAnalyticsPage() {
             Revenue + Leakage ({revenueOps.summary.windowDays}d)
           &lt;/span&gt;
         &lt;/div&gt;
-        &lt;div className="grid grid-cols-2 gap-px bg-slate-200 lg:grid-cols-5"&gt;
+        &lt;div className="grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-5"&gt;
           {[
             { label: "Ordered Value", value: formatCurrency(revenueOps.summary.orderedValue) },
             { label: "Billed Value", value: formatCurrency(revenueOps.summary.billedValue) },
@@ -3676,7 +4573,8 @@ export default async function HrmAnalyticsPage() {
         {revenueOps.profitByTestLine.length === 0 ? (
           &lt;p className="px-4 py-6 text-xs text-slate-400"&gt;No billing data yet.&lt;/p&gt;
         ) : (
-          &lt;table className="w-full text-xs"&gt;
+          &lt;div className="overflow-x-auto"&gt;
+            &lt;table className="w-full min-w-[640px] text-xs"&gt;
             &lt;thead&gt;
               &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Test&lt;/th&gt;
@@ -3701,7 +4599,8 @@ export default async function HrmAnalyticsPage() {
                 &lt;/tr&gt;
               ))}
             &lt;/tbody&gt;
-          &lt;/table&gt;
+            &lt;/table&gt;
+          &lt;/div&gt;
         )}
       &lt;/div&gt;
 
@@ -3710,7 +4609,7 @@ export default async function HrmAnalyticsPage() {
         &lt;div className="border-b border-slate-100 px-4 py-2.5"&gt;
           &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;No-show &amp; Cancellation Forecast&lt;/span&gt;
         &lt;/div&gt;
-        &lt;div className="grid grid-cols-2 gap-px bg-slate-200 lg:grid-cols-4"&gt;
+        &lt;div className="grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4"&gt;
           {[
             { label: "30d Rate", value: `${Math.round(revenueOps.noShowForecast.noShowCancelRate * 100)}%` },
             { label: "Last 7d", value: `${Math.round(revenueOps.noShowForecast.last7Rate * 100)}%` },
@@ -4414,7 +5313,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
-import { ROLE_LABELS, DEPARTMENT_LABELS, formatDate } from "@/lib/utils";
+import { StaffManagementTable } from "@/components/hrm/staff-management-table";
 
 export default async function StaffListPage() {
   const session = await auth();
@@ -4442,8 +5341,7 @@ export default async function StaffListPage() {
 
   return (
     &lt;div className="space-y-4"&gt;
-      {/* Header */}
-      &lt;div className="flex items-center justify-between"&gt;
+      &lt;div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"&gt;
         &lt;div&gt;
           &lt;h1 className="text-base font-semibold text-slate-800"&gt;Staff Management&lt;/h1&gt;
           &lt;p className="text-xs text-slate-400 mt-0.5"&gt;
@@ -4459,87 +5357,16 @@ export default async function StaffListPage() {
         &lt;/Link&gt;
       &lt;/div&gt;
 
-      {/* Table */}
-      &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
-        {staff.length === 0 ? (
-          &lt;div className="py-16 text-center"&gt;
-            &lt;p className="text-sm text-slate-400"&gt;No staff yet.&lt;/p&gt;
-            &lt;Link
-              href="/dashboard/hrm/staff/new"
-              className="mt-2 inline-flex text-xs text-blue-600 hover:underline"
-            &gt;
-              Add first staff member â†’
-            &lt;/Link&gt;
-          &lt;/div&gt;
-        ) : (
-          &lt;div className="overflow-x-auto"&gt;
-            &lt;table className="w-full text-xs"&gt;
-              &lt;thead&gt;
-                &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
-                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Name&lt;/th&gt;
-                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Email&lt;/th&gt;
-                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Role&lt;/th&gt;
-                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Department&lt;/th&gt;
-                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Shift&lt;/th&gt;
-                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Status&lt;/th&gt;
-                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Availability&lt;/th&gt;
-                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Joined&lt;/th&gt;
-                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;&lt;/th&gt;
-                &lt;/tr&gt;
-              &lt;/thead&gt;
-              &lt;tbody className="divide-y divide-slate-100"&gt;
-                {staff.map((s) =&gt; (
-                  &lt;tr key={s.id} className="hover:bg-slate-50 transition-colors"&gt;
-                    &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{s.fullName}&lt;/td&gt;
-                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;{s.email}&lt;/td&gt;
-                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;{ROLE_LABELS[s.role]}&lt;/td&gt;
-                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;
-                      {DEPARTMENT_LABELS[s.department] ?? s.department}
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;{s.defaultShift}&lt;/td&gt;
-                    &lt;td className="px-4 py-2.5"&gt;
-                      &lt;span
-                        className={`rounded px-1.5 py-0.5 font-medium ${
-                          s.status === "ACTIVE"
-                            ? "bg-green-50 text-green-700"
-                            : "bg-red-50 text-red-600"
-                        }`}
-                      &gt;
-                        {s.status}
-                      &lt;/span&gt;
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-2.5"&gt;
-                      &lt;span
-                        className={`rounded px-1.5 py-0.5 font-medium ${
-                          s.availabilityStatus === "AVAILABLE"
-                            ? "bg-blue-50 text-blue-700"
-                            : "bg-slate-100 text-slate-500"
-                        }`}
-                      &gt;
-                        {s.availabilityStatus === "AVAILABLE" ? "Available" : "Away"}
-                      &lt;/span&gt;
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
-                      {formatDate(s.dateJoined)}
-                    &lt;/td&gt;
-                    &lt;td className="px-4 py-2.5"&gt;
-                      &lt;Link
-                        href={`/dashboard/hrm/staff/${s.id}`}
-                        className="text-blue-600 hover:underline"
-                      &gt;
-                        View â†’
-                      &lt;/Link&gt;
-                    &lt;/td&gt;
-                  &lt;/tr&gt;
-                ))}
-              &lt;/tbody&gt;
-            &lt;/table&gt;
-          &lt;/div&gt;
-        )}
-      &lt;/div&gt;
+      &lt;StaffManagementTable
+        staff={staff.map((row) =&gt; ({
+          ...row,
+          dateJoined: row.dateJoined.toISOString(),
+        }))}
+      /&gt;
     &lt;/div&gt;
   );
-}</pre></div>
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/tests/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
@@ -5646,6 +6473,7 @@ type DaySummary = {
     registeredBy: { fullName: string };
     latestVisit:
       | {
+          id: string;
           priority: string;
           paymentStatus: string;
           totalAmount: number;
@@ -5792,6 +6620,7 @@ export default async function PatientsListPage({
       registeredBy: { fullName: patient.registeredBy.fullName },
       latestVisit: visit
         ? {
+            id: visit.id,
             priority: visit.priority,
             paymentStatus: visit.paymentStatus,
             totalAmount: Number(visit.totalAmount),
@@ -5805,6 +6634,7 @@ export default async function PatientsListPage({
   const sections = dayKeys.map((key) =&gt; grouped.get(key)!);
   const visibleRows = sections.reduce((acc, s) =&gt; acc + s.rows.length, 0);
   const canCreatePatient = ["RECEPTIONIST", "SUPER_ADMIN"].includes(user.role);
+  const canEditPatient = ["RECEPTIONIST", "SUPER_ADMIN", "HRM"].includes(user.role);
 
   const priorityStyle: Record&lt;string, string&gt; = {
     EMERGENCY: "bg-red-50 text-red-600",
@@ -5821,7 +6651,7 @@ export default async function PatientsListPage({
   return (
     &lt;div className="space-y-4"&gt;
       &lt;DayRolloverRefresh /&gt;
-      &lt;div className="flex items-center justify-between"&gt;
+      &lt;div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"&gt;
         &lt;div&gt;
           &lt;h1 className="text-base font-semibold text-slate-800"&gt;Daily Patient Tables&lt;/h1&gt;
           &lt;p className="text-xs text-slate-400 mt-0.5"&gt;
@@ -5840,13 +6670,13 @@ export default async function PatientsListPage({
       &lt;/div&gt;
 
       &lt;form method="GET" className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3"&gt;
-        &lt;div&gt;
+        &lt;div className="w-full sm:w-auto"&gt;
           &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Search patient&lt;/label&gt;
           &lt;input
             name="search"
             defaultValue={search}
             placeholder="Name, ID, phone..."
-            className="h-8 w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="h-8 w-full sm:w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
           /&gt;
         &lt;/div&gt;
         &lt;div&gt;
@@ -5881,7 +6711,9 @@ export default async function PatientsListPage({
         &lt;Link href="/dashboard/receptionist/patients" className="text-xs text-slate-400 hover:text-slate-600 pb-1"&gt;
           Reset
         &lt;/Link&gt;
-        &lt;span className="ml-auto text-xs text-slate-400 pb-1"&gt;{visibleRows} patient row{visibleRows !== 1 ? "s" : ""} in view&lt;/span&gt;
+        &lt;span className="w-full text-left text-xs text-slate-400 pb-1 sm:ml-auto sm:w-auto sm:text-right"&gt;
+          {visibleRows} patient row{visibleRows !== 1 ? "s" : ""} in view
+        &lt;/span&gt;
       &lt;/form&gt;
 
       &lt;div className="space-y-4"&gt;
@@ -5912,6 +6744,7 @@ export default async function PatientsListPage({
                       &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Payment&lt;/th&gt;
                       &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Registered By&lt;/th&gt;
                       &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Registered&lt;/th&gt;
+                      {canEditPatient ? &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Action&lt;/th&gt; : null}
                     &lt;/tr&gt;
                   &lt;/thead&gt;
                   &lt;tbody className="divide-y divide-slate-100"&gt;
@@ -5962,6 +6795,20 @@ export default async function PatientsListPage({
                           )}
                         &lt;/td&gt;
                         &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;{formatDateTime(row.createdAt)}&lt;/td&gt;
+                        {canEditPatient ? (
+                          &lt;td className="px-4 py-2.5"&gt;
+                            {row.latestVisit ? (
+                              &lt;Link
+                                href={`/dashboard/receptionist/patients/${row.id}/edit`}
+                                className="rounded border border-blue-200 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50"
+                              &gt;
+                                Edit Patient
+                              &lt;/Link&gt;
+                            ) : (
+                              "â€”"
+                            )}
+                          &lt;/td&gt;
+                        ) : null}
                       &lt;/tr&gt;
                     ))}
                   &lt;/tbody&gt;
@@ -5970,7 +6817,7 @@ export default async function PatientsListPage({
                       &lt;td colSpan={4} className="px-4 py-2.5 font-semibold text-slate-700"&gt;Daily Summary&lt;/td&gt;
                       &lt;td className="px-4 py-2.5 font-semibold text-slate-700"&gt;{formatCurrency(section.totalBilled)}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5 font-semibold text-slate-700"&gt;{formatCurrency(section.totalPaid)}&lt;/td&gt;
-                      &lt;td colSpan={4} className="px-4 py-2.5 text-slate-500"&gt;
+                      &lt;td colSpan={canEditPatient ? 5 : 4} className="px-4 py-2.5 text-slate-500"&gt;
                         {section.totalTests} test{section.totalTests !== 1 ? "s" : ""} registered
                       &lt;/td&gt;
                     &lt;/tr&gt;
@@ -6070,6 +6917,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
+  if (staff.role === "MEGA_ADMIN") {
+    redirect("/admin/dashboard");
+  }
+
+  if (!staff.organizationId || !staff.organization || staff.organization.status !== "ACTIVE") {
+    redirect("/login?suspended=1");
+  }
+
   const operationalRoles: Role[] = ["LAB_SCIENTIST", "RADIOGRAPHER", "MD", "RECEPTIONIST"];
   const showAvailability = operationalRoles.includes(staff.role);
 
@@ -6079,7 +6934,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         fullName: staff.fullName,
         email: staff.email,
         role: staff.role,
-        organizationName: staff.organization.name,
+        organizationName: staff.organization?.name,
       }}
       staffId={staff.id}
       staffName={staff.fullName}
@@ -6103,6 +6958,77 @@ export default async function DashboardLayout({ children }: { children: React.Re
   );
 }
 
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/admin/analytics/route.ts</div><pre>import { NextResponse } from "next/server";
+import { requireMegaAdminApi } from "@/lib/admin-auth";
+import { getAdminAnalytics } from "@/lib/admin-analytics";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const guard = await requireMegaAdminApi();
+  if (!guard.ok) {
+    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+  }
+
+  const data = await getAdminAnalytics();
+  return NextResponse.json({ success: true, data });
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/admin/labs/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { requireMegaAdminApi } from "@/lib/admin-auth";
+import { listOrganizations } from "@/lib/admin-data";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
+  const guard = await requireMegaAdminApi();
+  if (!guard.ok) {
+    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const page = Number(searchParams.get("page") ?? "1");
+  const pageSize = Number(searchParams.get("pageSize") ?? "20");
+  const search = searchParams.get("search") ?? undefined;
+  const plan = searchParams.get("plan") ?? undefined;
+  const status = searchParams.get("status") ?? undefined;
+
+  const data = await listOrganizations({ page, pageSize, search, plan, status });
+  return NextResponse.json({ success: true, data });
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/admin/users/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { requireMegaAdminApi } from "@/lib/admin-auth";
+import { listPlatformUsers } from "@/lib/admin-data";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
+  const guard = await requireMegaAdminApi();
+  if (!guard.ok) {
+    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const page = Number(searchParams.get("page") ?? "1");
+  const pageSize = Number(searchParams.get("pageSize") ?? "20");
+  const search = searchParams.get("search") ?? undefined;
+  const role = searchParams.get("role") ?? undefined;
+  const organizationId = searchParams.get("organizationId") ?? undefined;
+  const status = searchParams.get("status") ?? undefined;
+
+  const data = await listPlatformUsers({
+    page,
+    pageSize,
+    search,
+    role,
+    organizationId,
+    status,
+  });
+
+  return NextResponse.json({ success: true, data });
+}
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/consultations/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
@@ -6387,7 +7313,6 @@ export async function GET(req: NextRequest) {
         where: {
           organizationId: user.organizationId,
           department: "LABORATORY",
-          staffId: user.id,
         },
         _count: { status: true },
       }),
@@ -6797,6 +7722,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { Role, Department } from "@prisma/client";
+import { syncFullTestCatalogToOrganization } from "@/lib/test-catalog";
 
 // Helper: accepts a valid URL, an empty string, null, or undefined â€” but never a non-URL string
 const optionalUrl = z
@@ -6867,6 +7793,8 @@ export async function POST(req: NextRequest) {
         data: {
           name: data.orgName,
           email: data.orgEmail,
+          plan: "STARTER",
+          status: "ACTIVE",
           phone: data.orgPhone,
           address: data.orgAddress,
           contactInfo: data.orgContactInfo ?? null,
@@ -6886,6 +7814,8 @@ export async function POST(req: NextRequest) {
           department: Department.HR_OPERATIONS,
         },
       });
+
+      await syncFullTestCatalogToOrganization(tx, org.id);
 
       return { org, admin };
     });
@@ -6923,7 +7853,8 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}</pre></div>
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/patients/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -7586,6 +8517,12 @@ export async function POST(req: NextRequest) {
     }
 
     const data = parsed.data;
+    if (data.role === "MEGA_ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "Invalid role" },
+        { status: 400 }
+      );
+    }
 
     // Check email uniqueness
     const existing = await prisma.staff.findUnique({ where: { email: data.email } });
@@ -7737,7 +8674,7 @@ export async function POST(req: NextRequest) {
     }
 
     const user = session.user as { id: string; role: string; organizationId: string };
-    if (!["HRM", "SUPER_ADMIN"].includes(user.role)) {
+    if (!["RECEPTIONIST", "HRM", "SUPER_ADMIN"].includes(user.role)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 
@@ -9338,7 +10275,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
 
   return (
     &lt;div className="space-y-4"&gt;
-      &lt;div className="grid grid-cols-3 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden"&gt;
+      &lt;div className="grid grid-cols-1 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden sm:grid-cols-3"&gt;
         &lt;div className="bg-white px-4 py-3"&gt;
           &lt;p className="text-[11px] uppercase tracking-wide text-slate-400"&gt;Waiting&lt;/p&gt;
           &lt;p className="text-xl font-bold text-slate-800 mt-0.5"&gt;{waitingCount}&lt;/p&gt;
@@ -9355,13 +10292,13 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
 
       &lt;div className="rounded-lg border border-slate-200 bg-white p-3"&gt;
         &lt;div className="flex flex-wrap items-end gap-2"&gt;
-          &lt;div&gt;
+          &lt;div className="w-full sm:w-auto"&gt;
             &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Search patient&lt;/label&gt;
             &lt;input
               value={search}
               onChange={(e) =&gt; setSearch(e.target.value)}
               placeholder="Name, contact..."
-              className="h-8 w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="h-8 w-full sm:w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
             /&gt;
           &lt;/div&gt;
           &lt;div&gt;
@@ -9399,7 +10336,9 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
           &gt;
             Reset
           &lt;/button&gt;
-          &lt;span className="ml-auto text-xs text-slate-400 pb-1"&gt;{rowsInView} consultation rows in view&lt;/span&gt;
+          &lt;span className="w-full text-left text-xs text-slate-400 pb-1 sm:ml-auto sm:w-auto sm:text-right"&gt;
+            {rowsInView} consultation rows in view
+          &lt;/span&gt;
         &lt;/div&gt;
       &lt;/div&gt;
 
@@ -9459,7 +10398,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
           &lt;p className="px-4 py-8 text-xs text-slate-400"&gt;No active consultation patients.&lt;/p&gt;
         ) : (
           &lt;div className="overflow-x-auto"&gt;
-          &lt;table className="w-full min-w-[1180px] text-xs"&gt;
+          &lt;table className="w-full min-w-[1220px] text-xs"&gt;
             &lt;thead&gt;
               &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;#&lt;/th&gt;
@@ -9472,7 +10411,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Doctor&lt;/th&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Arrival Time&lt;/th&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Countdown&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 w-[180px] min-w-[180px]"&gt;Action&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 min-w-[220px]"&gt;Action&lt;/th&gt;
               &lt;/tr&gt;
             &lt;/thead&gt;
             &lt;tbody className="divide-y divide-slate-100"&gt;
@@ -9509,20 +10448,20 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                       &lt;span className="text-slate-400"&gt;â€”&lt;/span&gt;
                     )}
                   &lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 w-[180px] min-w-[180px]"&gt;
+                  &lt;td className="px-4 py-2.5 min-w-[220px]"&gt;
                     {isMd ? (
                       &lt;div className="flex flex-wrap gap-1.5"&gt;
                         &lt;button
                           disabled={busyId === row.id || row.status === "CONSULTED"}
                           onClick={() =&gt; void callPatient(row.id)}
-                          className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+                          className="inline-flex min-w-[110px] items-center justify-center rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
                         &gt;
                           {busyId === row.id ? "Calling..." : "Call Patient"}
                         &lt;/button&gt;
                         &lt;button
                           disabled={busyId === row.id || row.status !== "CALLED"}
                           onClick={() =&gt; void markConsulted(row.id)}
-                          className="rounded bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+                          className="inline-flex min-w-[110px] items-center justify-center rounded bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors whitespace-nowrap"
                         &gt;
                           {busyId === row.id ? "Updating..." : "Finish Consultation"}
                         &lt;/button&gt;
@@ -9532,7 +10471,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                       &lt;button
                         disabled={busyId === row.id || row.status !== "CALLED"}
                         onClick={() =&gt; void markPatientIn(row.id)}
-                        className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+                        className="inline-flex min-w-[110px] items-center justify-center rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
                       &gt;
                         {busyId === row.id ? "Updating..." : "Patient In"}
                       &lt;/button&gt;
@@ -9555,7 +10494,8 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
         ) : data.history.length === 0 ? (
           &lt;p className="px-4 py-6 text-xs text-slate-400"&gt;No consultation records yet.&lt;/p&gt;
         ) : (
-          &lt;table className="w-full text-xs"&gt;
+          &lt;div className="overflow-x-auto"&gt;
+            &lt;table className="w-full min-w-[760px] text-xs"&gt;
             &lt;thead&gt;
               &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Patient&lt;/th&gt;
@@ -9583,7 +10523,8 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
                 &lt;/tr&gt;
               ))}
             &lt;/tbody&gt;
-          &lt;/table&gt;
+            &lt;/table&gt;
+          &lt;/div&gt;
         )}
       &lt;/div&gt;
     &lt;/div&gt;
@@ -9600,6 +10541,7 @@ import { useRouter } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { ROLE_LABELS, DEPARTMENT_LABELS } from "@/lib/utils";
 import { Role, Department, Shift } from "@prisma/client";
+import { Eye, EyeOff } from "lucide-react";
 
 const schema = z.object({
   fullName: z.string().min(2, "Full name is required"),
@@ -9618,7 +10560,9 @@ const schema = z.object({
 
 type FormData = z.infer&lt;typeof schema&gt;;
 
-const ROLES_FOR_FORM = Object.entries(ROLE_LABELS).filter(([key]) =&gt; key !== "SUPER_ADMIN");
+const ROLES_FOR_FORM = Object.entries(ROLE_LABELS).filter(
+  ([key]) =&gt; key !== "SUPER_ADMIN" &amp;&amp; key !== "MEGA_ADMIN"
+);
 
 const inputCls = "h-8 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
 const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
@@ -9628,6 +10572,7 @@ export function AddStaffForm() {
   const router = useRouter();
   const [serverError, setServerError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { register, handleSubmit, setValue, reset, formState: { errors, isSubmitting } } =
     useForm&lt;FormData&gt;({ resolver: zodResolver(schema), defaultValues: { defaultShift: Shift.MORNING } });
@@ -9738,13 +10683,41 @@ export function AddStaffForm() {
 
           &lt;div&gt;
             &lt;label className={labelCls}&gt;Password *&lt;/label&gt;
-            &lt;input type="password" placeholder="Min 8 characters" {...register("password")} className={inputCls} /&gt;
+            &lt;div className="relative"&gt;
+              &lt;input
+                type={showPassword ? "text" : "password"}
+                placeholder="Min 8 characters"
+                {...register("password")}
+                className={`${inputCls} pr-9`}
+              /&gt;
+              &lt;button
+                type="button"
+                onClick={() =&gt; setShowPassword((prev) =&gt; !prev)}
+                className="absolute inset-y-0 right-2 inline-flex items-center text-slate-400 hover:text-slate-600"
+              &gt;
+                {showPassword ? &lt;EyeOff className="h-4 w-4" /&gt; : &lt;Eye className="h-4 w-4" /&gt;}
+              &lt;/button&gt;
+            &lt;/div&gt;
             {errors.password &amp;&amp; &lt;p className={errCls}&gt;{errors.password.message}&lt;/p&gt;}
           &lt;/div&gt;
 
           &lt;div&gt;
             &lt;label className={labelCls}&gt;Confirm Password *&lt;/label&gt;
-            &lt;input type="password" placeholder="Repeat password" {...register("confirmPassword")} className={inputCls} /&gt;
+            &lt;div className="relative"&gt;
+              &lt;input
+                type={showPassword ? "text" : "password"}
+                placeholder="Repeat password"
+                {...register("confirmPassword")}
+                className={`${inputCls} pr-9`}
+              /&gt;
+              &lt;button
+                type="button"
+                onClick={() =&gt; setShowPassword((prev) =&gt; !prev)}
+                className="absolute inset-y-0 right-2 inline-flex items-center text-slate-400 hover:text-slate-600"
+              &gt;
+                {showPassword ? &lt;EyeOff className="h-4 w-4" /&gt; : &lt;Eye className="h-4 w-4" /&gt;}
+              &lt;/button&gt;
+            &lt;/div&gt;
             {errors.confirmPassword &amp;&amp; &lt;p className={errCls}&gt;{errors.confirmPassword.message}&lt;/p&gt;}
           &lt;/div&gt;
         &lt;/div&gt;
@@ -9768,7 +10741,8 @@ export function AddStaffForm() {
       &lt;/form&gt;
     &lt;/div&gt;
   );
-}</pre></div>
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/components/hrm/hrm-operations-board.tsx</div><pre>"use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -10518,6 +11492,284 @@ export function LabSettingsForm() {
   );
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/components/hrm/staff-management-table.tsx</div><pre>"use client";
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { Eye, EyeOff, KeyRound, Trash2 } from "lucide-react";
+import { DEPARTMENT_LABELS, ROLE_LABELS, formatDate } from "@/lib/utils";
+
+type StaffRow = {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  role: keyof typeof ROLE_LABELS;
+  department: keyof typeof DEPARTMENT_LABELS;
+  status: string;
+  availabilityStatus: string;
+  defaultShift: string;
+  dateJoined: string;
+};
+
+type Props = {
+  staff: StaffRow[];
+};
+
+const inputCls =
+  "h-8 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+export function StaffManagementTable({ staff }: Props) {
+  const [rows, setRows] = useState(staff);
+  const [busyId, setBusyId] = useState&lt;string | null&gt;(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  const [passwordDialogStaffId, setPasswordDialogStaffId] = useState&lt;string | null&gt;(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const selectedStaff = useMemo(
+    () =&gt; rows.find((row) =&gt; row.id === passwordDialogStaffId) ?? null,
+    [passwordDialogStaffId, rows]
+  );
+
+  async function deleteStaff(staffId: string, fullName: string) {
+    if (!window.confirm(`Delete/deactivate ${fullName}?`)) return;
+    setError("");
+    setMessage("");
+    setBusyId(staffId);
+    try {
+      const res = await fetch(`/api/staff/${staffId}`, { method: "DELETE" });
+      const json = (await res.json()) as { success: boolean; error?: string; message?: string };
+      if (!json.success) {
+        setError(json.error ?? "Failed to delete staff.");
+        return;
+      }
+      setRows((prev) =&gt; prev.filter((row) =&gt; row.id !== staffId));
+      setMessage(`${fullName} deleted successfully.`);
+    } catch {
+      setError("Network error while deleting staff.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function openPasswordDialog(staffId: string) {
+    setPasswordDialogStaffId(staffId);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setError("");
+    setMessage("");
+  }
+
+  async function changePassword() {
+    if (!selectedStaff) return;
+    if (newPassword.length &lt; 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setBusyId(selectedStaff.id);
+    try {
+      const res = await fetch(`/api/staff/${selectedStaff.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      const json = (await res.json()) as { success: boolean; error?: string; message?: string };
+      if (!json.success) {
+        setError(json.error ?? "Failed to update password.");
+        return;
+      }
+      setMessage(`Password updated for ${selectedStaff.fullName}.`);
+      setPasswordDialogStaffId(null);
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowPassword(false);
+    } catch {
+      setError("Network error while changing password.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    &lt;div className="space-y-3"&gt;
+      {error ? &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt; : null}
+      {message ? &lt;div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700"&gt;{message}&lt;/div&gt; : null}
+
+      &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+        {rows.length === 0 ? (
+          &lt;div className="py-16 text-center"&gt;
+            &lt;p className="text-sm text-slate-400"&gt;No staff yet.&lt;/p&gt;
+            &lt;Link
+              href="/dashboard/hrm/staff/new"
+              className="mt-2 inline-flex text-xs text-blue-600 hover:underline"
+            &gt;
+              Add first staff member â†’
+            &lt;/Link&gt;
+          &lt;/div&gt;
+        ) : (
+          &lt;div className="overflow-x-auto"&gt;
+            &lt;table className="w-full min-w-[980px] text-xs"&gt;
+              &lt;thead&gt;
+                &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Name&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Email&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Role&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Department&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Shift&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Status&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Availability&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Joined&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Actions&lt;/th&gt;
+                &lt;/tr&gt;
+              &lt;/thead&gt;
+              &lt;tbody className="divide-y divide-slate-100"&gt;
+                {rows.map((s) =&gt; (
+                  &lt;tr key={s.id} className="hover:bg-slate-50 transition-colors"&gt;
+                    &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{s.fullName}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;{s.email}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;{ROLE_LABELS[s.role]}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;
+                      {DEPARTMENT_LABELS[s.department] ?? s.department}
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;{s.defaultShift}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      &lt;span
+                        className={`rounded px-1.5 py-0.5 font-medium ${
+                          s.status === "ACTIVE"
+                            ? "bg-green-50 text-green-700"
+                            : "bg-red-50 text-red-600"
+                        }`}
+                      &gt;
+                        {s.status}
+                      &lt;/span&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      &lt;span
+                        className={`rounded px-1.5 py-0.5 font-medium ${
+                          s.availabilityStatus === "AVAILABLE"
+                            ? "bg-blue-50 text-blue-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      &gt;
+                        {s.availabilityStatus === "AVAILABLE" ? "Available" : "Away"}
+                      &lt;/span&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;{formatDate(s.dateJoined)}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      &lt;div className="flex items-center gap-2"&gt;
+                        &lt;Link href={`/dashboard/hrm/staff/${s.id}`} className="text-blue-600 hover:underline"&gt;
+                          View
+                        &lt;/Link&gt;
+                        &lt;button
+                          type="button"
+                          onClick={() =&gt; openPasswordDialog(s.id)}
+                          className="inline-flex items-center gap-1 rounded border border-amber-200 px-2 py-1 text-[11px] text-amber-700 hover:bg-amber-50"
+                        &gt;
+                          &lt;KeyRound className="h-3.5 w-3.5" /&gt;
+                          Password
+                        &lt;/button&gt;
+                        &lt;button
+                          type="button"
+                          onClick={() =&gt; void deleteStaff(s.id, s.fullName)}
+                          disabled={busyId === s.id}
+                          className="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-60"
+                        &gt;
+                          &lt;Trash2 className="h-3.5 w-3.5" /&gt;
+                          {busyId === s.id ? "Deleting..." : "Delete"}
+                        &lt;/button&gt;
+                      &lt;/div&gt;
+                    &lt;/td&gt;
+                  &lt;/tr&gt;
+                ))}
+              &lt;/tbody&gt;
+            &lt;/table&gt;
+          &lt;/div&gt;
+        )}
+      &lt;/div&gt;
+
+      {selectedStaff ? (
+        &lt;div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"&gt;
+          &lt;div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-xl space-y-3"&gt;
+            &lt;div&gt;
+              &lt;h3 className="text-sm font-semibold text-slate-800"&gt;Change Staff Password&lt;/h3&gt;
+              &lt;p className="text-xs text-slate-500 mt-0.5"&gt;{selectedStaff.fullName}&lt;/p&gt;
+            &lt;/div&gt;
+
+            &lt;label className="block"&gt;
+              &lt;span className="mb-1 block text-[11px] font-medium text-slate-500"&gt;New Password&lt;/span&gt;
+              &lt;div className="relative"&gt;
+                &lt;input
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) =&gt; setNewPassword(e.target.value)}
+                  className={`${inputCls} pr-9`}
+                  placeholder="Min 8 characters"
+                /&gt;
+                &lt;button
+                  type="button"
+                  onClick={() =&gt; setShowPassword((prev) =&gt; !prev)}
+                  className="absolute inset-y-0 right-2 inline-flex items-center text-slate-400 hover:text-slate-600"
+                &gt;
+                  {showPassword ? &lt;EyeOff className="h-4 w-4" /&gt; : &lt;Eye className="h-4 w-4" /&gt;}
+                &lt;/button&gt;
+              &lt;/div&gt;
+            &lt;/label&gt;
+
+            &lt;label className="block"&gt;
+              &lt;span className="mb-1 block text-[11px] font-medium text-slate-500"&gt;Confirm Password&lt;/span&gt;
+              &lt;div className="relative"&gt;
+                &lt;input
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) =&gt; setConfirmPassword(e.target.value)}
+                  className={`${inputCls} pr-9`}
+                  placeholder="Repeat password"
+                /&gt;
+                &lt;button
+                  type="button"
+                  onClick={() =&gt; setShowPassword((prev) =&gt; !prev)}
+                  className="absolute inset-y-0 right-2 inline-flex items-center text-slate-400 hover:text-slate-600"
+                &gt;
+                  {showPassword ? &lt;EyeOff className="h-4 w-4" /&gt; : &lt;Eye className="h-4 w-4" /&gt;}
+                &lt;/button&gt;
+              &lt;/div&gt;
+            &lt;/label&gt;
+
+            &lt;div className="flex items-center justify-end gap-2 pt-1"&gt;
+              &lt;button
+                type="button"
+                onClick={() =&gt; setPasswordDialogStaffId(null)}
+                className="rounded border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+              &gt;
+                Cancel
+              &lt;/button&gt;
+              &lt;button
+                type="button"
+                disabled={busyId === selectedStaff.id}
+                onClick={() =&gt; void changePassword()}
+                className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              &gt;
+                {busyId === selectedStaff.id ? "Saving..." : "Save Password"}
+              &lt;/button&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      ) : null}
+    &lt;/div&gt;
+  );
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/components/hrm/test-catalog-form.tsx</div><pre>"use client";
 
 import { useState } from "react";
@@ -11002,7 +12254,7 @@ type ResultField = {
 type TestOrder = {
   id: string;
   status: string;
-  test: { name: string; code: string; sampleType?: string | null; resultFields: ResultField[] };
+  test: { id: string; name: string; code: string; sampleType?: string | null; resultFields: ResultField[] };
   labResults: Array&lt;{ id: string; resultData: Record&lt;string, unknown&gt;; notes?: string | null; isSubmitted: boolean; abnormalFlags?: Record&lt;string, string&gt; }&gt;;
 };
 
@@ -11058,6 +12310,7 @@ const DEFAULT_SENSITIVITY_ANTIBIOTICS = [
 
 const SENSITIVITY_VALUE_OPTIONS = ["+", "2+", "3+", "4+", "5mm", "10mm", "15mm", "20mm", "25mm", "30mm"];
 const SENSITIVITY_INTERPRETATION_OPTIONS = ["S", "R", "I"];
+const SENSITIVITY_MEMORY_KEY = "diag_sync_sensitivity_memory_v1";
 
 function parseSensitivityPattern(raw: unknown): SensitivityCell[] {
   const text = typeof raw === "string" ? raw.trim() : "";
@@ -11298,11 +12551,15 @@ type OrderResultCardProps = {
   onPersist: (task: LabTask) =&gt; Promise&lt;void&gt;;
   onSetFieldValue: (testOrderId: string, fieldKey: string, value: unknown) =&gt; void;
   onSetNotes: (testOrderId: string, value: string) =&gt; void;
-  onAddCustomField: (testOrderId: string, label: string, value: string) =&gt; void;
+  onAddCustomField: (testOrderId: string, label: string, value: string) =&gt; Promise&lt;void&gt;;
   onRemoveCustomField: (testOrderId: string, fieldKey: string) =&gt; void;
   onResetCustomFields: (testOrderId: string) =&gt; void;
   onRemoveDefaultField: (testOrderId: string, fieldKey: string) =&gt; void;
   onRestoreDefaultFields: (testOrderId: string) =&gt; void;
+  sensitivityAntibioticOptions: string[];
+  sensitivityValueOptions: string[];
+  sensitivityInterpretationOptions: string[];
+  onRememberSensitivityCell: (cell: SensitivityCell) =&gt; void;
 };
 
 const OrderResultCard = memo(function OrderResultCard({
@@ -11320,6 +12577,10 @@ const OrderResultCard = memo(function OrderResultCard({
   onResetCustomFields,
   onRemoveDefaultField,
   onRestoreDefaultFields,
+  sensitivityAntibioticOptions,
+  sensitivityValueOptions,
+  sensitivityInterpretationOptions,
+  onRememberSensitivityCell,
 }: OrderResultCardProps) {
   const insightMessages = useMemo(() =&gt; buildResultInsights(draft.values ?? {}), [draft.values]);
   const highlightKey = useMemo(() =&gt; new Set(highlightFields), [highlightFields]);
@@ -11405,11 +12666,15 @@ const OrderResultCard = memo(function OrderResultCard({
                       &lt;/thead&gt;
                       &lt;tbody&gt;
                         {cells.map((cell, index) =&gt; (
-                          &lt;tr key={`${cell.antibiotic}-${index}`}&gt;
+                          &lt;tr key={`sens-row-${index}`}&gt;
                             &lt;td className="border border-slate-200 p-1.5"&gt;
                               &lt;input
+                                list={`sens-antibiotic-options-${order.id}`}
                                 value={cell.antibiotic}
-                                onBlur={() =&gt; void onPersist(task).catch(() =&gt; undefined)}
+                                onBlur={() =&gt; {
+                                  onRememberSensitivityCell(cell);
+                                  void onPersist(task).catch(() =&gt; undefined);
+                                }}
                                 onChange={(e) =&gt; updateCell(index, { antibiotic: e.target.value })}
                                 className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 placeholder="Antibiotic name"
@@ -11419,7 +12684,10 @@ const OrderResultCard = memo(function OrderResultCard({
                               &lt;input
                                 list={`sens-zone-options-${order.id}`}
                                 value={cell.zone}
-                                onBlur={() =&gt; void onPersist(task).catch(() =&gt; undefined)}
+                                onBlur={() =&gt; {
+                                  onRememberSensitivityCell(cell);
+                                  void onPersist(task).catch(() =&gt; undefined);
+                                }}
                                 onChange={(e) =&gt; updateCell(index, { zone: e.target.value })}
                                 className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 placeholder="+ / 2+ / 3+ / 20mm"
@@ -11429,7 +12697,10 @@ const OrderResultCard = memo(function OrderResultCard({
                               &lt;input
                                 list={`sens-int-options-${order.id}`}
                                 value={cell.interpretation}
-                                onBlur={() =&gt; void onPersist(task).catch(() =&gt; undefined)}
+                                onBlur={() =&gt; {
+                                  onRememberSensitivityCell(cell);
+                                  void onPersist(task).catch(() =&gt; undefined);
+                                }}
                                 onChange={(e) =&gt;
                                   updateCell(index, { interpretation: e.target.value.toUpperCase() })
                                 }
@@ -11452,12 +12723,17 @@ const OrderResultCard = memo(function OrderResultCard({
                       &lt;/tbody&gt;
                     &lt;/table&gt;
                     &lt;datalist id={`sens-zone-options-${order.id}`}&gt;
-                      {SENSITIVITY_VALUE_OPTIONS.map((option) =&gt; (
+                      {sensitivityValueOptions.map((option) =&gt; (
                         &lt;option key={option} value={option} /&gt;
                       ))}
                     &lt;/datalist&gt;
                     &lt;datalist id={`sens-int-options-${order.id}`}&gt;
-                      {SENSITIVITY_INTERPRETATION_OPTIONS.map((option) =&gt; (
+                      {sensitivityInterpretationOptions.map((option) =&gt; (
+                        &lt;option key={option} value={option} /&gt;
+                      ))}
+                    &lt;/datalist&gt;
+                    &lt;datalist id={`sens-antibiotic-options-${order.id}`}&gt;
+                      {sensitivityAntibioticOptions.map((option) =&gt; (
                         &lt;option key={option} value={option} /&gt;
                       ))}
                     &lt;/datalist&gt;
@@ -11709,19 +12985,17 @@ const OrderResultCard = memo(function OrderResultCard({
             onClick={() =&gt; {
               if (!customLabel.trim()) return;
               const nextKey = toCustomFieldKey(customLabel);
-              const hasDuplicate = customEntries.some(([key]) =&gt; key === nextKey);
               if (!nextKey) {
                 setCustomError("Field name is invalid.");
                 return;
               }
-              if (hasDuplicate) {
-                setCustomError(`Field '${nextKey}' already exists.`);
-                return;
-              }
-              onAddCustomField(order.id, customLabel, customValue);
-              setCustomLabel("");
-              setCustomValue("");
-              setCustomError("");
+              void onAddCustomField(order.id, customLabel, customValue)
+                .then(() =&gt; {
+                  setCustomLabel("");
+                  setCustomValue("");
+                  setCustomError("");
+                })
+                .catch(() =&gt; undefined);
             }}
             className="col-span-2 rounded border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
           &gt;
@@ -11750,6 +13024,9 @@ export function LabTaskBoard() {
   const [sampleStatusByTask, setSampleStatusByTask] = useState&lt;Record&lt;string, SampleStatus&gt;&gt;({});
   const [expandedTask, setExpandedTask] = useState&lt;string | null&gt;(null);
   const [counts, setCounts] = useState({ pending: 0, inProgress: 0, completed: 0 });
+  const [sensitivityAntibioticOptions, setSensitivityAntibioticOptions] = useState&lt;string[]&gt;(DEFAULT_SENSITIVITY_ANTIBIOTICS);
+  const [sensitivityValueOptions, setSensitivityValueOptions] = useState&lt;string[]&gt;(SENSITIVITY_VALUE_OPTIONS);
+  const [sensitivityInterpretationOptions, setSensitivityInterpretationOptions] = useState&lt;string[]&gt;(SENSITIVITY_INTERPRETATION_OPTIONS);
   const signatureInputRefs = useRef&lt;Record&lt;string, HTMLInputElement | null&gt;&gt;({});
   const [isOnline, setIsOnline] = useState(true);
   const searchParams = useSearchParams();
@@ -11771,6 +13048,72 @@ export function LabTaskBoard() {
   function invalidateTaskCache() {
     taskCacheRef.current.clear();
   }
+
+  useEffect(() =&gt; {
+    try {
+      const raw = window.localStorage.getItem(SENSITIVITY_MEMORY_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        antibiotics?: unknown;
+        values?: unknown;
+        interpretations?: unknown;
+      };
+      const normalize = (input: unknown, fallback: string[]) =&gt; {
+        const list = Array.isArray(input) ? input : [];
+        const merged = [...fallback, ...list.filter((item): item is string =&gt; typeof item === "string")];
+        return Array.from(new Set(merged.map((item) =&gt; item.trim()).filter(Boolean)));
+      };
+      setSensitivityAntibioticOptions(normalize(parsed.antibiotics, DEFAULT_SENSITIVITY_ANTIBIOTICS));
+      setSensitivityValueOptions(normalize(parsed.values, SENSITIVITY_VALUE_OPTIONS));
+      setSensitivityInterpretationOptions(
+        normalize(parsed.interpretations, SENSITIVITY_INTERPRETATION_OPTIONS).map((item) =&gt; item.toUpperCase())
+      );
+    } catch {
+      // Ignore malformed memory cache.
+    }
+  }, []);
+
+  const rememberSensitivityCell = useCallback((cell: SensitivityCell) =&gt; {
+    const addUnique = (base: string[], nextValue: string) =&gt; {
+      const trimmed = nextValue.trim();
+      if (!trimmed) return base;
+      if (base.includes(trimmed)) return base;
+      return [...base, trimmed];
+    };
+
+    let nextAntibiotics = sensitivityAntibioticOptions;
+    let nextValues = sensitivityValueOptions;
+    let nextInterpretations = sensitivityInterpretationOptions;
+
+    if (cell.antibiotic.trim()) {
+      nextAntibiotics = addUnique(nextAntibiotics, cell.antibiotic);
+      if (nextAntibiotics !== sensitivityAntibioticOptions) setSensitivityAntibioticOptions(nextAntibiotics);
+    }
+    if (cell.zone.trim()) {
+      nextValues = addUnique(nextValues, cell.zone);
+      if (nextValues !== sensitivityValueOptions) setSensitivityValueOptions(nextValues);
+    }
+    if (cell.interpretation.trim()) {
+      const token = cell.interpretation.trim().toUpperCase();
+      nextInterpretations = addUnique(nextInterpretations, token);
+      if (nextInterpretations !== sensitivityInterpretationOptions) {
+        setSensitivityInterpretationOptions(nextInterpretations);
+      }
+    }
+
+    try {
+      window.localStorage.setItem(
+        SENSITIVITY_MEMORY_KEY,
+        JSON.stringify({
+          antibiotics: nextAntibiotics,
+          values: nextValues,
+          interpretations: nextInterpretations,
+        })
+      );
+    } catch {
+      // Best-effort local memory only.
+    }
+  }, [sensitivityAntibioticOptions, sensitivityInterpretationOptions, sensitivityValueOptions]);
 
   const applyLoadedRows = useCallback((rows: LabTask[]) =&gt; {
     setTasks(rows);
@@ -12086,11 +13429,15 @@ export function LabTaskBoard() {
               &lt;/thead&gt;
               &lt;tbody&gt;
                 {cells.map((cell, index) =&gt; (
-                  &lt;tr key={`${cell.antibiotic}-${index}`}&gt;
+                  &lt;tr key={`shared-sens-row-${index}`}&gt;
                     &lt;td className="border border-slate-200 p-1.5"&gt;
                       &lt;input
+                        list={`sens-antibiotic-options-shared-${task.id}`}
                         value={cell.antibiotic}
-                        onBlur={() =&gt; void persistDraft(task).catch(() =&gt; undefined)}
+                        onBlur={() =&gt; {
+                          rememberSensitivityCell(cell);
+                          void persistDraft(task).catch(() =&gt; undefined);
+                        }}
                         onChange={(e) =&gt; updateCell(index, { antibiotic: e.target.value })}
                         className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Antibiotic name"
@@ -12100,7 +13447,10 @@ export function LabTaskBoard() {
                       &lt;input
                         list={`sens-zone-options-shared-${task.id}`}
                         value={cell.zone}
-                        onBlur={() =&gt; void persistDraft(task).catch(() =&gt; undefined)}
+                        onBlur={() =&gt; {
+                          rememberSensitivityCell(cell);
+                          void persistDraft(task).catch(() =&gt; undefined);
+                        }}
                         onChange={(e) =&gt; updateCell(index, { zone: e.target.value })}
                         className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="+ / 2+ / 3+ / 20mm"
@@ -12110,7 +13460,10 @@ export function LabTaskBoard() {
                       &lt;input
                         list={`sens-int-options-shared-${task.id}`}
                         value={cell.interpretation}
-                        onBlur={() =&gt; void persistDraft(task).catch(() =&gt; undefined)}
+                        onBlur={() =&gt; {
+                          rememberSensitivityCell(cell);
+                          void persistDraft(task).catch(() =&gt; undefined);
+                        }}
                         onChange={(e) =&gt;
                           updateCell(index, { interpretation: e.target.value.toUpperCase() })
                         }
@@ -12132,13 +13485,18 @@ export function LabTaskBoard() {
                 ))}
               &lt;/tbody&gt;
             &lt;/table&gt;
+            &lt;datalist id={`sens-antibiotic-options-shared-${task.id}`}&gt;
+              {sensitivityAntibioticOptions.map((option) =&gt; (
+                &lt;option key={option} value={option} /&gt;
+              ))}
+            &lt;/datalist&gt;
             &lt;datalist id={`sens-zone-options-shared-${task.id}`}&gt;
-              {SENSITIVITY_VALUE_OPTIONS.map((option) =&gt; (
+              {sensitivityValueOptions.map((option) =&gt; (
                 &lt;option key={option} value={option} /&gt;
               ))}
             &lt;/datalist&gt;
             &lt;datalist id={`sens-int-options-shared-${task.id}`}&gt;
-              {SENSITIVITY_INTERPRETATION_OPTIONS.map((option) =&gt; (
+              {sensitivityInterpretationOptions.map((option) =&gt; (
                 &lt;option key={option} value={option} /&gt;
               ))}
             &lt;/datalist&gt;
@@ -12168,7 +13526,7 @@ export function LabTaskBoard() {
   }
 
   const setDraftFieldValue = useCallback((testOrderId: string, fieldKey: string, value: unknown) =&gt; {
-    const task = findTaskForOrder(testOrderId);
+    const task = tasksRef.current.find((item) =&gt; item.testOrders.some((row) =&gt; row.id === testOrderId));
     const shouldSyncSensitivity = Boolean(task &amp;&amp; isSensitivityFieldKey(fieldKey));
     const sensitivityOrderIds = shouldSyncSensitivity
       ? task!.testOrders
@@ -12193,18 +13551,62 @@ export function LabTaskBoard() {
     updateDraft(testOrderId, (prev) =&gt; ({ ...prev, notes: value }));
   }, []);
 
-  const addCustomField = useCallback((testOrderId: string, label: string, value: string) =&gt; {
+  const addCustomField = useCallback(async (testOrderId: string, label: string, value: string) =&gt; {
+    const task = findTaskForOrder(testOrderId);
+    const order = task?.testOrders.find((row) =&gt; row.id === testOrderId);
+    if (!order) return;
+
     const baseKey = toCustomFieldKey(label);
     if (!baseKey) return;
-    updateDraft(testOrderId, (prev) =&gt; {
-      const nextValues = { ...prev.values };
-      if (Object.prototype.hasOwnProperty.call(nextValues, baseKey)) {
-        return prev;
+
+    const defaultFieldKeys = new Set(order.test.resultFields.map((field) =&gt; field.fieldKey));
+    const existingValues = draftsRef.current[testOrderId]?.values ?? {};
+    let nextKey = baseKey;
+    let counter = 2;
+    while (defaultFieldKeys.has(nextKey) || Object.prototype.hasOwnProperty.call(existingValues, nextKey)) {
+      nextKey = `${baseKey}_${counter}`;
+      counter += 1;
+    }
+
+    updateDraft(testOrderId, (prev) =&gt; ({
+      ...prev,
+      values: { ...prev.values, [nextKey]: value },
+    }));
+
+    try {
+      const res = await fetch(`/api/tests/${order.test.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          addFields: [{ label: label.trim(), fieldKey: nextKey, fieldType: "TEXT", isRequired: false }],
+        }),
+      });
+      const json = (await res.json()) as {
+        success: boolean;
+        error?: string;
+        data?: { resultFields?: Array&lt;{ fieldKey: string; label: string }&gt; };
+      };
+      if (!json.success) return;
+
+      const serverKey =
+        json.data?.resultFields?.find((field) =&gt; field.fieldKey === nextKey)?.fieldKey ?? nextKey;
+      if (serverKey !== nextKey) {
+        updateDraft(testOrderId, (prev) =&gt; {
+          const nextValues = { ...prev.values };
+          if (Object.prototype.hasOwnProperty.call(nextValues, nextKey)) {
+            nextValues[serverKey] = nextValues[nextKey];
+            delete nextValues[nextKey];
+          }
+          return { ...prev, values: nextValues };
+        });
       }
-      nextValues[baseKey] = value;
-      return { ...prev, values: nextValues };
-    });
-  }, []);
+
+      invalidateTaskCache();
+      await loadTasks({ force: true, silent: true });
+    } catch {
+      // Keep local draft even if template promotion fails.
+    }
+  }, [loadTasks]);
 
   const removeCustomField = useCallback((testOrderId: string, fieldKey: string) =&gt; {
     updateDraft(testOrderId, (prev) =&gt; {
@@ -12688,6 +14090,10 @@ export function LabTaskBoard() {
                                 onResetCustomFields={resetCustomFields}
                                 onRemoveDefaultField={removeDefaultField}
                                 onRestoreDefaultFields={restoreDefaultFields}
+                                sensitivityAntibioticOptions={sensitivityAntibioticOptions}
+                                sensitivityValueOptions={sensitivityValueOptions}
+                                sensitivityInterpretationOptions={sensitivityInterpretationOptions}
+                                onRememberSensitivityCell={rememberSensitivityCell}
                               /&gt;
                             ))}
 
@@ -12714,7 +14120,6 @@ export function LabTaskBoard() {
     &lt;/div&gt;
   );
 }
-
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/layout/dashboard-shell.tsx</div><pre>"use client";
 
@@ -15189,11 +16594,749 @@ export function DayRolloverRefresh() {
   return null;
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/components/receptionist/edit-patient-form.tsx</div><pre>"use client";
+
+import { useMemo, useRef, useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { Search, Plus, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
+import { formatCurrency } from "@/lib/utils";
+
+type Sex = "MALE" | "FEMALE" | "OTHER";
+type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
+type PaymentStatus = "PENDING" | "PARTIAL" | "PAID" | "WAIVED";
+type FieldType = "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
+type TestType = "LAB" | "RADIOLOGY";
+type Department = "LABORATORY" | "RADIOLOGY";
+
+const NON_REMOVABLE_STATUSES = new Set([
+  "SUBMITTED_FOR_REVIEW",
+  "EDIT_REQUESTED",
+  "RESUBMITTED",
+  "APPROVED",
+  "RELEASED",
+]);
+
+interface TestResult {
+  id: string;
+  name: string;
+  code: string;
+  type: "LAB" | "RADIOLOGY";
+  department: string;
+  price?: number | string;
+  sampleType?: string | null;
+  category?: { name: string } | null;
+}
+
+type CartItem = TestResult &amp; {
+  enteredPrice: string;
+  orderId?: string;
+  status?: string;
+};
+
+type CreateFieldDraft = {
+  label: string;
+  fieldKey: string;
+  fieldType: FieldType;
+  unit: string;
+  normalMin: string;
+  normalMax: string;
+  normalText: string;
+  referenceNote: string;
+  options: string;
+};
+
+interface Props {
+  visitId: string;
+  patient: {
+    id: string;
+    fullName: string;
+    age: number;
+    sex: Sex;
+    phone: string;
+    email?: string | null;
+    address?: string | null;
+    dateOfBirth?: string | null;
+    referringDoctor?: string | null;
+    clinicalNote?: string | null;
+  };
+  visit: {
+    priority: Priority;
+    amountPaid: number;
+    discount: number;
+    paymentMethod?: string | null;
+    notes?: string | null;
+  };
+  tests: Array&lt;{
+    orderId: string;
+    status: string;
+    id: string;
+    name: string;
+    code: string;
+    type: "LAB" | "RADIOLOGY";
+    department: string;
+    sampleType?: string | null;
+    category?: { name: string } | null;
+    price: number;
+  }&gt;;
+}
+
+function toFieldKey(label: string) {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function toNumber(value: number | string) {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function emptyField(): CreateFieldDraft {
+  return {
+    label: "",
+    fieldKey: "",
+    fieldType: "TEXT",
+    unit: "",
+    normalMin: "",
+    normalMax: "",
+    normalText: "",
+    referenceNote: "",
+    options: "",
+  };
+}
+
+const inputCls =
+  "h-8 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
+const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
+
+export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
+  const router = useRouter();
+  const searchRef = useRef&lt;HTMLDivElement&gt;(null);
+
+  const [fullName, setFullName] = useState(patient.fullName);
+  const [age, setAge] = useState(String(patient.age));
+  const [sex, setSex] = useState&lt;Sex&gt;(patient.sex);
+  const [phone, setPhone] = useState(patient.phone);
+  const [email, setEmail] = useState(patient.email ?? "");
+  const [address, setAddress] = useState(patient.address ?? "");
+  const [dateOfBirth, setDateOfBirth] = useState(patient.dateOfBirth?.slice(0, 10) ?? "");
+  const [referringDoctor, setReferringDoctor] = useState(patient.referringDoctor ?? "");
+  const [clinicalNote, setClinicalNote] = useState(patient.clinicalNote ?? "");
+
+  const [priority, setPriority] = useState&lt;Priority&gt;(visit.priority);
+  const [amountPaid, setAmountPaid] = useState(String(visit.amountPaid));
+  const [discount, setDiscount] = useState(String(visit.discount));
+  const [paymentMethod, setPaymentMethod] = useState(visit.paymentMethod ?? "");
+  const [visitNotes, setVisitNotes] = useState(visit.notes ?? "");
+
+  const [testSearch, setTestSearch] = useState("");
+  const [testResults, setTestResults] = useState&lt;TestResult[]&gt;([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  const [cart, setCart] = useState&lt;CartItem[]&gt;(
+    tests.map((row) =&gt; ({
+      id: row.id,
+      name: row.name,
+      code: row.code,
+      type: row.type,
+      department: row.department,
+      sampleType: row.sampleType,
+      category: row.category,
+      enteredPrice: String(row.price),
+      orderId: row.orderId,
+      status: row.status,
+    }))
+  );
+
+  const [showCreateTest, setShowCreateTest] = useState(false);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createCode, setCreateCode] = useState("");
+  const [createType, setCreateType] = useState&lt;TestType&gt;("LAB");
+  const [createDepartment, setCreateDepartment] = useState&lt;Department&gt;("LABORATORY");
+  const [createPrice, setCreatePrice] = useState("");
+  const [createTurnaround, setCreateTurnaround] = useState("120");
+  const [createSampleType, setCreateSampleType] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
+  const [createFields, setCreateFields] = useState&lt;CreateFieldDraft[]&gt;([emptyField()]);
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const subtotal = useMemo(() =&gt; cart.reduce((sum, item) =&gt; sum + toNumber(item.enteredPrice), 0), [cart]);
+  const discountAmount = toNumber(discount);
+  const totalAmount = Math.max(0, subtotal - discountAmount);
+  const amountPaidNumber = toNumber(amountPaid);
+  const balance = Math.max(0, totalAmount - amountPaidNumber);
+
+  const paymentStatus: PaymentStatus = useMemo(() =&gt; {
+    if (totalAmount &lt;= 0) return "PAID";
+    if (amountPaidNumber &gt;= totalAmount) return "PAID";
+    if (amountPaidNumber &gt; 0) return "PARTIAL";
+    return "PENDING";
+  }, [totalAmount, amountPaidNumber]);
+
+  const paymentBadge: Record&lt;PaymentStatus, string&gt; = {
+    PAID: "bg-green-50 text-green-700",
+    PARTIAL: "bg-amber-50 text-amber-700",
+    PENDING: "bg-red-50 text-red-600",
+    WAIVED: "bg-slate-100 text-slate-600",
+  };
+
+  const searchTests = useCallback(
+    async (query: string) =&gt; {
+      if (query.length &lt; 1) {
+        setTestResults([]);
+        setShowDropdown(false);
+        return;
+      }
+      setSearchLoading(true);
+      try {
+        const res = await fetch(`/api/tests?search=${encodeURIComponent(query)}`);
+        const json = await res.json();
+        if (!json.success) return;
+        const cartIds = new Set(cart.map((item) =&gt; item.id));
+        setTestResults((json.data as TestResult[]).filter((item) =&gt; !cartIds.has(item.id)));
+        setShowDropdown(true);
+      } finally {
+        setSearchLoading(false);
+      }
+    },
+    [cart]
+  );
+
+  useEffect(() =&gt; {
+    const t = setTimeout(() =&gt; {
+      void searchTests(testSearch);
+    }, 250);
+    return () =&gt; clearTimeout(t);
+  }, [searchTests, testSearch]);
+
+  useEffect(() =&gt; {
+    function onClickOutside(e: MouseEvent) {
+      if (searchRef.current &amp;&amp; !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () =&gt; document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  function addToCart(test: TestResult) {
+    setCart((prev) =&gt; [...prev, { ...test, enteredPrice: String(toNumber(test.price ?? 0)) }]);
+    setTestSearch("");
+    setShowDropdown(false);
+    setTestResults([]);
+  }
+
+  function removeFromCart(item: CartItem) {
+    if (item.status &amp;&amp; NON_REMOVABLE_STATUSES.has(item.status)) {
+      setError(`Cannot remove ${item.name} because result was already submitted to MD.`);
+      return;
+    }
+    setCart((prev) =&gt; prev.filter((row) =&gt; row.id !== item.id));
+  }
+
+  function updatePrice(testId: string, value: string) {
+    setCart((prev) =&gt; prev.map((row) =&gt; (row.id === testId ? { ...row, enteredPrice: value } : row)));
+  }
+
+  function setField(index: number, patch: Partial&lt;CreateFieldDraft&gt;) {
+    setCreateFields((prev) =&gt;
+      prev.map((field, i) =&gt; {
+        if (i !== index) return field;
+        const next = { ...field, ...patch };
+        if ("label" in patch &amp;&amp; (!next.fieldKey || next.fieldKey === toFieldKey(field.label))) {
+          next.fieldKey = toFieldKey(next.label);
+        }
+        return next;
+      })
+    );
+  }
+
+  function addFieldDraft() {
+    setCreateFields((prev) =&gt; [...prev, emptyField()]);
+  }
+
+  function removeFieldDraft(index: number) {
+    setCreateFields((prev) =&gt; prev.filter((_, i) =&gt; i !== index));
+  }
+
+  async function createTest() {
+    setError("");
+    setSuccess("");
+    if (!createName.trim() || !createCode.trim()) {
+      setError("Test name and code are required.");
+      return;
+    }
+    if (createFields.some((field) =&gt; !field.label.trim() || !field.fieldKey.trim())) {
+      setError("Each test field needs label and field key.");
+      return;
+    }
+
+    setCreateBusy(true);
+    try {
+      const res = await fetch("/api/tests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: createName.trim(),
+          code: createCode.trim().toUpperCase(),
+          type: createType,
+          department: createDepartment,
+          price: toNumber(createPrice),
+          turnaroundMinutes: Math.max(1, Math.trunc(toNumber(createTurnaround) || 120)),
+          sampleType: createSampleType.trim() || undefined,
+          description: createDescription.trim() || undefined,
+          fields: createFields.map((field) =&gt; ({
+            label: field.label.trim(),
+            fieldKey: field.fieldKey.trim(),
+            fieldType: field.fieldType,
+            unit: field.unit.trim() || undefined,
+            normalMin: field.normalMin.trim() ? Number(field.normalMin) : undefined,
+            normalMax: field.normalMax.trim() ? Number(field.normalMax) : undefined,
+            normalText: field.normalText.trim() || undefined,
+            referenceNote: field.referenceNote.trim() || undefined,
+            options: field.options.trim() || undefined,
+            isRequired: true,
+          })),
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error ?? "Failed to create test.");
+        return;
+      }
+
+      const createdId = json.data?.id as string | undefined;
+      if (!createdId) {
+        setError("Test created but ID was missing from response.");
+        return;
+      }
+
+      const singleRes = await fetch(`/api/tests/${createdId}`);
+      const singleJson = await singleRes.json();
+      if (!singleJson.success) {
+        setError("Test created, but failed to load it for this patient.");
+        return;
+      }
+
+      addToCart(singleJson.data as TestResult);
+      setSuccess("Test created and added to this patient.");
+      setCreateName("");
+      setCreateCode("");
+      setCreatePrice("");
+      setCreateTurnaround("120");
+      setCreateSampleType("");
+      setCreateDescription("");
+      setCreateFields([emptyField()]);
+      setShowCreateTest(false);
+    } catch {
+      setError("Network error while creating test.");
+    } finally {
+      setCreateBusy(false);
+    }
+  }
+
+  async function saveChanges() {
+    setError("");
+    setSuccess("");
+
+    if (!fullName.trim()) return setError("Patient full name is required.");
+    if (!age.trim() || Number.isNaN(Number(age))) return setError("Valid age is required.");
+    if (!phone.trim()) return setError("Phone number is required.");
+    if (cart.length === 0) return setError("At least one test is required.");
+    if (cart.some((item) =&gt; toNumber(item.enteredPrice) &lt;= 0)) return setError("Each test must have a valid price.");
+
+    setSaving(true);
+    try {
+      const payload = {
+        patient: {
+          fullName: fullName.trim(),
+          age: Math.trunc(Number(age)),
+          sex,
+          phone: phone.trim(),
+          email: email.trim() || undefined,
+          address: address.trim() || undefined,
+          dateOfBirth: dateOfBirth || undefined,
+          referringDoctor: referringDoctor.trim() || undefined,
+          clinicalNote: clinicalNote.trim() || undefined,
+        },
+        visit: {
+          priority,
+          amountPaid: amountPaidNumber,
+          discount: discountAmount,
+          paymentMethod: paymentMethod || undefined,
+          notes: visitNotes.trim() || undefined,
+        },
+        tests: cart.map((item) =&gt; ({ testId: item.id, price: toNumber(item.enteredPrice) })),
+      };
+
+      const res = await fetch(`/api/visits/${visitId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error ?? "Failed to save patient updates.");
+        return;
+      }
+
+      setSuccess("Patient updates saved. Added tests were routed to lab automatically.");
+      router.refresh();
+    } catch {
+      setError("Network error while saving patient updates.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    &lt;div className="space-y-4"&gt;
+      &lt;div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700"&gt;
+        Remove test is allowed only before result submission to MD. Added tests are routed to lab automatically.
+      &lt;/div&gt;
+
+      {error ? &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt; : null}
+      {success ? &lt;div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700"&gt;{success}&lt;/div&gt; : null}
+
+      &lt;div className="grid grid-cols-1 gap-4 lg:grid-cols-3"&gt;
+        &lt;div className="space-y-4 lg:col-span-2"&gt;
+          &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+            &lt;div className="border-b border-slate-100 px-4 py-2.5"&gt;
+              &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Patient Details&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2"&gt;
+              &lt;div className="sm:col-span-2"&gt;
+                &lt;label className={labelCls}&gt;Full Name *&lt;/label&gt;
+                &lt;input className={inputCls} value={fullName} onChange={(e) =&gt; setFullName(e.target.value)} /&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Age *&lt;/label&gt;
+                &lt;input className={inputCls} type="number" min="0" max="150" value={age} onChange={(e) =&gt; setAge(e.target.value)} /&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Sex *&lt;/label&gt;
+                &lt;Select value={sex} onValueChange={(v) =&gt; setSex(v as Sex)}&gt;
+                  &lt;SelectTrigger className="h-8 text-xs"&gt;&lt;SelectValue /&gt;&lt;/SelectTrigger&gt;
+                  &lt;SelectContent&gt;
+                    &lt;SelectItem value="MALE"&gt;Male&lt;/SelectItem&gt;
+                    &lt;SelectItem value="FEMALE"&gt;Female&lt;/SelectItem&gt;
+                    &lt;SelectItem value="OTHER"&gt;Other&lt;/SelectItem&gt;
+                  &lt;/SelectContent&gt;
+                &lt;/Select&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Phone *&lt;/label&gt;
+                &lt;input className={inputCls} value={phone} onChange={(e) =&gt; setPhone(e.target.value)} /&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Email&lt;/label&gt;
+                &lt;input className={inputCls} type="email" value={email} onChange={(e) =&gt; setEmail(e.target.value)} /&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Date of Birth&lt;/label&gt;
+                &lt;input className={inputCls} type="date" value={dateOfBirth} onChange={(e) =&gt; setDateOfBirth(e.target.value)} /&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Referring Doctor&lt;/label&gt;
+                &lt;input className={inputCls} value={referringDoctor} onChange={(e) =&gt; setReferringDoctor(e.target.value)} /&gt;
+              &lt;/div&gt;
+              &lt;div className="sm:col-span-2"&gt;
+                &lt;label className={labelCls}&gt;Address&lt;/label&gt;
+                &lt;input className={inputCls} value={address} onChange={(e) =&gt; setAddress(e.target.value)} /&gt;
+              &lt;/div&gt;
+              &lt;div className="sm:col-span-2"&gt;
+                &lt;label className={labelCls}&gt;Clinical Note&lt;/label&gt;
+                &lt;textarea
+                  rows={2}
+                  className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                  value={clinicalNote}
+                  onChange={(e) =&gt; setClinicalNote(e.target.value)}
+                /&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+
+          &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+            &lt;div className="border-b border-slate-100 px-4 py-2.5"&gt;
+              &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Tests Ordered&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div className="space-y-3 p-4"&gt;
+              &lt;div ref={searchRef} className="relative"&gt;
+                &lt;div className="relative"&gt;
+                  &lt;Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" /&gt;
+                  &lt;input
+                    className="h-8 w-full rounded border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Search existing tests by name/code"
+                    value={testSearch}
+                    onChange={(e) =&gt; setTestSearch(e.target.value)}
+                    onFocus={() =&gt; testSearch.length &gt; 0 &amp;&amp; setShowDropdown(true)}
+                  /&gt;
+                  {searchLoading ? &lt;span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400"&gt;Searching...&lt;/span&gt; : null}
+                &lt;/div&gt;
+
+                {showDropdown &amp;&amp; testResults.length &gt; 0 ? (
+                  &lt;div className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-lg"&gt;
+                    {testResults.map((test) =&gt; (
+                      &lt;button
+                        key={test.id}
+                        type="button"
+                        onClick={() =&gt; addToCart(test)}
+                        className="flex w-full items-center justify-between border-b border-slate-100 px-3 py-2.5 text-left text-xs hover:bg-slate-50 last:border-0"
+                      &gt;
+                        &lt;div&gt;
+                          &lt;p className="font-medium text-slate-800"&gt;{test.name}&lt;/p&gt;
+                          &lt;p className="text-slate-400"&gt;{test.code} Â· {test.category?.name ?? test.department}&lt;/p&gt;
+                        &lt;/div&gt;
+                        &lt;span className={`rounded px-1.5 py-0.5 font-medium text-[11px] ${test.type === "LAB" ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}&gt;
+                          {test.type}
+                        &lt;/span&gt;
+                      &lt;/button&gt;
+                    ))}
+                  &lt;/div&gt;
+                ) : null}
+              &lt;/div&gt;
+
+              &lt;button
+                type="button"
+                onClick={() =&gt; setShowCreateTest((prev) =&gt; !prev)}
+                className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+              &gt;
+                &lt;Plus className="h-3.5 w-3.5" /&gt;
+                {showCreateTest ? "Hide New Test Form" : "Create New Test"}
+              &lt;/button&gt;
+
+              {showCreateTest ? (
+                &lt;div className="rounded border border-slate-200 bg-slate-50 p-3 space-y-3"&gt;
+                  &lt;div className="grid grid-cols-1 gap-2 sm:grid-cols-2"&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Test Name&lt;/label&gt;
+                      &lt;input className={inputCls} value={createName} onChange={(e) =&gt; setCreateName(e.target.value)} /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Code&lt;/label&gt;
+                      &lt;input className={inputCls} value={createCode} onChange={(e) =&gt; setCreateCode(e.target.value.toUpperCase())} /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Type&lt;/label&gt;
+                      &lt;Select
+                        value={createType}
+                        onValueChange={(v) =&gt; {
+                          const next = v as TestType;
+                          setCreateType(next);
+                          setCreateDepartment(next === "LAB" ? "LABORATORY" : "RADIOLOGY");
+                        }}
+                      &gt;
+                        &lt;SelectTrigger className="h-8 text-xs"&gt;&lt;SelectValue /&gt;&lt;/SelectTrigger&gt;
+                        &lt;SelectContent&gt;
+                          &lt;SelectItem value="LAB"&gt;Lab&lt;/SelectItem&gt;
+                          &lt;SelectItem value="RADIOLOGY"&gt;Radiology&lt;/SelectItem&gt;
+                        &lt;/SelectContent&gt;
+                      &lt;/Select&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Department&lt;/label&gt;
+                      &lt;Select value={createDepartment} onValueChange={(v) =&gt; setCreateDepartment(v as Department)}&gt;
+                        &lt;SelectTrigger className="h-8 text-xs"&gt;&lt;SelectValue /&gt;&lt;/SelectTrigger&gt;
+                        &lt;SelectContent&gt;
+                          &lt;SelectItem value="LABORATORY"&gt;Laboratory&lt;/SelectItem&gt;
+                          &lt;SelectItem value="RADIOLOGY"&gt;Radiology&lt;/SelectItem&gt;
+                        &lt;/SelectContent&gt;
+                      &lt;/Select&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Price (N)&lt;/label&gt;
+                      &lt;input className={inputCls} type="number" min="0" value={createPrice} onChange={(e) =&gt; setCreatePrice(e.target.value)} /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Turnaround (mins)&lt;/label&gt;
+                      &lt;input className={inputCls} type="number" min="1" value={createTurnaround} onChange={(e) =&gt; setCreateTurnaround(e.target.value)} /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Sample Type&lt;/label&gt;
+                      &lt;input className={inputCls} value={createSampleType} onChange={(e) =&gt; setCreateSampleType(e.target.value)} /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Description&lt;/label&gt;
+                      &lt;input className={inputCls} value={createDescription} onChange={(e) =&gt; setCreateDescription(e.target.value)} /&gt;
+                    &lt;/div&gt;
+                  &lt;/div&gt;
+
+                  &lt;div className="space-y-2"&gt;
+                    &lt;div className="flex items-center justify-between"&gt;
+                      &lt;p className="text-xs font-semibold text-slate-600"&gt;Result Fields&lt;/p&gt;
+                      &lt;button type="button" onClick={addFieldDraft} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100"&gt;Add Field&lt;/button&gt;
+                    &lt;/div&gt;
+                    {createFields.map((field, idx) =&gt; (
+                      &lt;div key={idx} className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-2 sm:grid-cols-2 lg:grid-cols-4"&gt;
+                        &lt;input className={inputCls} placeholder="Label" value={field.label} onChange={(e) =&gt; setField(idx, { label: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="field_key" value={field.fieldKey} onChange={(e) =&gt; setField(idx, { fieldKey: e.target.value })} /&gt;
+                        &lt;Select value={field.fieldType} onValueChange={(v) =&gt; setField(idx, { fieldType: v as FieldType })}&gt;
+                          &lt;SelectTrigger className="h-8 text-xs"&gt;&lt;SelectValue /&gt;&lt;/SelectTrigger&gt;
+                          &lt;SelectContent&gt;
+                            &lt;SelectItem value="NUMBER"&gt;NUMBER&lt;/SelectItem&gt;
+                            &lt;SelectItem value="TEXT"&gt;TEXT&lt;/SelectItem&gt;
+                            &lt;SelectItem value="TEXTAREA"&gt;TEXTAREA&lt;/SelectItem&gt;
+                            &lt;SelectItem value="DROPDOWN"&gt;DROPDOWN&lt;/SelectItem&gt;
+                            &lt;SelectItem value="CHECKBOX"&gt;CHECKBOX&lt;/SelectItem&gt;
+                          &lt;/SelectContent&gt;
+                        &lt;/Select&gt;
+                        &lt;input className={inputCls} placeholder="Unit" value={field.unit} onChange={(e) =&gt; setField(idx, { unit: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="Normal min" value={field.normalMin} onChange={(e) =&gt; setField(idx, { normalMin: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="Normal max" value={field.normalMax} onChange={(e) =&gt; setField(idx, { normalMax: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="Normal text" value={field.normalText} onChange={(e) =&gt; setField(idx, { normalText: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="Options (a,b,c)" value={field.options} onChange={(e) =&gt; setField(idx, { options: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="Reference note" value={field.referenceNote} onChange={(e) =&gt; setField(idx, { referenceNote: e.target.value })} /&gt;
+                        {createFields.length &gt; 1 ? (
+                          &lt;button type="button" onClick={() =&gt; removeFieldDraft(idx)} className="rounded border border-red-200 px-2 py-1 text-[11px] text-red-600 hover:bg-red-50"&gt;Remove&lt;/button&gt;
+                        ) : null}
+                      &lt;/div&gt;
+                    ))}
+                  &lt;/div&gt;
+
+                  &lt;button
+                    type="button"
+                    onClick={() =&gt; void createTest()}
+                    disabled={createBusy}
+                    className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  &gt;
+                    {createBusy ? "Creating..." : "Create Test and Add"}
+                  &lt;/button&gt;
+                &lt;/div&gt;
+              ) : null}
+
+              {cart.length === 0 ? (
+                &lt;p className="rounded border border-dashed border-slate-200 py-4 text-center text-xs text-slate-400"&gt;No tests selected.&lt;/p&gt;
+              ) : (
+                &lt;table className="w-full text-xs"&gt;
+                  &lt;thead&gt;
+                    &lt;tr className="border-b border-slate-100"&gt;
+                      &lt;th className="pb-2 text-left font-medium text-slate-400"&gt;Test&lt;/th&gt;
+                      &lt;th className="pb-2 text-left font-medium text-slate-400"&gt;Status&lt;/th&gt;
+                      &lt;th className="pb-2 text-left font-medium text-slate-400"&gt;Price (N)&lt;/th&gt;
+                      &lt;th className="pb-2" /&gt;
+                    &lt;/tr&gt;
+                  &lt;/thead&gt;
+                  &lt;tbody className="divide-y divide-slate-100"&gt;
+                    {cart.map((item) =&gt; {
+                      const isLocked = !!item.status &amp;&amp; NON_REMOVABLE_STATUSES.has(item.status);
+                      return (
+                        &lt;tr key={item.id}&gt;
+                          &lt;td className="py-2 text-slate-700"&gt;
+                            &lt;p className="font-medium text-slate-800"&gt;{item.name}&lt;/p&gt;
+                            &lt;p className="font-mono text-[11px] text-slate-400"&gt;{item.code}&lt;/p&gt;
+                          &lt;/td&gt;
+                          &lt;td className="py-2"&gt;
+                            &lt;span className={`rounded px-1.5 py-0.5 ${isLocked ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}&gt;
+                              {item.status ?? "NEW"}
+                            &lt;/span&gt;
+                          &lt;/td&gt;
+                          &lt;td className="py-2"&gt;
+                            &lt;input className="h-7 w-24 rounded border border-slate-200 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" type="number" min="0" value={item.enteredPrice} onChange={(e) =&gt; updatePrice(item.id, e.target.value)} /&gt;
+                          &lt;/td&gt;
+                          &lt;td className="py-2 text-right"&gt;
+                            &lt;button type="button" onClick={() =&gt; removeFromCart(item)} className="text-slate-300 hover:text-red-600" title={isLocked ? "Cannot remove after MD submission" : "Remove test"}&gt;
+                              &lt;X className="h-3.5 w-3.5" /&gt;
+                            &lt;/button&gt;
+                          &lt;/td&gt;
+                        &lt;/tr&gt;
+                      );
+                    })}
+                  &lt;/tbody&gt;
+                &lt;/table&gt;
+              )}
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;div className="space-y-4"&gt;
+          &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+            &lt;div className="border-b border-slate-100 px-4 py-2.5"&gt;
+              &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Visit &amp; Payment&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div className="space-y-3 p-4"&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Priority&lt;/label&gt;
+                &lt;Select value={priority} onValueChange={(v) =&gt; setPriority(v as Priority)}&gt;
+                  &lt;SelectTrigger className="h-8 text-xs"&gt;&lt;SelectValue /&gt;&lt;/SelectTrigger&gt;
+                  &lt;SelectContent&gt;
+                    &lt;SelectItem value="ROUTINE"&gt;Routine&lt;/SelectItem&gt;
+                    &lt;SelectItem value="URGENT"&gt;Urgent&lt;/SelectItem&gt;
+                    &lt;SelectItem value="EMERGENCY"&gt;Emergency&lt;/SelectItem&gt;
+                  &lt;/SelectContent&gt;
+                &lt;/Select&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Discount (N)&lt;/label&gt;
+                &lt;input className={inputCls} type="number" min="0" value={discount} onChange={(e) =&gt; setDiscount(e.target.value)} /&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Amount Paid (N)&lt;/label&gt;
+                &lt;input className={inputCls} type="number" min="0" value={amountPaid} onChange={(e) =&gt; setAmountPaid(e.target.value)} /&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Payment Method&lt;/label&gt;
+                &lt;Select value={paymentMethod} onValueChange={setPaymentMethod}&gt;
+                  &lt;SelectTrigger className="h-8 text-xs"&gt;&lt;SelectValue placeholder="Select" /&gt;&lt;/SelectTrigger&gt;
+                  &lt;SelectContent&gt;
+                    &lt;SelectItem value="CASH"&gt;Cash&lt;/SelectItem&gt;
+                    &lt;SelectItem value="TRANSFER"&gt;Transfer&lt;/SelectItem&gt;
+                    &lt;SelectItem value="POS"&gt;POS / Card&lt;/SelectItem&gt;
+                    &lt;SelectItem value="HMO"&gt;HMO / Insurance&lt;/SelectItem&gt;
+                    &lt;SelectItem value="OTHER"&gt;Other&lt;/SelectItem&gt;
+                  &lt;/SelectContent&gt;
+                &lt;/Select&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Visit Notes&lt;/label&gt;
+                &lt;textarea
+                  rows={2}
+                  className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                  value={visitNotes}
+                  onChange={(e) =&gt; setVisitNotes(e.target.value)}
+                /&gt;
+              &lt;/div&gt;
+
+              &lt;div className="rounded border border-slate-100 bg-slate-50 p-2.5 text-xs space-y-1.5"&gt;
+                &lt;div className="flex justify-between text-slate-500"&gt;&lt;span&gt;Subtotal&lt;/span&gt;&lt;span&gt;{formatCurrency(subtotal)}&lt;/span&gt;&lt;/div&gt;
+                &lt;div className="flex justify-between text-slate-500"&gt;&lt;span&gt;Discount&lt;/span&gt;&lt;span&gt;{formatCurrency(discountAmount)}&lt;/span&gt;&lt;/div&gt;
+                &lt;div className="flex justify-between border-t border-slate-200 pt-1.5 font-semibold text-slate-800"&gt;&lt;span&gt;Total&lt;/span&gt;&lt;span&gt;{formatCurrency(totalAmount)}&lt;/span&gt;&lt;/div&gt;
+                &lt;div className="flex justify-between text-slate-500"&gt;&lt;span&gt;Balance&lt;/span&gt;&lt;span&gt;{formatCurrency(balance)}&lt;/span&gt;&lt;/div&gt;
+              &lt;/div&gt;
+
+              &lt;div className="flex items-center justify-between"&gt;
+                &lt;span className="text-xs text-slate-500"&gt;Payment Status&lt;/span&gt;
+                &lt;span className={`rounded px-2 py-0.5 text-xs font-medium ${paymentBadge[paymentStatus]}`}&gt;{paymentStatus}&lt;/span&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+
+          &lt;button
+            type="button"
+            disabled={saving}
+            onClick={() =&gt; void saveChanges()}
+            className="w-full rounded bg-blue-600 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+          &gt;
+            {saving ? "Saving..." : "Save Patient Updates"}
+          &lt;/button&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/components/receptionist/new-patient-form.tsx</div><pre>"use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { Search, X, Plus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { formatCurrency } from "@/lib/utils";
 import { enqueueOfflinePatient, listOfflinePatientItems, removeOfflinePatient, type OfflinePatientPayload } from "@/lib/offline-sync";
@@ -15217,11 +17360,48 @@ interface CartItem extends TestResult { enteredPrice: string }
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
 type PaymentStatus = "PENDING" | "PAID" | "PARTIAL" | "WAIVED";
 type Sex = "MALE" | "FEMALE" | "OTHER";
+type FieldType = "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
+type TestType = "LAB" | "RADIOLOGY";
+type Department = "LABORATORY" | "RADIOLOGY";
+
+type CreateFieldDraft = {
+  label: string;
+  fieldKey: string;
+  fieldType: FieldType;
+  unit: string;
+  normalMin: string;
+  normalMax: string;
+  normalText: string;
+  referenceNote: string;
+  options: string;
+};
 const TEST_PRICE_MEMORY_KEY = "diag_sync_test_price_memory_v1";
 
 function toNumberPrice(value: number | string): number {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toFieldKey(label: string) {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function emptyField(): CreateFieldDraft {
+  return {
+    label: "",
+    fieldKey: "",
+    fieldType: "TEXT",
+    unit: "",
+    normalMin: "",
+    normalMax: "",
+    normalText: "",
+    referenceNote: "",
+    options: "",
+  };
 }
 
 const inputCls = "h-8 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -15247,6 +17427,17 @@ export function NewPatientForm() {
   const [testSearch, setTestSearch] = useState("");
   const [testResults, setTestResults] = useState&lt;TestResult[]&gt;([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [showCreateTest, setShowCreateTest] = useState(false);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createCode, setCreateCode] = useState("");
+  const [createType, setCreateType] = useState&lt;TestType&gt;("LAB");
+  const [createDepartment, setCreateDepartment] = useState&lt;Department&gt;("LABORATORY");
+  const [createPrice, setCreatePrice] = useState("");
+  const [createTurnaround, setCreateTurnaround] = useState("120");
+  const [createSampleType, setCreateSampleType] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
+  const [createFields, setCreateFields] = useState&lt;CreateFieldDraft[]&gt;([emptyField()]);
   const [cart, setCart] = useState&lt;CartItem[]&gt;([]);
   const [rangeDraftByTest, setRangeDraftByTest] = useState&lt;Record&lt;string, NonNullable&lt;TestResult["resultFields"]&gt;&gt;&gt;({});
   const [rangeSavingByTest, setRangeSavingByTest] = useState&lt;Record&lt;string, boolean&gt;&gt;({});
@@ -15368,6 +17559,101 @@ export function NewPatientForm() {
     const parsed = Number(trimmed);
     if (!trimmed || !Number.isFinite(parsed) || parsed &lt;= 0) return;
     persistSavedPrice(id, trimmed);
+  }
+
+  function setCreateField(index: number, patch: Partial&lt;CreateFieldDraft&gt;) {
+    setCreateFields((prev) =&gt;
+      prev.map((field, i) =&gt; {
+        if (i !== index) return field;
+        const next = { ...field, ...patch };
+        if ("label" in patch &amp;&amp; (!next.fieldKey || next.fieldKey === toFieldKey(field.label))) {
+          next.fieldKey = toFieldKey(next.label);
+        }
+        return next;
+      })
+    );
+  }
+
+  function addCreateField() {
+    setCreateFields((prev) =&gt; [...prev, emptyField()]);
+  }
+
+  function removeCreateField(index: number) {
+    setCreateFields((prev) =&gt; prev.filter((_, i) =&gt; i !== index));
+  }
+
+  async function createTestAndAddToCart() {
+    setError("");
+    if (!createName.trim() || !createCode.trim()) {
+      setError("Test name and code are required.");
+      return;
+    }
+    if (createFields.some((field) =&gt; !field.label.trim() || !field.fieldKey.trim())) {
+      setError("Each test field needs label and field key.");
+      return;
+    }
+
+    setCreateBusy(true);
+    try {
+      const res = await fetch("/api/tests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: createName.trim(),
+          code: createCode.trim().toUpperCase(),
+          type: createType,
+          department: createDepartment,
+          price: toNumberPrice(createPrice),
+          turnaroundMinutes: Math.max(1, Math.trunc(toNumberPrice(createTurnaround) || 120)),
+          sampleType: createSampleType.trim() || undefined,
+          description: createDescription.trim() || undefined,
+          fields: createFields.map((field) =&gt; ({
+            label: field.label.trim(),
+            fieldKey: field.fieldKey.trim(),
+            fieldType: field.fieldType,
+            unit: field.unit.trim() || undefined,
+            normalMin: field.normalMin.trim() ? Number(field.normalMin) : undefined,
+            normalMax: field.normalMax.trim() ? Number(field.normalMax) : undefined,
+            normalText: field.normalText.trim() || undefined,
+            referenceNote: field.referenceNote.trim() || undefined,
+            options: field.options.trim() || undefined,
+            isRequired: true,
+          })),
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error ?? "Failed to create test");
+        return;
+      }
+
+      const createdId = json.data?.id as string | undefined;
+      if (!createdId) {
+        setError("Test created but could not be added automatically.");
+        return;
+      }
+
+      const singleRes = await fetch(`/api/tests/${createdId}`);
+      const singleJson = await singleRes.json();
+      if (!singleJson.success) {
+        setError("Test created, but failed to load it back.");
+        return;
+      }
+
+      addToCart(singleJson.data as TestResult);
+      setShowCreateTest(false);
+      setCreateName("");
+      setCreateCode("");
+      setCreatePrice("");
+      setCreateTurnaround("120");
+      setCreateSampleType("");
+      setCreateDescription("");
+      setCreateFields([emptyField()]);
+    } catch {
+      setError("Network error while creating test.");
+    } finally {
+      setCreateBusy(false);
+    }
   }
 
   function updateRangeValue(
@@ -15625,6 +17911,114 @@ export function NewPatientForm() {
                   &lt;/div&gt;
                 )}
               &lt;/div&gt;
+
+              &lt;button
+                type="button"
+                onClick={() =&gt; setShowCreateTest((prev) =&gt; !prev)}
+                className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+              &gt;
+                &lt;Plus className="h-3.5 w-3.5" /&gt;
+                {showCreateTest ? "Hide New Test Form" : "Create New Test"}
+              &lt;/button&gt;
+
+              {showCreateTest &amp;&amp; (
+                &lt;div className="rounded border border-slate-200 bg-slate-50 p-3 space-y-3"&gt;
+                  &lt;div className="grid grid-cols-1 gap-2 sm:grid-cols-2"&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Test Name&lt;/label&gt;
+                      &lt;input className={inputCls} value={createName} onChange={(e) =&gt; setCreateName(e.target.value)} /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Code&lt;/label&gt;
+                      &lt;input className={inputCls} value={createCode} onChange={(e) =&gt; setCreateCode(e.target.value.toUpperCase())} /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Type&lt;/label&gt;
+                      &lt;Select
+                        value={createType}
+                        onValueChange={(v) =&gt; {
+                          const next = v as TestType;
+                          setCreateType(next);
+                          setCreateDepartment(next === "LAB" ? "LABORATORY" : "RADIOLOGY");
+                        }}
+                      &gt;
+                        &lt;SelectTrigger className="h-8 text-xs"&gt;&lt;SelectValue /&gt;&lt;/SelectTrigger&gt;
+                        &lt;SelectContent&gt;
+                          &lt;SelectItem value="LAB"&gt;Lab&lt;/SelectItem&gt;
+                          &lt;SelectItem value="RADIOLOGY"&gt;Radiology&lt;/SelectItem&gt;
+                        &lt;/SelectContent&gt;
+                      &lt;/Select&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Department&lt;/label&gt;
+                      &lt;Select value={createDepartment} onValueChange={(v) =&gt; setCreateDepartment(v as Department)}&gt;
+                        &lt;SelectTrigger className="h-8 text-xs"&gt;&lt;SelectValue /&gt;&lt;/SelectTrigger&gt;
+                        &lt;SelectContent&gt;
+                          &lt;SelectItem value="LABORATORY"&gt;Laboratory&lt;/SelectItem&gt;
+                          &lt;SelectItem value="RADIOLOGY"&gt;Radiology&lt;/SelectItem&gt;
+                        &lt;/SelectContent&gt;
+                      &lt;/Select&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Price (N)&lt;/label&gt;
+                      &lt;input className={inputCls} type="number" min="0" value={createPrice} onChange={(e) =&gt; setCreatePrice(e.target.value)} /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Turnaround (mins)&lt;/label&gt;
+                      &lt;input className={inputCls} type="number" min="1" value={createTurnaround} onChange={(e) =&gt; setCreateTurnaround(e.target.value)} /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Sample Type&lt;/label&gt;
+                      &lt;input className={inputCls} value={createSampleType} onChange={(e) =&gt; setCreateSampleType(e.target.value)} /&gt;
+                    &lt;/div&gt;
+                    &lt;div&gt;
+                      &lt;label className={labelCls}&gt;Description&lt;/label&gt;
+                      &lt;input className={inputCls} value={createDescription} onChange={(e) =&gt; setCreateDescription(e.target.value)} /&gt;
+                    &lt;/div&gt;
+                  &lt;/div&gt;
+
+                  &lt;div className="space-y-2"&gt;
+                    &lt;div className="flex items-center justify-between"&gt;
+                      &lt;p className="text-xs font-semibold text-slate-600"&gt;Result Fields&lt;/p&gt;
+                      &lt;button type="button" onClick={addCreateField} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100"&gt;Add Field&lt;/button&gt;
+                    &lt;/div&gt;
+                    {createFields.map((field, idx) =&gt; (
+                      &lt;div key={idx} className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-2 sm:grid-cols-2 lg:grid-cols-4"&gt;
+                        &lt;input className={inputCls} placeholder="Label" value={field.label} onChange={(e) =&gt; setCreateField(idx, { label: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="field_key" value={field.fieldKey} onChange={(e) =&gt; setCreateField(idx, { fieldKey: e.target.value })} /&gt;
+                        &lt;Select value={field.fieldType} onValueChange={(v) =&gt; setCreateField(idx, { fieldType: v as FieldType })}&gt;
+                          &lt;SelectTrigger className="h-8 text-xs"&gt;&lt;SelectValue /&gt;&lt;/SelectTrigger&gt;
+                          &lt;SelectContent&gt;
+                            &lt;SelectItem value="NUMBER"&gt;NUMBER&lt;/SelectItem&gt;
+                            &lt;SelectItem value="TEXT"&gt;TEXT&lt;/SelectItem&gt;
+                            &lt;SelectItem value="TEXTAREA"&gt;TEXTAREA&lt;/SelectItem&gt;
+                            &lt;SelectItem value="DROPDOWN"&gt;DROPDOWN&lt;/SelectItem&gt;
+                            &lt;SelectItem value="CHECKBOX"&gt;CHECKBOX&lt;/SelectItem&gt;
+                          &lt;/SelectContent&gt;
+                        &lt;/Select&gt;
+                        &lt;input className={inputCls} placeholder="Unit" value={field.unit} onChange={(e) =&gt; setCreateField(idx, { unit: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="Normal min" value={field.normalMin} onChange={(e) =&gt; setCreateField(idx, { normalMin: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="Normal max" value={field.normalMax} onChange={(e) =&gt; setCreateField(idx, { normalMax: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="Normal text" value={field.normalText} onChange={(e) =&gt; setCreateField(idx, { normalText: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="Options (a,b,c)" value={field.options} onChange={(e) =&gt; setCreateField(idx, { options: e.target.value })} /&gt;
+                        &lt;input className={inputCls} placeholder="Reference note" value={field.referenceNote} onChange={(e) =&gt; setCreateField(idx, { referenceNote: e.target.value })} /&gt;
+                        {createFields.length &gt; 1 ? (
+                          &lt;button type="button" onClick={() =&gt; removeCreateField(idx)} className="rounded border border-red-200 px-2 py-1 text-[11px] text-red-600 hover:bg-red-50"&gt;Remove&lt;/button&gt;
+                        ) : null}
+                      &lt;/div&gt;
+                    ))}
+                  &lt;/div&gt;
+
+                  &lt;button
+                    type="button"
+                    onClick={() =&gt; void createTestAndAddToCart()}
+                    disabled={createBusy}
+                    className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  &gt;
+                    {createBusy ? "Creating..." : "Create Test and Add"}
+                  &lt;/button&gt;
+                &lt;/div&gt;
+              )}
 
               {/* Cart */}
               {cart.length === 0 ? (
@@ -17125,6 +19519,433 @@ export function useStaff(options: UseStaffOptions = {}) {
   return { staff, total, loading, error, refetch: fetchStaff };
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/lib/admin-analytics.ts</div><pre>import { prisma } from "@/lib/prisma";
+
+function startOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function startOfMonth(date: Date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function startOfWeek(date: Date) {
+  const d = startOfDay(date);
+  const day = d.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+function toMonthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export async function getAdminAnalytics() {
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const weekStart = startOfWeek(now);
+  const monthStart = startOfMonth(now);
+
+  const [
+    totalLabs,
+    activeLabs,
+    suspendedLabs,
+    totalUsers,
+    totalPatients,
+    activeToday,
+    totalTestRequests,
+    labsCreatedThisMonth,
+    usersActiveThisWeek,
+    labs,
+    users,
+    recentLabActivity,
+  ] = await Promise.all([
+    prisma.organization.count(),
+    prisma.organization.count({ where: { status: "ACTIVE" } }),
+    prisma.organization.count({ where: { status: "SUSPENDED" } }),
+    prisma.staff.count({ where: { role: { not: "MEGA_ADMIN" } } }),
+    prisma.patient.count(),
+    prisma.staff.count({ where: { lastSeen: { gte: todayStart }, role: { not: "MEGA_ADMIN" } } }),
+    prisma.testOrder.count(),
+    prisma.organization.count({ where: { createdAt: { gte: monthStart } } }),
+    prisma.staff.count({ where: { lastSeen: { gte: weekStart }, role: { not: "MEGA_ADMIN" } } }),
+    prisma.organization.findMany({
+      where: { createdAt: { gte: new Date(now.getFullYear() - 1, now.getMonth(), 1) } },
+      select: { createdAt: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.staff.findMany({
+      where: {
+        role: { not: "MEGA_ADMIN" },
+        createdAt: { gte: new Date(now.getFullYear() - 1, now.getMonth(), 1) },
+      },
+      select: { createdAt: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.staff.groupBy({
+      by: ["organizationId"],
+      where: {
+        organizationId: { not: null },
+        lastSeen: { gte: weekStart },
+        role: { not: "MEGA_ADMIN" },
+      },
+      _count: { _all: true },
+      orderBy: { _count: { organizationId: "desc" } },
+      take: 5,
+    }),
+  ]);
+
+  const labsByMonth = new Map&lt;string, number&gt;();
+  for (const lab of labs) {
+    const key = toMonthKey(lab.createdAt);
+    labsByMonth.set(key, (labsByMonth.get(key) ?? 0) + 1);
+  }
+
+  const usersByMonth = new Map&lt;string, number&gt;();
+  for (const user of users) {
+    const key = toMonthKey(user.createdAt);
+    usersByMonth.set(key, (usersByMonth.get(key) ?? 0) + 1);
+  }
+
+  const allMonths = new Set&lt;string&gt;(
+    Array.from(labsByMonth.keys()).concat(Array.from(usersByMonth.keys()))
+  );
+  const growthSeries = Array.from(allMonths)
+    .sort()
+    .map((month) =&gt; ({
+      month,
+      labs: labsByMonth.get(month) ?? 0,
+      users: usersByMonth.get(month) ?? 0,
+    }));
+
+  const activeLabIds = recentLabActivity
+    .map((item) =&gt; item.organizationId)
+    .filter((id): id is string =&gt; Boolean(id));
+
+  const activeLabMap = new Map(
+    (
+      await prisma.organization.findMany({
+        where: { id: { in: activeLabIds } },
+        select: { id: true, name: true, email: true },
+      })
+    ).map((org) =&gt; [org.id, org])
+  );
+
+  const mostActiveLabs = recentLabActivity.map((item) =&gt; {
+    const org = item.organizationId ? activeLabMap.get(item.organizationId) : null;
+    return {
+      organizationId: item.organizationId,
+      name: org?.name ?? "Unknown Lab",
+      email: org?.email ?? "",
+      activityCount: item._count._all,
+    };
+  });
+
+  return {
+    summary: {
+      totalLabs,
+      activeLabs,
+      suspendedLabs,
+      totalUsers,
+      totalPatients,
+      activeToday,
+      totalTestRequests,
+      labsCreatedThisMonth,
+      usersActiveThisWeek,
+    },
+    growthSeries,
+    activity: {
+      mostActiveLabs,
+    },
+  };
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/admin-auth.ts</div><pre>import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+
+export function isMegaAdmin(role: string | null | undefined): boolean {
+  return role === "MEGA_ADMIN";
+}
+
+export async function requireMegaAdmin() {
+  const session = await auth();
+  if (!session?.user) {
+    redirect("/login?callbackUrl=/admin/dashboard");
+  }
+
+  const user = session.user as {
+    id: string;
+    email: string;
+    fullName: string;
+    role: string;
+    organizationId: string | null;
+  };
+
+  if (!isMegaAdmin(user.role)) {
+    redirect("/dashboard");
+  }
+
+  return user;
+}
+
+export async function requireMegaAdminApi() {
+  const session = await auth();
+  if (!session?.user) {
+    return { ok: false as const, status: 401, error: "Unauthorized" };
+  }
+
+  const user = session.user as {
+    id: string;
+    email: string;
+    fullName: string;
+    role: string;
+    organizationId: string | null;
+  };
+
+  if (!isMegaAdmin(user.role)) {
+    return { ok: false as const, status: 403, error: "Forbidden" };
+  }
+
+  return { ok: true as const, user };
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/admin-data.ts</div><pre>import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+
+type ListOrganizationsParams = {
+  page: number;
+  pageSize: number;
+  search?: string;
+  plan?: string;
+  status?: string;
+};
+
+export async function listOrganizations(params: ListOrganizationsParams) {
+  const page = Math.max(1, params.page || 1);
+  const pageSize = Math.min(100, Math.max(1, params.pageSize || 20));
+  const search = params.search?.trim();
+
+  const where: Prisma.OrganizationWhereInput = {
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+    ...(params.plan ? { plan: params.plan as any } : {}),
+    ...(params.status ? { status: params.status as any } : {}),
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.organization.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        plan: true,
+        status: true,
+        createdAt: true,
+        _count: {
+          select: {
+            staff: true,
+            patients: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.organization.count({ where }),
+  ]);
+
+  const activityByOrg = new Map(
+    (
+      await prisma.staff.groupBy({
+        by: ["organizationId"],
+        where: {
+          organizationId: { in: items.map((item) =&gt; item.id) },
+          lastSeen: { not: null },
+        },
+        _max: { lastSeen: true },
+      })
+    )
+      .filter((item) =&gt; item.organizationId)
+      .map((item) =&gt; [item.organizationId as string, item._max.lastSeen])
+  );
+
+  return {
+    items: items.map((item) =&gt; ({
+      id: item.id,
+      name: item.name,
+      email: item.email,
+      plan: item.plan,
+      status: item.status,
+      createdAt: item.createdAt,
+      totalUsers: item._count.staff,
+      totalPatients: item._count.patients,
+      lastActivity: activityByOrg.get(item.id) ?? null,
+    })),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
+
+export async function getOrganizationDetail(organizationId: string) {
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      plan: true,
+      status: true,
+      phone: true,
+      address: true,
+      createdAt: true,
+      _count: {
+        select: {
+          staff: true,
+          patients: true,
+        },
+      },
+    },
+  });
+
+  if (!organization) {
+    return null;
+  }
+
+  const [users, totalTestRequests, lastActivityResult] = await Promise.all([
+    prisma.staff.findMany({
+      where: { organizationId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        status: true,
+        lastSeen: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.testOrder.count({ where: { organizationId } }),
+    prisma.staff.aggregate({
+      where: { organizationId, lastSeen: { not: null } },
+      _max: { lastSeen: true },
+    }),
+  ]);
+
+  return {
+    organization,
+    users,
+    stats: {
+      totalUsers: organization._count.staff,
+      totalPatients: organization._count.patients,
+      totalTestRequests,
+      lastActivity: lastActivityResult._max.lastSeen ?? null,
+    },
+  };
+}
+
+type ListPlatformUsersParams = {
+  page: number;
+  pageSize: number;
+  search?: string;
+  role?: string;
+  organizationId?: string;
+  status?: string;
+};
+
+export async function listPlatformUsers(params: ListPlatformUsersParams) {
+  const page = Math.max(1, params.page || 1);
+  const pageSize = Math.min(100, Math.max(1, params.pageSize || 20));
+  const search = params.search?.trim();
+
+  const where: Prisma.StaffWhereInput = {
+    ...(search
+      ? {
+          OR: [
+            { fullName: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+    ...(params.role ? { role: params.role as any } : {}),
+    ...(params.organizationId ? { organizationId: params.organizationId } : {}),
+    ...(params.status ? { status: params.status as any } : {}),
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.staff.findMany({
+      where,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        status: true,
+        lastSeen: true,
+        createdAt: true,
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.staff.count({ where }),
+  ]);
+
+  return {
+    items: items.map((item) =&gt; ({
+      id: item.id,
+      name: item.fullName,
+      email: item.email,
+      role: item.role,
+      status: item.status,
+      organization: item.organization
+        ? { id: item.organization.id, name: item.organization.name }
+        : null,
+      lastSeen: item.lastSeen,
+      createdAt: item.createdAt,
+    })),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
+
+export async function setOrganizationStatus(organizationId: string, status: "ACTIVE" | "SUSPENDED") {
+  return prisma.organization.update({
+    where: { id: organizationId },
+    data: { status },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      status: true,
+      updatedAt: true,
+    },
+  });
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/lib/api-observability.ts</div><pre>type ApiMetric = {
   route: string;
   startMs: number;
@@ -17354,12 +20175,18 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
+const AUTH_SECRET =
+  process.env.AUTH_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  (process.env.NODE_ENV !== "production" ? "diagsync-local-dev-auth-secret" : undefined);
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: AUTH_SECRET,
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
@@ -17371,6 +20198,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.role = (user as any).role;
         token.organizationId = (user as any).organizationId;
+        token.organizationStatus = (user as any).organizationStatus;
         token.fullName = (user as any).fullName;
         token.department = (user as any).department;
       }
@@ -17381,6 +20209,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string;
         (session.user as any).role = token.role;
         (session.user as any).organizationId = token.organizationId;
+        (session.user as any).organizationStatus = token.organizationStatus;
         (session.user as any).fullName = token.fullName;
         (session.user as any).department = token.department;
       }
@@ -17414,14 +20243,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             department: true,
             organizationId: true,
             status: true,
+            organization: {
+              select: {
+                status: true,
+              },
+            },
           },
         });
 
         if (!staff) return null;
         if (staff.status !== "ACTIVE") return null;
+        if (staff.role !== "MEGA_ADMIN") {
+          if (!staff.organizationId) return null;
+          if (!staff.organization || staff.organization.status !== "ACTIVE") return null;
+        }
 
         const passwordMatch = await bcrypt.compare(password, staff.passwordHash);
         if (!passwordMatch) return null;
+
+        await prisma.staff.update({
+          where: { id: staff.id },
+          data: { lastSeen: new Date() },
+        });
 
         return {
           id: staff.id,
@@ -17429,13 +20272,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: staff.fullName,
           role: staff.role,
           organizationId: staff.organizationId,
+          organizationStatus: staff.organization?.status ?? null,
           fullName: staff.fullName,
           department: staff.department,
         };
       },
     }),
   ],
-});</pre></div>
+});
+</pre></div>
 <div class='file-block'><div class='file-header'>src/lib/cloudinary.ts</div><pre>import { createHash } from "node:crypto";
 
 type CloudinaryConfig = {
@@ -18900,7 +21745,6 @@ export async function getLabTasks(actor: LabActor, opts?: {
     where: {
       organizationId: actor.organizationId,
       department: Department.LABORATORY,
-      staffId: actor.id,
       ...(opts?.status === "ACTIVE"
         ? { status: { in: [RoutingTaskStatus.PENDING, RoutingTaskStatus.IN_PROGRESS] } }
         : opts?.status &amp;&amp; opts.status !== "ALL"
@@ -18969,16 +21813,38 @@ export async function getLabTasks(actor: LabActor, opts?: {
 
 export async function startLabTask(taskId: string, actor: LabActor) {
   assertLabScientist(actor);
-  const task = await assertTaskOwnership(taskId, actor);
+  const task = await prisma.routingTask.findFirst({
+    where: {
+      id: taskId,
+      organizationId: actor.organizationId,
+      department: Department.LABORATORY,
+    },
+    include: {
+      visit: { include: { patient: true } },
+    },
+  });
+
+  if (!task) throw new Error("TASK_NOT_FOUND");
+  if (task.staffId &amp;&amp; task.staffId !== actor.id) {
+    throw new Error("FORBIDDEN_TASK");
+  }
 
   if (!canStartTask(task.status)) throw new Error("INVALID_TASK_STATE");
 
   const now = new Date();
   await prisma.$transaction(async (tx) =&gt; {
-    await tx.routingTask.update({
-      where: { id: task.id },
-      data: { status: RoutingTaskStatus.IN_PROGRESS },
+    const claimed = await tx.routingTask.updateMany({
+      where: {
+        id: task.id,
+        organizationId: actor.organizationId,
+        department: Department.LABORATORY,
+        ...(task.staffId ? { staffId: actor.id } : { staffId: null }),
+      },
+      data: { status: RoutingTaskStatus.IN_PROGRESS, staffId: actor.id },
     });
+    if (claimed.count === 0) {
+      throw new Error("TASK_ALREADY_CLAIMED");
+    }
 
     await tx.testOrder.updateMany({
       where: {
@@ -24084,6 +26950,119 @@ export function removeSignaturePreset(items: SignaturePreset[], id: string) {
   return items.filter((item) =&gt; item.id !== id);
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/lib/test-catalog.ts</div><pre>import { PrismaClient, Prisma } from "@prisma/client";
+
+type DbClient = PrismaClient | Prisma.TransactionClient;
+
+type CatalogSyncResult = {
+  sourceOrganizationId: string | null;
+  totalTemplateTests: number;
+  syncedTests: number;
+};
+
+export async function syncFullTestCatalogToOrganization(
+  db: DbClient,
+  targetOrganizationId: string
+): Promise&lt;CatalogSyncResult&gt; {
+  const sourceGroup = await db.diagnosticTest.groupBy({
+    by: ["organizationId"],
+    where: {
+      organizationId: { not: targetOrganizationId },
+    },
+    _count: { id: true },
+    orderBy: {
+      _count: { id: "desc" },
+    },
+    take: 1,
+  });
+
+  const sourceOrganizationId = sourceGroup[0]?.organizationId ?? null;
+  if (!sourceOrganizationId) {
+    return {
+      sourceOrganizationId: null,
+      totalTemplateTests: 0,
+      syncedTests: 0,
+    };
+  }
+
+  const templateTests = await db.diagnosticTest.findMany({
+    where: { organizationId: sourceOrganizationId },
+    include: {
+      resultFields: {
+        orderBy: { sortOrder: "asc" },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  for (const test of templateTests) {
+    const targetTest = await db.diagnosticTest.upsert({
+      where: {
+        organizationId_code: {
+          organizationId: targetOrganizationId,
+          code: test.code,
+        },
+      },
+      update: {
+        categoryId: test.categoryId,
+        name: test.name,
+        type: test.type,
+        department: test.department,
+        price: test.price,
+        costPrice: test.costPrice,
+        turnaroundMinutes: test.turnaroundMinutes,
+        sampleType: test.sampleType,
+        description: test.description,
+        isActive: test.isActive,
+      },
+      create: {
+        organizationId: targetOrganizationId,
+        categoryId: test.categoryId,
+        name: test.name,
+        code: test.code,
+        type: test.type,
+        department: test.department,
+        price: test.price,
+        costPrice: test.costPrice,
+        turnaroundMinutes: test.turnaroundMinutes,
+        sampleType: test.sampleType,
+        description: test.description,
+        isActive: test.isActive,
+      },
+      select: { id: true },
+    });
+
+    await db.resultTemplateField.deleteMany({
+      where: { testId: targetTest.id },
+    });
+
+    if (test.resultFields.length &gt; 0) {
+      await db.resultTemplateField.createMany({
+        data: test.resultFields.map((field) =&gt; ({
+          testId: targetTest.id,
+          label: field.label,
+          fieldKey: field.fieldKey,
+          fieldType: field.fieldType,
+          unit: field.unit,
+          normalMin: field.normalMin,
+          normalMax: field.normalMax,
+          normalText: field.normalText,
+          referenceNote: field.referenceNote,
+          options: field.options,
+          isRequired: field.isRequired,
+          sortOrder: field.sortOrder,
+        })),
+      });
+    }
+  }
+
+  return {
+    sourceOrganizationId,
+    totalTemplateTests: templateTests.length,
+    syncedTests: templateTests.length,
+  };
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/lib/utils.ts</div><pre>import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { Role } from "@prisma/client";
@@ -24095,6 +27074,7 @@ export function cn(...inputs: ClassValue[]) {
 // Map each role to its dashboard path
 export function getDashboardPath(role: Role): string {
   const map: Record&lt;Role, string&gt; = {
+    MEGA_ADMIN: "/admin/dashboard",
     SUPER_ADMIN: "/dashboard/hrm",
     HRM: "/dashboard/hrm",
     RECEPTIONIST: "/dashboard/receptionist",
@@ -24156,6 +27136,7 @@ export function generateVisitNumber(prefix: string, count: number): string {
 
 // Role display labels
 export const ROLE_LABELS: Record&lt;Role, string&gt; = {
+  MEGA_ADMIN: "Platform Admin",
   SUPER_ADMIN: "Super Admin",
   HRM: "HRM / Operations",
   RECEPTIONIST: "Receptionist",
@@ -24171,7 +27152,8 @@ export const DEPARTMENT_LABELS: Record&lt;string, string&gt; = {
   RADIOLOGY: "Radiology",
   MEDICAL_REVIEW: "Medical Review",
   HR_OPERATIONS: "HR &amp; Operations",
-};</pre></div>
+};
+</pre></div>
 <div class='file-block'><div class='file-header'>src/lib/workflow-reconciliation.ts</div><pre>import { prisma } from "@/lib/prisma";
 import { Department, OrderStatus, RoutingTaskStatus } from "@prisma/client";
 
@@ -24361,9 +27343,13 @@ export async function reconcileWorkflowStatesIfDue(input: {
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { getDashboardPath } from "@/lib/utils";
-import { Role } from "@prisma/client";
+import { OrganizationStatus, Role } from "@prisma/client";
 
-const publicRoutes = ["/", "/login", "/register", "/api/auth"];
+const publicRoutes = new Set(["/", "/login", "/register"]);
+const AUTH_SECRET =
+  process.env.AUTH_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  (process.env.NODE_ENV !== "production" ? "diagsync-local-dev-auth-secret" : undefined);
 
 const roleRouteMap: Record&lt;string, Role[]&gt; = {
   "/dashboard/receptionist": ["RECEPTIONIST", "SUPER_ADMIN"],
@@ -24379,10 +27365,10 @@ export default async function middleware(req: NextRequest) {
 
   const token = await getToken({
     req,
-    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+    secret: AUTH_SECRET,
   });
 
-  const isPublicRoute = publicRoutes.some((route) =&gt; pathname.startsWith(route));
+  const isPublicRoute = publicRoutes.has(pathname) || pathname.startsWith("/api/auth");
   if (isPublicRoute) {
     if (token &amp;&amp; (pathname === "/login" || pathname === "/register")) {
       const role = token.role as Role;
@@ -24398,9 +27384,28 @@ export default async function middleware(req: NextRequest) {
   }
 
   const userRole = token.role as Role;
+  const organizationStatus = token.organizationStatus as OrganizationStatus | undefined;
+
+  if (
+    userRole !== "MEGA_ADMIN" &amp;&amp;
+    organizationStatus === "SUSPENDED" &amp;&amp;
+    !pathname.startsWith("/admin")
+  ) {
+    const loginUrl = new URL("/login", nextUrl.origin);
+    loginUrl.searchParams.set("suspended", "1");
+    return NextResponse.redirect(loginUrl);
+  }
 
   if (pathname === "/dashboard") {
     return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
+  }
+
+  if (pathname.startsWith("/admin") &amp;&amp; userRole !== "MEGA_ADMIN") {
+    return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
+  }
+
+  if (userRole === "MEGA_ADMIN" &amp;&amp; pathname.startsWith("/dashboard")) {
+    return NextResponse.redirect(new URL("/admin/dashboard", nextUrl.origin));
   }
 
   for (const [route, allowedRoles] of Object.entries(roleRouteMap)) {
@@ -24439,7 +27444,7 @@ export interface SessionUser {
   email: string;
   fullName: string;
   role: Role;
-  organizationId: string;
+  organizationId: string | null;
   department: Department;
 }
 
@@ -24572,7 +27577,7 @@ export interface TestCartItem {
   price: number;
 }
 </pre></div>
-<div class='file-block'><div class='file-header'>src/types/next-auth.d.ts</div><pre>import { Role, Department } from "@prisma/client";
+<div class='file-block'><div class='file-header'>src/types/next-auth.d.ts</div><pre>import { Role, Department, OrganizationStatus } from "@prisma/client";
 import "next-auth";
 
 declare module "next-auth" {
@@ -24582,7 +27587,8 @@ declare module "next-auth" {
       email: string;
       name: string;
       role: Role;
-      organizationId: string;
+      organizationId: string | null;
+      organizationStatus?: OrganizationStatus | null;
       fullName: string;
       department: Department;
     };
@@ -24593,7 +27599,8 @@ declare module "next-auth" {
     email: string;
     name: string;
     role: Role;
-    organizationId: string;
+    organizationId: string | null;
+    organizationStatus?: OrganizationStatus | null;
     fullName: string;
     department: Department;
   }
@@ -24603,7 +27610,8 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     role: Role;
-    organizationId: string;
+    organizationId: string | null;
+    organizationStatus?: OrganizationStatus | null;
     fullName: string;
     department: Department;
   }
