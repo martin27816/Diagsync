@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getOrganizationDetail } from "@/lib/admin-data";
 import { requireMegaAdmin } from "@/lib/admin-auth";
 import { formatDateTime } from "@/lib/utils";
-import { activateLabAction, suspendLabAction } from "../actions";
+import { activateLabAction, suspendLabAction, syncLabCatalogAction } from "../actions";
 
 export default async function AdminLabDetailPage({ params }: { params: { id: string } }) {
   await requireMegaAdmin();
@@ -25,21 +25,29 @@ export default async function AdminLabDetailPage({ params }: { params: { id: str
           <h1 className="mt-1 text-base font-semibold text-gray-900">{organization.name}</h1>
           <p className="text-xs text-gray-400">{organization.email}</p>
         </div>
-        {organization.status === "ACTIVE" ? (
-          <form action={suspendLabAction}>
+        <div className="flex items-center gap-2">
+          <form action={syncLabCatalogAction}>
             <input type="hidden" name="organizationId" value={organization.id} />
-            <button className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-100 transition-colors">
-              Suspend Lab
+            <button className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-100 transition-colors">
+              Sync Test Catalog
             </button>
           </form>
-        ) : (
-          <form action={activateLabAction}>
-            <input type="hidden" name="organizationId" value={organization.id} />
-            <button className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-600 hover:bg-emerald-100 transition-colors">
-              Activate Lab
-            </button>
-          </form>
-        )}
+          {organization.status === "ACTIVE" ? (
+            <form action={suspendLabAction}>
+              <input type="hidden" name="organizationId" value={organization.id} />
+              <button className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-100 transition-colors">
+                Suspend Lab
+              </button>
+            </form>
+          ) : (
+            <form action={activateLabAction}>
+              <input type="hidden" name="organizationId" value={organization.id} />
+              <button className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-600 hover:bg-emerald-100 transition-colors">
+                Activate Lab
+              </button>
+            </form>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">

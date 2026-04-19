@@ -8,10 +8,21 @@ type CatalogSyncResult = {
   syncedTests: number;
 };
 
-export async function syncFullTestCatalogToOrganization(
+async function pickSourceOrganizationId(
   db: DbClient,
   targetOrganizationId: string
-): Promise<CatalogSyncResult> {
+): Promise<string | null> {
+  const configuredTemplateOrgId = process.env.CATALOG_TEMPLATE_ORG_ID?.trim();
+
+  if (configuredTemplateOrgId && configuredTemplateOrgId !== targetOrganizationId) {
+    const templateCount = await db.diagnosticTest.count({
+      where: { organizationId: configuredTemplateOrgId },
+    });
+    if (templateCount > 0) {
+      return configuredTemplateOrgId;
+    }
+  }
+
   const sourceGroup = await db.diagnosticTest.groupBy({
     by: ["organizationId"],
     where: {
@@ -24,7 +35,14 @@ export async function syncFullTestCatalogToOrganization(
     take: 1,
   });
 
-  const sourceOrganizationId = sourceGroup[0]?.organizationId ?? null;
+  return sourceGroup[0]?.organizationId ?? null;
+}
+
+export async function syncFullTestCatalogToOrganization(
+  db: DbClient,
+  targetOrganizationId: string
+): Promise<CatalogSyncResult> {
+  const sourceOrganizationId = await pickSourceOrganizationId(db, targetOrganizationId);
   if (!sourceOrganizationId) {
     return {
       sourceOrganizationId: null,
