@@ -46,8 +46,7 @@ export async function uploadToCloudinarySigned(input: {
   );
 
   const uploadBody = new FormData();
-  const fileBytes = new Uint8Array(input.buffer);
-  uploadBody.append("file", new Blob([fileBytes], { type: input.fileType }), "upload");
+  uploadBody.append("file", new Blob([input.buffer as unknown as ArrayBuffer], { type: input.fileType }), "upload");
   uploadBody.append("folder", input.folder);
   uploadBody.append("timestamp", timestamp);
   uploadBody.append("api_key", cfg.apiKey);

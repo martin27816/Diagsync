@@ -90,8 +90,11 @@ export default function RegisterPage() {
     setServerError("");
     try {
       const res = await fetch("/api/organizations/register", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
       });
+
       let json: { success: boolean; error?: string };
       try {
         json = await res.json();
@@ -99,11 +102,15 @@ export default function RegisterPage() {
         setServerError(`Server error (${res.status}). Please try again.`);
         return;
       }
-      if (!json.success) { setServerError(json.error ?? "Something went wrong"); return; }
+
+      if (!json.success) {
+        setServerError(json.error ?? "Something went wrong");
+        return;
+      }
       setRegistered(true);
       setTimeout(() => router.push("/login"), 3000);
     } catch (err) {
-      console.error("Registration fetch error:", err);
+      console.error("Registration error:", err);
       setServerError("Network error. Please try again.");
     }
   }
