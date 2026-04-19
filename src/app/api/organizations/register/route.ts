@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(data.adminPassword, 12);
 
-    // Create org and super admin in one transaction
+    // Keep transaction short: create org + admin only
     const result = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: {
@@ -97,10 +97,11 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      await syncFullTestCatalogToOrganization(tx, org.id);
-
       return { org, admin };
     });
+
+    // Sync default test catalog after transaction commits
+    await syncFullTestCatalogToOrganization(prisma, result.org.id);
 
     // Audit log — super admin creates themselves during registration
     await createAuditLog({

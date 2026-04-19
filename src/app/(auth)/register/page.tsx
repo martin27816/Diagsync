@@ -92,11 +92,19 @@ export default function RegisterPage() {
       const res = await fetch("/api/organizations/register", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
       });
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!contentType.includes("application/json")) {
+        setServerError(`Server error (${res.status}). Please try again.`);
+        return;
+      }
       const json = await res.json();
       if (!json.success) { setServerError(json.error ?? "Something went wrong"); return; }
       setRegistered(true);
       setTimeout(() => router.push("/login"), 3000);
-    } catch { setServerError("Network error. Please try again."); }
+    } catch (err) {
+      console.error("Registration fetch error:", err);
+      setServerError("Network error. Please try again.");
+    }
   }
 
   async function uploadBranding(file: File, folder: string, setter: (v: boolean) => void) {
