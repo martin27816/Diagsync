@@ -31,7 +31,11 @@ export default async function middleware(req: NextRequest) {
         : "authjs.session-token",
   });
 
-  const isPublicRoute = publicRoutes.has(pathname) || pathname.startsWith("/api/auth");
+  const isPublicRoute =
+    publicRoutes.has(pathname) ||
+    pathname.startsWith("/api/auth") ||
+    pathname === "/api/uploads/branding" ||
+    pathname === "/api/organizations/register";
   if (isPublicRoute) {
     if (token && (pathname === "/login" || pathname === "/register")) {
       const role = token.role as Role;
