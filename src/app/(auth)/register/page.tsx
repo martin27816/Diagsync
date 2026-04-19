@@ -92,12 +92,13 @@ export default function RegisterPage() {
       const res = await fetch("/api/organizations/register", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
       });
-      const contentType = res.headers.get("content-type") ?? "";
-      if (!contentType.includes("application/json")) {
+      let json: { success: boolean; error?: string };
+      try {
+        json = await res.json();
+      } catch {
         setServerError(`Server error (${res.status}). Please try again.`);
         return;
       }
-      const json = await res.json();
       if (!json.success) { setServerError(json.error ?? "Something went wrong"); return; }
       setRegistered(true);
       setTimeout(() => router.push("/login"), 3000);

@@ -30,10 +30,6 @@ function buildSignature(params: Record<string, string>, apiSecret: string) {
     .digest("hex");
 }
 
-function toDataUri(fileType: string, base64: string) {
-  return `data:${fileType};base64,${base64}`;
-}
-
 export async function uploadToCloudinarySigned(input: {
   fileType: string;
   buffer: Buffer;
@@ -49,12 +45,13 @@ export async function uploadToCloudinarySigned(input: {
     cfg.apiSecret
   );
 
-  const uploadBody = new URLSearchParams();
-  uploadBody.set("file", toDataUri(input.fileType, input.buffer.toString("base64")));
-  uploadBody.set("folder", input.folder);
-  uploadBody.set("timestamp", timestamp);
-  uploadBody.set("api_key", cfg.apiKey);
-  uploadBody.set("signature", signature);
+  const uploadBody = new FormData();
+  const fileBytes = new Uint8Array(input.buffer);
+  uploadBody.append("file", new Blob([fileBytes], { type: input.fileType }), "upload");
+  uploadBody.append("folder", input.folder);
+  uploadBody.append("timestamp", timestamp);
+  uploadBody.append("api_key", cfg.apiKey);
+  uploadBody.append("signature", signature);
 
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cfg.cloudName}/auto/upload`, {
     method: "POST",
