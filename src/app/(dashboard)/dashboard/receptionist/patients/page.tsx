@@ -150,8 +150,9 @@ export default async function PatientsListPage({
     const bucket = grouped.get(key);
     if (!bucket) continue;
     const visit = patient.visits[0];
-    const billed = visit ? Number(visit.totalAmount) : 0;
-    const paid = visit ? Number(visit.amountPaid) : 0;
+    if (!visit) continue;
+    const billed = Number(visit.totalAmount);
+    const paid = Number(visit.amountPaid);
     const testCount = visit?.testOrders.length ?? 0;
     bucket.totalBilled += billed;
     bucket.totalPaid += paid;
@@ -165,16 +166,14 @@ export default async function PatientsListPage({
       createdAt: patient.createdAt,
       registeredById: patient.registeredById,
       registeredBy: { fullName: patient.registeredBy.fullName },
-      latestVisit: visit
-        ? {
-            id: visit.id,
-            priority: visit.priority,
-            paymentStatus: visit.paymentStatus,
-            totalAmount: Number(visit.totalAmount),
-            amountPaid: Number(visit.amountPaid),
-            testOrders: visit.testOrders,
-          }
-        : null,
+      latestVisit: {
+        id: visit.id,
+        priority: visit.priority,
+        paymentStatus: visit.paymentStatus,
+        totalAmount: Number(visit.totalAmount),
+        amountPaid: Number(visit.amountPaid),
+        testOrders: visit.testOrders,
+      },
     });
   }
 
@@ -300,7 +299,7 @@ export default async function PatientsListPage({
                       <tr key={row.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-2.5 font-medium text-slate-800">{row.fullName}</td>
                         <td className="px-4 py-2.5 font-mono text-slate-400">{row.patientId}</td>
-                        <td className="px-4 py-2.5 text-slate-500">{row.age}y Â· {row.sex}</td>
+                        <td className="px-4 py-2.5 text-slate-500">{row.age}y - {row.sex}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex flex-wrap gap-1">
                             {row.latestVisit?.testOrders.slice(0, 2).map((order) => (
@@ -316,24 +315,24 @@ export default async function PatientsListPage({
                           </div>
                         </td>
                         <td className="px-4 py-2.5 font-medium text-slate-700">
-                          {row.latestVisit ? formatCurrency(row.latestVisit.totalAmount) : "â€”"}
+                          {row.latestVisit ? formatCurrency(row.latestVisit.totalAmount) : "-"}
                         </td>
                         <td className="px-4 py-2.5 font-medium text-slate-700">
-                          {row.latestVisit ? formatCurrency(row.latestVisit.amountPaid) : "â€”"}
+                          {row.latestVisit ? formatCurrency(row.latestVisit.amountPaid) : "-"}
                         </td>
                         <td className="px-4 py-2.5">
                           {row.latestVisit ? (
                             <span className={`rounded px-1.5 py-0.5 font-medium ${priorityStyle[row.latestVisit.priority] ?? "bg-slate-100 text-slate-500"}`}>
                               {row.latestVisit.priority}
                             </span>
-                          ) : "â€”"}
+                          ) : "-"}
                         </td>
                         <td className="px-4 py-2.5">
                           {row.latestVisit ? (
                             <span className={`rounded px-1.5 py-0.5 font-medium ${paymentStyle[row.latestVisit.paymentStatus] ?? "bg-slate-100 text-slate-500"}`}>
                               {row.latestVisit.paymentStatus}
                             </span>
-                          ) : "â€”"}
+                          ) : "-"}
                         </td>
                         <td className="px-4 py-2.5 text-slate-600 whitespace-nowrap">
                           {row.registeredById === user.id ? (
