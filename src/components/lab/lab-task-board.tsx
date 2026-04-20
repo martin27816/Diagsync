@@ -97,6 +97,27 @@ const DEFAULT_SENSITIVITY_ANTIBIOTICS = [
 const SENSITIVITY_VALUE_OPTIONS = ["+", "2+", "3+", "4+", "5mm", "10mm", "15mm", "20mm", "25mm", "30mm"];
 const SENSITIVITY_INTERPRETATION_OPTIONS = ["S", "R", "I"];
 const SENSITIVITY_MEMORY_KEY = "diag_sync_sensitivity_memory_v1";
+const WIDAL_FIELD_ALIASES = {
+  typhiO: ["typhi_o"],
+  typhiH: ["typhi_h"],
+  paratyphiAO: ["paratyphi_ao", "paratyphi_a_o"],
+  paratyphiAH: ["paratyphi_ah", "paratyphi_a_h"],
+  paratyphiBO: ["paratyphi_bo", "paratyphi_b_o"],
+  paratyphiBH: ["paratyphi_bh", "paratyphi_b_h"],
+  paratyphiCO: ["paratyphi_co", "paratyphi_c_o", "paratyphi_c"],
+  paratyphiCH: ["paratyphi_ch", "paratyphi_c_h"],
+} as const;
+
+const WIDAL_FIELD_KEYS = new Set(
+  Object.values(WIDAL_FIELD_ALIASES)
+    .flat()
+    .map((key) => key.toLowerCase())
+);
+
+function isWidalTest(order: TestOrder) {
+  const token = `${order.test.name} ${order.test.code}`.toLowerCase();
+  return token.includes("widal");
+}
 
 function parseSensitivityPattern(raw: unknown): SensitivityCell[] {
   const text = typeof raw === "string" ? raw.trim() : "";
@@ -379,10 +400,80 @@ const OrderResultCard = memo(function OrderResultCard({
     () => order.test.resultFields.filter((field) => !removedDefaults.has(field.fieldKey)),
     [order.test.resultFields, removedDefaults]
   );
+  const visibleFieldByKey = useMemo(() => {
+    const map = new Map<string, ResultField>();
+    for (const field of visibleDefaultFields) {
+      map.set(field.fieldKey.toLowerCase(), field);
+    }
+    return map;
+  }, [visibleDefaultFields]);
+  const findWidalField = useCallback(
+    (aliases: readonly string[]) => aliases.map((key) => visibleFieldByKey.get(key)).find(Boolean),
+    [visibleFieldByKey]
+  );
+  const widalRows = useMemo(
+    () => [
+      { organism: "Salmonella Typhi", titreO: findWidalField(WIDAL_FIELD_ALIASES.typhiO), h: findWidalField(WIDAL_FIELD_ALIASES.typhiH) },
+      { organism: "Salmonella Paratyphi A", titreO: findWidalField(WIDAL_FIELD_ALIASES.paratyphiAO), h: findWidalField(WIDAL_FIELD_ALIASES.paratyphiAH) },
+      { organism: "Salmonella Paratyphi B", titreO: findWidalField(WIDAL_FIELD_ALIASES.paratyphiBO), h: findWidalField(WIDAL_FIELD_ALIASES.paratyphiBH) },
+      { organism: "Salmonella Paratyphi C", titreO: findWidalField(WIDAL_FIELD_ALIASES.paratyphiCO), h: findWidalField(WIDAL_FIELD_ALIASES.paratyphiCH) },
+    ],
+    [findWidalField]
+  );
+  const shouldRenderWidalGrid = useMemo(
+    () => isWidalTest(order) && widalRows.some((row) => row.titreO || row.h),
+    [order, widalRows]
+  );
+  const nonWidalDefaultFields = useMemo(
+    () => visibleDefaultFields.filter((field) => !(shouldRenderWidalGrid && WIDAL_FIELD_KEYS.has(field.fieldKey.toLowerCase()))),
+    [shouldRenderWidalGrid, visibleDefaultFields]
+  );
   const customEntries = useMemo(
     () =>
       Object.entries(draft.values ?? {}).filter(([key]) => !defaultFieldKeys.has(key)),
     [defaultFieldKeys, draft.values]
+  );
+  const renderWidalCell = useCallback(
+    (field?: ResultField) => {
+      if (!field) {
+        return <span className="text-[11px] text-slate-400">-</span>;
+      }
+
+      const value = draft.values?.[field.fieldKey];
+      const highlight = highlightKey.has(field.fieldKey);
+      if (field.fieldType === "DROPDOWN") {
+        const options = (field.options ?? "")
+          .split(",")
+          .map((row) => row.trim())
+          .filter(Boolean);
+        return (
+          <select
+            value={typeof value === "string" ? value : ""}
+            onBlur={() => void onPersist(task).catch(() => undefined)}
+            onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.value)}
+            className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
+          >
+            <option value="">Select...</option>
+            {options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        );
+      }
+
+      return (
+        <input
+          type={field.fieldType === "NUMBER" ? "number" : "text"}
+          value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
+          onBlur={() => void onPersist(task).catch(() => undefined)}
+          onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.value)}
+          className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
+        />
+      );
+    },
+    [draft.values, highlightKey, onPersist, onSetFieldValue, order.id, task]
   );
 
   return (
@@ -399,8 +490,37 @@ const OrderResultCard = memo(function OrderResultCard({
 
       <ResultInsightBox messages={insightMessages} />
 
+      {shouldRenderWidalGrid ? (
+        <div className="mt-3 rounded border border-slate-200 bg-white p-2">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold text-slate-600">Widal Test</p>
+            <p className="text-[10px] text-slate-500">Titre {">="} 1:80 may be clinically significant.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-[11px]">
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Widal Test</th>
+                  <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Titre O</th>
+                  <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">H</th>
+                </tr>
+              </thead>
+              <tbody>
+                {widalRows.map((row) => (
+                  <tr key={row.organism}>
+                    <td className="border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700">{row.organism}</td>
+                    <td className="border border-slate-200 p-1.5">{renderWidalCell(row.titreO)}</td>
+                    <td className="border border-slate-200 p-1.5">{renderWidalCell(row.h)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 mt-3">
-        {visibleDefaultFields.map((field) => {
+        {nonWidalDefaultFields.map((field) => {
           if (suppressSensitivityField && isSensitivityFieldKey(field.fieldKey)) return null;
           const value = draft.values?.[field.fieldKey];
           const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;

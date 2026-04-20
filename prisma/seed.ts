@@ -510,9 +510,10 @@ async function main() {
       { label: "S. Paratyphi A (H)", fieldKey: "paratyphi_ah", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 4 },
       { label: "S. Paratyphi B (O)", fieldKey: "paratyphi_bo", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", isRequired: false, sortOrder: 5 },
       { label: "S. Paratyphi B (H)", fieldKey: "paratyphi_bh", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", sortOrder: 6 },
-      { label: "S. Paratyphi C (O/H)", fieldKey: "paratyphi_c", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", isRequired: false, sortOrder: 7 },
-      { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, sortOrder: 8 },
-      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 9 },
+      { label: "S. Paratyphi C (O)", fieldKey: "paratyphi_co", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", isRequired: false, sortOrder: 7 },
+      { label: "S. Paratyphi C (H)", fieldKey: "paratyphi_ch", fieldType: FieldType.DROPDOWN, options: "Negative,1:20,1:40,1:80,1:160,1:320", isRequired: false, sortOrder: 8 },
+      { label: "Interpretation", fieldKey: "interpretation", fieldType: FieldType.TEXTAREA, sortOrder: 9 },
+      { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 10 },
     ],
   });
 
