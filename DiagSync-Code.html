@@ -25,7 +25,7 @@ VAPID_SUBJECT="mailto:admin@example.com"
 
 mega_ADMIN_EMAIL= "admin@diagsync.com"
 mega_ADMIN_PASSWORD="Admin@1234"
-mega_ADMIN_NAME="Mega Admin Dev"</pre></div>
+mega_ADMIN_NAME="MegaAdminDev"</pre></div>
 <div class='file-block'><div class='file-header'>.env.example</div><pre># Copy this file to .env.local and fill in your values
 
 # Database - PostgreSQL connection strings
@@ -3484,49 +3484,49 @@ export default async function AdminAnalyticsPage() {
   const analytics = await getAdminAnalytics();
 
   return (
-    &lt;div className="space-y-4"&gt;
+    &lt;div className="space-y-5"&gt;
       &lt;div&gt;
-        &lt;h1 className="text-lg font-semibold text-slate-800"&gt;Platform Analytics&lt;/h1&gt;
-        &lt;p className="text-xs text-slate-500"&gt;Growth and activity across all labs.&lt;/p&gt;
+        &lt;h1 className="text-base font-semibold text-gray-900"&gt;Platform Analytics&lt;/h1&gt;
+        &lt;p className="text-xs text-gray-400 mt-0.5"&gt;Growth and activity across all labs.&lt;/p&gt;
       &lt;/div&gt;
 
+      {/* Summary cards */}
       &lt;div className="grid grid-cols-1 gap-3 sm:grid-cols-3"&gt;
-        &lt;div className="rounded-lg border border-slate-200 bg-white p-4"&gt;
-          &lt;p className="text-xs uppercase tracking-wide text-slate-400"&gt;Labs Growth Rows&lt;/p&gt;
-          &lt;p className="mt-1 text-2xl font-bold text-slate-800"&gt;{analytics.growthSeries.length}&lt;/p&gt;
-        &lt;/div&gt;
-        &lt;div className="rounded-lg border border-slate-200 bg-white p-4"&gt;
-          &lt;p className="text-xs uppercase tracking-wide text-slate-400"&gt;Most Active Labs&lt;/p&gt;
-          &lt;p className="mt-1 text-2xl font-bold text-slate-800"&gt;{analytics.activity.mostActiveLabs.length}&lt;/p&gt;
-        &lt;/div&gt;
-        &lt;div className="rounded-lg border border-slate-200 bg-white p-4"&gt;
-          &lt;p className="text-xs uppercase tracking-wide text-slate-400"&gt;Activity Counts&lt;/p&gt;
-          &lt;p className="mt-1 text-2xl font-bold text-slate-800"&gt;{analytics.summary.activeToday}&lt;/p&gt;
-        &lt;/div&gt;
+        {[
+          { label: "Growth Data Points", value: analytics.growthSeries.length },
+          { label: "Most Active Labs", value: analytics.activity.mostActiveLabs.length },
+          { label: "Active Today", value: analytics.summary.activeToday },
+        ].map((c) =&gt; (
+          &lt;div key={c.label} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"&gt;
+            &lt;p className="text-xs font-medium text-gray-400 uppercase tracking-wide"&gt;{c.label}&lt;/p&gt;
+            &lt;p className="mt-2 text-3xl font-bold text-gray-900"&gt;{c.value}&lt;/p&gt;
+          &lt;/div&gt;
+        ))}
       &lt;/div&gt;
 
-      &lt;div className="overflow-hidden rounded-lg border border-slate-200 bg-white"&gt;
-        &lt;div className="border-b border-slate-100 px-4 py-3"&gt;
-          &lt;p className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Growth Over Time&lt;/p&gt;
+      {/* Growth over time */}
+      &lt;div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"&gt;
+        &lt;div className="px-5 py-4 border-b border-gray-100"&gt;
+          &lt;p className="text-sm font-semibold text-gray-700"&gt;Growth Over Time&lt;/p&gt;
         &lt;/div&gt;
         {analytics.growthSeries.length === 0 ? (
-          &lt;p className="px-4 py-8 text-sm text-slate-400"&gt;No growth data available yet.&lt;/p&gt;
+          &lt;p className="px-5 py-10 text-sm text-gray-400 text-center"&gt;No growth data available yet.&lt;/p&gt;
         ) : (
           &lt;div className="overflow-x-auto"&gt;
-            &lt;table className="w-full min-w-[560px] text-sm"&gt;
+            &lt;table className="w-full text-sm min-w-[500px]"&gt;
               &lt;thead&gt;
-                &lt;tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"&gt;
-                  &lt;th className="px-4 py-2"&gt;Month&lt;/th&gt;
-                  &lt;th className="px-4 py-2 text-right"&gt;Labs Created&lt;/th&gt;
-                  &lt;th className="px-4 py-2 text-right"&gt;Users Created&lt;/th&gt;
+                &lt;tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide"&gt;
+                  &lt;th className="px-5 py-3"&gt;Month&lt;/th&gt;
+                  &lt;th className="px-5 py-3 text-right"&gt;Labs Created&lt;/th&gt;
+                  &lt;th className="px-5 py-3 text-right"&gt;Users Created&lt;/th&gt;
                 &lt;/tr&gt;
               &lt;/thead&gt;
-              &lt;tbody&gt;
+              &lt;tbody className="divide-y divide-gray-100"&gt;
                 {analytics.growthSeries.map((row) =&gt; (
-                  &lt;tr key={row.month} className="border-b border-slate-100"&gt;
-                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{row.month}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-right text-slate-700"&gt;{row.labs}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-right text-slate-700"&gt;{row.users}&lt;/td&gt;
+                  &lt;tr key={row.month} className="hover:bg-gray-50 transition-colors"&gt;
+                    &lt;td className="px-5 py-3 font-medium text-gray-700"&gt;{row.month}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-right text-gray-700"&gt;{row.labs}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-right text-gray-700"&gt;{row.users}&lt;/td&gt;
                   &lt;/tr&gt;
                 ))}
               &lt;/tbody&gt;
@@ -3535,30 +3535,29 @@ export default async function AdminAnalyticsPage() {
         )}
       &lt;/div&gt;
 
-      &lt;div className="overflow-hidden rounded-lg border border-slate-200 bg-white"&gt;
-        &lt;div className="border-b border-slate-100 px-4 py-3"&gt;
-          &lt;p className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Most Active Labs&lt;/p&gt;
+      {/* Most active labs */}
+      &lt;div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"&gt;
+        &lt;div className="px-5 py-4 border-b border-gray-100"&gt;
+          &lt;p className="text-sm font-semibold text-gray-700"&gt;Most Active Labs&lt;/p&gt;
         &lt;/div&gt;
         {analytics.activity.mostActiveLabs.length === 0 ? (
-          &lt;p className="px-4 py-8 text-sm text-slate-400"&gt;No active labs found.&lt;/p&gt;
+          &lt;p className="px-5 py-10 text-sm text-gray-400 text-center"&gt;No active labs found.&lt;/p&gt;
         ) : (
           &lt;div className="overflow-x-auto"&gt;
-            &lt;table className="w-full min-w-[700px] text-sm"&gt;
+            &lt;table className="w-full text-sm min-w-[600px]"&gt;
               &lt;thead&gt;
-                &lt;tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"&gt;
-                  &lt;th className="px-4 py-2"&gt;Lab&lt;/th&gt;
-                  &lt;th className="px-4 py-2"&gt;Email&lt;/th&gt;
-                  &lt;th className="px-4 py-2 text-right"&gt;Activity Count&lt;/th&gt;
+                &lt;tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide"&gt;
+                  &lt;th className="px-5 py-3"&gt;Lab&lt;/th&gt;
+                  &lt;th className="px-5 py-3"&gt;Email&lt;/th&gt;
+                  &lt;th className="px-5 py-3 text-right"&gt;Activity Count&lt;/th&gt;
                 &lt;/tr&gt;
               &lt;/thead&gt;
-              &lt;tbody&gt;
+              &lt;tbody className="divide-y divide-gray-100"&gt;
                 {analytics.activity.mostActiveLabs.map((lab) =&gt; (
-                  &lt;tr key={lab.organizationId ?? lab.name} className="border-b border-slate-100"&gt;
-                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{lab.name}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-500"&gt;{lab.email || "-"}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-right font-semibold text-slate-700"&gt;
-                      {lab.activityCount}
-                    &lt;/td&gt;
+                  &lt;tr key={lab.organizationId ?? lab.name} className="hover:bg-gray-50 transition-colors"&gt;
+                    &lt;td className="px-5 py-3 font-medium text-gray-800"&gt;{lab.name}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-gray-400"&gt;{lab.email || "â€”"}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-right font-semibold text-indigo-600"&gt;{lab.activityCount}&lt;/td&gt;
                   &lt;/tr&gt;
                 ))}
               &lt;/tbody&gt;
@@ -3568,8 +3567,7 @@ export default async function AdminAnalyticsPage() {
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(admin)/admin/dashboard/page.tsx</div><pre>import { getAdminAnalytics } from "@/lib/admin-analytics";
 import { requireMegaAdmin } from "@/lib/admin-auth";
 
@@ -3579,59 +3577,57 @@ export default async function AdminDashboardPage() {
   const summary = analytics.summary;
 
   const cards = [
-    { label: "Total Labs", value: summary.totalLabs },
-    { label: "Active Labs", value: summary.activeLabs },
-    { label: "Suspended Labs", value: summary.suspendedLabs },
-    { label: "Total Users", value: summary.totalUsers },
-    { label: "Total Patients", value: summary.totalPatients },
-    { label: "Active Today", value: summary.activeToday },
-    { label: "Total Test Requests", value: summary.totalTestRequests },
-    { label: "Labs This Month", value: summary.labsCreatedThisMonth },
-    { label: "Users Active This Week", value: summary.usersActiveThisWeek },
+    { label: "Total Labs", value: summary.totalLabs, accent: "text-gray-900" },
+    { label: "Active Labs", value: summary.activeLabs, accent: "text-emerald-600" },
+    { label: "Suspended Labs", value: summary.suspendedLabs, accent: "text-red-500" },
+    { label: "Total Users", value: summary.totalUsers, accent: "text-gray-900" },
+    { label: "Total Patients", value: summary.totalPatients, accent: "text-gray-900" },
+    { label: "Active Today", value: summary.activeToday, accent: "text-indigo-600" },
+    { label: "Total Test Requests", value: summary.totalTestRequests, accent: "text-gray-900" },
+    { label: "Labs This Month", value: summary.labsCreatedThisMonth, accent: "text-indigo-600" },
+    { label: "Users Active This Week", value: summary.usersActiveThisWeek, accent: "text-emerald-600" },
   ];
 
   return (
-    &lt;div className="space-y-4"&gt;
+    &lt;div className="space-y-5"&gt;
       &lt;div&gt;
-        &lt;h1 className="text-lg font-semibold text-slate-800"&gt;Platform Dashboard&lt;/h1&gt;
-        &lt;p className="text-xs text-slate-500"&gt;Top-level metrics across all organizations.&lt;/p&gt;
+        &lt;h1 className="text-base font-semibold text-gray-900"&gt;Platform Dashboard&lt;/h1&gt;
+        &lt;p className="text-xs text-gray-400 mt-0.5"&gt;Top-level metrics across all organizations.&lt;/p&gt;
       &lt;/div&gt;
 
+      {/* Metric cards */}
       &lt;div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"&gt;
         {cards.map((card) =&gt; (
-          &lt;div key={card.label} className="rounded-lg border border-slate-200 bg-white p-4"&gt;
-            &lt;p className="text-xs uppercase tracking-wide text-slate-400"&gt;{card.label}&lt;/p&gt;
-            &lt;p className="mt-1 text-2xl font-bold text-slate-800"&gt;{card.value}&lt;/p&gt;
+          &lt;div key={card.label} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"&gt;
+            &lt;p className="text-xs font-medium text-gray-400 uppercase tracking-wide"&gt;{card.label}&lt;/p&gt;
+            &lt;p className={`mt-2 text-3xl font-bold ${card.accent}`}&gt;{card.value}&lt;/p&gt;
           &lt;/div&gt;
         ))}
       &lt;/div&gt;
 
-      &lt;div className="rounded-lg border border-slate-200 bg-white"&gt;
-        &lt;div className="border-b border-slate-100 px-4 py-3"&gt;
-          &lt;p className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;
-            Most Active Labs (This Week)
-          &lt;/p&gt;
+      {/* Active labs table */}
+      &lt;div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"&gt;
+        &lt;div className="px-5 py-4 border-b border-gray-100"&gt;
+          &lt;p className="text-sm font-semibold text-gray-700"&gt;Most Active Labs â€” This Week&lt;/p&gt;
         &lt;/div&gt;
         {analytics.activity.mostActiveLabs.length === 0 ? (
-          &lt;p className="px-4 py-6 text-sm text-slate-400"&gt;No lab activity found this week.&lt;/p&gt;
+          &lt;p className="px-5 py-10 text-sm text-gray-400 text-center"&gt;No lab activity found this week.&lt;/p&gt;
         ) : (
           &lt;div className="overflow-x-auto"&gt;
             &lt;table className="w-full text-sm"&gt;
               &lt;thead&gt;
-                &lt;tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"&gt;
-                  &lt;th className="px-4 py-2"&gt;Lab&lt;/th&gt;
-                  &lt;th className="px-4 py-2"&gt;Email&lt;/th&gt;
-                  &lt;th className="px-4 py-2 text-right"&gt;Activity Count&lt;/th&gt;
+                &lt;tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide"&gt;
+                  &lt;th className="px-5 py-3"&gt;Lab&lt;/th&gt;
+                  &lt;th className="px-5 py-3"&gt;Email&lt;/th&gt;
+                  &lt;th className="px-5 py-3 text-right"&gt;Activity&lt;/th&gt;
                 &lt;/tr&gt;
               &lt;/thead&gt;
-              &lt;tbody&gt;
+              &lt;tbody className="divide-y divide-gray-100"&gt;
                 {analytics.activity.mostActiveLabs.map((lab) =&gt; (
-                  &lt;tr key={lab.organizationId ?? lab.name} className="border-b border-slate-100"&gt;
-                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{lab.name}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-500"&gt;{lab.email || "-"}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-right font-semibold text-slate-700"&gt;
-                      {lab.activityCount}
-                    &lt;/td&gt;
+                  &lt;tr key={lab.organizationId ?? lab.name} className="hover:bg-gray-50 transition-colors"&gt;
+                    &lt;td className="px-5 py-3 font-medium text-gray-800"&gt;{lab.name}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-gray-400"&gt;{lab.email || "â€”"}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-right font-semibold text-indigo-600"&gt;{lab.activityCount}&lt;/td&gt;
                   &lt;/tr&gt;
                 ))}
               &lt;/tbody&gt;
@@ -3641,8 +3637,7 @@ export default async function AdminDashboardPage() {
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(admin)/admin/labs/actions.ts</div><pre>"use server";
 
 import { requireMegaAdmin } from "@/lib/admin-auth";
@@ -3705,100 +3700,99 @@ export default async function AdminLabsPage({ searchParams }: { searchParams: Se
   });
 
   return (
-    &lt;div className="space-y-4"&gt;
+    &lt;div className="space-y-5"&gt;
       &lt;div&gt;
-        &lt;h1 className="text-lg font-semibold text-slate-800"&gt;Labs&lt;/h1&gt;
-        &lt;p className="text-xs text-slate-500"&gt;Monitor and manage organizations on the platform.&lt;/p&gt;
+        &lt;h1 className="text-base font-semibold text-gray-900"&gt;Labs&lt;/h1&gt;
+        &lt;p className="text-xs text-gray-400 mt-0.5"&gt;Monitor and manage organizations on the platform.&lt;/p&gt;
       &lt;/div&gt;
 
-      &lt;form className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4"&gt;
+      {/* Filters */}
+      &lt;form className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm grid grid-cols-1 gap-3 sm:grid-cols-4"&gt;
         &lt;input
           type="text"
           name="search"
           defaultValue={search}
           placeholder="Search lab name or email"
-          className="rounded border border-slate-200 px-3 py-2 text-sm"
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 placeholder:text-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-400"
         /&gt;
-        &lt;select name="plan" defaultValue={plan} className="rounded border border-slate-200 px-3 py-2 text-sm"&gt;
+        &lt;select name="plan" defaultValue={plan} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"&gt;
           &lt;option value=""&gt;All plans&lt;/option&gt;
-          &lt;option value="STARTER"&gt;STARTER&lt;/option&gt;
-          &lt;option value="ENTERPRISE"&gt;ENTERPRISE&lt;/option&gt;
+          &lt;option value="STARTER"&gt;Starter&lt;/option&gt;
+          &lt;option value="ENTERPRISE"&gt;Enterprise&lt;/option&gt;
         &lt;/select&gt;
-        &lt;select
-          name="status"
-          defaultValue={status}
-          className="rounded border border-slate-200 px-3 py-2 text-sm"
-        &gt;
+        &lt;select name="status" defaultValue={status} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"&gt;
           &lt;option value=""&gt;All statuses&lt;/option&gt;
-          &lt;option value="ACTIVE"&gt;ACTIVE&lt;/option&gt;
-          &lt;option value="SUSPENDED"&gt;SUSPENDED&lt;/option&gt;
+          &lt;option value="ACTIVE"&gt;Active&lt;/option&gt;
+          &lt;option value="SUSPENDED"&gt;Suspended&lt;/option&gt;
         &lt;/select&gt;
-        &lt;button className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white"&gt;Apply&lt;/button&gt;
+        &lt;button className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors"&gt;
+          Apply
+        &lt;/button&gt;
       &lt;/form&gt;
 
-      &lt;div className="overflow-hidden rounded-lg border border-slate-200 bg-white"&gt;
+      {/* Table */}
+      &lt;div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"&gt;
         &lt;div className="overflow-x-auto"&gt;
-          &lt;table className="w-full min-w-[900px] text-sm"&gt;
+          &lt;table className="w-full text-sm min-w-[900px]"&gt;
             &lt;thead&gt;
-              &lt;tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"&gt;
-                &lt;th className="px-4 py-2"&gt;Lab Name&lt;/th&gt;
-                &lt;th className="px-4 py-2"&gt;Email&lt;/th&gt;
-                &lt;th className="px-4 py-2"&gt;Plan&lt;/th&gt;
-                &lt;th className="px-4 py-2"&gt;Status&lt;/th&gt;
-                &lt;th className="px-4 py-2 text-right"&gt;Total Users&lt;/th&gt;
-                &lt;th className="px-4 py-2"&gt;Created&lt;/th&gt;
-                &lt;th className="px-4 py-2"&gt;Last Activity&lt;/th&gt;
-                &lt;th className="px-4 py-2"&gt;Actions&lt;/th&gt;
+              &lt;tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide"&gt;
+                &lt;th className="px-5 py-3"&gt;Lab Name&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Email&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Plan&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Status&lt;/th&gt;
+                &lt;th className="px-5 py-3 text-right"&gt;Users&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Created&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Last Activity&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Actions&lt;/th&gt;
               &lt;/tr&gt;
             &lt;/thead&gt;
-            &lt;tbody&gt;
+            &lt;tbody className="divide-y divide-gray-100"&gt;
               {data.items.length === 0 ? (
                 &lt;tr&gt;
-                  &lt;td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400"&gt;
-                    No labs found
-                  &lt;/td&gt;
+                  &lt;td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400"&gt;No labs found&lt;/td&gt;
                 &lt;/tr&gt;
               ) : (
                 data.items.map((lab) =&gt; (
-                  &lt;tr key={lab.id} className="border-b border-slate-100"&gt;
-                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{lab.name}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-500"&gt;{lab.email}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-600"&gt;{lab.plan}&lt;/td&gt;
-                    &lt;td className="px-4 py-2"&gt;
-                      &lt;span
-                        className={`rounded px-2 py-1 text-xs font-medium ${
-                          lab.status === "ACTIVE"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-red-50 text-red-700"
-                        }`}
-                      &gt;
+                  &lt;tr key={lab.id} className="hover:bg-gray-50 transition-colors"&gt;
+                    &lt;td className="px-5 py-3 font-medium text-gray-800"&gt;{lab.name}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-gray-400"&gt;{lab.email}&lt;/td&gt;
+                    &lt;td className="px-5 py-3"&gt;
+                      &lt;span className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-2.5 py-0.5"&gt;{lab.plan}&lt;/span&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-5 py-3"&gt;
+                      &lt;span className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-0.5 ${
+                        lab.status === "ACTIVE"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-red-50 text-red-600"
+                      }`}&gt;
+                        &lt;span className={`w-1.5 h-1.5 rounded-full ${lab.status === "ACTIVE" ? "bg-emerald-500" : "bg-red-400"}`} /&gt;
                         {lab.status}
                       &lt;/span&gt;
                     &lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-right text-slate-700"&gt;{lab.totalUsers}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-500"&gt;{formatDateTime(lab.createdAt)}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-500"&gt;
-                      {lab.lastActivity ? formatDateTime(lab.lastActivity) : "-"}
+                    &lt;td className="px-5 py-3 text-right font-medium text-gray-700"&gt;{lab.totalUsers}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-gray-400 text-xs"&gt;{formatDateTime(lab.createdAt)}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-gray-400 text-xs"&gt;
+                      {lab.lastActivity ? formatDateTime(lab.lastActivity) : "â€”"}
                     &lt;/td&gt;
-                    &lt;td className="px-4 py-2"&gt;
+                    &lt;td className="px-5 py-3"&gt;
                       &lt;div className="flex items-center gap-2"&gt;
                         &lt;Link
                           href={`/admin/labs/${lab.id}`}
-                          className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600"
+                          className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
                         &gt;
                           View
                         &lt;/Link&gt;
                         {lab.status === "ACTIVE" ? (
                           &lt;form action={suspendLabAction}&gt;
                             &lt;input type="hidden" name="organizationId" value={lab.id} /&gt;
-                            &lt;button className="rounded border border-red-200 px-2 py-1 text-xs text-red-600"&gt;
+                            &lt;button className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"&gt;
                               Suspend
                             &lt;/button&gt;
                           &lt;/form&gt;
                         ) : (
                           &lt;form action={activateLabAction}&gt;
                             &lt;input type="hidden" name="organizationId" value={lab.id} /&gt;
-                            &lt;button className="rounded border border-emerald-200 px-2 py-1 text-xs text-emerald-700"&gt;
+                            &lt;button className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"&gt;
                               Activate
                             &lt;/button&gt;
                           &lt;/form&gt;
@@ -3813,20 +3807,21 @@ export default async function AdminLabsPage({ searchParams }: { searchParams: Se
         &lt;/div&gt;
       &lt;/div&gt;
 
-      &lt;div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm"&gt;
-        &lt;p className="text-slate-500"&gt;
-          Page {data.page} of {Math.max(data.totalPages, 1)} - {data.total} labs
+      {/* Pagination */}
+      &lt;div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-3 shadow-sm text-sm"&gt;
+        &lt;p className="text-gray-400 text-xs"&gt;
+          Page {data.page} of {Math.max(data.totalPages, 1)} Â· {data.total} labs
         &lt;/p&gt;
         &lt;div className="flex items-center gap-2"&gt;
           &lt;Link
             href={`/admin/labs?page=${Math.max(1, data.page - 1)}&amp;pageSize=${data.pageSize}&amp;search=${encodeURIComponent(search)}&amp;plan=${plan}&amp;status=${status}`}
-            className={`rounded border px-3 py-1 ${data.page &lt;= 1 ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-200 text-slate-700"}`}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${data.page &lt;= 1 ? "pointer-events-none border-gray-100 text-gray-300" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
           &gt;
             Previous
           &lt;/Link&gt;
           &lt;Link
             href={`/admin/labs?page=${Math.min(data.totalPages || 1, data.page + 1)}&amp;pageSize=${data.pageSize}&amp;search=${encodeURIComponent(search)}&amp;plan=${plan}&amp;status=${status}`}
-            className={`rounded border px-3 py-1 ${data.page &gt;= data.totalPages ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-200 text-slate-700"}`}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${data.page &gt;= data.totalPages ? "pointer-events-none border-gray-100 text-gray-300" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
           &gt;
             Next
           &lt;/Link&gt;
@@ -3834,10 +3829,10 @@ export default async function AdminLabsPage({ searchParams }: { searchParams: Se
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(admin)/admin/layout.tsx</div><pre>import Link from "next/link";
 import { requireMegaAdmin } from "@/lib/admin-auth";
+import { AdminSignOutButton } from "@/components/admin/admin-sign-out-button";
 
 const links = [
   { href: "/admin/dashboard", label: "Dashboard" },
@@ -3850,69 +3845,82 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await requireMegaAdmin();
 
   return (
-    &lt;div className="min-h-screen bg-slate-50"&gt;
-      &lt;div className="mx-auto flex w-full max-w-[1400px] gap-4 px-4 py-4 lg:px-6"&gt;
-        &lt;aside className="hidden w-56 shrink-0 rounded-lg border border-slate-200 bg-white p-3 lg:block"&gt;
-          &lt;p className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-400"&gt;
-            Platform Admin
-          &lt;/p&gt;
-          &lt;nav className="mt-3 space-y-1"&gt;
-            {links.map((link) =&gt; (
-              &lt;Link
-                key={link.href}
-                href={link.href}
-                className="block rounded px-2 py-2 text-sm text-slate-700 hover:bg-slate-100"
-              &gt;
-                {link.label}
-              &lt;/Link&gt;
-            ))}
-          &lt;/nav&gt;
-          &lt;div className="mt-6 border-t border-slate-100 pt-3"&gt;
-            &lt;p className="truncate text-xs font-medium text-slate-700"&gt;{user.fullName}&lt;/p&gt;
-            &lt;p className="truncate text-xs text-slate-400"&gt;{user.email}&lt;/p&gt;
+    &lt;div className="min-h-screen bg-gray-50"&gt;
+      {/* Top bar */}
+      &lt;div className="sticky top-0 z-40 border-b border-gray-200 bg-white px-6 py-3 flex items-center justify-between shadow-sm"&gt;
+        &lt;span className="text-xs font-semibold tracking-widest text-gray-400 uppercase"&gt;Platform Admin&lt;/span&gt;
+        &lt;div className="flex items-center gap-2"&gt;
+          &lt;AdminSignOutButton className="h-8 border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-900" /&gt;
+          &lt;div className="h-7 w-7 rounded-full bg-gray-900 flex items-center justify-center text-white text-xs font-bold"&gt;
+            {user.fullName.charAt(0)}
           &lt;/div&gt;
-        &lt;/aside&gt;
+          &lt;span className="text-xs text-gray-500 hidden sm:block"&gt;{user.email}&lt;/span&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
 
-        &lt;div className="min-w-0 flex-1 space-y-4"&gt;
-          &lt;div className="rounded-lg border border-slate-200 bg-white p-3 lg:hidden"&gt;
-            &lt;p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400"&gt;
-              Platform Admin
-            &lt;/p&gt;
-            &lt;div className="flex flex-wrap gap-2"&gt;
+      &lt;div className="mx-auto flex w-full max-w-[1400px] gap-5 px-4 py-5 lg:px-6"&gt;
+        {/* Sidebar desktop */}
+        &lt;aside className="hidden lg:block w-52 shrink-0"&gt;
+          &lt;div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sticky top-16"&gt;
+            &lt;nav className="space-y-0.5"&gt;
               {links.map((link) =&gt; (
                 &lt;Link
                   key={link.href}
                   href={link.href}
-                  className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-700"
+                  className="block rounded-lg px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors font-medium"
                 &gt;
                   {link.label}
                 &lt;/Link&gt;
               ))}
+            &lt;/nav&gt;
+            &lt;div className="mt-5 pt-4 border-t border-gray-100"&gt;
+              &lt;p className="text-xs font-semibold text-gray-800 truncate"&gt;{user.fullName}&lt;/p&gt;
+              &lt;p className="text-xs text-gray-400 truncate mt-0.5"&gt;{user.email}&lt;/p&gt;
+              &lt;span className="mt-2 inline-block text-[10px] font-semibold tracking-wider text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full"&gt;
+                MEGA ADMIN
+              &lt;/span&gt;
+              &lt;AdminSignOutButton className="mt-3 w-full justify-center border-gray-300 bg-white text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-900" /&gt;
             &lt;/div&gt;
           &lt;/div&gt;
-          {children}
-        &lt;/div&gt;
-      &lt;/div&gt;
-    &lt;/div&gt;
-  );
-}
-</pre></div>
-<div class='file-block'><div class='file-header'>src/app/(admin)/admin/loading.tsx</div><pre>import { Skeleton } from "@/components/ui/skeleton";
+        &lt;/aside&gt;
 
-export default function AdminLoading() {
-  return (
-    &lt;div className="space-y-4"&gt;
-      &lt;Skeleton className="h-6 w-40" /&gt;
-      &lt;div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"&gt;
-        &lt;Skeleton className="h-24" /&gt;
-        &lt;Skeleton className="h-24" /&gt;
-        &lt;Skeleton className="h-24" /&gt;
+        {/* Mobile nav */}
+        &lt;div className="lg:hidden w-full"&gt;
+          &lt;div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm mb-4 flex flex-wrap gap-2"&gt;
+            {links.map((link) =&gt; (
+              &lt;Link
+                key={link.href}
+                href={link.href}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+              &gt;
+                {link.label}
+              &lt;/Link&gt;
+            ))}
+            &lt;AdminSignOutButton className="border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-900" /&gt;
+          &lt;/div&gt;
+          &lt;div&gt;{children}&lt;/div&gt;
+        &lt;/div&gt;
+
+        {/* Desktop main */}
+        &lt;div className="hidden lg:block min-w-0 flex-1"&gt;{children}&lt;/div&gt;
       &lt;/div&gt;
-      &lt;Skeleton className="h-72" /&gt;
     &lt;/div&gt;
   );
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/app/(admin)/admin/loading.tsx</div><pre>export default function AdminLoading() {
+  return (
+    &lt;div className="space-y-5 animate-pulse"&gt;
+      &lt;div className="h-5 w-36 rounded-lg bg-gray-100" /&gt;
+      &lt;div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"&gt;
+        {Array.from({ length: 6 }).map((_, i) =&gt; (
+          &lt;div key={i} className="h-24 rounded-xl bg-gray-100" /&gt;
+        ))}
+      &lt;/div&gt;
+      &lt;div className="h-72 rounded-xl bg-gray-100" /&gt;
+    &lt;/div&gt;
+  );
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(admin)/admin/page.tsx</div><pre>import { redirect } from "next/navigation";
 
 export default function AdminIndexPage() {
@@ -3952,84 +3960,106 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: S
     status: status || undefined,
   });
 
+  const rolePill: Record&lt;string, string&gt; = {
+    MEGA_ADMIN: "bg-red-50 text-red-600",
+    SUPER_ADMIN: "bg-amber-50 text-amber-600",
+    HRM: "bg-indigo-50 text-indigo-600",
+    RECEPTIONIST: "bg-blue-50 text-blue-600",
+    LAB_SCIENTIST: "bg-violet-50 text-violet-600",
+    RADIOGRAPHER: "bg-orange-50 text-orange-600",
+    MD: "bg-teal-50 text-teal-600",
+  };
+
+  const statusPill: Record&lt;string, string&gt; = {
+    ACTIVE: "bg-emerald-50 text-emerald-700",
+    INACTIVE: "bg-gray-100 text-gray-400",
+    SUSPENDED: "bg-red-50 text-red-500",
+  };
+
   return (
-    &lt;div className="space-y-4"&gt;
+    &lt;div className="space-y-5"&gt;
       &lt;div&gt;
-        &lt;h1 className="text-lg font-semibold text-slate-800"&gt;Users&lt;/h1&gt;
-        &lt;p className="text-xs text-slate-500"&gt;Platform-wide user list across all organizations.&lt;/p&gt;
+        &lt;h1 className="text-base font-semibold text-gray-900"&gt;Users&lt;/h1&gt;
+        &lt;p className="text-xs text-gray-400 mt-0.5"&gt;Platform-wide user list across all organizations.&lt;/p&gt;
       &lt;/div&gt;
 
-      &lt;form className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4"&gt;
+      {/* Filters */}
+      &lt;form className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"&gt;
         &lt;input
           type="text"
           name="search"
           defaultValue={search}
           placeholder="Search name or email"
-          className="rounded border border-slate-200 px-3 py-2 text-sm"
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 placeholder:text-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-400"
         /&gt;
         &lt;input
           type="text"
           name="organizationId"
           defaultValue={organizationId}
           placeholder="Filter by organization ID"
-          className="rounded border border-slate-200 px-3 py-2 text-sm"
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 placeholder:text-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-400"
         /&gt;
-        &lt;select name="role" defaultValue={role} className="rounded border border-slate-200 px-3 py-2 text-sm"&gt;
+        &lt;select name="role" defaultValue={role} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"&gt;
           &lt;option value=""&gt;All roles&lt;/option&gt;
-          &lt;option value="MEGA_ADMIN"&gt;MEGA_ADMIN&lt;/option&gt;
-          &lt;option value="SUPER_ADMIN"&gt;SUPER_ADMIN&lt;/option&gt;
+          &lt;option value="MEGA_ADMIN"&gt;Mega Admin&lt;/option&gt;
+          &lt;option value="SUPER_ADMIN"&gt;Super Admin&lt;/option&gt;
           &lt;option value="HRM"&gt;HRM&lt;/option&gt;
-          &lt;option value="RECEPTIONIST"&gt;RECEPTIONIST&lt;/option&gt;
-          &lt;option value="LAB_SCIENTIST"&gt;LAB_SCIENTIST&lt;/option&gt;
-          &lt;option value="RADIOGRAPHER"&gt;RADIOGRAPHER&lt;/option&gt;
+          &lt;option value="RECEPTIONIST"&gt;Receptionist&lt;/option&gt;
+          &lt;option value="LAB_SCIENTIST"&gt;Lab Scientist&lt;/option&gt;
+          &lt;option value="RADIOGRAPHER"&gt;Radiographer&lt;/option&gt;
           &lt;option value="MD"&gt;MD&lt;/option&gt;
         &lt;/select&gt;
-        &lt;select
-          name="status"
-          defaultValue={status}
-          className="rounded border border-slate-200 px-3 py-2 text-sm"
-        &gt;
+        &lt;select name="status" defaultValue={status} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"&gt;
           &lt;option value=""&gt;All statuses&lt;/option&gt;
-          &lt;option value="ACTIVE"&gt;ACTIVE&lt;/option&gt;
-          &lt;option value="INACTIVE"&gt;INACTIVE&lt;/option&gt;
-          &lt;option value="SUSPENDED"&gt;SUSPENDED&lt;/option&gt;
+          &lt;option value="ACTIVE"&gt;Active&lt;/option&gt;
+          &lt;option value="INACTIVE"&gt;Inactive&lt;/option&gt;
+          &lt;option value="SUSPENDED"&gt;Suspended&lt;/option&gt;
         &lt;/select&gt;
-        &lt;button className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white sm:col-span-4"&gt;
+        &lt;button className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors sm:col-span-2 lg:col-span-4"&gt;
           Apply Filters
         &lt;/button&gt;
       &lt;/form&gt;
 
-      &lt;div className="overflow-hidden rounded-lg border border-slate-200 bg-white"&gt;
+      {/* Table */}
+      &lt;div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"&gt;
         &lt;div className="overflow-x-auto"&gt;
-          &lt;table className="w-full min-w-[980px] text-sm"&gt;
+          &lt;table className="w-full text-sm min-w-[900px]"&gt;
             &lt;thead&gt;
-              &lt;tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"&gt;
-                &lt;th className="px-4 py-2"&gt;Name&lt;/th&gt;
-                &lt;th className="px-4 py-2"&gt;Email&lt;/th&gt;
-                &lt;th className="px-4 py-2"&gt;Role&lt;/th&gt;
-                &lt;th className="px-4 py-2"&gt;Organization&lt;/th&gt;
-                &lt;th className="px-4 py-2"&gt;Last Seen&lt;/th&gt;
-                &lt;th className="px-4 py-2"&gt;Created&lt;/th&gt;
+              &lt;tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide"&gt;
+                &lt;th className="px-5 py-3"&gt;Name&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Email&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Role&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Status&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Organization&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Last Seen&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Created&lt;/th&gt;
               &lt;/tr&gt;
             &lt;/thead&gt;
-            &lt;tbody&gt;
+            &lt;tbody className="divide-y divide-gray-100"&gt;
               {data.items.length === 0 ? (
                 &lt;tr&gt;
-                  &lt;td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400"&gt;
-                    No users match this filter
-                  &lt;/td&gt;
+                  &lt;td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400"&gt;No users match this filter&lt;/td&gt;
                 &lt;/tr&gt;
               ) : (
                 data.items.map((user) =&gt; (
-                  &lt;tr key={user.id} className="border-b border-slate-100"&gt;
-                    &lt;td className="px-4 py-2 font-medium text-slate-700"&gt;{user.name}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-500"&gt;{user.email}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-600"&gt;{user.role}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-500"&gt;{user.organization?.name ?? "Platform"}&lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-500"&gt;
-                      {user.lastSeen ? formatDateTime(user.lastSeen) : "-"}
+                  &lt;tr key={user.id} className="hover:bg-gray-50 transition-colors"&gt;
+                    &lt;td className="px-5 py-3 font-medium text-gray-800"&gt;{user.name}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-gray-400"&gt;{user.email}&lt;/td&gt;
+                    &lt;td className="px-5 py-3"&gt;
+                      &lt;span className={`text-xs font-medium rounded-full px-2.5 py-0.5 ${rolePill[user.role] ?? "bg-gray-100 text-gray-500"}`}&gt;
+                        {user.role}
+                      &lt;/span&gt;
                     &lt;/td&gt;
-                    &lt;td className="px-4 py-2 text-slate-500"&gt;{formatDateTime(user.createdAt)}&lt;/td&gt;
+                    &lt;td className="px-5 py-3"&gt;
+                      &lt;span className={`text-xs font-medium rounded-full px-2.5 py-0.5 ${statusPill[user.status] ?? "bg-gray-100 text-gray-400"}`}&gt;
+                        {user.status}
+                      &lt;/span&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-gray-400"&gt;{user.organization?.name ?? "Platform"}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-gray-400 text-xs"&gt;
+                      {user.lastSeen ? formatDateTime(user.lastSeen) : "â€”"}
+                    &lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-gray-400 text-xs"&gt;{formatDateTime(user.createdAt)}&lt;/td&gt;
                   &lt;/tr&gt;
                 ))
               )}
@@ -4038,20 +4068,21 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: S
         &lt;/div&gt;
       &lt;/div&gt;
 
-      &lt;div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm"&gt;
-        &lt;p className="text-slate-500"&gt;
-          Page {data.page} of {Math.max(data.totalPages, 1)} - {data.total} users
+      {/* Pagination */}
+      &lt;div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-3 shadow-sm"&gt;
+        &lt;p className="text-xs text-gray-400"&gt;
+          Page {data.page} of {Math.max(data.totalPages, 1)} Â· {data.total} users
         &lt;/p&gt;
         &lt;div className="flex items-center gap-2"&gt;
           &lt;Link
             href={`/admin/users?page=${Math.max(1, data.page - 1)}&amp;pageSize=${data.pageSize}&amp;search=${encodeURIComponent(search)}&amp;role=${role}&amp;organizationId=${organizationId}&amp;status=${status}`}
-            className={`rounded border px-3 py-1 ${data.page &lt;= 1 ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-200 text-slate-700"}`}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${data.page &lt;= 1 ? "pointer-events-none border-gray-100 text-gray-300" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
           &gt;
             Previous
           &lt;/Link&gt;
           &lt;Link
             href={`/admin/users?page=${Math.min(data.totalPages || 1, data.page + 1)}&amp;pageSize=${data.pageSize}&amp;search=${encodeURIComponent(search)}&amp;role=${role}&amp;organizationId=${organizationId}&amp;status=${status}`}
-            className={`rounded border px-3 py-1 ${data.page &gt;= data.totalPages ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-200 text-slate-700"}`}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${data.page &gt;= data.totalPages ? "pointer-events-none border-gray-100 text-gray-300" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
           &gt;
             Next
           &lt;/Link&gt;
@@ -4059,8 +4090,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: S
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(auth)/layout.tsx</div><pre>export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     &lt;div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4"&gt;
@@ -10036,6 +10066,32 @@ export default async function HomePage() {
     &lt;/main&gt;
   );
 }</pre></div>
+<div class='file-block'><div class='file-header'>src/components/admin/admin-sign-out-button.tsx</div><pre>"use client";
+
+import { LogOut } from "lucide-react";
+import { signOut } from "next-auth/react";
+import { cn } from "@/lib/utils";
+
+interface AdminSignOutButtonProps {
+  className?: string;
+}
+
+export function AdminSignOutButton({ className }: AdminSignOutButtonProps) {
+  return (
+    &lt;button
+      type="button"
+      onClick={() =&gt; signOut({ callbackUrl: "/login" })}
+      className={cn(
+        "inline-flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-2 text-sm text-red-200 transition-colors hover:bg-red-500/20 hover:text-red-100",
+        className
+      )}
+    &gt;
+      &lt;LogOut className="h-4 w-4" /&gt;
+      Logout
+    &lt;/button&gt;
+  );
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/components/consultation/consultation-board.tsx</div><pre>"use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -13905,16 +13961,17 @@ export function LabTaskBoard() {
         {filtered.length === 0 ? (
           &lt;p className="px-4 py-8 text-center text-xs text-slate-400"&gt;No assigned tests. You're all caught up.&lt;/p&gt;
         ) : (
-          &lt;table className="w-full text-xs"&gt;
+          &lt;div className="overflow-x-auto"&gt;
+            &lt;table className="w-full min-w-[960px] text-xs"&gt;
             &lt;thead&gt;
               &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Patient&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Tests&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Priority&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Status&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Sample&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Updated&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Action&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Patient&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Tests&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Priority&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Status&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Sample&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Updated&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Action&lt;/th&gt;
               &lt;/tr&gt;
             &lt;/thead&gt;
             &lt;tbody className="divide-y divide-slate-100"&gt;
@@ -13933,12 +13990,12 @@ export function LabTaskBoard() {
                         &lt;p className="text-[11px] text-slate-400"&gt;Last updated {getMinutesAgoLabel(task.updatedAt)} by {task.staff?.fullName ?? "assigned staff"}&lt;/p&gt;
                         &lt;p className="text-[11px] text-blue-600"&gt;{getNextStep(task)}&lt;/p&gt;
                       &lt;/td&gt;
-                      &lt;td className="px-4 py-2.5 text-slate-500"&gt;{task.testOrders.map((order) =&gt; order.test.name).join(", ")}&lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-500 min-w-[220px]"&gt;{task.testOrders.map((order) =&gt; order.test.name).join(", ")}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5"&gt;&lt;span className={`rounded px-1.5 py-0.5 font-medium ${priorityStyle[task.priority]}`}&gt;{task.priority}&lt;/span&gt;&lt;/td&gt;
                       &lt;td className="px-4 py-2.5"&gt;&lt;span className={`rounded px-1.5 py-0.5 font-medium ${statusStyle[task.status]}`}&gt;{task.status.replace("_", " ")}&lt;/span&gt;&lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-500"&gt;{getSampleStatus(task)}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;{formatDateTime(task.updatedAt)}&lt;/td&gt;
-                      &lt;td className="px-4 py-2.5"&gt;
+                      &lt;td className="px-4 py-2.5 whitespace-nowrap"&gt;
                         &lt;div className="flex gap-1.5"&gt;
                           {task.status !== "COMPLETED" ? (
                             &lt;button
@@ -14114,7 +14171,8 @@ export function LabTaskBoard() {
                 );
               })}
             &lt;/tbody&gt;
-          &lt;/table&gt;
+            &lt;/table&gt;
+          &lt;/div&gt;
         )}
       &lt;/div&gt;
     &lt;/div&gt;
@@ -27366,6 +27424,10 @@ export default async function middleware(req: NextRequest) {
   const token = await getToken({
     req,
     secret: AUTH_SECRET,
+    cookieName:
+      process.env.NODE_ENV === "production"
+        ? "__Secure-authjs.session-token"
+        : "authjs.session-token",
   });
 
   const isPublicRoute = publicRoutes.has(pathname) || pathname.startsWith("/api/auth");
@@ -27418,7 +27480,9 @@ export default async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.svg|.*\\.ico|.*\\.webp).*)",
+  ],
 };
 </pre></div>
 <div class='file-block'><div class='file-header'>src/types/index.ts</div><pre>import {
