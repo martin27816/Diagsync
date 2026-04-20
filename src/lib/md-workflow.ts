@@ -285,9 +285,6 @@ export async function approveMdReview(taskId: string, actor: MdActor, comments?:
   assertMd(actor);
   const task = await getTaskForReview(taskId, actor);
 
-  const currentStatus = task.review?.status ?? null;
-  if (!canApprove(currentStatus)) throw new Error("ALREADY_APPROVED");
-
   if (task.department === Department.LABORATORY) {
     const hasAllSubmitted =
       task.results.length > 0 &&
@@ -305,23 +302,52 @@ export async function approveMdReview(taskId: string, actor: MdActor, comments?:
 
   const now = new Date();
   await prisma.$transaction(async (tx) => {
-    await tx.review.upsert({
+    const existingReview = await tx.review.findUnique({
       where: { taskId: task.id },
-      create: {
-        organizationId: actor.organizationId,
-        taskId: task.id,
-        visitId: task.visitId,
-        reviewedById: actor.id,
-        status: ReviewStatus.APPROVED,
-        comments,
-      },
-      update: {
-        reviewedById: actor.id,
-        status: ReviewStatus.APPROVED,
-        comments,
-        rejectionReason: null,
-      },
+      select: { status: true },
     });
+
+    if (existingReview) {
+      if (!canApprove(existingReview.status)) {
+        throw new Error("ALREADY_APPROVED");
+      }
+      const updated = await tx.review.updateMany({
+        where: {
+          taskId: task.id,
+          status: { not: ReviewStatus.APPROVED },
+        },
+        data: {
+          reviewedById: actor.id,
+          status: ReviewStatus.APPROVED,
+          comments,
+          rejectionReason: null,
+        },
+      });
+      if (updated.count === 0) {
+        throw new Error("ALREADY_APPROVED");
+      }
+    } else {
+      try {
+        await tx.review.create({
+          data: {
+            organizationId: actor.organizationId,
+            taskId: task.id,
+            visitId: task.visitId,
+            reviewedById: actor.id,
+            status: ReviewStatus.APPROVED,
+            comments,
+          },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new Error("ALREADY_APPROVED");
+        }
+        throw error;
+      }
+    }
 
     const orders = await tx.testOrder.findMany({
       where: { id: { in: task.testOrderIds }, organizationId: actor.organizationId },
