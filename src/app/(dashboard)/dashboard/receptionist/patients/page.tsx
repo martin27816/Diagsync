@@ -1,10 +1,11 @@
-import { auth } from "@/lib/auth";
+﻿import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { DayRolloverRefresh } from "@/components/receptionist/day-rollover-refresh";
+import { DeletePatientButton } from "@/components/receptionist/delete-patient-button";
 
 type DaySummary = {
   key: string;
@@ -181,6 +182,7 @@ export default async function PatientsListPage({
   const visibleRows = sections.reduce((acc, s) => acc + s.rows.length, 0);
   const canCreatePatient = ["RECEPTIONIST", "SUPER_ADMIN"].includes(user.role);
   const canEditPatient = ["RECEPTIONIST", "SUPER_ADMIN", "HRM"].includes(user.role);
+  const canDeletePatient = ["RECEPTIONIST", "SUPER_ADMIN", "HRM"].includes(user.role);
 
   const priorityStyle: Record<string, string> = {
     EMERGENCY: "bg-red-50 text-red-600",
@@ -290,7 +292,7 @@ export default async function PatientsListPage({
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Payment</th>
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Registered By</th>
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Registered</th>
-                      {canEditPatient ? <th className="px-4 py-2.5 text-left font-medium text-slate-400">Action</th> : null}
+                      {canEditPatient || canDeletePatient ? <th className="px-4 py-2.5 text-left font-medium text-slate-400">Action</th> : null}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -298,7 +300,7 @@ export default async function PatientsListPage({
                       <tr key={row.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-2.5 font-medium text-slate-800">{row.fullName}</td>
                         <td className="px-4 py-2.5 font-mono text-slate-400">{row.patientId}</td>
-                        <td className="px-4 py-2.5 text-slate-500">{row.age}y · {row.sex}</td>
+                        <td className="px-4 py-2.5 text-slate-500">{row.age}y Â· {row.sex}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex flex-wrap gap-1">
                             {row.latestVisit?.testOrders.slice(0, 2).map((order) => (
@@ -314,24 +316,24 @@ export default async function PatientsListPage({
                           </div>
                         </td>
                         <td className="px-4 py-2.5 font-medium text-slate-700">
-                          {row.latestVisit ? formatCurrency(row.latestVisit.totalAmount) : "—"}
+                          {row.latestVisit ? formatCurrency(row.latestVisit.totalAmount) : "â€”"}
                         </td>
                         <td className="px-4 py-2.5 font-medium text-slate-700">
-                          {row.latestVisit ? formatCurrency(row.latestVisit.amountPaid) : "—"}
+                          {row.latestVisit ? formatCurrency(row.latestVisit.amountPaid) : "â€”"}
                         </td>
                         <td className="px-4 py-2.5">
                           {row.latestVisit ? (
                             <span className={`rounded px-1.5 py-0.5 font-medium ${priorityStyle[row.latestVisit.priority] ?? "bg-slate-100 text-slate-500"}`}>
                               {row.latestVisit.priority}
                             </span>
-                          ) : "—"}
+                          ) : "â€”"}
                         </td>
                         <td className="px-4 py-2.5">
                           {row.latestVisit ? (
                             <span className={`rounded px-1.5 py-0.5 font-medium ${paymentStyle[row.latestVisit.paymentStatus] ?? "bg-slate-100 text-slate-500"}`}>
                               {row.latestVisit.paymentStatus}
                             </span>
-                          ) : "—"}
+                          ) : "â€”"}
                         </td>
                         <td className="px-4 py-2.5 text-slate-600 whitespace-nowrap">
                           {row.registeredById === user.id ? (
@@ -341,18 +343,22 @@ export default async function PatientsListPage({
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(row.createdAt)}</td>
-                        {canEditPatient ? (
+                        {canEditPatient || canDeletePatient ? (
                           <td className="px-4 py-2.5">
-                            {row.latestVisit ? (
-                              <Link
-                                href={`/dashboard/receptionist/patients/${row.id}/edit`}
-                                className="rounded border border-blue-200 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50"
-                              >
-                                Edit Patient
-                              </Link>
-                            ) : (
-                              "—"
-                            )}
+                            <div className="flex flex-wrap items-center gap-2">
+                              {canEditPatient && row.latestVisit ? (
+                                <Link
+                                  href={`/dashboard/receptionist/patients/${row.id}/edit`}
+                                  className="rounded border border-blue-200 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50"
+                                >
+                                  Edit Patient
+                                </Link>
+                              ) : null}
+                              {canDeletePatient ? (
+                                <DeletePatientButton patientId={row.id} patientName={row.fullName} />
+                              ) : null}
+                              {!canDeletePatient && !(canEditPatient && row.latestVisit) ? "—" : null}
+                            </div>
                           </td>
                         ) : null}
                       </tr>
@@ -363,7 +369,7 @@ export default async function PatientsListPage({
                       <td colSpan={4} className="px-4 py-2.5 font-semibold text-slate-700">Daily Summary</td>
                       <td className="px-4 py-2.5 font-semibold text-slate-700">{formatCurrency(section.totalBilled)}</td>
                       <td className="px-4 py-2.5 font-semibold text-slate-700">{formatCurrency(section.totalPaid)}</td>
-                      <td colSpan={canEditPatient ? 5 : 4} className="px-4 py-2.5 text-slate-500">
+                      <td colSpan={canEditPatient || canDeletePatient ? 5 : 4} className="px-4 py-2.5 text-slate-500">
                         {section.totalTests} test{section.totalTests !== 1 ? "s" : ""} registered
                       </td>
                     </tr>
@@ -389,3 +395,4 @@ export default async function PatientsListPage({
     </div>
   );
 }
+
