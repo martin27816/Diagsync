@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       user.role === "MD" ? "MD" : user.role === "HRM" ? "HRM" : "Super Admin";
     const dedupeStamp = Date.now();
 
-    await sendNotificationToRoles({
+    const deliveredCount = await sendNotificationToRoles({
       organizationId: user.organizationId,
       roles: [targetRole as Role],
       type: NotificationType.SYSTEM,
@@ -58,9 +58,19 @@ export async function POST(req: NextRequest) {
       dedupeKeyPrefix: `md-call:${user.id}:${targetRole}:${dedupeStamp}`,
     });
 
+    if (deliveredCount === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `No active ${targetLabel.toLowerCase()} account was found in this organisation.`,
+        },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      data: { targetRole, targetLabel },
+      data: { targetRole, targetLabel, deliveredCount },
       message: `${targetLabel} has been notified.`,
     });
   } catch (error) {
