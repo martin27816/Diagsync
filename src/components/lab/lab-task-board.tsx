@@ -1022,20 +1022,27 @@ export function LabTaskBoard() {
   }, [sensitivityAntibioticOptions, sensitivityInterpretationOptions, sensitivityValueOptions]);
 
   const applyLoadedRows = useCallback((rows: LabTask[]) => {
+    const offlineByTask = new Map(listOfflineLabDraftItems().map((item) => [item.taskId, item]));
     setTasks(rows);
 
     setDrafts((prev) => {
       const next = { ...prev };
       for (const task of rows) {
+        const offline = offlineByTask.get(task.id);
+        const offlineByOrder = new Map(
+          (offline?.results ?? []).map((entry) => [entry.testOrderId, entry])
+        );
         for (const order of task.testOrders) {
           if (!next[order.id]) {
             const existing = order.labResults[0];
             const existingValues = ((existing?.resultData as Record<string, unknown>) ?? {});
             const { [SIGNOFF_IMAGE_KEY]: _ignoredSignatureImage, [SIGNOFF_NAME_KEY]: _ignoredSignatureName, ...cleanValues } =
               existingValues;
+            const offlineEntry = offlineByOrder.get(order.id);
             next[order.id] = {
-              values: cleanValues,
-              notes: existing?.notes ?? "",
+              values:
+                (offlineEntry?.resultData as Record<string, unknown> | undefined) ?? cleanValues,
+              notes: offlineEntry?.notes ?? existing?.notes ?? "",
               removedDefaultFieldKeys: [],
             };
           }
@@ -1663,6 +1670,17 @@ export function LabTaskBoard() {
     }, 5000);
     return () => window.clearInterval(timer);
   }, [expandedTask]);
+
+  useEffect(() => {
+    if (!expandedTask) return;
+    const task = tasksRef.current.find((row) => row.id === expandedTask);
+    if (!task || task.status === "COMPLETED") return;
+    const timer = window.setTimeout(() => {
+      const results = collectTaskDraftResults(task, draftsRef.current);
+      upsertOfflineLabDraft({ taskId: task.id, results });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [collectTaskDraftResults, drafts, expandedTask, signOffByTask]);
 
   async function onWorkflowClick(task: LabTask) {
     if (task.status === "COMPLETED") return;

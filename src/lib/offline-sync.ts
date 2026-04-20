@@ -1,5 +1,6 @@
 const OFFLINE_PATIENT_QUEUE = "diag_sync_offline_patients";
 const OFFLINE_LAB_DRAFT_QUEUE = "diag_sync_offline_lab_drafts";
+const OFFLINE_RADIOLOGY_DRAFT_QUEUE = "diag_sync_offline_radiology_drafts";
 
 export type OfflinePatientPayload = {
   fullName: string;
@@ -39,6 +40,20 @@ export type OfflineLabDraftItem = {
     resultData: Record<string, unknown>;
     notes?: string;
   }>;
+};
+
+export type OfflineRadiologyDraftItem = {
+  id: string;
+  taskId: string;
+  createdAt: string;
+  draft: {
+    findings: string;
+    impression: string;
+    notes: string;
+    extraFields: Record<string, string>;
+    signatureName: string;
+    signatureImage: string;
+  };
 };
 
 function canUseStorage() {
@@ -105,6 +120,33 @@ export function removeOfflineLabDraft(id: string) {
   writeItems(OFFLINE_LAB_DRAFT_QUEUE, items);
 }
 
+export function listOfflineRadiologyDraftItems() {
+  return readItems<OfflineRadiologyDraftItem>(OFFLINE_RADIOLOGY_DRAFT_QUEUE);
+}
+
+export function upsertOfflineRadiologyDraft(item: Omit<OfflineRadiologyDraftItem, "id" | "createdAt">) {
+  const items = listOfflineRadiologyDraftItems();
+  const existing = items.find((row) => row.taskId === item.taskId);
+  const nextItem: OfflineRadiologyDraftItem = {
+    id: existing?.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    taskId: item.taskId,
+    createdAt: new Date().toISOString(),
+    draft: item.draft,
+  };
+  const next = [nextItem, ...items.filter((row) => row.taskId !== item.taskId)];
+  writeItems(OFFLINE_RADIOLOGY_DRAFT_QUEUE, next);
+  return nextItem.id;
+}
+
+export function removeOfflineRadiologyDraft(id: string) {
+  const items = listOfflineRadiologyDraftItems().filter((item) => item.id !== id);
+  writeItems(OFFLINE_RADIOLOGY_DRAFT_QUEUE, items);
+}
+
 export function getOfflinePendingCount() {
-  return listOfflinePatientItems().length + listOfflineLabDraftItems().length;
+  return (
+    listOfflinePatientItems().length +
+    listOfflineLabDraftItems().length +
+    listOfflineRadiologyDraftItems().length
+  );
 }

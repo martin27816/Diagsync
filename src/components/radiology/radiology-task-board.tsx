@@ -6,6 +6,11 @@ import { formatDateTime } from "@/lib/utils";
 import { toCustomFieldKey } from "@/lib/custom-fields-core";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY } from "@/lib/report-signoff";
 import {
+  listOfflineRadiologyDraftItems,
+  removeOfflineRadiologyDraft,
+  upsertOfflineRadiologyDraft,
+} from "@/lib/offline-sync";
+import {
   SignaturePreset,
   loadSignaturePresets,
   removeSignaturePreset,
@@ -30,6 +35,15 @@ type Draft = {
   extraFields: Record<string, string>;
   signatureName: string;
   signatureImage: string;
+};
+
+const EMPTY_DRAFT: Draft = {
+  findings: "",
+  impression: "",
+  notes: "",
+  extraFields: {},
+  signatureName: "",
+  signatureImage: "",
 };
 
 const priorityStyle: Record<string, string> = {
@@ -57,6 +71,8 @@ export function RadiologyTaskBoard() {
   const signatureInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const loadTasksSeqRef = useRef(0);
   const taskCacheRef = useRef<Map<string, { at: number; tasks: Task[] }>>(new Map());
+  const draftsRef = useRef<Record<string, Draft>>({});
+  const tasksRef = useRef<Task[]>([]);
   function invalidateTaskCache() {
     taskCacheRef.current.clear();
   }
@@ -76,17 +92,23 @@ export function RadiologyTaskBoard() {
 
   function applyLoadedRows(rows: Task[]) {
     setTasks(rows);
+    tasksRef.current = rows;
+    const offlineByTask = new Map(listOfflineRadiologyDraftItems().map((item) => [item.taskId, item]));
     const nextDrafts: Record<string, Draft> = {};
     for (const task of rows) {
+      const offline = offlineByTask.get(task.id)?.draft;
       nextDrafts[task.id] = {
-        findings: task.radiologyReport?.findings ?? "",
-        impression: task.radiologyReport?.impression ?? "",
-        notes: task.radiologyReport?.notes ?? "",
-        extraFields: task.radiologyReport?.extraFields ?? {},
-        signatureName: task.radiologyReport?.extraFields?.[SIGNOFF_NAME_KEY] ?? "",
-        signatureImage: task.radiologyReport?.extraFields?.[SIGNOFF_IMAGE_KEY] ?? "",
+        findings: offline?.findings ?? task.radiologyReport?.findings ?? "",
+        impression: offline?.impression ?? task.radiologyReport?.impression ?? "",
+        notes: offline?.notes ?? task.radiologyReport?.notes ?? "",
+        extraFields: offline?.extraFields ?? task.radiologyReport?.extraFields ?? {},
+        signatureName:
+          offline?.signatureName ?? task.radiologyReport?.extraFields?.[SIGNOFF_NAME_KEY] ?? "",
+        signatureImage:
+          offline?.signatureImage ?? task.radiologyReport?.extraFields?.[SIGNOFF_IMAGE_KEY] ?? "",
       };
     }
+    draftsRef.current = nextDrafts;
     setDrafts(nextDrafts);
   }
 
@@ -162,7 +184,7 @@ export function RadiologyTaskBoard() {
     setDrafts((prev) => ({
       ...prev,
       [taskId]: {
-        ...(prev[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" }),
+        ...(prev[taskId] ?? EMPTY_DRAFT),
         ...patch,
       },
     }));
@@ -173,12 +195,12 @@ export function RadiologyTaskBoard() {
   }
 
   function setExtraFieldValue(taskId: string, fieldKey: string, value: string) {
-    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" };
+    const current = drafts[taskId] ?? EMPTY_DRAFT;
     updateDraft(taskId, { extraFields: { ...current.extraFields, [fieldKey]: value } });
   }
 
   function removeExtraField(taskId: string, fieldKey: string) {
-    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" };
+    const current = drafts[taskId] ?? EMPTY_DRAFT;
     if (!Object.prototype.hasOwnProperty.call(current.extraFields, fieldKey)) return;
     const next = { ...current.extraFields };
     delete next[fieldKey];
@@ -188,7 +210,7 @@ export function RadiologyTaskBoard() {
   function addExtraField(taskId: string, label: string, value: string) {
     const baseKey = toCustomFieldKey(label);
     if (!baseKey) return;
-    const current = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" };
+    const current = drafts[taskId] ?? EMPTY_DRAFT;
     if (Object.prototype.hasOwnProperty.call(current.extraFields, baseKey)) {
       setError(`Field '${baseKey}' already exists.`);
       return;
@@ -244,9 +266,11 @@ export function RadiologyTaskBoard() {
     setBusyTaskId(taskId); setError("");
     invalidateTaskCache();
     try {
-    const d = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" };
+    const d = drafts[taskId] ?? EMPTY_DRAFT;
     const json = await (await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })).json();
       if (!json.success) { setError(json.error ?? "Unable to save report"); return; }
+      const pending = listOfflineRadiologyDraftItems().find((item) => item.taskId === taskId);
+      if (pending) removeOfflineRadiologyDraft(pending.id);
       patchTask(taskId, {
         radiologyReport: {
           findings: d.findings,
@@ -272,15 +296,68 @@ export function RadiologyTaskBoard() {
     setBusyTaskId(taskId); setError("");
     invalidateTaskCache();
     try {
-      const d = drafts[taskId] ?? { findings: "", impression: "", notes: "", extraFields: {}, signatureName: "", signatureImage: "" };
+      const d = drafts[taskId] ?? EMPTY_DRAFT;
       if (!d.findings.trim() || !d.impression.trim()) { setError("Findings and impression are required before submission."); return; }
       await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) });
       const json = await (await fetch(`/api/radiology/tasks/${taskId}/submit`, { method: "PATCH", headers: { "Content-Type": "application/json" } })).json();
       if (!json.success) { setError(json.error ?? "Unable to submit report"); return; }
+      const pending = listOfflineRadiologyDraftItems().find((item) => item.taskId === taskId);
+      if (pending) removeOfflineRadiologyDraft(pending.id);
       setExpandedTask(null);
       patchTask(taskId, { status: "COMPLETED" });
     } finally { setBusyTaskId(null); }
   }
+
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  useEffect(() => {
+    if (!expandedTask) return;
+    const task = tasksRef.current.find((row) => row.id === expandedTask);
+    if (!task || task.status === "COMPLETED") return;
+    const timer = window.setTimeout(() => {
+      const draft = draftsRef.current[task.id] ?? EMPTY_DRAFT;
+      upsertOfflineRadiologyDraft({
+        taskId: task.id,
+        draft: {
+          findings: draft.findings,
+          impression: draft.impression,
+          notes: draft.notes,
+          extraFields: draft.extraFields ?? {},
+          signatureName: draft.signatureName ?? "",
+          signatureImage: draft.signatureImage ?? "",
+        },
+      });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [drafts, expandedTask]);
+
+  useEffect(() => {
+    if (!expandedTask) return;
+    const taskId = expandedTask;
+    const timer = window.setInterval(() => {
+      const task = tasksRef.current.find((row) => row.id === taskId);
+      if (!task || task.status === "COMPLETED") return;
+      const draft = draftsRef.current[task.id] ?? EMPTY_DRAFT;
+      upsertOfflineRadiologyDraft({
+        taskId: task.id,
+        draft: {
+          findings: draft.findings,
+          impression: draft.impression,
+          notes: draft.notes,
+          extraFields: draft.extraFields ?? {},
+          signatureName: draft.signatureName ?? "",
+          signatureImage: draft.signatureImage ?? "",
+        },
+      });
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [expandedTask]);
 
   async function uploadSignature(taskId: string, file: File) {
     const readAsDataUrl = await new Promise<string>((resolve, reject) => {
