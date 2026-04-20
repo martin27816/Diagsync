@@ -18,7 +18,7 @@ const TARGET_LABEL: Record<z.infer<typeof bodySchema>["targetRole"], string> = {
 };
 
 function assertMdOrSuperAdmin(role: string) {
-  if (!["MD", "SUPER_ADMIN"].includes(role)) {
+  if (!["MD", "HRM", "SUPER_ADMIN"].includes(role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
 }
@@ -43,15 +43,17 @@ export async function POST(req: NextRequest) {
 
     const targetRole = parsed.data.targetRole;
     const targetLabel = TARGET_LABEL[targetRole];
-    const mdName = String(user.fullName ?? "MD");
+    const callerName = String(user.fullName ?? "Staff");
+    const callerLabel =
+      user.role === "MD" ? "MD" : user.role === "HRM" ? "HRM" : "Super Admin";
     const dedupeStamp = Date.now();
 
     await sendNotificationToRoles({
       organizationId: user.organizationId,
       roles: [targetRole as Role],
       type: NotificationType.SYSTEM,
-      title: "MD Wants To See You",
-      message: `${mdName} requested ${targetLabel} support. Please report to MD now.`,
+      title: `${callerLabel} Wants To See You`,
+      message: `${callerName} requested ${targetLabel} support. Please report now.`,
       entityType: "StaffCall",
       dedupeKeyPrefix: `md-call:${user.id}:${targetRole}:${dedupeStamp}`,
     });
@@ -69,4 +71,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
-

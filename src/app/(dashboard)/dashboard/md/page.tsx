@@ -8,7 +8,7 @@ export default async function MDDashboard({ searchParams }: { searchParams?: { s
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
-  if (user.role !== "MD" && user.role !== "SUPER_ADMIN") redirect("/dashboard");
+  if (!["MD", "HRM", "SUPER_ADMIN"].includes(user.role)) redirect("/dashboard");
 
   const raw = searchParams?.status ?? "pending";
   const initialStatus = ["pending","approved","rejected","all"].includes(raw) ? raw as any : "pending";
@@ -27,7 +27,7 @@ export default async function MDDashboard({ searchParams }: { searchParams?: { s
           Consultation Queue
         </Link>
       </div>
-      <MdStaffCallPanel />
+      <MdStaffCallPanel callerRole={user.role} />
       <MdReviewBoard initialStatus={initialStatus} />
     </div>
   );

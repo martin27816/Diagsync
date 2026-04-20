@@ -340,7 +340,7 @@ export async function approveMdReview(taskId: string, actor: MdActor, comments?:
 
   await createAuditLog({
     actorId: actor.id,
-    actorRole: Role.MD,
+    actorRole: actor.role as Role,
     action: AUDIT_ACTIONS.RESULT_APPROVED,
     entityType: "Review",
     entityId: task.id,
@@ -411,7 +411,7 @@ export async function rejectMdReview(taskId: string, actor: MdActor, reason: str
 
   await createAuditLog({
     actorId: actor.id,
-    actorRole: Role.MD,
+    actorRole: actor.role as Role,
     action: AUDIT_ACTIONS.RESULT_REJECTED,
     entityType: "Review",
     entityId: task.id,

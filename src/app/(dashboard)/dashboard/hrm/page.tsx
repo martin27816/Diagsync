@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Settings2 } from "lucide-react";
 import { formatDateTime, formatMinutes, ROLE_LABELS } from "@/lib/utils";
 import { Badge } from "@/components/ui/index";
+import { MdStaffCallPanel } from "@/components/md/md-staff-call-panel";
 
 export default async function HRMDashboardPage() {
   const session = await auth();
@@ -85,6 +86,8 @@ export default async function HRMDashboardPage() {
           )}
         </div>
       </div>
+      <MdStaffCallPanel callerRole={user.role} />
+
 
       {/* Metrics strip — 3-col on mobile, 4-col on sm, 8-col on lg */}
       <div className="grid grid-cols-3 gap-px rounded-lg border border-slate-200 bg-slate-200 overflow-hidden sm:grid-cols-4 lg:grid-cols-9">

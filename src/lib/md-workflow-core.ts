@@ -1,7 +1,7 @@
 import { ReviewStatus, RoutingTaskStatus } from "@prisma/client";
 
 export function canUseMdWorkflow(role: string) {
-  return role === "MD" || role === "SUPER_ADMIN";
+  return role === "MD" || role === "HRM" || role === "SUPER_ADMIN";
 }
 
 export function canApprove(reviewStatus: ReviewStatus | null) {

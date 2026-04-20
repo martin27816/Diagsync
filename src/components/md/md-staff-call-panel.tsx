@@ -3,18 +3,28 @@
 import { useState } from "react";
 
 type TargetRole = "RECEPTIONIST" | "LAB_SCIENTIST" | "HRM" | "RADIOGRAPHER";
+type CallerRole = "MD" | "HRM" | "SUPER_ADMIN";
 
-const CALL_TARGETS: Array<{ role: TargetRole; label: string }> = [
+const MD_CALL_TARGETS: Array<{ role: TargetRole; label: string }> = [
   { role: "RECEPTIONIST", label: "Call Receptionist" },
   { role: "LAB_SCIENTIST", label: "Call Lab Scientist" },
   { role: "HRM", label: "Call HRM" },
   { role: "RADIOGRAPHER", label: "Call Radiographer" },
 ];
 
-export function MdStaffCallPanel() {
+const OPS_CALL_TARGETS: Array<{ role: TargetRole; label: string }> = [
+  { role: "RECEPTIONIST", label: "Call Receptionist" },
+  { role: "LAB_SCIENTIST", label: "Call Lab Scientist" },
+  { role: "RADIOGRAPHER", label: "Call Radiographer" },
+];
+
+export function MdStaffCallPanel({ callerRole = "MD" }: { callerRole?: CallerRole }) {
   const [busyRole, setBusyRole] = useState<TargetRole | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  const callTargets = callerRole === "MD" ? MD_CALL_TARGETS : OPS_CALL_TARGETS;
+  const callerLabel = callerRole === "MD" ? "MD" : callerRole === "HRM" ? "HRM" : "Super Admin";
 
   async function callRole(targetRole: TargetRole) {
     setBusyRole(targetRole);
@@ -33,7 +43,7 @@ export function MdStaffCallPanel() {
       }
       setMessage(json?.message ?? "Staff has been notified.");
     } catch {
-      setError("Network error while sending MD call notification.");
+      setError("Network error while sending call notification.");
     } finally {
       setBusyRole(null);
     }
@@ -41,15 +51,11 @@ export function MdStaffCallPanel() {
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Staff Quick Call
-      </p>
-      <p className="mt-1 text-xs text-slate-400">
-        Send urgent “MD wants to see you” notification to staff.
-      </p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Staff Quick Call</p>
+      <p className="mt-1 text-xs text-slate-400">Send urgent "{callerLabel} wants to see you" notification to staff.</p>
 
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {CALL_TARGETS.map((target) => (
+        {callTargets.map((target) => (
           <button
             key={target.role}
             onClick={() => void callRole(target.role)}
@@ -62,16 +68,11 @@ export function MdStaffCallPanel() {
       </div>
 
       {error ? (
-        <p className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-600">
-          {error}
-        </p>
+        <p className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-600">{error}</p>
       ) : null}
       {message ? (
-        <p className="mt-2 rounded border border-green-200 bg-green-50 px-2 py-1 text-[11px] text-green-700">
-          {message}
-        </p>
+        <p className="mt-2 rounded border border-green-200 bg-green-50 px-2 py-1 text-[11px] text-green-700">{message}</p>
       ) : null}
     </div>
   );
 }
-
