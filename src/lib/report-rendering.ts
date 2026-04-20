@@ -275,6 +275,75 @@ function renderMicroCultureSensitivitySection(tests: LabRenderTest[]) {
   return `${microscopyTable}${cultureHtml}${sensitivityHtml}`;
 }
 
+function splitRadiologyNarrative(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  const normalized = trimmed
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/[•●▪]/g, "\n")
+    .replace(/\t+/g, " ")
+    .replace(/[ ]{2,}/g, " ")
+    .trim();
+
+  const labelRegex =
+    /(Technique|Liver|Gallbladder|Pancreas|Spleen|Kidneys?|Bowel|Uterus|Myometrium|Endometrium|Adnexae|Right ovary|Left ovary|POD|Urinary bladder|Bladder|Prostate|Cervix|Impression)\s*:/gi;
+  const labelMatches = Array.from(normalized.matchAll(labelRegex));
+  if (labelMatches.length > 1) {
+    const points: string[] = [];
+    for (let i = 0; i < labelMatches.length; i += 1) {
+      const start = labelMatches[i].index ?? 0;
+      const end = i + 1 < labelMatches.length ? labelMatches[i + 1].index ?? normalized.length : normalized.length;
+      const chunk = normalized.slice(start, end).trim().replace(/\s+/g, " ");
+      if (chunk) points.push(chunk);
+    }
+    if (points.length > 0) return points;
+  }
+
+  const linePoints = normalized
+    .split(/\n|;/)
+    .map((line) => line.trim().replace(/\s+/g, " "))
+    .filter(Boolean);
+  if (linePoints.length > 1) return linePoints;
+
+  const sentencePoints = normalized
+    .split(/(?<=[.?!])\s+(?=[A-Z])/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => (/[.?!]$/.test(line) ? line : `${line}.`));
+  if (sentencePoints.length > 1) return sentencePoints;
+
+  return [normalized];
+}
+
+function splitEmbeddedImpression(findingsInput: string, impressionInput: string) {
+  const findingsText = findingsInput.trim();
+  const impressionText = impressionInput.trim();
+  if (!findingsText) return { findingsText, impressionText };
+
+  const match = findingsText.match(/\bimpression\s*:\s*(.+)$/i);
+  if (!match || match.index === undefined) {
+    return { findingsText, impressionText };
+  }
+
+  const cleanedFindings = findingsText.slice(0, match.index).trim();
+  const extractedImpression = match[1]?.trim() ?? "";
+  return {
+    findingsText: cleanedFindings,
+    impressionText: impressionText || extractedImpression,
+  };
+}
+
+function renderNarrativeBlock(rawText: string, opts?: { preferList?: boolean }) {
+  const points = splitRadiologyNarrative(rawText);
+  if (points.length === 0) return `<p class="rad-paragraph">-</p>`;
+  if ((opts?.preferList ?? false) && points.length > 1) {
+    return `<ul class="rad-list">${points.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+  }
+  return points.map((item) => `<p class="rad-paragraph">${escapeHtml(item)}</p>`).join("");
+}
+
 type RenderArgs = {
   organization: {
     name: string;
@@ -348,14 +417,29 @@ export function renderReportHtml(args: RenderArgs) {
         })()
       : safeRadiologyTests
           .map(
-            (test: any) => `
+            (test: any) => {
+              const normalized = splitEmbeddedImpression(
+                String(test.findings ?? ""),
+                String(test.impression ?? "")
+              );
+
+              return `
               <section class="block">
                 <h3>${escapeHtml(String(test.name ?? "Radiology Report"))}</h3>
-                <p><strong>Findings:</strong> ${escapeHtml(String(test.findings ?? ""))}</p>
-                <p><strong>Impression:</strong> ${escapeHtml(String(test.impression ?? ""))}</p>
+                <div class="rad-field">
+                  <p class="rad-label">Findings</p>
+                  ${renderNarrativeBlock(normalized.findingsText, { preferList: true })}
+                </div>
+                <div class="rad-field">
+                  <p class="rad-label">Impression</p>
+                  ${renderNarrativeBlock(normalized.impressionText)}
+                </div>
                 ${
                   test.notes
-                    ? `<p><strong>Notes:</strong> ${escapeHtml(String(test.notes))}</p>`
+                    ? `<div class="rad-field">
+                        <p class="rad-label">Notes</p>
+                        ${renderNarrativeBlock(String(test.notes))}
+                      </div>`
                     : ""
                 }
                 ${
@@ -366,13 +450,17 @@ export function renderReportHtml(args: RenderArgs) {
                           const k = String(key ?? "").trim();
                           const v = value === null || value === undefined ? "" : String(value);
                           if (!k) return "";
-                          return `<p><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</p>`;
+                          return `<div class="rad-field">
+                            <p class="rad-label">${escapeHtml(k)}</p>
+                            ${renderNarrativeBlock(v)}
+                          </div>`;
                         })
                         .join("")
                     : ""
                 }
               </section>
-            `
+            `;
+            }
           )
           .join("");
 
@@ -463,6 +551,30 @@ export function renderReportHtml(args: RenderArgs) {
     p { margin: 4px 0; font-size: 13px; }
     .meta-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
     .block { margin-bottom: 10px; break-inside: avoid; }
+    .rad-field { margin: 8px 0 10px; }
+    .rad-label {
+      margin: 0 0 4px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: 0.01em;
+    }
+    .rad-paragraph {
+      margin: 0 0 6px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #1f2937;
+    }
+    .rad-list {
+      margin: 0 0 4px 18px;
+      padding: 0;
+    }
+    .rad-list li {
+      margin: 0 0 6px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #1f2937;
+    }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { border: 1px solid #d1d5db; padding: 5px; text-align: left; vertical-align: top; }
     th { background: #f3f4f6; }
