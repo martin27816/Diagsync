@@ -36,7 +36,6 @@ export default async function LabQueuePage({
     where: {
       organizationId: user.organizationId,
       department: "LABORATORY",
-      ...(user.role === "LAB_SCIENTIST" ? { staffId: user.id } : {}),
       ...statusWhere,
     },
     take: ROW_LIMIT,

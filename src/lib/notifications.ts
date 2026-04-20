@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
+  AvailabilityStatus,
+  Department,
   NotificationType,
   Role,
   RoutingTaskStatus,
@@ -365,6 +367,44 @@ export async function notifyStaffForTaskAssignment(input: {
     entityId: input.taskId,
     entityType: "RoutingTask",
   });
+}
+
+export async function notifyDepartmentStaffForTaskAssignment(input: {
+  organizationId: string;
+  department: Department;
+  role: Role;
+  taskId: string;
+  testNames: string[];
+  patientName: string;
+  onlyAvailable?: boolean;
+}) {
+  const users = await prisma.staff.findMany({
+    where: {
+      organizationId: input.organizationId,
+      department: input.department,
+      role: input.role,
+      status: "ACTIVE",
+      ...(input.onlyAvailable === false
+        ? {}
+        : { availabilityStatus: AvailabilityStatus.AVAILABLE }),
+    },
+    select: { id: true },
+  });
+
+  if (users.length === 0) return 0;
+
+  const data: Prisma.NotificationCreateManyInput[] = users.map((user) => ({
+    organizationId: input.organizationId,
+    userId: user.id,
+    type: NotificationType.TASK_ASSIGNED,
+    title: "New task assigned",
+    message: `${input.patientName}: ${input.testNames.join(", ")} (${input.department})`,
+    entityId: input.taskId,
+    entityType: "RoutingTask",
+    dedupeKey: `task-assigned:${input.taskId}:${user.id}`,
+  }));
+
+  return createManyNotifications(data, "notifyDepartmentStaffForTaskAssignment");
 }
 
 export async function notifyMdResultSubmitted(input: {

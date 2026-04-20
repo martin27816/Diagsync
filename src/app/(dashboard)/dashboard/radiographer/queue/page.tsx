@@ -15,7 +15,6 @@ export default async function RadiologyQueuePage() {
     where: {
       organizationId: user.organizationId,
       department: "RADIOLOGY",
-      ...(user.role === "RADIOGRAPHER" ? { staffId: user.id } : {}),
     },
     include: {
       visit: { include: { patient: true } },
@@ -56,4 +55,3 @@ export default async function RadiologyQueuePage() {
     </div>
   );
 }
-

@@ -81,7 +81,6 @@ export async function getRadiologyTasks(
     where: {
       organizationId: actor.organizationId,
       department: Department.RADIOLOGY,
-      staffId: actor.id,
       ...(opts?.status && opts.status !== "ALL" ? { status: opts.status } : {}),
     },
     include: {
@@ -112,15 +111,53 @@ export async function getRadiologyTasks(
 
 export async function startRadiologyTask(taskId: string, actor: RadiologyActor) {
   assertRadiographer(actor);
-  const task = await assertOwnership(taskId, actor);
+  const task = await prisma.routingTask.findFirst({
+    where: {
+      id: taskId,
+      organizationId: actor.organizationId,
+      department: Department.RADIOLOGY,
+    },
+    select: {
+      id: true,
+      status: true,
+      staffId: true,
+      testOrderIds: true,
+    },
+  });
+  if (!task) throw new Error("TASK_NOT_FOUND");
   if (!canStartRadiologyTask(task.status)) throw new Error("INVALID_TASK_STATE");
+  if (task.status === RoutingTaskStatus.IN_PROGRESS) {
+    if (task.staffId === actor.id) return;
+    throw new Error("TASK_ALREADY_CLAIMED");
+  }
 
   const now = new Date();
+  let startedNow = false;
   await prisma.$transaction(async (tx) => {
-    await tx.routingTask.update({
-      where: { id: task.id },
-      data: { status: RoutingTaskStatus.IN_PROGRESS },
+    const claimed = await tx.routingTask.updateMany({
+      where: {
+        id: task.id,
+        organizationId: actor.organizationId,
+        department: Department.RADIOLOGY,
+        status: RoutingTaskStatus.PENDING,
+      },
+      data: { status: RoutingTaskStatus.IN_PROGRESS, staffId: actor.id },
     });
+    if (claimed.count === 0) {
+      const latest = await tx.routingTask.findFirst({
+        where: {
+          id: task.id,
+          organizationId: actor.organizationId,
+          department: Department.RADIOLOGY,
+        },
+        select: { status: true, staffId: true },
+      });
+      if (latest?.status === RoutingTaskStatus.IN_PROGRESS && latest.staffId === actor.id) {
+        return;
+      }
+      throw new Error("TASK_ALREADY_CLAIMED");
+    }
+    startedNow = true;
 
     await tx.testOrder.updateMany({
       where: {
@@ -128,7 +165,7 @@ export async function startRadiologyTask(taskId: string, actor: RadiologyActor) 
         organizationId: actor.organizationId,
         status: { in: [OrderStatus.ASSIGNED, OrderStatus.REGISTERED] },
       },
-      data: { status: OrderStatus.IN_PROGRESS },
+      data: { status: OrderStatus.IN_PROGRESS, assignedToId: actor.id },
     });
     await tx.testOrder.updateMany({
       where: {
@@ -147,6 +184,8 @@ export async function startRadiologyTask(taskId: string, actor: RadiologyActor) 
       data: { startedAt: now },
     });
   });
+
+  if (!startedNow) return;
 
   await createAuditLog({
     actorId: actor.id,

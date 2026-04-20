@@ -157,26 +157,39 @@ export async function startLabTask(taskId: string, actor: LabActor) {
   });
 
   if (!task) throw new Error("TASK_NOT_FOUND");
-  if (task.staffId && task.staffId !== actor.id) {
-    throw new Error("FORBIDDEN_TASK");
+  if (!canStartTask(task.status)) throw new Error("INVALID_TASK_STATE");
+  if (task.status === RoutingTaskStatus.IN_PROGRESS) {
+    if (task.staffId === actor.id) return;
+    throw new Error("TASK_ALREADY_CLAIMED");
   }
 
-  if (!canStartTask(task.status)) throw new Error("INVALID_TASK_STATE");
-
   const now = new Date();
+  let startedNow = false;
   await prisma.$transaction(async (tx) => {
     const claimed = await tx.routingTask.updateMany({
       where: {
         id: task.id,
         organizationId: actor.organizationId,
         department: Department.LABORATORY,
-        ...(task.staffId ? { staffId: actor.id } : { staffId: null }),
+        status: RoutingTaskStatus.PENDING,
       },
       data: { status: RoutingTaskStatus.IN_PROGRESS, staffId: actor.id },
     });
     if (claimed.count === 0) {
+      const latest = await tx.routingTask.findFirst({
+        where: {
+          id: task.id,
+          organizationId: actor.organizationId,
+          department: Department.LABORATORY,
+        },
+        select: { status: true, staffId: true },
+      });
+      if (latest?.status === RoutingTaskStatus.IN_PROGRESS && latest.staffId === actor.id) {
+        return;
+      }
       throw new Error("TASK_ALREADY_CLAIMED");
     }
+    startedNow = true;
 
     await tx.testOrder.updateMany({
       where: {
@@ -184,7 +197,7 @@ export async function startLabTask(taskId: string, actor: LabActor) {
         organizationId: actor.organizationId,
         status: { in: [OrderStatus.ASSIGNED, OrderStatus.REGISTERED] },
       },
-      data: { status: OrderStatus.OPENED },
+      data: { status: OrderStatus.OPENED, assignedToId: actor.id },
     });
     await tx.testOrder.updateMany({
       where: {
@@ -195,6 +208,8 @@ export async function startLabTask(taskId: string, actor: LabActor) {
       data: { openedAt: now },
     });
   });
+
+  if (!startedNow) return;
 
   await createAuditLog({
     actorId: actor.id,

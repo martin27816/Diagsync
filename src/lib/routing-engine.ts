@@ -1,6 +1,6 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
-import { notifyStaffForTaskAssignment } from "@/lib/notifications";
+import { notifyDepartmentStaffForTaskAssignment } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
   ACTIVE_WORKLOAD_STATUSES,
@@ -184,14 +184,16 @@ export async function assignTasksForVisit(
       testNames,
     });
 
-    if (selected?.id) {
-      await notifyStaffForTaskAssignment({
+    const targetRole = DEPARTMENT_ROLE_MAP[department];
+    if (targetRole) {
+      await notifyDepartmentStaffForTaskAssignment({
         organizationId: options.organizationId,
-        staffId: selected.id,
+        department,
+        role: targetRole,
         taskId: createdTask.id,
         testNames,
-        department,
         patientName: visit.patient.fullName,
+        onlyAvailable: true,
       });
     }
 
