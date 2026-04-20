@@ -355,7 +355,12 @@ export default async function PatientsListPage({
                                 </Link>
                               ) : null}
                               {canDeletePatient ? (
-                                <DeletePatientButton patientId={row.id} patientName={row.fullName} />
+                                row.latestVisit ? (
+                                  <DeletePatientButton
+                                    visitId={row.latestVisit.id}
+                                    patientName={row.fullName}
+                                  />
+                                ) : null
                               ) : null}
                               {!canDeletePatient && !(canEditPatient && row.latestVisit) ? "—" : null}
                             </div>

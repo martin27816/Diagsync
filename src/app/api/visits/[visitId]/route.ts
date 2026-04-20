@@ -357,3 +357,108 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
+
+// DELETE /api/visits/[visitId] - delete only one visit and all its linked workflow records
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { visitId: string } }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const user = session.user as any;
+    if (!["RECEPTIONIST", "SUPER_ADMIN", "HRM"].includes(user.role)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    const visit = await prisma.visit.findFirst({
+      where: {
+        id: params.visitId,
+        organizationId: user.organizationId,
+      },
+      include: {
+        patient: { select: { id: true, patientId: true, fullName: true } },
+        routingTasks: { select: { id: true } },
+        testOrders: { select: { id: true } },
+      },
+    });
+
+    if (!visit) {
+      return NextResponse.json({ success: false, error: "Visit not found" }, { status: 404 });
+    }
+
+    const taskIds = visit.routingTasks.map((task) => task.id);
+    const testOrderIds = visit.testOrders.map((order) => order.id);
+
+    await prisma.$transaction(async (tx) => {
+      const notificationClauses: Array<Record<string, unknown>> = [
+        { entityType: "Visit", entityId: visit.id },
+      ];
+      if (taskIds.length > 0) {
+        notificationClauses.push({ entityType: "RoutingTask", entityId: { in: taskIds } });
+      }
+      if (testOrderIds.length > 0) {
+        notificationClauses.push({ entityType: "TestOrder", entityId: { in: testOrderIds } });
+      }
+
+      await tx.notification.deleteMany({
+        where: {
+          organizationId: user.organizationId,
+          OR: notificationClauses,
+        },
+      });
+
+      const auditClauses: Array<Record<string, unknown>> = [
+        { entityType: "Visit", entityId: visit.id },
+      ];
+      if (taskIds.length > 0) {
+        auditClauses.push({ entityType: "RoutingTask", entityId: { in: taskIds } });
+      }
+      if (testOrderIds.length > 0) {
+        auditClauses.push({ entityType: "TestOrder", entityId: { in: testOrderIds } });
+      }
+
+      await tx.auditLog.deleteMany({
+        where: {
+          OR: auditClauses,
+        },
+      });
+
+      await tx.visit.delete({
+        where: { id: visit.id },
+      });
+    });
+
+    await createAuditLog({
+      actorId: user.id,
+      actorRole: user.role as Role,
+      action: "VISIT_DELETED",
+      entityType: "Visit",
+      entityId: visit.id,
+      oldValue: {
+        visitId: visit.id,
+        patientId: visit.patient.patientId,
+        patientName: visit.patient.fullName,
+        taskCount: taskIds.length,
+        testOrderCount: testOrderIds.length,
+      },
+      notes: "Visit and all linked workflow records deleted permanently",
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Visit deleted permanently",
+      data: {
+        visitId: visit.id,
+        patientId: visit.patient.id,
+        taskCount: taskIds.length,
+        testOrderCount: testOrderIds.length,
+      },
+    });
+  } catch (error) {
+    console.error("[VISIT_DELETE]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
