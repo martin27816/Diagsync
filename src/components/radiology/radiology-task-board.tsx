@@ -128,6 +128,30 @@ export function RadiologyTaskBoard() {
   }, [statusFilter, sort]);
 
   useEffect(() => {
+    const refreshNow = () => {
+      if (document.visibilityState !== "visible") return;
+      void loadTasks({ force: true });
+    };
+
+    const poll = window.setInterval(refreshNow, 12_000);
+    window.addEventListener("focus", refreshNow);
+    document.addEventListener("visibilitychange", refreshNow);
+
+    const stream = new EventSource("/api/notifications/stream");
+    stream.addEventListener("notification", refreshNow);
+    stream.onerror = () => {
+      stream.close();
+    };
+
+    return () => {
+      window.clearInterval(poll);
+      window.removeEventListener("focus", refreshNow);
+      document.removeEventListener("visibilitychange", refreshNow);
+      stream.close();
+    };
+  }, [loadTasks]);
+
+  useEffect(() => {
     setSignatureLibrary(loadSignaturePresets("reporting"));
   }, []);
 

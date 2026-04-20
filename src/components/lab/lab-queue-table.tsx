@@ -2,7 +2,7 @@
 
 import { formatDateTime } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type QueueRow = {
   taskId: string;
@@ -53,6 +53,36 @@ export function LabQueueTable({ rows }: { rows: QueueRow[] }) {
   const router = useRouter();
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const refreshingRef = useRef(false);
+
+  useEffect(() => {
+    const refreshNow = () => {
+      if (refreshingRef.current) return;
+      if (document.visibilityState !== "visible") return;
+      refreshingRef.current = true;
+      router.refresh();
+      window.setTimeout(() => {
+        refreshingRef.current = false;
+      }, 1200);
+    };
+
+    const poll = window.setInterval(refreshNow, 10_000);
+    window.addEventListener("focus", refreshNow);
+    document.addEventListener("visibilitychange", refreshNow);
+
+    const stream = new EventSource("/api/notifications/stream");
+    stream.addEventListener("notification", refreshNow);
+    stream.onerror = () => {
+      stream.close();
+    };
+
+    return () => {
+      window.clearInterval(poll);
+      window.removeEventListener("focus", refreshNow);
+      document.removeEventListener("visibilitychange", refreshNow);
+      stream.close();
+    };
+  }, [router]);
 
   async function startTask(taskId: string) {
     setBusyTaskId(taskId);
