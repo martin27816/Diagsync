@@ -88,16 +88,16 @@ export function RadiologyQueueTable({ rows }: { rows: Row[] }) {
       )}
       <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full min-w-[980px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Tests</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Priority</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Status</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Assigned</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Updated</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Action</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Patient</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Tests</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Priority</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Status</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Assigned</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Updated</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
