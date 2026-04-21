@@ -232,7 +232,10 @@ function generateLabScientistComment(input: {
     const valueText =
       typeof raw === "boolean" ? (raw ? "positive" : "negative") : String(raw).trim();
     const withUnit = field.unit ? `${valueText} ${field.unit}` : valueText;
-    const flag = evaluateReferenceFlag(field, raw);
+    const flag = evaluateReferenceFlag(field, raw, {
+      sex: input.task.visit.patient.sex,
+      age: input.task.visit.patient.age,
+    });
 
     if (flag === "HIGH") {
       abnormalCount += 1;
@@ -589,7 +592,10 @@ const OrderResultCard = memo(function OrderResultCard({
             const value = draft.values?.[field.fieldKey];
             const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
             const highlight = highlightKey.has(field.fieldKey);
-            const referenceText = formatReferenceDisplay(field);
+            const referenceText = formatReferenceDisplay(field, {
+              sex: task.visit.patient.sex,
+              age: task.visit.patient.age,
+            });
             const cells = parseSensitivityPattern(value);
             const updateCell = (index: number, next: Partial<SensitivityCell>) => {
               const updated = cells.map((cell, cellIndex) =>
@@ -738,8 +744,14 @@ const OrderResultCard = memo(function OrderResultCard({
                   {tabularFields.map((field) => {
                     const value = draft.values?.[field.fieldKey];
                     const highlight = highlightKey.has(field.fieldKey);
-                    const referenceText = formatReferenceDisplay(field);
-                    const flag = evaluateReferenceFlag(field, value);
+                    const referenceText = formatReferenceDisplay(field, {
+                      sex: task.visit.patient.sex,
+                      age: task.visit.patient.age,
+                    });
+                    const flag = evaluateReferenceFlag(field, value, {
+                      sex: task.visit.patient.sex,
+                      age: task.visit.patient.age,
+                    });
                     const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
                     return (
                       <tr key={field.id}>
@@ -783,7 +795,10 @@ const OrderResultCard = memo(function OrderResultCard({
           const value = draft.values?.[field.fieldKey];
           const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
           const highlight = highlightKey.has(field.fieldKey);
-          const referenceText = formatReferenceDisplay(field);
+          const referenceText = formatReferenceDisplay(field, {
+            sex: task.visit.patient.sex,
+            age: task.visit.patient.age,
+          });
           return (
             <div key={field.id}>
               <div className="mb-1 flex items-center justify-between gap-2">
