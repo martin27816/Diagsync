@@ -490,6 +490,8 @@ export function renderReportHtml(args: RenderArgs) {
       margin: 0 auto;
       box-sizing: border-box;
       padding: ${contentTopPx}px 44px ${contentBottomPx}px;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
       background: #ffffff;
       overflow: visible;
       --wm-top-offset: ${hasLetterhead ? "132px" : "82px"};
