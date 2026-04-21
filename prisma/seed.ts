@@ -222,9 +222,6 @@ async function main() {
   ]);
 
   const NUMERIC_RANGE_OVERRIDES: Record<string, { min: number; max: number }> = {
-    cholesterol_total: { min: 120, max: 200 },
-    triglyceride: { min: 0, max: 150 },
-    ldl_c: { min: 0, max: 100 },
     volume: { min: 1.4, max: 6.0 },
     sperm_concentration: { min: 15, max: 250 },
     induration: { min: 0, max: 4 },
@@ -639,7 +636,7 @@ async function main() {
       },
       { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 134, normalMax: 146, sortOrder: 5 },
       { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.6, normalMax: 5.0, sortOrder: 6 },
-      { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 98, normalMax: 107, sortOrder: 7 },
+      { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 96, normalMax: 107, sortOrder: 7 },
       { label: "Bicarbonate", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 23, normalMax: 31, sortOrder: 8 },
       { label: "Calcium", fieldKey: "calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.0, normalMax: 2.6, isRequired: false, sortOrder: 9 },
       { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 10 },
@@ -1454,11 +1451,11 @@ async function main() {
   ],
   "LIPID PROFILE": [
     { label: "Cholesterol (Total) - SI", fieldKey: "cholesterol_total_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.0, normalMax: 5.2, referenceNote: "Conventional equivalent: <200 mg/dL.", sortOrder: 1 },
-    { label: "Cholesterol (Total) - Conventional", fieldKey: "cholesterol_total_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 120, normalMax: 200, isRequired: false, referenceNote: "SI equivalent: 3.0-5.2 mmol/L.", sortOrder: 2 },
+    { label: "Cholesterol (Total) - Conventional", fieldKey: "cholesterol_total_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 200, isRequired: false, referenceNote: "SI equivalent: 3.0-5.2 mmol/L.", sortOrder: 2 },
     { label: "Triglyceride", fieldKey: "triglyceride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 1.71, sortOrder: 3 },
     { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.91, normalMax: 3.0, referenceNote: "Values below 0.91 mmol/L indicate higher risk.", sortOrder: 4 },
     { label: "LDL-C", fieldKey: "ldl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 4.9, sortOrder: 5 },
-    { label: "VLDL-C - SI", fieldKey: "vldl_c_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.13, normalMax: 0.78, isRequired: false, referenceNote: "Conventional equivalent: 5-30 mg/dL.", sortOrder: 6 },
+    { label: "VLDL-C - SI", fieldKey: "vldl_c_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", isRequired: false, referenceNote: "Conventional equivalent: 5-30 mg/dL.", sortOrder: 6 },
     { label: "VLDL-C - Conventional", fieldKey: "vldl_c_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 5, normalMax: 30, isRequired: false, sortOrder: 7 },
     { label: "Risk Comment", fieldKey: "risk_comment", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
   ],
@@ -1467,19 +1464,20 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CHOLESTEROL (TOTAL)": [
-    { label: "Total Cholesterol", fieldKey: "cholesterol_total", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 200, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Cholesterol (Total) - SI", fieldKey: "cholesterol_total_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.0, normalMax: 5.2, referenceNote: "Conventional equivalent: <200 mg/dL.", sortOrder: 1 },
+    { label: "Cholesterol (Total) - Conventional", fieldKey: "cholesterol_total_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 200, isRequired: false, referenceNote: "SI equivalent: 3.0-5.2 mmol/L.", sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "HDL-C": [
     { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 40, normalMax: 80, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "AST (SGOT)": [
-    { label: "AST (SGOT)", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 8, normalMax: 48, sortOrder: 1 },
+    { label: "AST (SGOT)", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 0, normalMax: 12, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "ALT (SGPT)": [
-    { label: "ALT (SGPT)", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 7, normalMax: 55, sortOrder: 1 },
+    { label: "ALT (SGPT)", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 0, normalMax: 12, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "GGT": [
@@ -1487,11 +1485,11 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "TOTAL BILIRUBIN": [
-    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 2, normalMax: 21, sortOrder: 1 },
+    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 3, normalMax: 21, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "DIRECT BILIRUBIN": [
-    { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 5, sortOrder: 1 },
+    { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 4.5, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "LDL-C": [
@@ -1499,15 +1497,16 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "PROTEIN (TOTAL)": [
-    { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 60, normalMax: 83, sortOrder: 1 },
+    { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 60, normalMax: 84, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "VLDL-C": [
-    { label: "VLDL-C", fieldKey: "vldl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 5, normalMax: 30, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "VLDL-C (SI)", fieldKey: "vldl_c_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", isRequired: false, referenceNote: "Conventional reference range: 5-30 mg/dL.", sortOrder: 1 },
+    { label: "VLDL-C (Conventional)", fieldKey: "vldl_c_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 5, normalMax: 30, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "ALBUMIN": [
-    { label: "Albumin", fieldKey: "albumin", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 35, normalMax: 50, sortOrder: 1 },
+    { label: "Albumin", fieldKey: "albumin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 30, normalMax: 45, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "THYROID STIMULATING HORMONE (TSH)": [
@@ -1555,18 +1554,18 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
   ],
   "ELECTROLYTES": [
-    { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 135, normalMax: 145, sortOrder: 1 },
-    { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.5, normalMax: 5.2, sortOrder: 2 },
-    { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 98, normalMax: 106, sortOrder: 3 },
-    { label: "Bicarbonate", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 22, normalMax: 28, sortOrder: 4 },
+    { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 134, normalMax: 146, sortOrder: 1 },
+    { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.6, normalMax: 5.0, sortOrder: 2 },
+    { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 96, normalMax: 107, sortOrder: 3 },
+    { label: "Bicarbonate", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 23, normalMax: 31, sortOrder: 4 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
   ],
   "UREA": [
-    { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.1, normalMax: 8.0, sortOrder: 1 },
+    { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 1.6, normalMax: 8.3, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CREATININE": [
-    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 53, normalMax: 115, sortOrder: 1 },
+    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 63, normalMax: 130, referenceNote: "Template reference provided for male range: 63-130 µmol/L.", sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "BLOOD GASES": [
@@ -1592,7 +1591,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CALCIUM (TOTAL)": [
-    { label: "Total Calcium", fieldKey: "total_calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.12, normalMax: 2.62, sortOrder: 1 },
+    { label: "Total Calcium", fieldKey: "total_calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.0, normalMax: 2.6, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "IONIZED CALCIUM": [
@@ -1604,7 +1603,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "URIC ACID": [
-    { label: "Uric Acid", fieldKey: "uric_acid", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 155, normalMax: 400, sortOrder: 1 },
+    { label: "Uric Acid", fieldKey: "uric_acid", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 3.5, normalMax: 7.2, referenceNote: "Template reference provided for male range: 3.5-7.2 mg/dL.", sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "PREGNANCY TEST": [
@@ -1634,19 +1633,19 @@ async function main() {
   ],
   "COMPREHENSIVE METABOLIC PANEL (CMP)": [
     { label: "Glucose", fieldKey: "glucose", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.9, normalMax: 5.6, sortOrder: 1 },
-    { label: "Calcium", fieldKey: "calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.12, normalMax: 2.62, sortOrder: 2 },
-    { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 135, normalMax: 145, sortOrder: 3 },
-    { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.7, normalMax: 5.2, sortOrder: 4 },
-    { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 98, normalMax: 106, sortOrder: 5 },
-    { label: "Bicarbonate / CO2", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 22, normalMax: 28, sortOrder: 6 },
-    { label: "Albumin", fieldKey: "albumin", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 35, normalMax: 50, sortOrder: 7 },
-    { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/L", normalMin: 60, normalMax: 83, sortOrder: 8 },
+    { label: "Calcium", fieldKey: "calcium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.0, normalMax: 2.6, sortOrder: 2 },
+    { label: "Sodium", fieldKey: "sodium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 134, normalMax: 146, sortOrder: 3 },
+    { label: "Potassium", fieldKey: "potassium", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.6, normalMax: 5.0, sortOrder: 4 },
+    { label: "Chloride", fieldKey: "chloride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 96, normalMax: 107, sortOrder: 5 },
+    { label: "Bicarbonate / CO2", fieldKey: "bicarbonate", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 23, normalMax: 31, sortOrder: 6 },
+    { label: "Albumin", fieldKey: "albumin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 30, normalMax: 45, sortOrder: 7 },
+    { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 60, normalMax: 84, sortOrder: 8 },
     { label: "ALP", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 40, normalMax: 129, sortOrder: 9 },
-    { label: "ALT", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 7, normalMax: 55, sortOrder: 10 },
-    { label: "AST", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 8, normalMax: 48, sortOrder: 11 },
-    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 2, normalMax: 21, sortOrder: 12 },
-    { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 2.1, normalMax: 8.0, sortOrder: 13 },
-    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 53, normalMax: 115, sortOrder: 14 },
+    { label: "ALT", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 0, normalMax: 12, sortOrder: 10 },
+    { label: "AST", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 0, normalMax: 12, sortOrder: 11 },
+    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 3, normalMax: 21, sortOrder: 12 },
+    { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 1.6, normalMax: 8.3, sortOrder: 13 },
+    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 63, normalMax: 130, sortOrder: 14 },
     { label: "eGFR", fieldKey: "egfr", fieldType: FieldType.NUMBER, unit: "mL/min/1.73m²", normalMin: 90, normalMax: 120, isRequired: false, sortOrder: 15 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 16 },
   ],
@@ -2413,6 +2412,40 @@ async function main() {
     return makeRadiologyWorkflowFields();
   }
 
+  // Refresh templates for already-existing standard lab tests
+  // (e.g., older auto-generated LB*** records like Lipid Profile).
+  const existingLabTestsForTemplateSync = await prisma.diagnosticTest.findMany({
+    where: { organizationId: orgId, type: TestType.LAB },
+    select: { id: true, name: true },
+  });
+
+  let syncedLabTemplateCount = 0;
+  for (const test of existingLabTestsForTemplateSync) {
+    const key = normalizeName(test.name).toUpperCase();
+    const mapped = LAB_FIELD_LIBRARY[key];
+    if (!mapped) continue;
+
+    const enriched = withReferenceMetadata(key, TestType.LAB, mapped);
+    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
+    await prisma.resultTemplateField.createMany({
+      data: enriched.map((field) => ({
+        testId: test.id,
+        label: field.label,
+        fieldKey: field.fieldKey,
+        fieldType: field.fieldType,
+        unit: field.unit,
+        normalMin: field.normalMin,
+        normalMax: field.normalMax,
+        normalText: field.normalText,
+        referenceNote: field.referenceNote,
+        options: field.options,
+        isRequired: field.isRequired ?? true,
+        sortOrder: field.sortOrder,
+      })),
+    });
+    syncedLabTemplateCount += 1;
+  }
+
 
   const existingLabNames = new Set(
     (
@@ -2481,6 +2514,7 @@ async function main() {
 
   console.log(`✅ Added/updated ${dedupedLab.length} expanded lab tests`);
   console.log(`✅ Added/updated ${dedupedRadiology.length} expanded radiology tests`);
+  console.log(`✅ Synced ${syncedLabTemplateCount} existing lab templates by name`);
 
   const testCount = await prisma.diagnosticTest.count({ where: { organizationId: orgId } });
   console.log(`\n✅ Seeding complete!`);
@@ -2497,5 +2531,3 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
-
-

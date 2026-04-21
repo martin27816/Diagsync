@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const updateRangeSchema = z.object({
   id: z.string().min(1),
+  unit: z.string().nullable().optional(),
   normalMin: z.number().nullable().optional(),
   normalMax: z.number().nullable().optional(),
   normalText: z.string().max(200).nullable().optional(),
@@ -128,6 +129,12 @@ export async function PATCH(
           await tx.resultTemplateField.updateMany({
             where: { id: row.id, testId: test.id },
             data: {
+              unit:
+                row.unit === undefined
+                  ? undefined
+                  : row.unit === null
+                  ? null
+                  : row.unit.trim() || null,
               normalMin: row.normalMin === undefined ? undefined : row.normalMin,
               normalMax: row.normalMax === undefined ? undefined : row.normalMax,
               normalText:

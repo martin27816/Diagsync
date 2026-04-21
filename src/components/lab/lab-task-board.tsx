@@ -60,6 +60,12 @@ type LabTask = {
 type Draft = { values: Record<string, unknown>; notes: string; removedDefaultFieldKeys: string[] };
 type TaskSignOff = { signatureName: string; signatureImage: string };
 type SensitivityCell = { antibiotic: string; zone: string; interpretation: string };
+type ReferenceUpdatePayload = {
+  unit?: string | null;
+  normalMin?: number | null;
+  normalMax?: number | null;
+  normalText?: string | null;
+};
 
 function createEmptyDraft(): Draft {
   return { values: {}, notes: "", removedDefaultFieldKeys: [] };
@@ -205,6 +211,13 @@ function hasFilledValue(value: unknown) {
   if (typeof value === "boolean") return true;
   if (value === 0) return true;
   return value !== undefined && value !== null && `${value}`.trim() !== "";
+}
+
+function parseNumericText(raw: string): number | null | "invalid" {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : "invalid";
 }
 
 function pickRandom<T>(items: T[]) {
@@ -366,6 +379,7 @@ type OrderResultCardProps = {
   onResetCustomFields: (testOrderId: string) => void;
   onRemoveDefaultField: (testOrderId: string, fieldKey: string) => void;
   onRestoreDefaultFields: (testOrderId: string) => void;
+  onUpdateFieldReference: (testId: string, fieldId: string, payload: ReferenceUpdatePayload) => Promise<void>;
   sensitivityAntibioticOptions: string[];
   sensitivityValueOptions: string[];
   sensitivityInterpretationOptions: string[];
@@ -387,6 +401,7 @@ const OrderResultCard = memo(function OrderResultCard({
   onResetCustomFields,
   onRemoveDefaultField,
   onRestoreDefaultFields,
+  onUpdateFieldReference,
   sensitivityAntibioticOptions,
   sensitivityValueOptions,
   sensitivityInterpretationOptions,
@@ -397,6 +412,9 @@ const OrderResultCard = memo(function OrderResultCard({
   const [customLabel, setCustomLabel] = useState("");
   const [customValue, setCustomValue] = useState("");
   const [customError, setCustomError] = useState("");
+  const [referenceDraftByFieldId, setReferenceDraftByFieldId] = useState<
+    Record<string, { unit: string; normalMin: string; normalMax: string; normalText: string }>
+  >({});
   const removedDefaults = useMemo(() => new Set(draft.removedDefaultFieldKeys ?? []), [draft.removedDefaultFieldKeys]);
   const defaultFieldKeys = useMemo(() => new Set(order.test.resultFields.map((field) => field.fieldKey)), [order.test.resultFields]);
   const visibleDefaultFields = useMemo(
@@ -435,6 +453,55 @@ const OrderResultCard = memo(function OrderResultCard({
     () =>
       Object.entries(draft.values ?? {}).filter(([key]) => !defaultFieldKeys.has(key)),
     [defaultFieldKeys, draft.values]
+  );
+  const getReferenceDraft = useCallback(
+    (field: ResultField) =>
+      referenceDraftByFieldId[field.id] ?? {
+        unit: field.unit ?? "",
+        normalMin: field.normalMin == null ? "" : String(field.normalMin),
+        normalMax: field.normalMax == null ? "" : String(field.normalMax),
+        normalText: field.normalText ?? "",
+      },
+    [referenceDraftByFieldId]
+  );
+  const setReferenceDraft = useCallback(
+    (field: ResultField, patch: Partial<{ unit: string; normalMin: string; normalMax: string; normalText: string }>) => {
+      setReferenceDraftByFieldId((prev) => {
+        const current = prev[field.id] ?? {
+          unit: field.unit ?? "",
+          normalMin: field.normalMin == null ? "" : String(field.normalMin),
+          normalMax: field.normalMax == null ? "" : String(field.normalMax),
+          normalText: field.normalText ?? "",
+        };
+        return { ...prev, [field.id]: { ...current, ...patch } };
+      });
+    },
+    []
+  );
+  const persistReferenceDraft = useCallback(
+    async (field: ResultField) => {
+      const draftRef = getReferenceDraft(field);
+      const nextMin = parseNumericText(draftRef.normalMin);
+      const nextMax = parseNumericText(draftRef.normalMax);
+      if (nextMin === "invalid" || nextMax === "invalid") return;
+
+      const payload: ReferenceUpdatePayload = {
+        unit: draftRef.unit.trim() || null,
+        normalMin: nextMin,
+        normalMax: nextMax,
+        normalText: draftRef.normalText.trim() || null,
+      };
+
+      const sameAsCurrent =
+        (field.unit ?? null) === payload.unit &&
+        (field.normalMin ?? null) === payload.normalMin &&
+        (field.normalMax ?? null) === payload.normalMax &&
+        (field.normalText ?? null) === payload.normalText;
+      if (sameAsCurrent) return;
+
+      await onUpdateFieldReference(order.test.id, field.id, payload);
+    },
+    [getReferenceDraft, onUpdateFieldReference, order.test.id]
   );
   const renderWidalCell = useCallback(
     (field?: ResultField) => {
@@ -744,20 +811,64 @@ const OrderResultCard = memo(function OrderResultCard({
                   {tabularFields.map((field) => {
                     const value = draft.values?.[field.fieldKey];
                     const highlight = highlightKey.has(field.fieldKey);
-                    const referenceText = formatReferenceDisplay(field, {
+                    const referenceDraft = getReferenceDraft(field);
+                    const draftMin = parseNumericText(referenceDraft.normalMin);
+                    const draftMax = parseNumericText(referenceDraft.normalMax);
+                    const effectiveField: ResultField = {
+                      ...field,
+                      unit: referenceDraft.unit.trim() || null,
+                      normalMin: typeof draftMin === "number" || draftMin === null ? draftMin : field.normalMin ?? null,
+                      normalMax: typeof draftMax === "number" || draftMax === null ? draftMax : field.normalMax ?? null,
+                      normalText: referenceDraft.normalText.trim() || null,
+                    };
+                    const referenceText = formatReferenceDisplay(effectiveField, {
                       sex: task.visit.patient.sex,
                       age: task.visit.patient.age,
                     });
-                    const flag = evaluateReferenceFlag(field, value, {
+                    const flag = evaluateReferenceFlag(effectiveField, value, {
                       sex: task.visit.patient.sex,
                       age: task.visit.patient.age,
                     });
-                    const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
+                    const label = `${field.label}${field.isRequired ? " *" : ""}${effectiveField.unit ? ` (${effectiveField.unit})` : ""}`;
                     return (
                       <tr key={field.id}>
                         <td className="border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700">{label}</td>
                         <td className="border border-slate-200 p-1.5">{renderFieldValueControl(field, highlight)}</td>
-                        <td className="border border-slate-200 px-2 py-1.5 text-[10px] text-slate-500">{referenceText || "-"}</td>
+                        <td className="border border-slate-200 px-2 py-1.5 text-[10px] text-slate-500">
+                          <p className="mb-1">{referenceText || "-"}</p>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <input
+                              type="number"
+                              placeholder="Min"
+                              value={referenceDraft.normalMin}
+                              onChange={(e) => setReferenceDraft(field, { normalMin: e.target.value })}
+                              onBlur={() => {
+                                void persistReferenceDraft(field).catch(() => undefined);
+                              }}
+                              className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            <input
+                              type="number"
+                              placeholder="Max"
+                              value={referenceDraft.normalMax}
+                              onChange={(e) => setReferenceDraft(field, { normalMax: e.target.value })}
+                              onBlur={() => {
+                                void persistReferenceDraft(field).catch(() => undefined);
+                              }}
+                              className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Unit"
+                              value={referenceDraft.unit}
+                              onChange={(e) => setReferenceDraft(field, { unit: e.target.value })}
+                              onBlur={() => {
+                                void persistReferenceDraft(field).catch(() => undefined);
+                              }}
+                              className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                        </td>
                         <td className="border border-slate-200 px-2 py-1.5">
                           {flag ? (
                             <span
@@ -1298,6 +1409,93 @@ export function LabTaskBoard() {
 
   function findTaskForOrder(testOrderId: string) {
     return tasksRef.current.find((task) => task.testOrders.some((order) => order.id === testOrderId));
+  }
+
+  async function updateFieldReference(testId: string, fieldId: string, payload: ReferenceUpdatePayload) {
+    const min = payload.normalMin ?? null;
+    const max = payload.normalMax ?? null;
+    if (typeof min === "number" && typeof max === "number" && min > max) {
+      setError("Normal min cannot be greater than normal max.");
+      return;
+    }
+
+    setError("");
+    const applyPatch = (rows: LabTask[], patch: ReferenceUpdatePayload) =>
+      rows.map((task) => ({
+        ...task,
+        testOrders: task.testOrders.map((order) => {
+          if (order.test.id !== testId) return order;
+          return {
+            ...order,
+            test: {
+              ...order.test,
+              resultFields: order.test.resultFields.map((field) =>
+                field.id === fieldId
+                  ? {
+                      ...field,
+                      unit: patch.unit === undefined ? field.unit : patch.unit,
+                      normalMin: patch.normalMin === undefined ? field.normalMin : patch.normalMin,
+                      normalMax: patch.normalMax === undefined ? field.normalMax : patch.normalMax,
+                      normalText: patch.normalText === undefined ? field.normalText : patch.normalText,
+                    }
+                  : field
+              ),
+            },
+          };
+        }),
+      }));
+
+    setTasks((prev) => applyPatch(prev, payload));
+    taskCacheRef.current.clear();
+
+    try {
+      const res = await fetch(`/api/tests/${testId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rangeFields: [
+            {
+              id: fieldId,
+              unit: payload.unit ?? null,
+              normalMin: payload.normalMin ?? null,
+              normalMax: payload.normalMax ?? null,
+              normalText: payload.normalText ?? null,
+            },
+          ],
+        }),
+      });
+      const json = (await res.json()) as {
+        success: boolean;
+        error?: string;
+        data?: { resultFields?: Array<ResultField> };
+      };
+      if (!json.success) {
+        throw new Error(json.error ?? "Unable to update reference.");
+      }
+
+      const updatedField = json.data?.resultFields?.find((field) => field.id === fieldId);
+      if (!updatedField) return;
+      setTasks((prev) =>
+        prev.map((task) => ({
+          ...task,
+          testOrders: task.testOrders.map((order) => {
+            if (order.test.id !== testId) return order;
+            return {
+              ...order,
+              test: {
+                ...order.test,
+                resultFields: order.test.resultFields.map((field) =>
+                  field.id === fieldId ? { ...field, ...updatedField } : field
+                ),
+              },
+            };
+          }),
+        }))
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to update reference.");
+      await loadTasks({ force: true, silent: true });
+    }
   }
 
   function getSharedSensitivity(task: LabTask, draftsSnapshot: Record<string, Draft> = draftsRef.current) {
@@ -2054,6 +2252,7 @@ export function LabTaskBoard() {
                                 onResetCustomFields={resetCustomFields}
                                 onRemoveDefaultField={removeDefaultField}
                                 onRestoreDefaultFields={restoreDefaultFields}
+                                onUpdateFieldReference={updateFieldReference}
                                 sensitivityAntibioticOptions={sensitivityAntibioticOptions}
                                 sensitivityValueOptions={sensitivityValueOptions}
                                 sensitivityInterpretationOptions={sensitivityInterpretationOptions}
