@@ -22,10 +22,10 @@ export default async function ReceptionistDashboard() {
 
   const [todayPatients, unpaidVisits, recentPatients, totalPatients] =
     await prisma.$transaction([
-      prisma.patient.count({
+      prisma.visit.count({
         where: {
           organizationId: user.organizationId,
-          createdAt: { gte: todayStart, lte: todayEnd },
+          registeredAt: { gte: todayStart, lte: todayEnd },
         },
       }),
       prisma.visit.count({
@@ -36,7 +36,10 @@ export default async function ReceptionistDashboard() {
         },
       }),
       prisma.patient.findMany({
-        where: { organizationId: user.organizationId },
+        where: {
+          organizationId: user.organizationId,
+          visits: { some: {} },
+        },
         orderBy: { createdAt: "desc" },
         take: 20,
         include: {
@@ -51,7 +54,12 @@ export default async function ReceptionistDashboard() {
           },
         },
       }),
-      prisma.patient.count({ where: { organizationId: user.organizationId } }),
+      prisma.patient.count({
+        where: {
+          organizationId: user.organizationId,
+          visits: { some: {} },
+        },
+      }),
     ]);
 
   const priorityBadge: Record<string, string> = {
@@ -200,7 +208,7 @@ export default async function ReceptionistDashboard() {
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-right text-slate-400 whitespace-nowrap">
-                          {formatDateTime(patient.createdAt)}
+                          {formatDateTime(visit?.registeredAt ?? patient.createdAt)}
                         </td>
                       </tr>
                     );
@@ -223,7 +231,7 @@ export default async function ReceptionistDashboard() {
                         </p>
                       </div>
                       <p className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">
-                        {formatDateTime(patient.createdAt)}
+                        {formatDateTime(visit?.registeredAt ?? patient.createdAt)}
                       </p>
                     </div>
                     {visit && (
