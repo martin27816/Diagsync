@@ -161,10 +161,21 @@ export function evaluateReferenceFlag(field: ReferenceField, value: unknown, con
     const contextual = chooseRangeForContext(field, context);
     const min = contextual?.min ?? toDecimalCompatibleNumber(field.normalMin);
     const max = contextual?.max ?? toDecimalCompatibleNumber(field.normalMax);
-    if (numericValue === null || min === null || max === null) return null;
-    if (numericValue < min) return "LOW";
-    if (numericValue > max) return "HIGH";
-    return "NORMAL";
+    if (numericValue === null) return null;
+    if (min !== null && max !== null) {
+      if (numericValue < min) return "LOW";
+      if (numericValue > max) return "HIGH";
+      return "NORMAL";
+    }
+    if (min !== null) {
+      if (numericValue < min) return "LOW";
+      return "NORMAL";
+    }
+    if (max !== null) {
+      if (numericValue > max) return "HIGH";
+      return "NORMAL";
+    }
+    return null;
   }
 
   if (field.fieldType === "DROPDOWN" || field.fieldType === "TEXT" || field.fieldType === "TEXTAREA") {
@@ -188,12 +199,14 @@ export function formatReferenceDisplay(field: ReferenceField, context?: Referenc
   const contextual = chooseRangeForContext(field, context);
   const min = contextual?.min ?? toDecimalCompatibleNumber(field.normalMin);
   const max = contextual?.max ?? toDecimalCompatibleNumber(field.normalMax);
+  const unit = field.unit?.trim() ? ` ${field.unit.trim()}` : "";
+  const prefix = contextual?.label ? `Normal (${contextual.label})` : "Normal";
   if (min !== null && max !== null) {
-    const unit = field.unit?.trim() ? ` ${field.unit.trim()}` : "";
-    const prefix = contextual?.label ? `Normal (${contextual.label})` : "Normal";
     return `${prefix}: ${min} - ${max}${unit}`;
   }
   if (field.normalText?.trim()) return `Normal: ${field.normalText.trim()}`;
+  if (min !== null) return `${prefix}: >= ${min}${unit}`;
+  if (max !== null) return `${prefix}: <= ${max}${unit}`;
   const { plainText } = splitReferenceNote(field.referenceNote);
   if (plainText) return `Reference: ${plainText}`;
   return "";

@@ -650,7 +650,8 @@ export async function editMdReview(
     await tx.testOrder.updateMany({
       where: { id: { in: task.testOrderIds }, organizationId: actor.organizationId },
       data: {
-        status: OrderStatus.RESUBMITTED,
+        // Returned to lab scientist for revision after MD-controlled edit request.
+        status: OrderStatus.EDIT_REQUESTED,
         submittedAt: now,
         reviewedAt: null,
         approvedAt: null,
@@ -659,7 +660,8 @@ export async function editMdReview(
 
     await tx.routingTask.update({
       where: { id: task.id },
-      data: { status: RoutingTaskStatus.COMPLETED },
+      // Keep task active in lab queue so performer can see and act on MD edit request.
+      data: { status: RoutingTaskStatus.IN_PROGRESS },
     });
   });
 

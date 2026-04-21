@@ -226,6 +226,9 @@ async function main() {
     sperm_concentration: { min: 15, max: 250 },
     induration: { min: 0, max: 4 },
   };
+  const PRESERVE_SINGLE_BOUND_FIELD_KEYS = new Set([
+    "cholesterol_total_mg_dl",
+  ]);
 
   function isCultureTest(testName: string) {
     const n = testName.toLowerCase();
@@ -260,12 +263,13 @@ async function main() {
     let normalMin = field.normalMin;
     let normalMax = field.normalMax;
     const override = NUMERIC_RANGE_OVERRIDES[field.fieldKey];
+    const preserveSingleBound = PRESERVE_SINGLE_BOUND_FIELD_KEYS.has(field.fieldKey);
     if (override) {
       normalMin = override.min;
       normalMax = override.max;
-    } else if (normalMin !== undefined && normalMax === undefined) {
+    } else if (!preserveSingleBound && normalMin !== undefined && normalMax === undefined) {
       normalMax = Math.max(normalMin, normalMin * 10);
-    } else if (normalMax !== undefined && normalMin === undefined) {
+    } else if (!preserveSingleBound && normalMax !== undefined && normalMin === undefined) {
       normalMin = 0;
     }
     return { ...field, normalMin, normalMax };
@@ -1451,25 +1455,25 @@ async function main() {
   ],
   "LIPID PROFILE": [
     { label: "Cholesterol (Total) - SI", fieldKey: "cholesterol_total_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.0, normalMax: 5.2, referenceNote: "Conventional equivalent: <200 mg/dL.", sortOrder: 1 },
-    { label: "Cholesterol (Total) - Conventional", fieldKey: "cholesterol_total_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 200, isRequired: false, referenceNote: "SI equivalent: 3.0-5.2 mmol/L.", sortOrder: 2 },
+    { label: "Cholesterol (Total) - Conventional", fieldKey: "cholesterol_total_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 200, normalText: "<200 mg/dL", isRequired: false, referenceNote: "SI equivalent: 3.0-5.2 mmol/L.", sortOrder: 2 },
     { label: "Triglyceride", fieldKey: "triglyceride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 1.71, sortOrder: 3 },
-    { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.91, normalMax: 3.0, referenceNote: "Values below 0.91 mmol/L indicate higher risk.", sortOrder: 4 },
+    { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.91, normalText: "High risk if <0.91 mmol/L", referenceNote: "High risk if value is below 0.91 mmol/L.", sortOrder: 4 },
     { label: "LDL-C", fieldKey: "ldl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 4.9, sortOrder: 5 },
     { label: "VLDL-C - SI", fieldKey: "vldl_c_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", isRequired: false, referenceNote: "Conventional equivalent: 5-30 mg/dL.", sortOrder: 6 },
     { label: "VLDL-C - Conventional", fieldKey: "vldl_c_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 5, normalMax: 30, isRequired: false, sortOrder: 7 },
     { label: "Risk Comment", fieldKey: "risk_comment", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
   ],
   "TRIGLYCERIDE": [
-    { label: "Triglyceride", fieldKey: "triglyceride", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 150, sortOrder: 1 },
+    { label: "Triglyceride", fieldKey: "triglyceride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 1.71, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CHOLESTEROL (TOTAL)": [
     { label: "Cholesterol (Total) - SI", fieldKey: "cholesterol_total_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.0, normalMax: 5.2, referenceNote: "Conventional equivalent: <200 mg/dL.", sortOrder: 1 },
-    { label: "Cholesterol (Total) - Conventional", fieldKey: "cholesterol_total_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 200, isRequired: false, referenceNote: "SI equivalent: 3.0-5.2 mmol/L.", sortOrder: 2 },
+    { label: "Cholesterol (Total) - Conventional", fieldKey: "cholesterol_total_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 200, normalText: "<200 mg/dL", isRequired: false, referenceNote: "SI equivalent: 3.0-5.2 mmol/L.", sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "HDL-C": [
-    { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 40, normalMax: 80, sortOrder: 1 },
+    { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.91, normalText: "High risk if <0.91 mmol/L", sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "AST (SGOT)": [
@@ -1493,7 +1497,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "LDL-C": [
-    { label: "LDL-C", fieldKey: "ldl_c", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMax: 100, sortOrder: 1 },
+    { label: "LDL-C", fieldKey: "ldl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 4.9, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "PROTEIN (TOTAL)": [
