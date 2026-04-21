@@ -89,6 +89,19 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
     organizationId: actor.organizationId,
     department: { in: [Department.LABORATORY, Department.RADIOLOGY] },
   };
+  const submittedForMdQueueWhere: Prisma.RoutingTaskWhereInput = {
+    status: RoutingTaskStatus.COMPLETED,
+    OR: [
+      {
+        department: Department.LABORATORY,
+        results: { some: { isSubmitted: true } },
+      },
+      {
+        department: Department.RADIOLOGY,
+        radiologyReport: { is: { isSubmitted: true } },
+      },
+    ],
+  };
 
   const reviewFilter: Prisma.RoutingTaskWhereInput | null =
     filter === "approved"
@@ -101,6 +114,7 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
     filter === "pending"
       ? {
           ...baseWhere,
+          ...submittedForMdQueueWhere,
           testOrderIds: { isEmpty: false },
           OR: [{ review: { is: null } }, { review: { is: { status: ReviewStatus.PENDING } } }],
         }
@@ -140,6 +154,7 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
     prisma.routingTask.count({
       where: {
         ...baseWhere,
+        ...submittedForMdQueueWhere,
         testOrderIds: { isEmpty: false },
         OR: [{ review: { is: null } }, { review: { is: { status: ReviewStatus.PENDING } } }],
       },
