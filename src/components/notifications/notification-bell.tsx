@@ -116,13 +116,13 @@ export function NotificationBell({ role }: { role: string }) {
         osc.stop(at + duration);
       };
       if (kind === "call") {
-        scheduleBeep(start, 0.18, 1420);
-        scheduleBeep(start + 0.22, 0.18, 1160);
-        scheduleBeep(start + 0.44, 0.26, 1420);
-        const repeat = start + 0.86;
-        scheduleBeep(repeat, 0.18, 1420);
-        scheduleBeep(repeat + 0.22, 0.18, 1160);
-        scheduleBeep(repeat + 0.44, 0.26, 1420);
+        const schedulePair = (at: number) => {
+          scheduleBeep(at, 0.1, 1320);
+          scheduleBeep(at + 0.16, 0.1, 1320);
+        };
+        schedulePair(start); // ti ti
+        schedulePair(start + 0.48); // ti ti
+        schedulePair(start + 0.96); // ti ti
       } else {
         scheduleBeep(start, 0.22, 950);
         scheduleBeep(start + 0.28, 0.22, 1150);
