@@ -28,7 +28,7 @@ export default async function MDDashboard({ searchParams }: { searchParams?: { s
         </Link>
       </div>
       <MdStaffCallPanel callerRole={user.role} />
-      <MdReviewBoard initialStatus={initialStatus} />
+      <MdReviewBoard initialStatus={initialStatus} viewerRole={user.role} />
     </div>
   );
 }

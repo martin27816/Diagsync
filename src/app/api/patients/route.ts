@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 const registerPatientSchema = z.object({
   // Patient details
+  patientId: z.string().trim().min(1, "Patient number is required"),
   fullName: z.string().min(2, "Full name required"),
   age: z.number().int().min(0).max(150),
   sex: z.nativeEnum(Sex),
@@ -134,6 +135,21 @@ export async function POST(req: NextRequest) {
     }
 
     const data = parsed.data;
+    const patientNumber = data.patientId.trim();
+
+    const existingPatient = await prisma.patient.findFirst({
+      where: {
+        organizationId: user.organizationId,
+        patientId: { equals: patientNumber, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    if (existingPatient) {
+      return NextResponse.json(
+        { success: false, error: "Patient number already exists in this organization" },
+        { status: 409 }
+      );
+    }
 
     // Fetch tests to get prices
     const tests = await prisma.diagnosticTest.findMany({
@@ -171,19 +187,13 @@ export async function POST(req: NextRequest) {
     const totalAmount = Math.max(0, subtotal - data.discount);
 
     const result = await prisma.$transaction(async (tx) => {
-      // Count existing patients for ID generation
       const orgAbbr = user.organizationId.slice(0, 3).toUpperCase();
-      const patientCount = await tx.patient.count({
-        where: { organizationId: user.organizationId },
-      });
-
-      const patientId = `PT-${orgAbbr}-${String(patientCount + 1).padStart(5, "0")}`;
 
       // Create patient
       const patient = await tx.patient.create({
         data: {
           organizationId: user.organizationId,
-          patientId,
+          patientId: patientNumber,
           fullName: data.fullName,
           age: data.age,
           sex: data.sex,

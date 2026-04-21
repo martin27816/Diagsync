@@ -3,6 +3,7 @@ const OFFLINE_LAB_DRAFT_QUEUE = "diag_sync_offline_lab_drafts";
 const OFFLINE_RADIOLOGY_DRAFT_QUEUE = "diag_sync_offline_radiology_drafts";
 
 export type OfflinePatientPayload = {
+  patientId: string;
   fullName: string;
   age: number;
   sex: "MALE" | "FEMALE" | "OTHER";

@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { ResultInsightBox } from "@/components/results/result-insight-box";
 import { buildResultInsights } from "@/lib/result-insights";
@@ -117,7 +118,14 @@ function getVisibleRadiologyExtraFields(extraFields?: Record<string, string> | n
   );
 }
 
-export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "pending" | "approved" | "rejected" | "all" }) {
+export function MdReviewBoard({
+  initialStatus = "pending",
+  viewerRole,
+}: {
+  initialStatus?: "pending" | "approved" | "rejected" | "all";
+  viewerRole?: "MD" | "HRM" | "SUPER_ADMIN" | string;
+}) {
+  const router = useRouter();
   const REVIEW_CACHE_TTL_MS = 20_000;
   const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "all">(initialStatus);
   const [loading, setLoading] = useState(true);
@@ -225,7 +233,13 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
       const res = await fetch(`/api/md/reviews/${taskId}/approve`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ comments: approveComments[taskId] ?? "" }) });
       const json = await res.json() as { success: boolean; error?: string };
       if (!json.success) { setError(json.error ?? "Approval failed"); await loadData(); }
-      else setExpandedId(null);
+      else {
+        setExpandedId(null);
+        if (viewerRole === "HRM" || viewerRole === "SUPER_ADMIN") {
+          router.push("/dashboard/hrm/release");
+          return;
+        }
+      }
     } finally { setBusyTaskId(null); }
   }
 

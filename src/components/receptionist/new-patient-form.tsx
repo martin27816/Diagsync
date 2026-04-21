@@ -100,6 +100,7 @@ function toNullableNumber(value: unknown): number | null {
 
 export function NewPatientForm() {
   const router = useRouter();
+  const [patientNumber, setPatientNumber] = useState("");
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState("");
   const [sex, setSex] = useState<Sex>("MALE");
@@ -141,7 +142,7 @@ export function NewPatientForm() {
   const [syncingOffline, setSyncingOffline] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [savedData, setSavedData] = useState<{ patientId: string; visitNumber: string } | null>(null);
+  const [savedData, setSavedData] = useState<{ patientId: string; visitNumber: string; offline: boolean } | null>(null);
   const [savedPriceByTestId, setSavedPriceByTestId] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -479,6 +480,7 @@ export function NewPatientForm() {
 
   function buildPayload(): OfflinePatientPayload {
     return {
+      patientId: patientNumber.trim(),
       fullName: fullName.trim(), age: parseInt(age), sex, phone: phone.trim(),
       email: email.trim() || undefined, address: address.trim() || undefined,
       dateOfBirth: dateOfBirth || undefined, referringDoctor: referringDoctor.trim() || undefined,
@@ -509,6 +511,7 @@ export function NewPatientForm() {
 
   async function handleSubmit() {
     setError("");
+    if (!patientNumber.trim()) return setError("Patient number is required.");
     if (!fullName.trim()) return setError("Patient full name is required.");
     if (!age || isNaN(parseInt(age))) return setError("Valid age is required.");
     if (!phone.trim()) return setError("Phone number is required.");
@@ -517,7 +520,7 @@ export function NewPatientForm() {
     const payload = buildPayload();
     if (!isOnline) {
       enqueueOfflinePatient(payload);
-      setSavedData({ patientId: "OFFLINE-SAVED", visitNumber: `LOCAL-${Date.now().toString().slice(-6)}` });
+      setSavedData({ patientId: patientNumber.trim(), visitNumber: `LOCAL-${Date.now().toString().slice(-6)}`, offline: true });
       setSuccess(true); return;
     }
     setSubmitting(true);
@@ -525,14 +528,14 @@ export function NewPatientForm() {
       const res = await fetch("/api/patients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "Something went wrong"); return; }
-      setSavedData({ patientId: json.data.patientId, visitNumber: json.data.visitNumber });
+      setSavedData({ patientId: json.data.patientId, visitNumber: json.data.visitNumber, offline: false });
       setSuccess(true);
     } catch { setError("Network error. Please try again."); }
     finally { setSubmitting(false); }
   }
 
   function resetForm() {
-    setFullName(""); setAge(""); setPhone(""); setEmail(""); setAddress(""); setDateOfBirth("");
+    setPatientNumber(""); setFullName(""); setAge(""); setPhone(""); setEmail(""); setAddress(""); setDateOfBirth("");
     setReferringDoctor(""); setClinicalNote(""); setPriority("ROUTINE"); setPaymentStatus("PENDING");
     setAmountPaid(""); setDiscount(""); setPaymentMethod(""); setVisitNotes(""); setCart([]);
     setRangeDraftByTest({});
@@ -553,7 +556,7 @@ export function NewPatientForm() {
       <div>
         <h2 className="text-sm font-semibold text-slate-800">Patient Registered</h2>
         <p className="text-xs text-slate-400 mt-1">
-          {savedData.patientId === "OFFLINE-SAVED" ? "Saved locally. Will sync when online." : "Tests routed to departments."}
+          {savedData.offline ? "Saved locally. Will sync when online." : "Tests routed to departments."}
         </p>
       </div>
       <div className="rounded border border-slate-100 bg-slate-50 p-3 text-left space-y-1.5">
@@ -589,6 +592,10 @@ export function NewPatientForm() {
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Patient Details</span>
             </div>
             <div className="p-4 grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Patient Number *</label>
+                <input placeholder="e.g. PT-CMO-00009" value={patientNumber} onChange={(e) => setPatientNumber(e.target.value)} className={inputCls} />
+              </div>
               <div className="col-span-2">
                 <label className={labelCls}>Full Name *</label>
                 <input placeholder="e.g. Musa Ibrahim" value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputCls} />
