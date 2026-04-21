@@ -475,6 +475,70 @@ const OrderResultCard = memo(function OrderResultCard({
     },
     [draft.values, highlightKey, onPersist, onSetFieldValue, order.id, task]
   );
+  const renderFieldValueControl = useCallback(
+    (field: ResultField, highlight: boolean) => {
+      const value = draft.values?.[field.fieldKey];
+      if (field.fieldType === "DROPDOWN") {
+        const options = (field.options ?? "").split(",").map((row) => row.trim()).filter(Boolean);
+        return (
+          <select
+            value={typeof value === "string" ? value : ""}
+            onBlur={() => void onPersist(task).catch(() => undefined)}
+            onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.value)}
+            className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
+          >
+            <option value="">Select...</option>
+            {options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        );
+      }
+
+      if (field.fieldType === "CHECKBOX") {
+        return (
+          <label className={`inline-flex items-center gap-2 rounded border px-2 py-1 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
+            <input
+              type="checkbox"
+              checked={Boolean(value)}
+              onBlur={() => void onPersist(task).catch(() => undefined)}
+              onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.checked)}
+              className="rounded border-slate-300"
+            />
+            <span className="text-[11px] text-slate-600">{Boolean(value) ? "Yes" : "No"}</span>
+          </label>
+        );
+      }
+
+      return (
+        <input
+          type={field.fieldType === "NUMBER" ? "number" : "text"}
+          value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
+          onBlur={() => void onPersist(task).catch(() => undefined)}
+          onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.value)}
+          className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
+        />
+      );
+    },
+    [draft.values, onPersist, onSetFieldValue, order.id, task]
+  );
+  const sensitivityFields = useMemo(
+    () => nonWidalDefaultFields.filter((field) => isSensitivityFieldKey(field.fieldKey)),
+    [nonWidalDefaultFields]
+  );
+  const textareaFields = useMemo(
+    () => nonWidalDefaultFields.filter((field) => field.fieldType === "TEXTAREA"),
+    [nonWidalDefaultFields]
+  );
+  const tabularFields = useMemo(
+    () =>
+      nonWidalDefaultFields.filter(
+        (field) => !isSensitivityFieldKey(field.fieldKey) && field.fieldType !== "TEXTAREA"
+      ),
+    [nonWidalDefaultFields]
+  );
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -519,16 +583,13 @@ const OrderResultCard = memo(function OrderResultCard({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 mt-3">
-        {nonWidalDefaultFields.map((field) => {
-          if (suppressSensitivityField && isSensitivityFieldKey(field.fieldKey)) return null;
-          const value = draft.values?.[field.fieldKey];
-          const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
-          const highlight = highlightKey.has(field.fieldKey);
-          const referenceText = formatReferenceDisplay(field);
-          const flag = evaluateReferenceFlag(field, value);
-
-          if (isSensitivityFieldKey(field.fieldKey)) {
+      <div className="mt-3 space-y-3">
+        {!suppressSensitivityField
+          ? sensitivityFields.map((field) => {
+            const value = draft.values?.[field.fieldKey];
+            const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
+            const highlight = highlightKey.has(field.fieldKey);
+            const referenceText = formatReferenceDisplay(field);
             const cells = parseSensitivityPattern(value);
             const updateCell = (index: number, next: Partial<SensitivityCell>) => {
               const updated = cells.map((cell, cellIndex) =>
@@ -547,7 +608,7 @@ const OrderResultCard = memo(function OrderResultCard({
             };
 
             return (
-              <div key={field.id} className="col-span-2 md:col-span-3 lg:col-span-4">
+              <div key={field.id}>
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <label className="block text-[11px] font-medium text-slate-500">{label}</label>
                   <button
@@ -657,10 +718,74 @@ const OrderResultCard = memo(function OrderResultCard({
                 </div>
               </div>
             );
-          }
+          })
+          : null}
 
-          if (field.fieldType === "TEXTAREA") return (
-            <div key={field.id} className="col-span-2 md:col-span-3 lg:col-span-4">
+        {tabularFields.length > 0 ? (
+          <div className="rounded border border-slate-200 bg-white p-2">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] border-collapse text-[11px]">
+                <thead>
+                  <tr className="bg-slate-50">
+                    <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Parameter</th>
+                    <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Value</th>
+                    <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Reference</th>
+                    <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Flag</th>
+                    <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tabularFields.map((field) => {
+                    const value = draft.values?.[field.fieldKey];
+                    const highlight = highlightKey.has(field.fieldKey);
+                    const referenceText = formatReferenceDisplay(field);
+                    const flag = evaluateReferenceFlag(field, value);
+                    const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
+                    return (
+                      <tr key={field.id}>
+                        <td className="border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700">{label}</td>
+                        <td className="border border-slate-200 p-1.5">{renderFieldValueControl(field, highlight)}</td>
+                        <td className="border border-slate-200 px-2 py-1.5 text-[10px] text-slate-500">{referenceText || "-"}</td>
+                        <td className="border border-slate-200 px-2 py-1.5">
+                          {flag ? (
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                flag === "NORMAL"
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-red-50 text-red-700"
+                              }`}
+                            >
+                              {flag}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">-</span>
+                          )}
+                        </td>
+                        <td className="border border-slate-200 px-2 py-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onRemoveDefaultField(order.id, field.fieldKey)}
+                            className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
+        {textareaFields.map((field) => {
+          const value = draft.values?.[field.fieldKey];
+          const label = `${field.label}${field.isRequired ? " *" : ""}${field.unit ? ` (${field.unit})` : ""}`;
+          const highlight = highlightKey.has(field.fieldKey);
+          const referenceText = formatReferenceDisplay(field);
+          return (
+            <div key={field.id}>
               <div className="mb-1 flex items-center justify-between gap-2">
                 <label className="block text-[11px] font-medium text-slate-500">{label}</label>
                 <div className="flex items-center gap-1.5">
@@ -694,107 +819,6 @@ const OrderResultCard = memo(function OrderResultCard({
               <textarea
                 rows={2}
                 value={typeof value === "string" ? value : ""}
-                onBlur={() => void onPersist(task).catch(() => undefined)}
-                onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.value)}
-                className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
-              />
-            </div>
-          );
-
-          if (field.fieldType === "DROPDOWN") {
-            const options = (field.options ?? "").split(",").map((row) => row.trim()).filter(Boolean);
-            return (
-              <div key={field.id}>
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <label className="block text-[11px] font-medium text-slate-500">{label}</label>
-                  <div className="flex items-center gap-1.5">
-                    {flag ? (
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                          flag === "NORMAL"
-                            ? "bg-green-50 text-green-700"
-                            : "bg-red-50 text-red-700"
-                        }`}
-                      >
-                        {flag}
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => onRemoveDefaultField(order.id, field.fieldKey)}
-                      className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-                {referenceText ? <p className="mb-1 text-[10px] text-slate-400">{referenceText}</p> : null}
-                <select
-                  value={typeof value === "string" ? value : ""}
-                  onBlur={() => void onPersist(task).catch(() => undefined)}
-                  onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.value)}
-                  className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
-                >
-                  <option value="">Select...</option>
-                  {options.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </div>
-            );
-          }
-
-          if (field.fieldType === "CHECKBOX") return (
-            <div key={field.id} className={`rounded p-2 ${highlight ? "bg-amber-50" : ""}`}>
-              <div className="mb-1 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => onRemoveDefaultField(order.id, field.fieldKey)}
-                  className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
-                >
-                  Remove
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={Boolean(value)}
-                onBlur={() => void onPersist(task).catch(() => undefined)}
-                onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.checked)}
-                className="rounded border-slate-300"
-              />
-              <label className="text-[11px] font-medium text-slate-500">{field.label}</label>
-              </div>
-            </div>
-          );
-
-          return (
-            <div key={field.id}>
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <label className="block text-[11px] font-medium text-slate-500">{label}</label>
-                <div className="flex items-center gap-1.5">
-                  {flag ? (
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                        flag === "NORMAL"
-                          ? "bg-green-50 text-green-700"
-                          : "bg-red-50 text-red-700"
-                      }`}
-                    >
-                      {flag}
-                    </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => onRemoveDefaultField(order.id, field.fieldKey)}
-                    className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-              {referenceText ? <p className="mb-1 text-[10px] text-slate-400">{referenceText}</p> : null}
-              <input
-                type={field.fieldType === "NUMBER" ? "number" : "text"}
-                value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
                 onBlur={() => void onPersist(task).catch(() => undefined)}
                 onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.value)}
                 className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
