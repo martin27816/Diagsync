@@ -6,6 +6,7 @@ import { Search, X, Plus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { formatCurrency } from "@/lib/utils";
 import { enqueueOfflinePatient, listOfflinePatientItems, removeOfflinePatient, type OfflinePatientPayload } from "@/lib/offline-sync";
+import { buildReferenceNote, splitReferenceNote } from "@/lib/reference-ranges";
 
 interface TestResult {
   id: string; name: string; code: string; type: "LAB" | "RADIOLOGY";
@@ -26,6 +27,7 @@ interface CartItem extends TestResult { enteredPrice: string }
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
 type PaymentStatus = "PENDING" | "PAID" | "PARTIAL" | "WAIVED";
 type Sex = "MALE" | "FEMALE" | "OTHER";
+type RangeProfile = "MALE" | "FEMALE" | "CHILD";
 type FieldType = "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
 type TestType = "LAB" | "RADIOLOGY";
 type Department = "LABORATORY" | "RADIOLOGY";
@@ -73,6 +75,18 @@ function emptyField(): CreateFieldDraft {
 const inputCls = "h-8 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
 const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
 
+function profileKey(profile: RangeProfile): "male" | "female" | "child" {
+  if (profile === "FEMALE") return "female";
+  if (profile === "CHILD") return "child";
+  return "male";
+}
+
+function defaultRangeProfile(age: string, sex: Sex): RangeProfile {
+  const parsedAge = Number(age);
+  if (Number.isFinite(parsedAge) && parsedAge > 0 && parsedAge < 18) return "CHILD";
+  return sex === "FEMALE" ? "FEMALE" : "MALE";
+}
+
 export function NewPatientForm() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
@@ -108,6 +122,7 @@ export function NewPatientForm() {
   const [rangeDraftByTest, setRangeDraftByTest] = useState<Record<string, NonNullable<TestResult["resultFields"]>>>({});
   const [rangeSavingByTest, setRangeSavingByTest] = useState<Record<string, boolean>>({});
   const [expandedRangeByTest, setExpandedRangeByTest] = useState<Record<string, boolean>>({});
+  const [rangeProfileByTest, setRangeProfileByTest] = useState<Record<string, RangeProfile>>({});
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -149,6 +164,51 @@ export function NewPatientForm() {
       }
       return next;
     });
+  }
+
+  function readFieldProfileRange(
+    field: NonNullable<TestResult["resultFields"]>[number],
+    profile: RangeProfile
+  ) {
+    const { demographicRanges } = splitReferenceNote(field.referenceNote);
+    const selected = demographicRanges[profileKey(profile)];
+    if (selected) return { normalMin: selected.min, normalMax: selected.max };
+    return {
+      normalMin: typeof field.normalMin === "number" ? field.normalMin : null,
+      normalMax: typeof field.normalMax === "number" ? field.normalMax : null,
+    };
+  }
+
+  function updateRangeValueForProfile(
+    testId: string,
+    fieldId: string,
+    profile: RangeProfile,
+    patch: { normalMin?: number | null; normalMax?: number | null }
+  ) {
+    setRangeDraftByTest((prev) => ({
+      ...prev,
+      [testId]: (prev[testId] ?? []).map((field) => {
+        if (field.id !== fieldId) return field;
+        const key = profileKey(profile);
+        const { plainText, demographicRanges } = splitReferenceNote(field.referenceNote);
+        const current = demographicRanges[key] ?? { min: field.normalMin ?? 0, max: field.normalMax ?? 0 };
+        const nextMin = patch.normalMin === undefined ? current.min : patch.normalMin;
+        const nextMax = patch.normalMax === undefined ? current.max : patch.normalMax;
+        const nextRanges = {
+          ...demographicRanges,
+          ...(nextMin === null || nextMax === null ? {} : { [key]: { min: nextMin, max: nextMax } }),
+        };
+        if (nextMin === null || nextMax === null) {
+          delete nextRanges[key];
+        }
+        return {
+          ...field,
+          normalMin: nextMin,
+          normalMax: nextMax,
+          referenceNote: buildReferenceNote(plainText, nextRanges),
+        };
+      }),
+    }));
   }
 
   const searchTests = useCallback(async (query: string) => {
@@ -201,6 +261,7 @@ export function NewPatientForm() {
       [test.id]: (test.resultFields ?? []).map((field) => ({ ...field })),
     }));
     setExpandedRangeByTest((prev) => ({ ...prev, [test.id]: true }));
+    setRangeProfileByTest((prev) => ({ ...prev, [test.id]: defaultRangeProfile(age, sex) }));
     setTestSearch("");
     setTestResults([]);
     setShowDropdown(false);
@@ -213,6 +274,11 @@ export function NewPatientForm() {
       return next;
     });
     setExpandedRangeByTest((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setRangeProfileByTest((prev) => {
       const next = { ...prev };
       delete next[id];
       return next;
@@ -329,7 +395,18 @@ export function NewPatientForm() {
   ) {
     setRangeDraftByTest((prev) => ({
       ...prev,
-      [testId]: (prev[testId] ?? []).map((field) => (field.id === fieldId ? { ...field, ...patch } : field)),
+      [testId]: (prev[testId] ?? []).map((field) => {
+        if (field.id !== fieldId) return field;
+        if (typeof patch.referenceNote === "string") {
+          const { demographicRanges } = splitReferenceNote(field.referenceNote);
+          return {
+            ...field,
+            ...patch,
+            referenceNote: buildReferenceNote(patch.referenceNote, demographicRanges),
+          };
+        }
+        return { ...field, ...patch };
+      }),
     }));
   }
 
@@ -342,6 +419,15 @@ export function NewPatientForm() {
       if (typeof min === "number" && typeof max === "number" && min > max) {
         setError(`Invalid range in ${row.label}: min cannot be greater than max.`);
         return;
+      }
+      const { demographicRanges } = splitReferenceNote(row.referenceNote);
+      for (const profile of ["male", "female", "child"] as const) {
+        const selected = demographicRanges[profile];
+        if (!selected) continue;
+        if (selected.min > selected.max) {
+          setError(`Invalid ${profile} range in ${row.label}: min cannot be greater than max.`);
+          return;
+        }
       }
     }
     setRangeSavingByTest((prev) => ({ ...prev, [testId]: true }));
@@ -438,6 +524,7 @@ export function NewPatientForm() {
     setRangeDraftByTest({});
     setRangeSavingByTest({});
     setExpandedRangeByTest({});
+    setRangeProfileByTest({});
   }
 
   const paymentBadge: Record<string, string> = {
@@ -734,6 +821,7 @@ export function NewPatientForm() {
 
                     const isOpen = expandedRangeByTest[item.id] ?? true;
                     const isSaving = !!rangeSavingByTest[item.id];
+                    const activeProfile = rangeProfileByTest[item.id] ?? defaultRangeProfile(age, sex);
 
                     return (
                       <div key={`${item.id}-ranges`} className="rounded border border-blue-100 bg-blue-50/40">
@@ -751,16 +839,45 @@ export function NewPatientForm() {
 
                         {isOpen && (
                           <div className="border-t border-blue-100 px-3 py-3 space-y-2">
+                            <div className="rounded border border-slate-200 bg-white p-2.5">
+                              <label className="flex items-center gap-2 text-[11px] text-slate-600">
+                                <span className="font-medium">Editing default ranges for</span>
+                                <Select
+                                  value={activeProfile}
+                                  onValueChange={(value) =>
+                                    setRangeProfileByTest((prev) => ({ ...prev, [item.id]: value as RangeProfile }))
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 w-[160px] text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="MALE">Male</SelectItem>
+                                    <SelectItem value="FEMALE">Female</SelectItem>
+                                    <SelectItem value="CHILD">Child</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </label>
+                            </div>
                             {rangeFields.map((field) => (
                               <div key={field.id} className="rounded border border-slate-200 bg-white p-2.5 space-y-2">
+                                {(() => {
+                                  const profileRange = readFieldProfileRange(field, activeProfile);
+                                  const { plainText } = splitReferenceNote(field.referenceNote);
+                                  return (
+                                    <>
                                 <div className="text-xs font-medium text-slate-700">{field.label}</div>
                                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                   <label className="space-y-1">
                                     <span className="text-[11px] text-slate-500">Normal Min</span>
                                     <input
                                       type="number"
-                                      value={field.normalMin ?? ""}
-                                      onChange={(e) => updateRangeValue(item.id, field.id, { normalMin: e.target.value === "" ? null : Number(e.target.value) })}
+                                      value={profileRange.normalMin ?? ""}
+                                      onChange={(e) =>
+                                        updateRangeValueForProfile(item.id, field.id, activeProfile, {
+                                          normalMin: e.target.value === "" ? null : Number(e.target.value),
+                                        })
+                                      }
                                       className={inputCls}
                                     />
                                   </label>
@@ -768,8 +885,12 @@ export function NewPatientForm() {
                                     <span className="text-[11px] text-slate-500">Normal Max</span>
                                     <input
                                       type="number"
-                                      value={field.normalMax ?? ""}
-                                      onChange={(e) => updateRangeValue(item.id, field.id, { normalMax: e.target.value === "" ? null : Number(e.target.value) })}
+                                      value={profileRange.normalMax ?? ""}
+                                      onChange={(e) =>
+                                        updateRangeValueForProfile(item.id, field.id, activeProfile, {
+                                          normalMax: e.target.value === "" ? null : Number(e.target.value),
+                                        })
+                                      }
                                       className={inputCls}
                                     />
                                   </label>
@@ -787,13 +908,16 @@ export function NewPatientForm() {
                                   <label className="space-y-1">
                                     <span className="text-[11px] text-slate-500">Reference Note</span>
                                     <input
-                                      value={field.referenceNote ?? ""}
+                                      value={plainText}
                                       onChange={(e) => updateRangeValue(item.id, field.id, { referenceNote: e.target.value })}
                                       className={inputCls}
                                       placeholder="Optional note"
                                     />
                                   </label>
                                 </div>
+                                    </>
+                                  );
+                                })()}
                               </div>
                             ))}
 
