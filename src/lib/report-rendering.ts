@@ -402,7 +402,7 @@ export function renderReportHtml(args: RenderArgs) {
               return true;
             }
             return test.rows.some(
-              (row) => isSensitivityRow(row.name) || isCultureRow(row.name) || isMicroscopyRow(row.name)
+              (row) => isSensitivityRow(row.name) || isCultureRow(row.name)
             );
           });
 
