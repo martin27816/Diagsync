@@ -675,6 +675,19 @@ export function renderReportHtml(args: RenderArgs) {
     }
     @media print {
       .preview-actions { display: none !important; }
+      .letterhead-layer {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        height: 100vh !important;
+        z-index: 0 !important;
+      }
+      .letterhead-layer img {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: fill !important;
+      }
       .page {
         width: auto !important;
         max-width: none !important;
