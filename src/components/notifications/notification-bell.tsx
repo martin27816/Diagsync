@@ -121,15 +121,20 @@ export function NotificationBell({ role }: { role: string }) {
         osc.start(at);
         osc.stop(at + duration);
       };
+      const scheduleBell = (at: number, baseFrequency: number) => {
+        // Layered high-pitch bell partials for sharper call alert audibility.
+        scheduleBeep(at, 0.28, baseFrequency, "triangle", 0.98);
+        scheduleBeep(at, 0.22, baseFrequency * 1.5, "sine", 0.62);
+        scheduleBeep(at, 0.18, baseFrequency * 2.2, "sine", 0.42);
+      };
       if (kind === "call") {
         const schedulePair = (at: number) => {
-          scheduleBeep(at, 0.11, 1680, "sine", 0.98);
-          scheduleBeep(at + 0.17, 0.11, 1680, "sine", 0.98);
+          scheduleBell(at, 2100);
+          scheduleBell(at + 0.34, 2300);
         };
-        schedulePair(start); // ti ti
-        schedulePair(start + 0.48); // ti ti
-        schedulePair(start + 0.96); // ti ti
-        schedulePair(start + 1.44); // ti ti
+        schedulePair(start); // ding ding
+        schedulePair(start + 0.82); // ding ding
+        schedulePair(start + 1.64); // ding ding
       } else {
         scheduleBeep(start, 0.22, 950, "square");
         scheduleBeep(start + 0.28, 0.22, 1150, "square");
