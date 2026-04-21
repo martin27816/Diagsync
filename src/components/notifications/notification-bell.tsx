@@ -102,10 +102,15 @@ export function NotificationBell({ role }: { role: string }) {
       if (ctx.state !== "running") return;
 
       const start = ctx.currentTime + 0.01;
-      const scheduleBeep = (at: number, duration: number, frequency: number) => {
+      const scheduleBeep = (
+        at: number,
+        duration: number,
+        frequency: number,
+        wave: OscillatorType = "square",
+      ) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = "square";
+        osc.type = wave;
         osc.frequency.value = frequency;
         gain.gain.setValueAtTime(0.0001, at);
         gain.gain.exponentialRampToValueAtTime(0.75, at + 0.02);
@@ -117,20 +122,20 @@ export function NotificationBell({ role }: { role: string }) {
       };
       if (kind === "call") {
         const schedulePair = (at: number) => {
-          scheduleBeep(at, 0.1, 1320);
-          scheduleBeep(at + 0.16, 0.1, 1320);
+          scheduleBeep(at, 0.09, 1680, "sine");
+          scheduleBeep(at + 0.15, 0.09, 1680, "sine");
         };
         schedulePair(start); // ti ti
         schedulePair(start + 0.48); // ti ti
         schedulePair(start + 0.96); // ti ti
       } else {
-        scheduleBeep(start, 0.22, 950);
-        scheduleBeep(start + 0.28, 0.22, 1150);
-        scheduleBeep(start + 0.56, 0.28, 950);
+        scheduleBeep(start, 0.22, 950, "square");
+        scheduleBeep(start + 0.28, 0.22, 1150, "square");
+        scheduleBeep(start + 0.56, 0.28, 950, "square");
         const repeat = start + 1.05;
-        scheduleBeep(repeat, 0.22, 950);
-        scheduleBeep(repeat + 0.28, 0.22, 1150);
-        scheduleBeep(repeat + 0.56, 0.28, 950);
+        scheduleBeep(repeat, 0.22, 950, "square");
+        scheduleBeep(repeat + 0.28, 0.22, 1150, "square");
+        scheduleBeep(repeat + 0.56, 0.28, 950, "square");
       }
       return true;
     } catch {
