@@ -1459,7 +1459,7 @@ async function main() {
     { label: "Triglyceride", fieldKey: "triglyceride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 1.71, sortOrder: 3 },
     { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.91, normalText: "High risk if <0.91 mmol/L", referenceNote: "High risk if value is below 0.91 mmol/L.", sortOrder: 4 },
     { label: "LDL-C", fieldKey: "ldl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 4.9, sortOrder: 5 },
-    { label: "VLDL-C - SI", fieldKey: "vldl_c_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", isRequired: false, referenceNote: "Conventional equivalent: 5-30 mg/dL.", sortOrder: 6 },
+    { label: "VLDL-C - SI", fieldKey: "vldl_c_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.13, normalMax: 0.78, isRequired: false, referenceNote: "Converted from conventional range 5-30 mg/dL.", sortOrder: 6 },
     { label: "VLDL-C - Conventional", fieldKey: "vldl_c_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 5, normalMax: 30, isRequired: false, sortOrder: 7 },
     { label: "Risk Comment", fieldKey: "risk_comment", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
   ],
@@ -1505,7 +1505,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "VLDL-C": [
-    { label: "VLDL-C (SI)", fieldKey: "vldl_c_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", isRequired: false, referenceNote: "Conventional reference range: 5-30 mg/dL.", sortOrder: 1 },
+    { label: "VLDL-C (SI)", fieldKey: "vldl_c_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.13, normalMax: 0.78, isRequired: false, referenceNote: "Converted from conventional reference range 5-30 mg/dL.", sortOrder: 1 },
     { label: "VLDL-C (Conventional)", fieldKey: "vldl_c_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 5, normalMax: 30, isRequired: false, sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
