@@ -107,13 +107,14 @@ export function NotificationBell({ role }: { role: string }) {
         duration: number,
         frequency: number,
         wave: OscillatorType = "square",
+        peakGain = 0.75,
       ) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = wave;
         osc.frequency.value = frequency;
         gain.gain.setValueAtTime(0.0001, at);
-        gain.gain.exponentialRampToValueAtTime(0.75, at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(peakGain, at + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -122,12 +123,13 @@ export function NotificationBell({ role }: { role: string }) {
       };
       if (kind === "call") {
         const schedulePair = (at: number) => {
-          scheduleBeep(at, 0.09, 1680, "sine");
-          scheduleBeep(at + 0.15, 0.09, 1680, "sine");
+          scheduleBeep(at, 0.11, 1680, "sine", 0.98);
+          scheduleBeep(at + 0.17, 0.11, 1680, "sine", 0.98);
         };
         schedulePair(start); // ti ti
         schedulePair(start + 0.48); // ti ti
         schedulePair(start + 0.96); // ti ti
+        schedulePair(start + 1.44); // ti ti
       } else {
         scheduleBeep(start, 0.22, 950, "square");
         scheduleBeep(start + 0.28, 0.22, 1150, "square");
