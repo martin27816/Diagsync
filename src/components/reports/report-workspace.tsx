@@ -501,7 +501,8 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                   </button>
                 </div>
                 {showVersionHistory ? (
-                  <table className="w-full text-xs">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-xs">
                     <thead>
                       <tr className="border-b border-slate-100">
                         <th className="pb-1.5 text-left font-medium text-slate-400">Version</th>
@@ -521,6 +522,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 ) : (
                   <p className="text-[11px] text-slate-400">Version history is collapsed to keep this view fast.</p>
                 )}

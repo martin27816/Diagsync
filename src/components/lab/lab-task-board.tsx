@@ -497,7 +497,7 @@ const OrderResultCard = memo(function OrderResultCard({
             <p className="text-[10px] text-slate-500">Titre {">="} 1:80 may be clinically significant.</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-[11px]">
+            <table className="w-full min-w-[760px] border-collapse text-[11px]">
               <thead>
                 <tr className="bg-slate-50">
                   <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Widal Test</th>
@@ -561,7 +561,7 @@ const OrderResultCard = memo(function OrderResultCard({
                 {referenceText ? <p className="mb-1 text-[10px] text-slate-400">{referenceText}</p> : null}
                 <div className={`rounded border ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"} p-2`}>
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-[11px]">
+                    <table className="w-full min-w-[760px] border-collapse text-[11px]">
                       <thead>
                         <tr className="bg-slate-50">
                           <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Antibiotic</th>
@@ -1331,7 +1331,7 @@ export function LabTaskBoard() {
         </div>
         <div className="rounded border border-slate-200 bg-white p-2">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-[11px]">
+            <table className="w-full min-w-[760px] border-collapse text-[11px]">
               <thead>
                 <tr className="bg-slate-50">
                   <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Antibiotic</th>

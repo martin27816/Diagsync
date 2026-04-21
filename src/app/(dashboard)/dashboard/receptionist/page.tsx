@@ -146,7 +146,7 @@ export default async function ReceptionistDashboard() {
           <>
             {/* Desktop table — hidden on mobile */}
             <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full min-w-[980px] text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
                     <th className="px-4 py-2 text-left font-medium text-slate-400">Patient</th>

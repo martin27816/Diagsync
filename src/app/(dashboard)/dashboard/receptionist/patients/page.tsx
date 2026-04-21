@@ -278,7 +278,7 @@ export default async function PatientsListPage({
               <p className="px-4 py-6 text-xs text-slate-400">No patients registered on this date.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full min-w-[1240px] text-xs">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50">
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>

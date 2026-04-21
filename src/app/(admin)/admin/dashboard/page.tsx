@@ -44,7 +44,7 @@ export default async function AdminDashboardPage() {
           <p className="px-5 py-10 text-sm text-gray-400 text-center">No lab activity found this week.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">
                   <th className="px-5 py-3">Lab</th>

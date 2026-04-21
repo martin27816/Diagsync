@@ -458,7 +458,7 @@ export function MdReviewBoard({ initialStatus = "pending" }: { initialStatus?: "
                                       </p>
                                       {sensitivityRows.length > 0 ? (
                                         <div className="mt-2 overflow-x-auto rounded border border-slate-200">
-                                          <table className="w-full border-collapse text-[11px]">
+                                          <table className="w-full min-w-[520px] border-collapse text-[11px]">
                                             <thead>
                                               <tr className="bg-slate-50">
                                                 <th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500">Sensitivity</th>

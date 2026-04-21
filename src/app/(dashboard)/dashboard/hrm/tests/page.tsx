@@ -80,7 +80,8 @@ export default async function TestCatalogPage() {
         {labTests.length === 0 ? (
           <p className="px-4 py-6 text-xs text-slate-400">No lab tests.</p>
         ) : (
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Test Name</th>
@@ -112,6 +113,7 @@ export default async function TestCatalogPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -128,7 +130,8 @@ export default async function TestCatalogPage() {
         {radioTests.length === 0 ? (
           <p className="px-4 py-6 text-xs text-slate-400">No radiology tests.</p>
         ) : (
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[920px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Test Name</th>
@@ -158,6 +161,7 @@ export default async function TestCatalogPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

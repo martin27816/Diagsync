@@ -678,7 +678,8 @@ export default async function HomePage() {
               <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Custom Result Field Types</p>
               </div>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] text-sm">
                 <tbody className="divide-y divide-slate-100">
                   {[
                     { type: "NUMBER", desc: "Numeric with units, normalMin, normalMax, AI range flagging" },
@@ -694,6 +695,7 @@ export default async function HomePage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Runtime field flexibility</p>

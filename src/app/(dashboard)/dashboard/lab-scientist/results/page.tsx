@@ -90,7 +90,8 @@ export default async function LabResultsPage() {
         {rows.length === 0 ? (
           <p className="px-4 py-10 text-center text-xs text-slate-400">No submitted lab results yet.</p>
         ) : (
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[960px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
@@ -124,6 +125,7 @@ export default async function LabResultsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

@@ -205,7 +205,7 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tasks</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full min-w-[980px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
@@ -367,7 +367,8 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
             Staff Monitoring
           </span>
         </div>
-        <table className="w-full text-xs">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] text-xs">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50">
               <th className="px-4 py-2.5 text-left font-medium text-slate-400">Staff</th>
@@ -409,6 +410,7 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

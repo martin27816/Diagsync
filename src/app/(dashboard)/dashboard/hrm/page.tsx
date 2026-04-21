@@ -176,7 +176,7 @@ export default async function HRMDashboardPage() {
                 <p className="text-xs text-slate-400">No active workload.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
+                  <table className="w-full min-w-[640px] text-xs">
                     <tbody className="divide-y divide-slate-100">
                       {overview.analytics.busiestStaff.map((s) => (
                         <tr key={s.id}>
@@ -218,7 +218,7 @@ export default async function HRMDashboardPage() {
             <>
               {/* Desktop table */}
               <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full min-w-[760px] text-xs">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50">
                       <th className="px-4 py-2 text-left font-medium text-slate-400">Staff</th>

@@ -619,7 +619,8 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
               {cart.length === 0 ? (
                 <p className="rounded border border-dashed border-slate-200 py-4 text-center text-xs text-slate-400">No tests selected.</p>
               ) : (
-                <table className="w-full text-xs">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-xs">
                   <thead>
                     <tr className="border-b border-slate-100">
                       <th className="pb-2 text-left font-medium text-slate-400">Test</th>
@@ -655,6 +656,7 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
                     })}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </div>

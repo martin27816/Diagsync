@@ -691,7 +691,8 @@ export function NewPatientForm() {
                 <p className="text-center text-xs text-slate-400 py-4 border border-dashed border-slate-200 rounded">No tests added yet.</p>
               ) : (
                 <div className="space-y-3">
-                <table className="w-full text-xs">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-xs">
                   <thead>
                     <tr className="border-b border-slate-100">
                       <th className="pb-2 text-left font-medium text-slate-400">Test</th>
@@ -718,6 +719,7 @@ export function NewPatientForm() {
                     ))}
                   </tbody>
                 </table>
+                </div>
                 <div className="mt-3 space-y-3">
                   {cart.map((item) => {
                     const rows = rangeDraftByTest[item.id] ?? [];
