@@ -793,33 +793,28 @@ export function NewPatientForm() {
               ) : (
                 <div className="space-y-3">
                 <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-100">
-                      <th className="pb-2 text-left font-medium text-slate-400">Test</th>
-                      <th className="pb-2 text-left font-medium text-slate-400">Type</th>
-                      <th className="pb-2 text-left font-medium text-slate-400 w-28">Price (₦)</th>
-                      <th className="pb-2 w-6"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {cart.map((item) => (
-                      <tr key={item.id}>
-                        <td className="py-2 font-medium text-slate-800">{item.name} <span className="font-mono text-slate-400">{item.code}</span></td>
-                        <td className="py-2">
-                          <span className={`rounded px-1.5 py-0.5 font-medium ${item.type === "LAB" ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>{item.type}</span>
-                        </td>
-                        <td className="py-2">
-                          <input type="number" min="0" placeholder="Price" value={item.enteredPrice} onChange={(e) => updateCartPrice(item.id, e.target.value)}
-                            className="h-7 w-full rounded border border-slate-200 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                        </td>
-                        <td className="py-2">
-                          <button onClick={() => removeFromCart(item.id)} className="text-slate-300 hover:text-red-500 transition-colors"><X className="h-3.5 w-3.5" /></button>
-                        </td>
+                  <table className="w-full min-w-[620px] text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="pb-2 text-left font-medium text-slate-400">Test</th>
+                        <th className="pb-2 text-left font-medium text-slate-400">Type</th>
+                        <th className="pb-2 w-6"></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {cart.map((item) => (
+                        <tr key={item.id}>
+                          <td className="py-2 font-medium text-slate-800">{item.name} <span className="font-mono text-slate-400">{item.code}</span></td>
+                          <td className="py-2">
+                            <span className={`rounded px-1.5 py-0.5 font-medium ${item.type === "LAB" ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>{item.type}</span>
+                          </td>
+                          <td className="py-2">
+                            <button onClick={() => removeFromCart(item.id)} className="text-slate-300 hover:text-red-500 transition-colors"><X className="h-3.5 w-3.5" /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
                 <div className="mt-3 space-y-3">
                   {cart.map((item) => {
@@ -1001,9 +996,16 @@ export function NewPatientForm() {
               {cart.length > 0 && (
                 <div className="space-y-1">
                   {cart.map((item) => (
-                    <div key={item.id} className="flex justify-between text-xs">
+                    <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_130px] items-center gap-2 text-xs">
                       <span className="text-slate-500 truncate pr-2">{item.name}</span>
-                      <span className="text-slate-700">{formatCurrency(toNumberPrice(item.enteredPrice))}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Price"
+                        value={item.enteredPrice}
+                        onChange={(e) => updateCartPrice(item.id, e.target.value)}
+                        className="h-8 w-full rounded border border-slate-200 px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
                     </div>
                   ))}
                 </div>
