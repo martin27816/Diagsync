@@ -485,18 +485,22 @@ export function renderReportHtml(args: RenderArgs) {
       position: relative;
       width: ${pageWidthPx}px;
       max-width: ${pageWidthPx}px;
-      height: ${pageHeightPx}px;
+      min-height: ${pageHeightPx}px;
+      height: auto;
       margin: 0 auto;
       box-sizing: border-box;
       padding: ${contentTopPx}px 44px ${contentBottomPx}px;
       background: #ffffff;
-      overflow: hidden;
+      overflow: visible;
       --wm-top-offset: ${hasLetterhead ? "132px" : "82px"};
       --wm-bottom-offset: ${hasLetterhead ? "140px" : "108px"};
     }
     .letterhead-layer {
       position: absolute;
-      inset: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: ${pageHeightPx}px;
       z-index: 0;
       pointer-events: none;
       overflow: hidden;
@@ -531,17 +535,11 @@ export function renderReportHtml(args: RenderArgs) {
       position: relative;
       z-index: 2;
       max-width: 760px;
-      height: 100%;
       margin: 0 auto;
       padding: 14px 18px;
       background: ${hasLetterhead ? "#ffffff" : "rgba(255, 255, 255, 0.93)"};
       border-radius: 8px;
-      overflow: hidden;
-    }
-    .fit-root {
-      width: 100%;
-      transform-origin: top left;
-      will-change: transform;
+      overflow: visible;
     }
     .content { position: relative; z-index: 2; }
     .header { margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
@@ -675,6 +673,26 @@ export function renderReportHtml(args: RenderArgs) {
     }
     @media print {
       .preview-actions { display: none !important; }
+      .page {
+        width: auto !important;
+        max-width: none !important;
+        min-height: 0 !important;
+        height: auto !important;
+        margin: 0 !important;
+        overflow: visible !important;
+      }
+      .content-shell {
+        border-radius: 0 !important;
+        background: #ffffff !important;
+        overflow: visible !important;
+      }
+      .block,
+      table,
+      .imaging-card,
+      .signature-block {
+        page-break-inside: avoid;
+        break-inside: avoid-page;
+      }
       .sensitivity-wrap { overflow: visible !important; }
       .sensitivity-table th,
       .sensitivity-table td {
@@ -708,8 +726,7 @@ export function renderReportHtml(args: RenderArgs) {
         : ""
     }
     <div class="content-shell" id="content-shell">
-    <div class="fit-root" id="fit-root">
-    <div class="content" id="fit-content">
+    <div class="content">
       <h2>${args.department === Department.LABORATORY ? "Laboratory Report" : "Radiology Report"}</h2>
       <div class="meta-grid">
         <p><strong>Patient:</strong> ${escapeHtml(String(patient.fullName ?? "-"))}</p>
@@ -765,39 +782,7 @@ export function renderReportHtml(args: RenderArgs) {
       }
     </div>
     </div>
-    </div>
   </main>
-  <script>
-    (function () {
-      var shell = document.getElementById("content-shell");
-      var root = document.getElementById("fit-root");
-      var content = document.getElementById("fit-content");
-      if (!shell || !root || !content) return;
-
-      function fitToSinglePage() {
-        root.style.transform = "scale(1)";
-        root.style.width = "100%";
-        var available = shell.clientHeight;
-        var actual = content.scrollHeight;
-        if (!available || !actual) return;
-
-        if (actual <= available) return;
-
-        var scale = available / actual;
-        var minScale = 0.72;
-        if (scale < minScale) scale = minScale;
-        if (scale > 1) scale = 1;
-
-        root.style.transform = "scale(" + scale + ")";
-        root.style.width = (100 / scale) + "%";
-      }
-
-      window.addEventListener("load", fitToSinglePage);
-      window.addEventListener("resize", fitToSinglePage);
-      window.addEventListener("beforeprint", fitToSinglePage);
-      fitToSinglePage();
-    })();
-  </script>
 </body>
 </html>
   `.trim();
