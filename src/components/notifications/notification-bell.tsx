@@ -32,8 +32,9 @@ export function NotificationBell({ role }: { role: string }) {
   const [data, setData] = useState<NotificationResponse>({ items: [], unreadCount: 0, nextCursor: null });
   const ref = useRef<HTMLDivElement>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
-  const playedVitalIdsRef = useRef<Set<string>>(new Set());
+  const playedAlertIdsRef = useRef<Set<string>>(new Set());
   const pendingVitalIdsRef = useRef<Set<string>>(new Set());
+  const pendingCallIdsRef = useRef<Set<string>>(new Set());
   const initializedRef = useRef(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -72,7 +73,17 @@ export function NotificationBell({ role }: { role: string }) {
     return false;
   }
 
-  function playVitalAlert() {
+  function isCallNotification(item: NotificationItem) {
+    const title = (item.title ?? "").toLowerCase();
+    const message = (item.message ?? "").toLowerCase();
+    if (title.includes("wants to see you")) return true;
+    if (title.includes("patient requested by md")) return true;
+    if (message.includes("please report now")) return true;
+    if (message.includes("bring in") && message.includes("consultation")) return true;
+    return false;
+  }
+
+  function playAlertTone(kind: "vital" | "call") {
     try {
       const AudioCtor =
         typeof window !== "undefined"
@@ -104,14 +115,23 @@ export function NotificationBell({ role }: { role: string }) {
         osc.start(at);
         osc.stop(at + duration);
       };
-
-      scheduleBeep(start, 0.22, 950);
-      scheduleBeep(start + 0.28, 0.22, 1150);
-      scheduleBeep(start + 0.56, 0.28, 950);
-      const repeat = start + 1.05;
-      scheduleBeep(repeat, 0.22, 950);
-      scheduleBeep(repeat + 0.28, 0.22, 1150);
-      scheduleBeep(repeat + 0.56, 0.28, 950);
+      if (kind === "call") {
+        scheduleBeep(start, 0.18, 1420);
+        scheduleBeep(start + 0.22, 0.18, 1160);
+        scheduleBeep(start + 0.44, 0.26, 1420);
+        const repeat = start + 0.86;
+        scheduleBeep(repeat, 0.18, 1420);
+        scheduleBeep(repeat + 0.22, 0.18, 1160);
+        scheduleBeep(repeat + 0.44, 0.26, 1420);
+      } else {
+        scheduleBeep(start, 0.22, 950);
+        scheduleBeep(start + 0.28, 0.22, 1150);
+        scheduleBeep(start + 0.56, 0.28, 950);
+        const repeat = start + 1.05;
+        scheduleBeep(repeat, 0.22, 950);
+        scheduleBeep(repeat + 0.28, 0.22, 1150);
+        scheduleBeep(repeat + 0.56, 0.28, 950);
+      }
       return true;
     } catch {
       // best-effort only
@@ -121,17 +141,34 @@ export function NotificationBell({ role }: { role: string }) {
 
   function enqueuePendingVital(ids: string[]) {
     for (const id of ids) {
-      if (!id || playedVitalIdsRef.current.has(id)) continue;
+      if (!id || playedAlertIdsRef.current.has(id)) continue;
       pendingVitalIdsRef.current.add(id);
     }
   }
 
+  function enqueuePendingCall(ids: string[]) {
+    for (const id of ids) {
+      if (!id || playedAlertIdsRef.current.has(id)) continue;
+      pendingCallIdsRef.current.add(id);
+    }
+  }
+
   function flushPendingVitalAlerts() {
+    if (pendingCallIdsRef.current.size > 0) {
+      const callOk = playAlertTone("call");
+      if (callOk) {
+        for (const id of Array.from(pendingCallIdsRef.current)) {
+          playedAlertIdsRef.current.add(id);
+        }
+        pendingCallIdsRef.current.clear();
+      }
+    }
+
     if (pendingVitalIdsRef.current.size === 0) return;
-    const ok = playVitalAlert();
+    const ok = playAlertTone("vital");
     if (!ok) return;
     for (const id of Array.from(pendingVitalIdsRef.current)) {
-      playedVitalIdsRef.current.add(id);
+      playedAlertIdsRef.current.add(id);
     }
     pendingVitalIdsRef.current.clear();
   }
@@ -168,15 +205,22 @@ export function NotificationBell({ role }: { role: string }) {
       if (!json.success) { setError(json.error ?? "Failed"); return; }
       const nextData = json.data as NotificationResponse;
       const newItems = nextData.items.filter((item) => !seenIdsRef.current.has(item.id));
-      const vitalNewUnreadIds = newItems
-        .filter((item) => !item.isRead && isVitalNotification(item))
+      const callUnreadIds = newItems
+        .filter((item) => !item.isRead && isCallNotification(item))
         .map((item) => item.id);
-      if (initializedRef.current && vitalNewUnreadIds.length > 0) {
-        const unplayed = vitalNewUnreadIds.filter((id) => !playedVitalIdsRef.current.has(id));
-        if (unplayed.length > 0) {
-          enqueuePendingVital(unplayed);
-          flushPendingVitalAlerts();
+      const vitalNewUnreadIds = newItems
+        .filter((item) => !item.isRead && !isCallNotification(item) && isVitalNotification(item))
+        .map((item) => item.id);
+      if (initializedRef.current && (callUnreadIds.length > 0 || vitalNewUnreadIds.length > 0)) {
+        const callUnplayed = callUnreadIds.filter((id) => !playedAlertIdsRef.current.has(id));
+        const vitalUnplayed = vitalNewUnreadIds.filter((id) => !playedAlertIdsRef.current.has(id));
+        if (callUnplayed.length > 0) {
+          enqueuePendingCall(callUnplayed);
         }
+        if (vitalUnplayed.length > 0) {
+          enqueuePendingVital(vitalUnplayed);
+        }
+        flushPendingVitalAlerts();
       }
       for (const item of nextData.items) {
         seenIdsRef.current.add(item.id);
