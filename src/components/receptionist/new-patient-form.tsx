@@ -87,6 +87,17 @@ function defaultRangeProfile(age: string, sex: Sex): RangeProfile {
   return sex === "FEMALE" ? "FEMALE" : "MALE";
 }
 
+function toNullableNumber(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 export function NewPatientForm() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
@@ -174,8 +185,8 @@ export function NewPatientForm() {
     const selected = demographicRanges[profileKey(profile)];
     if (selected) return { normalMin: selected.min, normalMax: selected.max };
     return {
-      normalMin: typeof field.normalMin === "number" ? field.normalMin : null,
-      normalMax: typeof field.normalMax === "number" ? field.normalMax : null,
+      normalMin: toNullableNumber(field.normalMin),
+      normalMax: toNullableNumber(field.normalMax),
     };
   }
 
@@ -191,7 +202,10 @@ export function NewPatientForm() {
         if (field.id !== fieldId) return field;
         const key = profileKey(profile);
         const { plainText, demographicRanges } = splitReferenceNote(field.referenceNote);
-        const current = demographicRanges[key] ?? { min: field.normalMin ?? 0, max: field.normalMax ?? 0 };
+        const fallbackMin = toNullableNumber(field.normalMin);
+        const fallbackMax = toNullableNumber(field.normalMax);
+        const current = demographicRanges[key] ??
+          (fallbackMin !== null && fallbackMax !== null ? { min: fallbackMin, max: fallbackMax } : { min: 0, max: 0 });
         const nextMin = patch.normalMin === undefined ? current.min : patch.normalMin;
         const nextMax = patch.normalMax === undefined ? current.max : patch.normalMax;
         const nextRanges = {
@@ -414,8 +428,8 @@ export function NewPatientForm() {
     const rows = rangeDraftByTest[testId] ?? [];
     if (rows.length === 0) return;
     for (const row of rows) {
-      const min = row.normalMin;
-      const max = row.normalMax;
+      const min = toNullableNumber(row.normalMin);
+      const max = toNullableNumber(row.normalMax);
       if (typeof min === "number" && typeof max === "number" && min > max) {
         setError(`Invalid range in ${row.label}: min cannot be greater than max.`);
         return;
@@ -435,8 +449,8 @@ export function NewPatientForm() {
       const payload = {
         rangeFields: rows.map((row) => ({
           id: row.id,
-          normalMin: row.normalMin ?? null,
-          normalMax: row.normalMax ?? null,
+          normalMin: toNullableNumber(row.normalMin),
+          normalMax: toNullableNumber(row.normalMax),
           normalText: row.normalText ?? null,
           referenceNote: row.referenceNote ?? null,
         })),
