@@ -421,6 +421,11 @@ export async function rejectMdReview(taskId: string, actor: MdActor, reason: str
       data: { status: RoutingTaskStatus.IN_PROGRESS },
     });
 
+    await tx.labResult.updateMany({
+      where: { taskId: task.id, organizationId: actor.organizationId },
+      data: { isSubmitted: false, submittedAt: null },
+    });
+
     const orders = await tx.testOrder.findMany({
       where: { id: { in: task.testOrderIds }, organizationId: actor.organizationId },
     });

@@ -49,6 +49,12 @@ function pickExpectedLabTaskStatus(input: {
     input.orderStatuses.length === input.taskOrderIds.length &&
     input.orderStatuses.every((status) => ORDER_FINAL_STATUSES.has(status));
   const hasOrderProgress = input.orderStatuses.some((status) => ORDER_ACTIVE_STATUSES.has(status));
+  const hasEditRequested = input.orderStatuses.some((status) => status === OrderStatus.EDIT_REQUESTED);
+
+  // MD edit request must keep lab task in active queue, even if prior submitted results exist.
+  if (hasEditRequested) {
+    return RoutingTaskStatus.IN_PROGRESS;
+  }
 
   if (allOrdersFinal || (hasAllOrderResults && input.allResultsSubmitted)) {
     return RoutingTaskStatus.COMPLETED;
