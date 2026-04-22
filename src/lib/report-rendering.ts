@@ -543,6 +543,7 @@ type RenderArgs = {
   includeLetterhead?: boolean;
   showPrintButton?: boolean;
   autoPrint?: boolean;
+  baseUrl?: string;
 };
 
 export function renderReportHtml(args: RenderArgs) {
@@ -664,6 +665,13 @@ export function renderReportHtml(args: RenderArgs) {
 <html>
 <head>
   <meta charset="utf-8" />
+  ${
+    args.baseUrl
+      ? `<base href="${escapeHtml(
+          args.baseUrl.endsWith("/") ? args.baseUrl : `${args.baseUrl}/`
+        )}" />`
+      : ""
+  }
   <title>${escapeHtml(args.organization.name)} - ${args.department === Department.LABORATORY ? "Lab Report" : "Radiology Report"}</title>
   <style>
     @page { size: A4; margin: 0; }

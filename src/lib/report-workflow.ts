@@ -636,7 +636,12 @@ export async function trackReportAction(
 export async function renderReportForPreview(
   actor: ReportActor,
   reportId: string,
-  options?: { includeLetterhead?: boolean; showPrintButton?: boolean; autoPrint?: boolean }
+  options?: {
+    includeLetterhead?: boolean;
+    showPrintButton?: boolean;
+    autoPrint?: boolean;
+    baseUrl?: string;
+  }
 ) {
   const report = await getReportDetails(actor, reportId);
   const activeVersion = report.versions.find((version) => version.isActive) ?? report.versions[0] ?? null;
@@ -661,6 +666,7 @@ export async function renderReportForPreview(
     includeLetterhead: options?.includeLetterhead ?? true,
     showPrintButton: options?.showPrintButton === true,
     autoPrint: options?.autoPrint === true,
+    baseUrl: options?.baseUrl,
   });
 
   return {

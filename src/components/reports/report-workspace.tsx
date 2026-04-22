@@ -86,6 +86,14 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     return `/api/reports/${reportId}/preview${suffix ? `?${suffix}` : ""}`;
   }
 
+  function pdfUrl(reportId: string, letterheadMode: "with" | "without") {
+    const query = new URLSearchParams();
+    if (letterheadMode === "without") query.set("letterhead", "without");
+    if (previewNonce > 0) query.set("v", String(previewNonce));
+    const suffix = query.toString();
+    return `/api/reports/${reportId}/pdf${suffix ? `?${suffix}` : ""}`;
+  }
+
   async function loadReports(opts?: { signal?: AbortSignal; force?: boolean }) {
     const cacheKey = `${filterStatus}:${filterType}`;
     if (!opts?.force) {
@@ -267,12 +275,13 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "DOWNLOAD" }),
     });
-    window.open(
-      previewUrl(details.id, printLetterheadMode, { autoPrint: true }),
-      "_blank",
-      "noopener,noreferrer"
-    );
-    setMessage("Print dialog opened. Choose 'Save as PDF' to download the report.");
+    const link = document.createElement("a");
+    link.href = pdfUrl(details.id, printLetterheadMode);
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setMessage("PDF download started.");
   }
 
   async function sendWhatsapp() {
@@ -282,15 +291,16 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const res = await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "SEND_WHATSAPP" }) });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "WhatsApp handoff failed"); return; }
-      window.open(
-        previewUrl(details.id, "with", { autoPrint: true }),
-        "_blank",
-        "noopener,noreferrer"
-      );
+      const link = document.createElement("a");
+      link.href = pdfUrl(details.id, "with");
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
 
       if (json.data?.waUrl) {
         window.open(json.data.waUrl, "_blank", "noopener,noreferrer");
-        setMessage("Print dialog opened for clean PDF. Save as PDF, then attach it in WhatsApp.");
+        setMessage("PDF downloaded. WhatsApp opened, attach the PDF in chat.");
       } else {
         setError("WhatsApp destination unavailable.");
       }
