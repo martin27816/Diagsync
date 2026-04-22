@@ -636,7 +636,7 @@ export async function trackReportAction(
 export async function renderReportForPreview(
   actor: ReportActor,
   reportId: string,
-  options?: { includeLetterhead?: boolean }
+  options?: { includeLetterhead?: boolean; showPrintButton?: boolean }
 ) {
   const report = await getReportDetails(actor, reportId);
   const activeVersion = report.versions.find((version) => version.isActive) ?? report.versions[0] ?? null;
@@ -659,6 +659,7 @@ export async function renderReportForPreview(
     mdName: null,
     watermarkUrl: "/diagsync-watermark.png",
     includeLetterhead: options?.includeLetterhead ?? true,
+    showPrintButton: options?.showPrintButton === true,
   });
 
   return {

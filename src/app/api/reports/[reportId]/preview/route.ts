@@ -15,11 +15,12 @@ export async function GET(
 
     const url = new URL(req.url);
     const includeLetterhead = url.searchParams.get("letterhead") !== "without";
+    const showPrintButton = url.searchParams.get("printButton") === "1";
 
     const rendered = await renderReportForPreview(
       { id: user.id, role: user.role, organizationId: user.organizationId },
       params.reportId,
-      { includeLetterhead }
+      { includeLetterhead, showPrintButton }
     );
 
     return new NextResponse(rendered.html, {

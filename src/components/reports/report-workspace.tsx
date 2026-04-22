@@ -74,9 +74,14 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     reportDetailsCacheRef.current.clear();
   }
 
-  function previewUrl(reportId: string, letterheadMode: "with" | "without") {
+  function previewUrl(
+    reportId: string,
+    letterheadMode: "with" | "without",
+    opts?: { showPrintButton?: boolean }
+  ) {
     const query = new URLSearchParams();
     if (letterheadMode === "without") query.set("letterhead", "without");
+    if (opts?.showPrintButton) query.set("printButton", "1");
     if (previewNonce > 0) query.set("v", String(previewNonce));
     const suffix = query.toString();
     return `/api/reports/${reportId}/preview${suffix ? `?${suffix}` : ""}`;
@@ -233,7 +238,11 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   async function printReport() {
     if (!details) return;
     await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "PRINT" }) });
-    window.open(previewUrl(details.id, printLetterheadMode), "_blank", "noopener,noreferrer");
+    window.open(
+      previewUrl(details.id, printLetterheadMode, { showPrintButton: true }),
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   async function captureReportPng(mode: "with" | "without"): Promise<{ blob: Blob; fileName: string } | null> {
