@@ -720,10 +720,6 @@ export function renderReportHtml(args: RenderArgs) {
       top: var(--wm-top-offset);
       left: 42px;
     }
-    .watermark-bottom-right {
-      right: 42px;
-      bottom: var(--wm-bottom-offset);
-    }
     .content-shell {
       position: relative;
       z-index: 2;
@@ -900,8 +896,7 @@ export function renderReportHtml(args: RenderArgs) {
     }
     ${
       effectiveWatermarkUrl
-        ? `<div class="watermark watermark-top-left"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>
-           <div class="watermark watermark-bottom-right"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>`
+        ? `<div class="watermark watermark-top-left"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>`
         : ""
     }
     <div class="content-shell" id="content-shell">
