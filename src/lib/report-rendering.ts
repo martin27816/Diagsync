@@ -34,6 +34,12 @@ type SensitivityEntry = {
   interpretation: string;
 };
 
+type WidalRow = {
+  organism: string;
+  titreO: string;
+  h: string;
+};
+
 function normalizeToken(input: string) {
   return input.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -56,6 +62,173 @@ function isMicroscopyRow(rowName: string) {
     token.includes("bacterial") ||
     token.includes("yeast")
   );
+}
+
+function isCommentRow(rowName: string) {
+  const token = normalizeToken(rowName);
+  return token === "comment" || token === "comments" || token.includes("comment");
+}
+
+function isHemoglobinRow(rowName: string) {
+  const token = normalizeToken(rowName);
+  if (!(token.includes("hemoglobin") || token.includes("haemoglobin"))) return false;
+  if (token.includes("percent") || token.includes(" pcv ") || token.endsWith(" pcv")) return false;
+  if (token.includes("%")) return false;
+  return true;
+}
+
+function isHemoglobinPercentRow(rowName: string) {
+  const token = normalizeToken(rowName);
+  if (!(token.includes("hemoglobin") || token.includes("haemoglobin"))) return false;
+  return token.includes("percent") || token.includes(" % ") || token.endsWith(" %");
+}
+
+function isPcvRow(rowName: string) {
+  const token = normalizeToken(rowName);
+  return token.includes("pcv") || token.includes("hematocrit") || token.includes("haematocrit");
+}
+
+function isFbcTestName(testName: string) {
+  const token = normalizeToken(testName);
+  return token.includes("full blood count") || token === "fbc" || token.includes(" fbc ");
+}
+
+function dualVariantBaseKey(rowName: string) {
+  const token = normalizeToken(rowName);
+  if (!token.includes("si") && !token.includes("conventional")) return "";
+  return token
+    .replace(/\b(si|conventional|conv)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function dualVariantWeight(rowName: string) {
+  const token = normalizeToken(rowName);
+  if (token.includes("si")) return 0;
+  if (token.includes("conventional") || token.includes("conv")) return 1;
+  return 2;
+}
+
+function orderLabRows(test: LabRenderTest) {
+  const isFbc = isFbcTestName(test.name);
+  const indexed = test.rows.map((row, index) => ({ row, index }));
+  const ranked = [...indexed].sort((a, b) => {
+    const rank = (name: string, index: number) => {
+      if (isCommentRow(name)) return 9000 + index;
+      if (isFbc) {
+        if (isHemoglobinRow(name)) return 0;
+        if (isHemoglobinPercentRow(name)) return 1;
+        if (isPcvRow(name)) return 2;
+      } else {
+        if (isHemoglobinRow(name)) return 10;
+        if (isHemoglobinPercentRow(name)) return 11;
+        if (isPcvRow(name)) return 12;
+      }
+      return 100 + index;
+    };
+    const aRank = rank(a.row.name, a.index);
+    const bRank = rank(b.row.name, b.index);
+    if (aRank !== bRank) return aRank - bRank;
+    return a.index - b.index;
+  });
+
+  const grouped = new Map<string, Array<(typeof ranked)[number]>>();
+  for (const item of ranked) {
+    const key = dualVariantBaseKey(item.row.name);
+    if (!key) continue;
+    const current = grouped.get(key) ?? [];
+    current.push(item);
+    grouped.set(key, current);
+  }
+  const multiGroupKeys = new Set(
+    Array.from(grouped.entries())
+      .filter(([, items]) => items.length > 1)
+      .map(([key]) => key)
+  );
+
+  const emitted = new Set<number>();
+  const ordered: LabRenderRow[] = [];
+  for (const item of ranked) {
+    if (emitted.has(item.index)) continue;
+    const key = dualVariantBaseKey(item.row.name);
+    if (key && multiGroupKeys.has(key)) {
+      const peers = (grouped.get(key) ?? []).sort((a, b) => {
+        const aw = dualVariantWeight(a.row.name);
+        const bw = dualVariantWeight(b.row.name);
+        if (aw !== bw) return aw - bw;
+        return a.index - b.index;
+      });
+      for (const peer of peers) {
+        if (emitted.has(peer.index)) continue;
+        emitted.add(peer.index);
+        ordered.push(peer.row);
+      }
+      continue;
+    }
+    emitted.add(item.index);
+    ordered.push(item.row);
+  }
+  return ordered;
+}
+
+function detectWidalCellType(rowName: string) {
+  const token = normalizeToken(rowName);
+  if (token.includes(" typhi ") && token.includes(" o")) return { organism: "Salmonella Typhi", type: "O" as const };
+  if (token.includes(" typhi ") && token.includes(" h")) return { organism: "Salmonella Typhi", type: "H" as const };
+  if (token.includes("paratyphi a") && token.includes(" o")) return { organism: "Salmonella Paratyphi A", type: "O" as const };
+  if (token.includes("paratyphi a") && token.includes(" h")) return { organism: "Salmonella Paratyphi A", type: "H" as const };
+  if (token.includes("paratyphi b") && token.includes(" o")) return { organism: "Salmonella Paratyphi B", type: "O" as const };
+  if (token.includes("paratyphi b") && token.includes(" h")) return { organism: "Salmonella Paratyphi B", type: "H" as const };
+  if (token.includes("paratyphi c") && token.includes(" o")) return { organism: "Salmonella Paratyphi C", type: "O" as const };
+  if (token.includes("paratyphi c") && token.includes(" h")) return { organism: "Salmonella Paratyphi C", type: "H" as const };
+  return null;
+}
+
+function asWidalRows(test: LabRenderTest) {
+  const fixedOrder: WidalRow[] = [
+    { organism: "Salmonella Typhi", titreO: "", h: "" },
+    { organism: "Salmonella Paratyphi A", titreO: "", h: "" },
+    { organism: "Salmonella Paratyphi B", titreO: "", h: "" },
+    { organism: "Salmonella Paratyphi C", titreO: "", h: "" },
+  ];
+  const byOrganism = new Map(fixedOrder.map((row) => [row.organism, { ...row }]));
+  for (const row of test.rows) {
+    const cell = detectWidalCellType(row.name);
+    if (!cell) continue;
+    const target = byOrganism.get(cell.organism);
+    if (!target) continue;
+    if (cell.type === "O") target.titreO = row.value ?? "";
+    if (cell.type === "H") target.h = row.value ?? "";
+  }
+  const rows = fixedOrder
+    .map((item) => byOrganism.get(item.organism) ?? item)
+    .filter((row) => hasRenderableValue(row.titreO) || hasRenderableValue(row.h));
+  return rows;
+}
+
+function renderWidalSection(test: LabRenderTest) {
+  const widalRows = asWidalRows(test);
+  if (widalRows.length === 0) return "";
+  const bodyHtml = widalRows
+    .map(
+      (row) => `<tr>
+          <td>${escapeHtml(row.organism)}</td>
+          <td>${escapeHtml(row.titreO || "-")}</td>
+          <td>${escapeHtml(row.h || "-")}</td>
+        </tr>`
+    )
+    .join("");
+  return `
+    <section class="block">
+      <h3>${escapeHtml(test.name || "Widal Test")}</h3>
+      <table>
+        <thead>
+          <tr><th>Widal Test</th><th>Titre O</th><th>H</th></tr>
+        </thead>
+        <tbody>${bodyHtml}</tbody>
+      </table>
+    </section>
+  `;
 }
 
 function parseSensitivityEntries(rawValue: string): SensitivityEntry[] {
@@ -112,8 +285,11 @@ function parseSensitivityEntries(rawValue: string): SensitivityEntry[] {
 }
 
 function renderGenericLabSection(test: LabRenderTest) {
-  const rows = test.rows.filter((row) => hasRenderableValue(row.value));
+  const rows = orderLabRows(test).filter((row) => hasRenderableValue(row.value));
   if (rows.length === 0) return "";
+
+  const showUnitColumn = rows.some((row) => row.unit.trim().length > 0);
+  const showReferenceColumn = rows.some((row) => row.reference.trim().length > 0);
 
   const rowHtml = rows
     .map(
@@ -121,8 +297,8 @@ function renderGenericLabSection(test: LabRenderTest) {
         <tr>
           <td>${escapeHtml(row.name)}</td>
           <td>${escapeHtml(row.value)}</td>
-          <td>${escapeHtml(row.unit)}</td>
-          <td>${escapeHtml(row.reference)}</td>
+          ${showUnitColumn ? `<td>${escapeHtml(row.unit)}</td>` : ""}
+          ${showReferenceColumn ? `<td>${escapeHtml(row.reference)}</td>` : ""}
         </tr>
       `
     )
@@ -133,7 +309,12 @@ function renderGenericLabSection(test: LabRenderTest) {
       <h3>${escapeHtml(test.name || "Laboratory Test")}</h3>
       <table>
         <thead>
-          <tr><th>Parameter</th><th>Result</th><th>Unit</th><th>Reference</th></tr>
+          <tr>
+            <th>Parameter</th>
+            <th>Result</th>
+            ${showUnitColumn ? "<th>Unit</th>" : ""}
+            ${showReferenceColumn ? "<th>Reference</th>" : ""}
+          </tr>
         </thead>
         <tbody>${rowHtml}</tbody>
       </table>
@@ -410,7 +591,14 @@ export function renderReportHtml(args: RenderArgs) {
           const renderedMicroCulture = new Set(microCultureTests);
           const genericHtml = normalizedLabTests
             .filter((test) => !renderedMicroCulture.has(test))
-            .map((test) => renderGenericLabSection(test))
+            .map((test) => {
+              const title = normalizeToken(test.name);
+              if (title.includes("widal")) {
+                const widalHtml = renderWidalSection(test);
+                if (widalHtml) return widalHtml;
+              }
+              return renderGenericLabSection(test);
+            })
             .join("");
 
           return `${microCultureHtml}${genericHtml}`;
