@@ -16,11 +16,12 @@ export async function GET(
     const url = new URL(req.url);
     const includeLetterhead = url.searchParams.get("letterhead") !== "without";
     const showPrintButton = url.searchParams.get("printButton") === "1";
+    const autoPrint = url.searchParams.get("autoPrint") === "1";
 
     const rendered = await renderReportForPreview(
       { id: user.id, role: user.role, organizationId: user.organizationId },
       params.reportId,
-      { includeLetterhead, showPrintButton }
+      { includeLetterhead, showPrintButton, autoPrint }
     );
 
     return new NextResponse(rendered.html, {

@@ -179,7 +179,7 @@ function parseSensitivityPattern(raw: unknown): SensitivityCell[] {
       }
 
       return {
-        antibiotic: antibiotic.replace(/[-–:,]+$/g, "").trim(),
+        antibiotic: antibiotic.replace(/[-â€“:,]+$/g, "").trim(),
         zone: zone.trim(),
         interpretation,
       };
@@ -1428,6 +1428,33 @@ export function LabTaskBoard() {
     return base.filter((task) => priorityFilter === "ALL" || task.priority === priorityFilter);
   }, [tasks, priorityFilter, statusFilter]);
 
+  // --- Day-grouping helpers (mirrors receptionist patients page) ---
+  function pad2(v: number) { return String(v).padStart(2, "0"); }
+  function toDayKey(date: string | Date) {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+  function todayDayKey() {
+    const now = new Date();
+    return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+  }
+  function formatDayLabel(dayKey: string) {
+    const [y, m, d] = dayKey.split("-").map(Number);
+    return new Date(y, m - 1, d, 12).toLocaleDateString("en-NG", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric",
+    });
+  }
+  const groupedByDay = useMemo(() => {
+    const map = new Map<string, LabTask[]>();
+    for (const task of filtered) {
+      const key = toDayKey(task.createdAt);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(task);
+    }
+    // Sort day keys descending (newest day first)
+    return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a));
+  }, [filtered]);
+
   function getNewlyAddedOrders(task: LabTask) {
     const taskCreatedAt = new Date(task.createdAt).getTime();
     return task.testOrders.filter((order) => {
@@ -2141,25 +2168,41 @@ export function LabTaskBoard() {
 
       {error ? <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div> : null}
 
-      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+      <div className="space-y-4">
         {filtered.length === 0 ? (
-          <p className="px-4 py-8 text-center text-xs text-slate-400">No assigned tests. You're all caught up.</p>
+          <div className="rounded-lg border border-slate-200 bg-white">
+            <p className="px-4 py-8 text-center text-xs text-slate-400">No assigned tests. You're all caught up.</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] text-xs">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Patient</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Tests</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Priority</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Status</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Sample</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Updated</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.map((task) => {
+          groupedByDay.map(([dayKey, dayTasks]) => (
+            <section key={dayKey} id={`lab-day-${dayKey}`} className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+              {/* Day header */}
+              <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-semibold text-slate-700">{formatDayLabel(dayKey)}</span>
+                  {dayKey === todayDayKey() ? <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">Today</span> : null}
+                  <span className="text-slate-400">{dayTasks.length} task{dayTasks.length !== 1 ? "s" : ""}</span>
+                  <span className="text-slate-300">·</span>
+                  <span className="text-slate-400">{dayTasks.filter((t) => t.status === "PENDING").length} pending</span>
+                  <span className="text-slate-400">{dayTasks.filter((t) => t.status === "IN_PROGRESS").length} in progress</span>
+                  <span className="text-slate-400">{dayTasks.filter((t) => t.status === "COMPLETED").length} completed</span>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[960px] text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50">
+                    <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Patient</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Tests</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Priority</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Status</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Sample</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Updated</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+              {dayTasks.map((task) => {
                 const highlightFields = getHighlightFields(task);
                 const shouldUseSharedSensitivityPanel =
                   task.testOrders.filter((order) =>
@@ -2360,9 +2403,11 @@ export function LabTaskBoard() {
                   </Fragment>
                 );
               })}
-            </tbody>
-            </table>
-          </div>
+                </tbody>
+                </table>
+              </div>
+            </section>
+          ))
         )}
       </div>
     </div>

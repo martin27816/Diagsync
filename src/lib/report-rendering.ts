@@ -542,6 +542,7 @@ type RenderArgs = {
   watermarkUrl?: string;
   includeLetterhead?: boolean;
   showPrintButton?: boolean;
+  autoPrint?: boolean;
 };
 
 export function renderReportHtml(args: RenderArgs) {
@@ -994,6 +995,15 @@ export function renderReportHtml(args: RenderArgs) {
     </div>
   </main>
 </body>
+${
+  args.autoPrint
+    ? `<script>
+        window.addEventListener("load", function () {
+          setTimeout(function () { window.print(); }, 120);
+        });
+      </script>`
+    : ""
+}
 </html>
   `.trim();
 }

@@ -77,11 +77,12 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   function previewUrl(
     reportId: string,
     letterheadMode: "with" | "without",
-    opts?: { showPrintButton?: boolean }
+    opts?: { showPrintButton?: boolean; autoPrint?: boolean }
   ) {
     const query = new URLSearchParams();
     if (letterheadMode === "without") query.set("letterhead", "without");
     if (opts?.showPrintButton) query.set("printButton", "1");
+    if (opts?.autoPrint) query.set("autoPrint", "1");
     if (previewNonce > 0) query.set("v", String(previewNonce));
     const suffix = query.toString();
     return `/api/reports/${reportId}/preview${suffix ? `?${suffix}` : ""}`;
@@ -240,6 +241,20 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "PRINT" }) });
     window.open(
       previewUrl(details.id, printLetterheadMode, { showPrintButton: true }),
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
+  async function printNow() {
+    if (!details) return;
+    await fetch(`/api/reports/${details.id}/action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "PRINT" }),
+    });
+    window.open(
+      previewUrl(details.id, printLetterheadMode, { showPrintButton: true, autoPrint: true }),
       "_blank",
       "noopener,noreferrer"
     );
@@ -600,6 +615,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                     </>
                   )}
                   <div className="flex flex-wrap gap-2">
+                    <button disabled={busy} onClick={printNow} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">Print</button>
                     <button disabled={busy} onClick={printReport} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">Print Preview</button>
                     <button disabled={busy || !details.isReleased || !previewLoaded} onClick={downloadReport} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">Download</button>
                     <button disabled={busy || !details.isReleased || !previewLoaded} onClick={sendWhatsapp} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">WhatsApp</button>
