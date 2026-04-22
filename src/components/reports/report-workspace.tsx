@@ -1,7 +1,5 @@
 "use client";
 
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "@/lib/utils";
 
@@ -260,68 +258,21 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     );
   }
 
-  async function captureReportPng(mode: "with" | "without"): Promise<{ blob: Blob; fileName: string } | null> {
-    if (!details) return null;
-    let iframe = previewRef.current;
-    let temporaryIframe: HTMLIFrameElement | null = null;
-
-    if (mode !== printLetterheadMode || !iframe?.contentDocument) {
-      temporaryIframe = document.createElement("iframe");
-      temporaryIframe.src = previewUrl(details.id, mode);
-      temporaryIframe.style.position = "fixed";
-      temporaryIframe.style.left = "-99999px";
-      temporaryIframe.style.top = "0";
-      temporaryIframe.style.width = "794px";
-      temporaryIframe.style.height = "1123px";
-      temporaryIframe.style.opacity = "0";
-      document.body.appendChild(temporaryIframe);
-      await new Promise<void>((resolve, reject) => {
-        const timeout = window.setTimeout(() => reject(new Error("PREVIEW_TIMEOUT")), 10000);
-        temporaryIframe!.onload = () => {
-          window.clearTimeout(timeout);
-          resolve();
-        };
-      }).catch(() => undefined);
-      iframe = temporaryIframe;
-    }
-
-    if (!iframe?.contentDocument) {
-      if (temporaryIframe) temporaryIframe.remove();
-      setError("Preview not ready. Wait a moment and retry.");
-      return null;
-    }
-    const doc = iframe.contentDocument;
-    const target = (doc.body as HTMLElement | null) ?? (doc.querySelector(".page") as HTMLElement | null);
-    if (!target) {
-      if (temporaryIframe) temporaryIframe.remove();
-      setError("Preview content unavailable.");
-      return null;
-    }
-    try {
-      iframe.contentWindow?.scrollTo(0, 0);
-      const w = Math.max(doc.documentElement?.scrollWidth ?? 0, doc.body?.scrollWidth ?? 0, target.scrollWidth);
-      const h = Math.max(doc.documentElement?.scrollHeight ?? 0, doc.body?.scrollHeight ?? 0, target.scrollHeight);
-      const canvas = await html2canvas(target, { useCORS: true, allowTaint: false, scale: 2, backgroundColor: "#ffffff", scrollX: 0, scrollY: 0, width: w || target.clientWidth, height: h || target.clientHeight });
-      const blob = await new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), "image/png", 1));
-      if (!blob) { setError("Could not generate image."); return null; }
-      const safePatient = details.visit.patient.fullName.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
-      const safeVisit = details.visit.visitNumber.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
-      return { blob, fileName: `${safePatient}-${safeVisit}-${details.reportType}-report.png` };
-    } catch { setError("Image export failed. Check CORS settings, then retry."); return null; }
-    finally {
-      if (temporaryIframe) temporaryIframe.remove();
-    }
-  }
-
   async function downloadReport() {
+    if (!details) return;
     setError("");
-    const captured = await captureReportPng(printLetterheadMode);
-    if (!captured) return;
-    const url = URL.createObjectURL(captured.blob);
-    const a = document.createElement("a"); a.href = url; a.download = captured.fileName;
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    await fetch(`/api/reports/${details!.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "DOWNLOAD" }) });
-    setMessage("Report downloaded.");
+    setMessage("");
+    await fetch(`/api/reports/${details.id}/action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "DOWNLOAD" }),
+    });
+    window.open(
+      previewUrl(details.id, printLetterheadMode, { autoPrint: true }),
+      "_blank",
+      "noopener,noreferrer"
+    );
+    setMessage("Print dialog opened. Choose 'Save as PDF' to download the report.");
   }
 
   async function sendWhatsapp() {
@@ -331,82 +282,15 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const res = await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "SEND_WHATSAPP" }) });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "WhatsApp handoff failed"); return; }
-      const captured = await captureReportPng("with");
-      if (!captured) return;
-
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const imageDataUrl = URL.createObjectURL(captured.blob);
-      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error("Failed to prepare report image"));
-        img.src = imageDataUrl;
-      }).catch(() => null);
-      URL.revokeObjectURL(imageDataUrl);
-      if (!image) {
-        setError("Could not prepare report PDF.");
-        return;
-      }
-
-      const canvas = document.createElement("canvas");
-      canvas.width = image.width;
-      canvas.height = image.height;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        setError("Could not prepare report PDF.");
-        return;
-      }
-      context.drawImage(image, 0, 0);
-      const pngData = canvas.toDataURL("image/png");
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imageWidth = pageWidth;
-      const imageHeight = (canvas.height * imageWidth) / canvas.width;
-      let heightLeft = imageHeight;
-      let position = 0;
-
-      pdf.addImage(pngData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
-      heightLeft -= pageHeight;
-      while (heightLeft > 0) {
-        position = heightLeft - imageHeight;
-        pdf.addPage();
-        pdf.addImage(pngData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
-        heightLeft -= pageHeight;
-      }
-
-      const pdfBlob = pdf.output("blob");
-      const pdfName = captured.fileName.replace(/\.png$/i, ".pdf");
-      const canShare = typeof navigator?.share === "function" && typeof navigator?.canShare === "function";
-      if (canShare) {
-        const file = new File([pdfBlob], pdfName, { type: "application/pdf" });
-        if (navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: "Diagnostic Report",
-              text: `Report for ${details.visit.patient.fullName}`,
-            });
-            setMessage("Share sheet opened. Choose WhatsApp and then choose recipient.");
-            return;
-          } catch (err) {
-            if (err instanceof DOMException && err.name === "AbortError") return;
-          }
-        }
-      }
-
-      const downloadUrl = URL.createObjectURL(pdfBlob);
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = pdfName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(downloadUrl);
+      window.open(
+        previewUrl(details.id, "with", { autoPrint: true }),
+        "_blank",
+        "noopener,noreferrer"
+      );
 
       if (json.data?.waUrl) {
         window.open(json.data.waUrl, "_blank", "noopener,noreferrer");
-        setMessage("WhatsApp opened. Search recipient and attach the downloaded PDF.");
+        setMessage("Print dialog opened for clean PDF. Save as PDF, then attach it in WhatsApp.");
       } else {
         setError("WhatsApp destination unavailable.");
       }
