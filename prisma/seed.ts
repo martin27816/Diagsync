@@ -1464,8 +1464,9 @@ async function main() {
     { label: "Risk Comment", fieldKey: "risk_comment", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
   ],
   "TRIGLYCERIDE": [
-    { label: "Triglyceride", fieldKey: "triglyceride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 1.71, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Triglyceride (SI)", fieldKey: "triglyceride", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 1.71, referenceNote: "Conventional equivalent range: 0-150 mg/dL.", sortOrder: 1 },
+    { label: "Triglyceride (Conventional)", fieldKey: "triglyceride_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 0, normalMax: 150, isRequired: false, referenceNote: "SI equivalent range: 0-1.71 mmol/L.", sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "CHOLESTEROL (TOTAL)": [
     { label: "Cholesterol (Total) - SI", fieldKey: "cholesterol_total_mmol_l", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 3.0, normalMax: 5.2, referenceNote: "Conventional equivalent: <200 mg/dL.", sortOrder: 1 },
@@ -1473,8 +1474,9 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "HDL-C": [
-    { label: "HDL-C", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.91, normalText: "High risk if <0.91 mmol/L", sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "HDL-C (SI)", fieldKey: "hdl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0.91, normalText: "High risk if <0.91 mmol/L", referenceNote: "Conventional equivalent high-risk cutoff: <35 mg/dL.", sortOrder: 1 },
+    { label: "HDL-C (Conventional)", fieldKey: "hdl_c_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 35, normalText: "High risk if <35 mg/dL", isRequired: false, referenceNote: "SI equivalent high-risk cutoff: <0.91 mmol/L.", sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "AST (SGOT)": [
     { label: "AST (SGOT)", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 0, normalMax: 12, sortOrder: 1 },
@@ -1497,8 +1499,9 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "LDL-C": [
-    { label: "LDL-C", fieldKey: "ldl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 4.9, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "LDL-C (SI)", fieldKey: "ldl_c", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 0, normalMax: 4.9, referenceNote: "Conventional equivalent range: 0-190 mg/dL.", sortOrder: 1 },
+    { label: "LDL-C (Conventional)", fieldKey: "ldl_c_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 0, normalMax: 190, isRequired: false, referenceNote: "SI equivalent range: 0-4.9 mmol/L.", sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "PROTEIN (TOTAL)": [
     { label: "Total Protein", fieldKey: "total_protein", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 60, normalMax: 84, sortOrder: 1 },
@@ -1565,12 +1568,14 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
   ],
   "UREA": [
-    { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 1.6, normalMax: 8.3, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Urea (SI)", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 1.6, normalMax: 8.3, referenceNote: "Conventional equivalent range: 10-50 mg/dL.", sortOrder: 1 },
+    { label: "Urea (Conventional)", fieldKey: "urea_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 10, normalMax: 50, isRequired: false, referenceNote: "SI equivalent range: 1.6-8.3 mmol/L.", sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "CREATININE": [
-    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 63, normalMax: 130, referenceNote: "Template reference provided for male range: 63-130 µmol/L.", sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Creatinine (SI)", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 63, normalMax: 130, referenceNote: "Conventional equivalent range: 0.7-1.5 mg/dL.", sortOrder: 1 },
+    { label: "Creatinine (Conventional)", fieldKey: "creatinine_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 0.7, normalMax: 1.5, isRequired: false, referenceNote: "SI equivalent range: 63-130 µmol/L.", sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "BLOOD GASES": [
     { label: "pH", fieldKey: "ph", fieldType: FieldType.NUMBER, unit: "pH", normalMin: 7.35, normalMax: 7.45, sortOrder: 1 },
@@ -1956,8 +1961,9 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "HAEMOGLOBIN (HB)": [
-    { label: "Haemoglobin", fieldKey: "haemoglobin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 12, normalMax: 17, sortOrder: 1 },
-    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
+    { label: "Haemoglobin", fieldKey: "haemoglobin", fieldType: FieldType.NUMBER, unit: "g/dL", normalMin: 12, normalMax: 17, referenceNote: "Template style supports reporting as g/dL with optional percent equivalent, e.g. 12.6 g/dL (86%).", sortOrder: 1 },
+    { label: "Haemoglobin (%)", fieldKey: "haemoglobin_percent", fieldType: FieldType.NUMBER, unit: "%", normalMin: 80, normalMax: 120, isRequired: false, sortOrder: 2 },
+    { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "HAEMATOCRIT (PCV)": [
     { label: "PCV / Haematocrit", fieldKey: "pcv", fieldType: FieldType.NUMBER, unit: "%", normalMin: 36, normalMax: 50, sortOrder: 1 },
