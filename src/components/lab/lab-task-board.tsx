@@ -1248,7 +1248,7 @@ export function LabTaskBoard() {
       }
     }
 
-    const requestId = ++loadTasksSeqRef.current;
+    const requestId = opts?.silent ? loadTasksSeqRef.current : ++loadTasksSeqRef.current;
     if (!opts?.silent) {
       setLoading(true);
       setError("");
@@ -1257,7 +1257,26 @@ export function LabTaskBoard() {
       const query = new URLSearchParams({ status: statusFilter, sort });
       if (searchFilter.trim()) query.set("search", searchFilter.trim());
       if (dateFilter) query.set("date", dateFilter);
-      const res = await fetch(`/api/lab/tasks?${query.toString()}`, { signal: opts?.signal });
+      const controller = new AbortController();
+      let timeoutTriggered = false;
+      const timeoutId = window.setTimeout(() => {
+        timeoutTriggered = true;
+        controller.abort();
+      }, 20000);
+      const relayAbort = () => controller.abort();
+      opts?.signal?.addEventListener("abort", relayAbort, { once: true });
+      let res: Response;
+      try {
+        res = await fetch(`/api/lab/tasks?${query.toString()}`, { signal: controller.signal });
+      } catch (error) {
+        if (timeoutTriggered) {
+          throw new Error("REQUEST_TIMEOUT");
+        }
+        throw error;
+      } finally {
+        window.clearTimeout(timeoutId);
+        opts?.signal?.removeEventListener("abort", relayAbort);
+      }
       const json = (await res.json()) as {
         success: boolean;
         error?: string;
@@ -1282,6 +1301,10 @@ export function LabTaskBoard() {
       setCounts(nextCounts);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
+      if (error instanceof Error && error.message === "REQUEST_TIMEOUT") {
+        setError("Loading lab dashboard timed out. Please click Refresh.");
+        return;
+      }
       setError("Network error while loading tasks");
     } finally {
       if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
@@ -1290,6 +1313,17 @@ export function LabTaskBoard() {
       }
     }
   }, [TASK_CACHE_TTL_MS, applyLoadedRows, dateFilter, searchFilter, sort, statusFilter]);
+
+  useEffect(() => {
+    if (!loading) return;
+    const timer = window.setTimeout(() => {
+      setLoading(false);
+      setError((previous) =>
+        previous || "Loading is taking too long. Click Refresh to retry."
+      );
+    }, 25000);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1981,8 +2015,13 @@ export function LabTaskBoard() {
         return;
       }
 
-      if (task.testOrders.some((order) => !isOrderReady(task, order))) {
-        setError("Complete all required result fields before submitting.");
+      const missingOrders = task.testOrders.filter((order) => !isOrderReady(task, order));
+      if (missingOrders.length > 0) {
+        setError(
+          `Cannot submit yet. Complete required field(s) for: ${missingOrders
+            .map((order) => order.test.name)
+            .join(", ")}`
+        );
         return;
       }
 
