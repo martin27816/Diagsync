@@ -316,11 +316,16 @@ export async function updateReportDraft(
     reason: string;
   }
 ) {
-  if (!canMdEditReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
   if (!input.reason?.trim()) throw new Error("REASON_REQUIRED");
+  const canMdEdit = canMdEditReport(actor.role);
+  const canDispatchEdit = canDispatchReleasedReport(actor.role);
+  if (!canMdEdit && !canDispatchEdit) throw new Error("FORBIDDEN_ROLE");
 
   const report = await getReportDetails(actor, input.reportId);
-  if (report.status === ReportStatus.RELEASED) throw new Error("REPORT_ALREADY_RELEASED");
+  const dispatchEditMode =
+    report.status === ReportStatus.RELEASED && report.isReleased && canDispatchEdit;
+  if (!canMdEdit && !dispatchEditMode) throw new Error("FORBIDDEN_ROLE");
+  if (report.status === ReportStatus.RELEASED && !dispatchEditMode) throw new Error("REPORT_ALREADY_RELEASED");
   if (!hasValidReportContent(input.reportContent ?? report.reportContent)) throw new Error("INVALID_REPORT_CONTENT");
 
   const activeVersion = report.versions.find((version) => version.isActive) ?? report.versions[0] ?? null;
@@ -357,35 +362,37 @@ export async function updateReportDraft(
         lastEditedById: actor.id,
         lastEditedAt: new Date(),
         updatedAt: new Date(),
-        status: ReportStatus.DRAFT,
+        status: dispatchEditMode ? report.status : ReportStatus.DRAFT,
       },
     });
 
-    await tx.review.updateMany({
-      where: { visitId: report.visitId, organizationId: actor.organizationId, status: ReviewStatus.APPROVED },
-      data: {
-        status: ReviewStatus.PENDING,
-        comments: "Report draft updated by MD and reset for HRM release review.",
-      },
-    });
-    await tx.testOrder.updateMany({
-      where: {
-        visitId: report.visitId,
-        organizationId: actor.organizationId,
-        status: OrderStatus.APPROVED,
-        test: { department: report.department },
-      },
-      data: {
-        status: OrderStatus.RESUBMITTED,
-        approvedAt: null,
-      },
-    });
+    if (!dispatchEditMode) {
+      await tx.review.updateMany({
+        where: { visitId: report.visitId, organizationId: actor.organizationId, status: ReviewStatus.APPROVED },
+        data: {
+          status: ReviewStatus.PENDING,
+          comments: "Report draft updated by MD and reset for HRM release review.",
+        },
+      });
+      await tx.testOrder.updateMany({
+        where: {
+          visitId: report.visitId,
+          organizationId: actor.organizationId,
+          status: OrderStatus.APPROVED,
+          test: { department: report.department },
+        },
+        data: {
+          status: OrderStatus.RESUBMITTED,
+          approvedAt: null,
+        },
+      });
+    }
   });
 
   await createAuditLog({
     actorId: actor.id,
     actorRole: actor.role as Role,
-    action: "REPORT_DRAFT_UPDATED",
+    action: dispatchEditMode ? "REPORT_DISPATCH_EDITED" : "REPORT_DRAFT_UPDATED",
     entityType: "DiagnosticReport",
     entityId: report.id,
     changes: {
@@ -405,39 +412,41 @@ export async function updateReportDraft(
     ...actor.auditMeta,
   });
 
-  const mdUsers = await prisma.staff.findMany({
-    where: { organizationId: actor.organizationId, role: Role.MD, status: "ACTIVE" },
-    select: { id: true },
-  });
-  const performerIds = report.sourceTaskId
-    ? (
-        await prisma.routingTask.findUnique({
-          where: { id: report.sourceTaskId },
-          select: { staffId: true },
-        })
-      )?.staffId
-    : null;
+  if (!dispatchEditMode) {
+    const mdUsers = await prisma.staff.findMany({
+      where: { organizationId: actor.organizationId, role: Role.MD, status: "ACTIVE" },
+      select: { id: true },
+    });
+    const performerIds = report.sourceTaskId
+      ? (
+          await prisma.routingTask.findUnique({
+            where: { id: report.sourceTaskId },
+            select: { staffId: true },
+          })
+        )?.staffId
+      : null;
 
-  await notifyResultEdited({
-    organizationId: actor.organizationId,
-    taskId: report.sourceTaskId ?? report.id,
-    patientName: report.visit.patient.fullName,
-    editorId: actor.id,
-    mdIds: mdUsers.map((md) => md.id),
-    performerIds: performerIds ? [performerIds] : [],
-    dedupeSeed: `report-v${nextVersion}`,
-  });
+    await notifyResultEdited({
+      organizationId: actor.organizationId,
+      taskId: report.sourceTaskId ?? report.id,
+      patientName: report.visit.patient.fullName,
+      editorId: actor.id,
+      mdIds: mdUsers.map((md) => md.id),
+      performerIds: performerIds ? [performerIds] : [],
+      dedupeSeed: `report-v${nextVersion}`,
+    });
 
-  await sendNotificationToRoles({
-    organizationId: actor.organizationId,
-    roles: [Role.HRM, Role.SUPER_ADMIN],
-    type: NotificationType.REPORT_DRAFT_UPDATED,
-    title: "Report draft updated",
-    message: `${getReportLabel(report.department)} for ${report.visit.patient.fullName} was updated by MD.`,
-    entityId: report.id,
-    entityType: "DiagnosticReport",
-    dedupeKeyPrefix: `report-draft-updated:${report.id}:v${nextVersion}`,
-  });
+    await sendNotificationToRoles({
+      organizationId: actor.organizationId,
+      roles: [Role.HRM, Role.SUPER_ADMIN],
+      type: NotificationType.REPORT_DRAFT_UPDATED,
+      title: "Report draft updated",
+      message: `${getReportLabel(report.department)} for ${report.visit.patient.fullName} was updated by MD.`,
+      entityId: report.id,
+      entityType: "DiagnosticReport",
+      dedupeKeyPrefix: `report-draft-updated:${report.id}:v${nextVersion}`,
+    });
+  }
 }
 
 export async function releaseReport(

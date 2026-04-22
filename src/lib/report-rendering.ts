@@ -836,36 +836,7 @@ export function renderReportHtml(args: RenderArgs) {
     .imaging-card { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px; background: #fff; break-inside: avoid; }
     .imaging-card img { width: 100%; max-height: 560px; object-fit: contain; display:block; margin:0 auto; border-radius: 6px; }
     .imaging-caption { font-size: 11px; color: #6b7280; margin-top: 6px; word-break: break-all; }
-    .preview-actions {
-      position: fixed;
-      top: 14px;
-      right: 14px;
-      z-index: 20;
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .preview-print-btn {
-      border: 1px solid #1d4ed8;
-      background: #1d4ed8;
-      color: #ffffff;
-      font-size: 13px;
-      line-height: 1;
-      font-weight: 600;
-      border-radius: 8px;
-      padding: 10px 14px;
-      cursor: pointer;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-    }
-    .preview-print-btn:hover {
-      background: #1e40af;
-      border-color: #1e40af;
-    }
-    .preview-print-btn:active {
-      transform: translateY(1px);
-    }
     @media print {
-      .preview-actions { display: none !important; }
       .letterhead-layer {
         position: fixed !important;
         top: 0 !important;
@@ -921,9 +892,6 @@ export function renderReportHtml(args: RenderArgs) {
   </style>
 </head>
 <body>
-  <div class="preview-actions">
-    <button class="preview-print-btn" onclick="window.print()" type="button">Print Report</button>
-  </div>
   <main class="page">
     ${
       hasLetterhead && args.organization.letterheadUrl

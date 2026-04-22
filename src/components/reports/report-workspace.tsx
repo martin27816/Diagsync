@@ -47,6 +47,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const [releaseMethod, setReleaseMethod] = useState<"PRINT" | "DOWNLOAD" | "WHATSAPP">("PRINT");
   const [receptionInstruction, setReceptionInstruction] = useState("");
   const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [previewNonce, setPreviewNonce] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [printLetterheadMode, setPrintLetterheadMode] = useState<"with" | "without">("with");
   const previewRef = useRef<HTMLIFrameElement | null>(null);
@@ -74,8 +75,11 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   }
 
   function previewUrl(reportId: string, letterheadMode: "with" | "without") {
-    const query = letterheadMode === "without" ? "?letterhead=without" : "";
-    return `/api/reports/${reportId}/preview${query}`;
+    const query = new URLSearchParams();
+    if (letterheadMode === "without") query.set("letterhead", "without");
+    if (previewNonce > 0) query.set("v", String(previewNonce));
+    const suffix = query.toString();
+    return `/api/reports/${reportId}/preview${suffix ? `?${suffix}` : ""}`;
   }
 
   async function loadReports(opts?: { signal?: AbortSignal; force?: boolean }) {
@@ -198,7 +202,9 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const json = await (await fetch(`/api/reports/${details.id}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportContent: editableContent, comments: editComments || null, prescription: editPrescription || null, reason: editReason.trim() }) })).json();
       if (!json.success) { setError(json.error ?? "Unable to save edits"); return; }
       invalidateReportCache(details.id);
-      setMessage("Draft updated."); setEditReason("");
+      setMessage(details.isReleased ? "Report updated." : "Draft updated."); setEditReason("");
+      setPreviewLoaded(false);
+      setPreviewNonce((value) => value + 1);
       await loadDetails(details.id, { force: true }); await loadReports({ force: true });
     } finally { setBusy(false); }
   }
@@ -211,6 +217,8 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       if (!json.success) { setError(json.error ?? "Release failed"); return; }
       invalidateReportCache(details.id);
       setMessage("Report released.");
+      setPreviewLoaded(false);
+      setPreviewNonce((value) => value + 1);
       await loadDetails(details.id, { force: true }); await loadReports({ force: true });
     } finally { setBusy(false); }
   }
@@ -450,10 +458,10 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                   onLoad={() => setPreviewLoaded(true)} className="h-96 w-full rounded border border-slate-200" />
               </div>
 
-              {/* MD Edit section */}
-              {canMdEdit && (
+              {/* Edit section */}
+              {(canMdEdit || ((canHrmRelease || canReceptionDispatch) && details.isReleased)) && (
                 <div className="p-4 space-y-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">MD Edits</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Report Edits</p>
                   {details.department === "LABORATORY" ? (
                     <div className="space-y-2">
                       {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) => (
@@ -497,7 +505,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                     <label className={labelCls}>Edit reason *</label>
                     <textarea rows={1} value={editReason} onChange={(e) => setEditReason(e.target.value)} className={areaCls} />
                   </div>
-                  <button disabled={busy || details.isReleased} onClick={saveMdEdits}
+                  <button disabled={busy} onClick={saveMdEdits}
                     className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
                     {busy ? "Saving..." : "Save Edits"}
                   </button>
