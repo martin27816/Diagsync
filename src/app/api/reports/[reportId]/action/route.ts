@@ -29,28 +29,24 @@ export async function POST(
         { id: user.id, role: user.role, organizationId: user.organizationId },
         params.reportId
       );
-      const rawPhone = report.visit.patient.phone ?? "";
-      const phone = rawPhone.replace(/[^\d]/g, "");
-      if (!phone) {
-        await trackReportAction(
-          { id: user.id, role: user.role, organizationId: user.organizationId, auditMeta: getAuditMetaFromRequest(req) },
-          { reportId: params.reportId, action: "SEND_WHATSAPP_FAILED", notes: "Missing patient phone number" }
-        );
-        return NextResponse.json({ success: false, error: "Patient phone is missing for WhatsApp handoff" }, { status: 400 });
-      }
       await trackReportAction(
         { id: user.id, role: user.role, organizationId: user.organizationId, auditMeta: getAuditMetaFromRequest(req) },
         { reportId: params.reportId, action: "SEND_WHATSAPP", notes: parsed.data.notes }
       );
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://diagsync.vercel.app";
       const publicUrl = `${appUrl}/public/reports/${report.publicShareToken}`;
-      const text = encodeURIComponent(
-        `Hello ${report.visit.patient.fullName}, your ${report.department === "LABORATORY" ? "Laboratory" : "Radiology"} report is ready: ${publicUrl}`
-      );
-      const waUrl = `https://wa.me/${phone}?text=${text}`;
+      const text = `Hello ${report.visit.patient.fullName}, your ${
+        report.department === "LABORATORY" ? "Laboratory" : "Radiology"
+      } report is ready: ${publicUrl}`;
+      const waUrl = "https://web.whatsapp.com/";
       return NextResponse.json({
         success: true,
-        data: { waUrl, limitation: "This opens WhatsApp handoff. Direct media sending requires WhatsApp Business API integration." },
+        data: {
+          waUrl,
+          shareText: text,
+          limitation:
+            "Browser security does not allow auto-attaching file directly into WhatsApp Web chat. PDF is prepared for manual attach after WhatsApp opens.",
+        },
       });
     }
 

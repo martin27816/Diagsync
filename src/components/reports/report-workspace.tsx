@@ -1,6 +1,7 @@
 "use client";
 
 import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "@/lib/utils";
 
@@ -292,16 +293,84 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "WhatsApp handoff failed"); return; }
       const captured = await captureReportPng("with");
-      const canShare = Boolean(captured) && typeof navigator?.share === "function" && typeof navigator?.canShare === "function";
-      if (captured && canShare) {
-        const file = new File([captured.blob], captured.fileName, { type: "image/png" });
+      if (!captured) return;
+
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const imageDataUrl = URL.createObjectURL(captured.blob);
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Failed to prepare report image"));
+        img.src = imageDataUrl;
+      }).catch(() => null);
+      URL.revokeObjectURL(imageDataUrl);
+      if (!image) {
+        setError("Could not prepare report PDF.");
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        setError("Could not prepare report PDF.");
+        return;
+      }
+      context.drawImage(image, 0, 0);
+      const pngData = canvas.toDataURL("image/png");
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imageWidth = pageWidth;
+      const imageHeight = (canvas.height * imageWidth) / canvas.width;
+      let heightLeft = imageHeight;
+      let position = 0;
+
+      pdf.addImage(pngData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
+      heightLeft -= pageHeight;
+      while (heightLeft > 0) {
+        position = heightLeft - imageHeight;
+        pdf.addPage();
+        pdf.addImage(pngData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
+        heightLeft -= pageHeight;
+      }
+
+      const pdfBlob = pdf.output("blob");
+      const pdfName = captured.fileName.replace(/\.png$/i, ".pdf");
+      const canShare = typeof navigator?.share === "function" && typeof navigator?.canShare === "function";
+      if (canShare) {
+        const file = new File([pdfBlob], pdfName, { type: "application/pdf" });
         if (navigator.canShare({ files: [file] })) {
-          try { await navigator.share({ files: [file], title: "Diagnostic Report", text: `Report for ${details.visit.patient.fullName}` }); setMessage("Shared. Choose WhatsApp if prompted."); return; }
-          catch (err) { if (!(err instanceof DOMException && err.name === "AbortError")) setError("Share failed. Falling back to link."); else return; }
+          try {
+            await navigator.share({
+              files: [file],
+              title: "Diagnostic Report",
+              text: `Report for ${details.visit.patient.fullName}`,
+            });
+            setMessage("Share sheet opened. Choose WhatsApp and then choose recipient.");
+            return;
+          } catch (err) {
+            if (err instanceof DOMException && err.name === "AbortError") return;
+          }
         }
       }
-      if (json.data?.waUrl) { setMessage("WhatsApp opened."); window.open(json.data.waUrl, "_blank", "noopener,noreferrer"); }
-      else setError("No WhatsApp destination returned.");
+
+      const downloadUrl = URL.createObjectURL(pdfBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = pdfName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(downloadUrl);
+
+      if (json.data?.waUrl) {
+        window.open(json.data.waUrl, "_blank", "noopener,noreferrer");
+        setMessage("WhatsApp opened. Search recipient and attach the downloaded PDF.");
+      } else {
+        setError("WhatsApp destination unavailable.");
+      }
     } finally { setBusy(false); }
   }
 
