@@ -463,7 +463,7 @@ function splitRadiologyNarrative(raw: string) {
   const normalized = trimmed
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
-    .replace(/[•●▪]/g, "\n")
+    .replace(/[•◦▪]/g, "\n")
     .replace(/\t+/g, " ")
     .replace(/[ ]{2,}/g, " ")
     .trim();
@@ -547,13 +547,36 @@ type RenderArgs = {
 
 export function renderReportHtml(args: RenderArgs) {
   const hasLetterhead = Boolean(args.includeLetterhead !== false && args.organization.letterheadUrl);
+
+  // -------------------------------------------------------------------
+  // A4 page geometry (px at 96 dpi → matches browser print at 1x)
+  // A4 = 210mm × 297mm = 794px × 1123px
+  // -------------------------------------------------------------------
+  // We drive layout entirely through @page margins so the browser's
+  // paging engine handles multi-page correctly.  The single ".page" div
+  // is just the on-screen preview wrapper; for actual printing it has no
+  // rigid height.
+  //
+  // Letterhead margin reservations (mm → px at 96 dpi):
+  //   with    letterhead: top 65mm (246px), bottom 38mm (144px)
+  //   without letterhead: top 22mm  (83px), bottom 22mm  (83px)
+  // We add a bit of breathing room so content never crowds the letterhead.
+  // -------------------------------------------------------------------
+  const mmToPx = (mm: number) => Math.round((mm / 25.4) * 96);
+
+  // @page margins — what the browser subtracts from each printed page
+  const pageMarginTop    = hasLetterhead ? mmToPx(66) : mmToPx(22);   // 250px / 83px
+  const pageMarginBottom = hasLetterhead ? mmToPx(40) : mmToPx(22);   // 151px / 83px
+  const pageMarginSide   = mmToPx(11);                                  // ~42px
+
+  // On-screen preview padding (mirrors print margins so preview looks right)
+  const previewPaddingTop    = pageMarginTop;
+  const previewPaddingBottom = pageMarginBottom;
+  const previewPaddingSide   = pageMarginSide;
+
+  const pageWidthPx  = 794;
   const pageHeightPx = 1123;
-  const pageWidthPx = 794;
-  const contentTopPx = hasLetterhead ? 252 : 148;
-  const contentBottomPx = hasLetterhead ? 156 : 92;
-  const printMarginTopPx = hasLetterhead ? 252 : 92;
-  const printMarginBottomPx = hasLetterhead ? 156 : 96;
-  const printMarginSidePx = 44;
+
   const patient = args.content.patient ?? {};
   const meta = args.content.meta ?? {};
   const referringDoctor = String(meta.referringDoctor ?? "").trim();
@@ -659,6 +682,10 @@ export function renderReportHtml(args: RenderArgs) {
 
   const effectiveWatermarkUrl = args.watermarkUrl || null;
 
+  // Watermark position offset from inside the content area (accounting for margins)
+  const wmTopOffset    = hasLetterhead ? "14px" : "10px";
+  const wmLeftOffset   = "0px";
+
   return `
 <!doctype html>
 <html>
@@ -666,35 +693,51 @@ export function renderReportHtml(args: RenderArgs) {
   <meta charset="utf-8" />
   <title>${escapeHtml(args.organization.name)} - ${args.department === Department.LABORATORY ? "Lab Report" : "Radiology Report"}</title>
   <style>
-    @page { size: A4; margin: ${printMarginTopPx}px ${printMarginSidePx}px ${printMarginBottomPx}px; }
+    /* =========================================================
+       @page — drives printed page margins on EVERY page.
+       The letterhead is position:fixed so it tiles on all pages.
+       Top/bottom margins must be large enough to clear the
+       letterhead header and footer respectively.
+       ========================================================= */
+    @page {
+      size: A4;
+      margin: ${pageMarginTop}px ${pageMarginSide}px ${pageMarginBottom}px;
+    }
+
+    * { box-sizing: border-box; }
+
     body {
       font-family: Arial, sans-serif;
       margin: 0;
+      padding: 0;
       color: #111827;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
+
+    /* ── On-screen preview wrapper ── */
     .page {
       position: relative;
       width: ${pageWidthPx}px;
       max-width: ${pageWidthPx}px;
-      min-height: ${pageHeightPx}px;
-      height: auto;
+      /* No fixed height — let content grow naturally */
       margin: 0 auto;
-      box-sizing: border-box;
-      padding: ${contentTopPx}px 44px ${contentBottomPx}px;
-      -webkit-box-decoration-break: clone;
-      box-decoration-break: clone;
+      padding: ${previewPaddingTop}px ${previewPaddingSide}px ${previewPaddingBottom}px;
       background: #ffffff;
       overflow: visible;
-      --wm-top-offset: ${hasLetterhead ? "132px" : "82px"};
-      --wm-bottom-offset: ${hasLetterhead ? "140px" : "108px"};
     }
+
+    /* ── Letterhead layer ──
+       On screen  : absolute, covers exactly one A4 page height for preview.
+       On print   : fixed, so it repeats on every printed page and the
+                    browser's @page margin carves out space for it.
+    */
     .letterhead-layer {
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
+      /* Exactly one A4 page tall for on-screen preview */
       height: ${pageHeightPx}px;
       z-index: 0;
       pointer-events: none;
@@ -706,170 +749,132 @@ export function renderReportHtml(args: RenderArgs) {
       object-fit: fill;
       display: block;
     }
+
+    /* ── Watermark ── */
     .watermark {
       position: absolute;
       pointer-events: none;
       z-index: 1;
       opacity: 1;
+      top: ${wmTopOffset};
+      left: ${wmLeftOffset};
     }
     .watermark img {
       width: 120px;
       height: auto;
-      max-width: none;
-      transform: none;
     }
-    .watermark-top-left {
-      top: var(--wm-top-offset);
-      left: 42px;
-    }
+
+    /* ── Content shell ── */
     .content-shell {
       position: relative;
       z-index: 2;
-      max-width: 760px;
+      max-width: 706px;
       margin: 0 auto;
       padding: 14px 18px;
-      background: ${hasLetterhead ? "#ffffff" : "rgba(255, 255, 255, 0.93)"};
+      background: ${hasLetterhead ? "#ffffff" : "rgba(255,255,255,0.93)"};
       border-radius: 8px;
       overflow: visible;
     }
     .content { position: relative; z-index: 2; }
+
+    /* ── Typography ── */
     .header { margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
     h1 { margin: 0 0 6px; font-size: 20px; }
     h2 { margin: 8px 0; font-size: 16px; }
-    h3 { margin: 8px 0; font-size: 14px; }
-    p { margin: 4px 0; font-size: 13px; }
-    .meta-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-    .block { margin-bottom: 10px; break-inside: avoid; }
-    .rad-field { margin: 8px 0 10px; }
-    .rad-label {
-      margin: 0 0 4px;
-      font-size: 13px;
-      font-weight: 700;
-      color: #111827;
-      letter-spacing: 0.01em;
+    h3 { margin: 8px 0 4px; font-size: 14px; }
+    p  { margin: 4px 0; font-size: 13px; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+
+    /* ── Sections / tables ── */
+    .block {
+      margin-bottom: 10px;
+      /* Keep the heading + table together; never split across pages */
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
-    .rad-paragraph {
-      margin: 0 0 6px;
-      font-size: 13px;
-      line-height: 1.45;
-      color: #1f2937;
+    /* Ensure heading stays with the table that follows it */
+    .block h3 {
+      break-after: avoid;
+      page-break-after: avoid;
     }
-    .rad-list {
-      margin: 0 0 4px 18px;
-      padding: 0;
-    }
-    .rad-list li {
-      margin: 0 0 6px;
-      font-size: 13px;
-      line-height: 1.45;
-      color: #1f2937;
-    }
+
+    .rad-field  { margin: 8px 0 10px; }
+    .rad-label  { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: #111827; letter-spacing: 0.01em; }
+    .rad-paragraph { margin: 0 0 6px; font-size: 13px; line-height: 1.45; color: #1f2937; }
+    .rad-list   { margin: 0 0 4px 18px; padding: 0; }
+    .rad-list li { margin: 0 0 6px; font-size: 13px; line-height: 1.45; color: #1f2937; }
+
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { border: 1px solid #d1d5db; padding: 5px; text-align: left; vertical-align: top; }
     th { background: #f3f4f6; }
+
     .mcs-table th, .mcs-table td { text-align: left; }
     .culture-report p { margin: 3px 0; }
     .sensitivity-block { margin-top: 8px; }
     .sensitivity-title { text-align: center; letter-spacing: 0.03em; margin-bottom: 6px; }
-    .sensitivity-wrap { overflow: visible; }
+    .sensitivity-wrap  { overflow: visible; }
     .sensitivity-table { table-layout: fixed; width: 100%; min-width: 0; }
     .sensitivity-table th,
-    .sensitivity-table td {
-      border: 1px solid #9ca3af;
-      text-align: center;
-      padding: 2px 1px;
-      font-size: 10px;
-    }
-    .sensitivity-table .sens-row-title {
-      width: 54px;
-      min-width: 54px;
-      font-weight: 700;
-      background: #f9fafb;
-    }
-    .sensitivity-table .sens-drug {
-      width: auto;
-      min-width: 0;
-      height: 112px;
-      padding: 0;
-      background: #ffffff;
-      vertical-align: bottom;
-    }
-    .sensitivity-table .sens-drug span {
-      display: inline-block;
-      writing-mode: vertical-rl;
-      transform: rotate(180deg);
-      line-height: 1.0;
-      font-weight: 600;
-      padding: 3px 0;
-    }
-    .sensitivity-table .sens-result { font-weight: 700; color: #b91c1c; }
-    .sensitivity-note { margin-top: 6px; font-size: 11px; }
+    .sensitivity-table td  { border: 1px solid #9ca3af; text-align: center; padding: 2px 1px; font-size: 10px; }
+    .sensitivity-table .sens-row-title { width: 54px; min-width: 54px; font-weight: 700; background: #f9fafb; }
+    .sensitivity-table .sens-drug      { width: auto; min-width: 0; height: 112px; padding: 0; background: #ffffff; vertical-align: bottom; }
+    .sensitivity-table .sens-drug span { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); line-height: 1.0; font-weight: 600; padding: 3px 0; }
+    .sensitivity-table .sens-result    { font-weight: 700; color: #b91c1c; }
+    .sensitivity-note  { margin-top: 6px; font-size: 11px; }
+
     .footer-note { margin-top: 18px; font-size: 12px; }
     .signature-block {
       margin-top: 16px;
       break-inside: avoid;
+      page-break-inside: avoid;
       display: inline-flex;
       flex-direction: column;
       align-items: flex-start;
       gap: 4px;
       max-width: 240px;
     }
-    .signature-image {
-      width: auto;
-      max-width: 220px;
-      max-height: 78px;
-      object-fit: contain;
-      display: block;
-    }
-    .signature-name {
-      font-size: 12px;
-      font-weight: 600;
-      line-height: 1.2;
-      word-break: break-word;
-      max-width: 220px;
-    }
+    .signature-image { width: auto; max-width: 220px; max-height: 78px; object-fit: contain; display: block; }
+    .signature-name  { font-size: 12px; font-weight: 600; line-height: 1.2; word-break: break-word; max-width: 220px; }
     .muted { color: #6b7280; }
+
     .imaging-section { margin-bottom: 16px; }
-    .imaging-grid { display:grid; grid-template-columns: 1fr; gap: 14px; }
-    .imaging-card { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px; background: #fff; break-inside: avoid; }
-    .imaging-card img { width: 100%; max-height: 560px; object-fit: contain; display:block; margin:0 auto; border-radius: 6px; }
-    .imaging-caption { font-size: 11px; color: #6b7280; margin-top: 6px; word-break: break-all; }
+    .imaging-grid    { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .imaging-card    { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px; background: #fff; break-inside: avoid; page-break-inside: avoid; }
+    .imaging-card img { width: 100%; max-height: 560px; object-fit: contain; display: block; margin: 0 auto; border-radius: 6px; }
+    .imaging-caption  { font-size: 11px; color: #6b7280; margin-top: 6px; word-break: break-all; }
+
+    /* ── Print button (on-screen only) ── */
     .preview-actions {
-      position: fixed;
-      top: 14px;
-      right: 14px;
-      z-index: 20;
-      display: flex;
-      gap: 8px;
-      align-items: center;
+      position: fixed; top: 14px; right: 14px; z-index: 20;
+      display: flex; gap: 8px; align-items: center;
     }
     .preview-print-btn {
-      border: 1px solid #1d4ed8;
-      background: #1d4ed8;
-      color: #ffffff;
-      font-size: 13px;
-      line-height: 1;
-      font-weight: 600;
-      border-radius: 8px;
-      padding: 10px 14px;
-      cursor: pointer;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+      border: 1px solid #1d4ed8; background: #1d4ed8; color: #ffffff;
+      font-size: 13px; line-height: 1; font-weight: 600;
+      border-radius: 8px; padding: 10px 14px; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.15);
     }
-    .preview-print-btn:hover {
-      background: #1e40af;
-      border-color: #1e40af;
-    }
-    .preview-print-btn:active {
-      transform: translateY(1px);
-    }
+    .preview-print-btn:hover  { background: #1e40af; border-color: #1e40af; }
+    .preview-print-btn:active { transform: translateY(1px); }
+
+    /* =========================================================
+       PRINT OVERRIDES
+       Key goals:
+         1. Letterhead tiles on every page via position:fixed.
+         2. .page loses its rigid width/padding — the @page margin
+            already carves out the right space.
+         3. Tables / sections never break mid-row.
+       ========================================================= */
     @media print {
       .preview-actions { display: none !important; }
+
+      /* Letterhead fixed → repeats on every page within @page margins */
       .letterhead-layer {
         position: fixed !important;
         top: 0 !important;
-        bottom: 0 !important;
         left: 0 !important;
         right: 0 !important;
+        bottom: 0 !important;
         height: auto !important;
         z-index: 0 !important;
       }
@@ -878,43 +883,56 @@ export function renderReportHtml(args: RenderArgs) {
         height: 100% !important;
         object-fit: fill !important;
       }
+
+      /* Watermark: fixed so it also appears on each page */
+      .watermark {
+        position: fixed !important;
+        top: ${pageMarginTop + 8}px !important;
+        left: ${pageMarginSide}px !important;
+      }
+
+      /* Page wrapper: drop the on-screen sizing constraints */
       .page {
         width: auto !important;
         max-width: none !important;
         min-height: 0 !important;
         height: auto !important;
         margin: 0 !important;
+        /* Remove on-screen padding; @page margins handle spacing */
         padding: 0 !important;
         overflow: visible !important;
       }
+
       .content-shell {
         border-radius: 0 !important;
         background: #ffffff !important;
         margin: 0 !important;
         max-width: none !important;
-        padding: 0 !important;
+        padding: 4px 0 !important;
         overflow: visible !important;
       }
+
+      /* Hard break-inside rules for all block types */
       .block,
       table,
       .imaging-card,
       .signature-block {
-        page-break-inside: avoid;
-        break-inside: avoid-page;
+        page-break-inside: avoid !important;
+        break-inside: avoid-page !important;
       }
+      .block h3 {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
+      /* Never orphan a thead */
+      thead { display: table-header-group; }
+      tr    { page-break-inside: avoid; break-inside: avoid; }
+
       .sensitivity-wrap { overflow: visible !important; }
       .sensitivity-table th,
-      .sensitivity-table td {
-        font-size: 9px;
-        padding: 1px 1px;
-      }
-      .sensitivity-table .sens-row-title {
-        width: 46px;
-        min-width: 46px;
-      }
-      .sensitivity-table .sens-drug {
-        height: 98px;
-      }
+      .sensitivity-table td { font-size: 9px; padding: 1px; }
+      .sensitivity-table .sens-row-title { width: 46px; min-width: 46px; }
+      .sensitivity-table .sens-drug      { height: 98px; }
     }
   </style>
 </head>
@@ -934,7 +952,7 @@ export function renderReportHtml(args: RenderArgs) {
     }
     ${
       effectiveWatermarkUrl
-        ? `<div class="watermark watermark-top-left"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>`
+        ? `<div class="watermark"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>`
         : ""
     }
     <div class="content-shell" id="content-shell">

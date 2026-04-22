@@ -12715,7 +12715,7 @@ function parseSensitivityPattern(raw: unknown): SensitivityCell[] {
       }
 
       return {
-        antibiotic: antibiotic.replace(/[-â€“:,]+$/g, "").trim(),
+        antibiotic: antibiotic.replace(/[-Ã¢â‚¬â€œ:,]+$/g, "").trim(),
         zone: zone.trim(),
         interpretation,
       };
@@ -13964,6 +13964,33 @@ export function LabTaskBoard() {
     return base.filter((task) =&gt; priorityFilter === "ALL" || task.priority === priorityFilter);
   }, [tasks, priorityFilter, statusFilter]);
 
+  // --- Day-grouping helpers (mirrors receptionist patients page) ---
+  function pad2(v: number) { return String(v).padStart(2, "0"); }
+  function toDayKey(date: string | Date) {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+  function todayDayKey() {
+    const now = new Date();
+    return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+  }
+  function formatDayLabel(dayKey: string) {
+    const [y, m, d] = dayKey.split("-").map(Number);
+    return new Date(y, m - 1, d, 12).toLocaleDateString("en-NG", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric",
+    });
+  }
+  const groupedByDay = useMemo(() =&gt; {
+    const map = new Map&lt;string, LabTask[]&gt;();
+    for (const task of filtered) {
+      const key = toDayKey(task.createdAt);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(task);
+    }
+    // Sort day keys descending (newest day first)
+    return Array.from(map.entries()).sort(([a], [b]) =&gt; b.localeCompare(a));
+  }, [filtered]);
+
   function getNewlyAddedOrders(task: LabTask) {
     const taskCreatedAt = new Date(task.createdAt).getTime();
     return task.testOrders.filter((order) =&gt; {
@@ -14677,25 +14704,41 @@ export function LabTaskBoard() {
 
       {error ? &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt; : null}
 
-      &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+      &lt;div className="space-y-4"&gt;
         {filtered.length === 0 ? (
-          &lt;p className="px-4 py-8 text-center text-xs text-slate-400"&gt;No assigned tests. You're all caught up.&lt;/p&gt;
+          &lt;div className="rounded-lg border border-slate-200 bg-white"&gt;
+            &lt;p className="px-4 py-8 text-center text-xs text-slate-400"&gt;No assigned tests. You're all caught up.&lt;/p&gt;
+          &lt;/div&gt;
         ) : (
-          &lt;div className="overflow-x-auto"&gt;
-            &lt;table className="w-full min-w-[960px] text-xs"&gt;
-            &lt;thead&gt;
-              &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Patient&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Tests&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Priority&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Status&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Sample&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Updated&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Action&lt;/th&gt;
-              &lt;/tr&gt;
-            &lt;/thead&gt;
-            &lt;tbody className="divide-y divide-slate-100"&gt;
-              {filtered.map((task) =&gt; {
+          groupedByDay.map(([dayKey, dayTasks]) =&gt; (
+            &lt;section key={dayKey} id={`lab-day-${dayKey}`} className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+              {/* Day header */}
+              &lt;div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5"&gt;
+                &lt;div className="flex flex-wrap items-center gap-2 text-xs"&gt;
+                  &lt;span className="font-semibold text-slate-700"&gt;{formatDayLabel(dayKey)}&lt;/span&gt;
+                  {dayKey === todayDayKey() ? &lt;span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700"&gt;Today&lt;/span&gt; : null}
+                  &lt;span className="text-slate-400"&gt;{dayTasks.length} task{dayTasks.length !== 1 ? "s" : ""}&lt;/span&gt;
+                  &lt;span className="text-slate-300"&gt;Â·&lt;/span&gt;
+                  &lt;span className="text-slate-400"&gt;{dayTasks.filter((t) =&gt; t.status === "PENDING").length} pending&lt;/span&gt;
+                  &lt;span className="text-slate-400"&gt;{dayTasks.filter((t) =&gt; t.status === "IN_PROGRESS").length} in progress&lt;/span&gt;
+                  &lt;span className="text-slate-400"&gt;{dayTasks.filter((t) =&gt; t.status === "COMPLETED").length} completed&lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/div&gt;
+              &lt;div className="overflow-x-auto"&gt;
+                &lt;table className="w-full min-w-[960px] text-xs"&gt;
+                &lt;thead&gt;
+                  &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Patient&lt;/th&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Tests&lt;/th&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Priority&lt;/th&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Status&lt;/th&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Sample&lt;/th&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Updated&lt;/th&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Action&lt;/th&gt;
+                  &lt;/tr&gt;
+                &lt;/thead&gt;
+                &lt;tbody className="divide-y divide-slate-100"&gt;
+              {dayTasks.map((task) =&gt; {
                 const highlightFields = getHighlightFields(task);
                 const shouldUseSharedSensitivityPanel =
                   task.testOrders.filter((order) =&gt;
@@ -14896,15 +14939,16 @@ export function LabTaskBoard() {
                   &lt;/Fragment&gt;
                 );
               })}
-            &lt;/tbody&gt;
-            &lt;/table&gt;
-          &lt;/div&gt;
+                &lt;/tbody&gt;
+                &lt;/table&gt;
+              &lt;/div&gt;
+            &lt;/section&gt;
+          ))
         )}
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/components/layout/dashboard-shell.tsx</div><pre>"use client";
 
 import { useState } from "react";
@@ -17066,6 +17110,32 @@ export function RadiologyTaskBoard() {
   }, []);
 
   const filtered = useMemo(() =&gt; tasks.filter((t) =&gt; priorityFilter === "ALL" || t.priority === priorityFilter), [tasks, priorityFilter]);
+
+  // --- Day-grouping helpers (mirrors receptionist patients page) ---
+  function pad2(v: number) { return String(v).padStart(2, "0"); }
+  function toDayKey(date: string | Date) {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+  function todayDayKey() {
+    const now = new Date();
+    return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+  }
+  function formatDayLabel(dayKey: string) {
+    const [y, m, d] = dayKey.split("-").map(Number);
+    return new Date(y, m - 1, d, 12).toLocaleDateString("en-NG", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric",
+    });
+  }
+  const groupedByDay = useMemo(() =&gt; {
+    const map = new Map&lt;string, Task[]&gt;();
+    for (const task of filtered) {
+      const key = toDayKey(task.createdAt);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(task);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) =&gt; b.localeCompare(a));
+  }, [filtered]);
   const counts = useMemo(() =&gt; ({ pending: filtered.filter((t) =&gt; t.status === "PENDING").length, inProgress: filtered.filter((t) =&gt; t.status === "IN_PROGRESS").length, completed: filtered.filter((t) =&gt; t.status === "COMPLETED").length }), [filtered]);
   function getNewlyAddedOrders(task: Task) {
     const taskCreatedAt = new Date(task.createdAt).getTime();
@@ -17338,25 +17408,41 @@ export function RadiologyTaskBoard() {
 
       {error &amp;&amp; &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt;}
 
-      {/* Tasks table */}
-      &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+      {/* Tasks table - grouped by day */}
+      &lt;div className="space-y-4"&gt;
         {filtered.length === 0 ? (
-          &lt;p className="px-4 py-8 text-center text-xs text-slate-400"&gt;No radiology tasks found.&lt;/p&gt;
+          &lt;div className="rounded-lg border border-slate-200 bg-white"&gt;
+            &lt;p className="px-4 py-8 text-center text-xs text-slate-400"&gt;No radiology tasks found.&lt;/p&gt;
+          &lt;/div&gt;
         ) : (
-          &lt;div className="overflow-x-auto"&gt;
-          &lt;table className="w-full min-w-[980px] text-xs"&gt;
-            &lt;thead&gt;
-              &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Patient&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Priority&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Status&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Report&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Assigned&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Actions&lt;/th&gt;
-              &lt;/tr&gt;
-            &lt;/thead&gt;
-            &lt;tbody className="divide-y divide-slate-100"&gt;
-              {filtered.map((task) =&gt; {
+          groupedByDay.map(([dayKey, dayTasks]) =&gt; (
+            &lt;section key={dayKey} id={`radiology-day-${dayKey}`} className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+              {/* Day header */}
+              &lt;div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5"&gt;
+                &lt;div className="flex flex-wrap items-center gap-2 text-xs"&gt;
+                  &lt;span className="font-semibold text-slate-700"&gt;{formatDayLabel(dayKey)}&lt;/span&gt;
+                  {dayKey === todayDayKey() ? &lt;span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700"&gt;Today&lt;/span&gt; : null}
+                  &lt;span className="text-slate-400"&gt;{dayTasks.length} task{dayTasks.length !== 1 ? "s" : ""}&lt;/span&gt;
+                  &lt;span className="text-slate-300"&gt;Â·&lt;/span&gt;
+                  &lt;span className="text-slate-400"&gt;{dayTasks.filter((t) =&gt; t.status === "PENDING").length} pending&lt;/span&gt;
+                  &lt;span className="text-slate-400"&gt;{dayTasks.filter((t) =&gt; t.status === "IN_PROGRESS").length} in progress&lt;/span&gt;
+                  &lt;span className="text-slate-400"&gt;{dayTasks.filter((t) =&gt; t.status === "COMPLETED").length} completed&lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/div&gt;
+              &lt;div className="overflow-x-auto"&gt;
+              &lt;table className="w-full min-w-[980px] text-xs"&gt;
+                &lt;thead&gt;
+                  &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Patient&lt;/th&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Priority&lt;/th&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Status&lt;/th&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Report&lt;/th&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Assigned&lt;/th&gt;
+                    &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Actions&lt;/th&gt;
+                  &lt;/tr&gt;
+                &lt;/thead&gt;
+                &lt;tbody className="divide-y divide-slate-100"&gt;
+              {dayTasks.map((task) =&gt; {
                 const isExpanded = expandedTask === task.id;
                 return (
                   &lt;&gt;
@@ -17378,7 +17464,7 @@ export function RadiologyTaskBoard() {
                       &lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-500"&gt;
                         {task.radiologyReport?.findings?.trim() ? "Drafted" : "Pending"}{" "}
-                        Â· {task.testOrders.map((order) =&gt; order.test.name).join(", ")}
+                        Ã‚Â· {task.testOrders.map((order) =&gt; order.test.name).join(", ")}
                       &lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;{formatDateTime(task.createdAt)}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5"&gt;
@@ -17395,7 +17481,7 @@ export function RadiologyTaskBoard() {
                               {isExpanded ? "Close" : "Open Report"}
                             &lt;/button&gt;
                           )}
-                          {task.status === "COMPLETED" &amp;&amp; &lt;span className="text-green-600 font-medium"&gt;âœ“ Submitted&lt;/span&gt;}
+                          {task.status === "COMPLETED" &amp;&amp; &lt;span className="text-green-600 font-medium"&gt;Ã¢Å“â€œ Submitted&lt;/span&gt;}
                         &lt;/div&gt;
                       &lt;/td&gt;
                     &lt;/tr&gt;
@@ -17608,16 +17694,16 @@ export function RadiologyTaskBoard() {
                   &lt;/&gt;
                 );
               })}
-            &lt;/tbody&gt;
-          &lt;/table&gt;
-          &lt;/div&gt;
+                &lt;/tbody&gt;
+              &lt;/table&gt;
+              &lt;/div&gt;
+            &lt;/section&gt;
+          ))
         )}
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
-
-</pre></div>
+}</pre></div>
 <div class='file-block'><div class='file-header'>src/components/receptionist/day-rollover-refresh.tsx</div><pre>"use client";
 
 import { useEffect } from "react";
@@ -19610,11 +19696,12 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   function previewUrl(
     reportId: string,
     letterheadMode: "with" | "without",
-    opts?: { showPrintButton?: boolean }
+    opts?: { showPrintButton?: boolean; autoPrint?: boolean }
   ) {
     const query = new URLSearchParams();
     if (letterheadMode === "without") query.set("letterhead", "without");
     if (opts?.showPrintButton) query.set("printButton", "1");
+    if (opts?.autoPrint) query.set("autoPrint", "1");
     if (previewNonce &gt; 0) query.set("v", String(previewNonce));
     const suffix = query.toString();
     return `/api/reports/${reportId}/preview${suffix ? `?${suffix}` : ""}`;
@@ -19773,6 +19860,20 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "PRINT" }) });
     window.open(
       previewUrl(details.id, printLetterheadMode, { showPrintButton: true }),
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
+  async function printNow() {
+    if (!details) return;
+    await fetch(`/api/reports/${details.id}/action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "PRINT" }),
+    });
+    window.open(
+      previewUrl(details.id, printLetterheadMode, { showPrintButton: true, autoPrint: true }),
       "_blank",
       "noopener,noreferrer"
     );
@@ -20133,6 +20234,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                     &lt;/&gt;
                   )}
                   &lt;div className="flex flex-wrap gap-2"&gt;
+                    &lt;button disabled={busy} onClick={printNow} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"&gt;Print&lt;/button&gt;
                     &lt;button disabled={busy} onClick={printReport} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"&gt;Print Preview&lt;/button&gt;
                     &lt;button disabled={busy || !details.isReleased || !previewLoaded} onClick={downloadReport} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"&gt;Download&lt;/button&gt;
                     &lt;button disabled={busy || !details.isReleased || !previewLoaded} onClick={sendWhatsapp} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"&gt;WhatsApp&lt;/button&gt;
@@ -27178,6 +27280,7 @@ type RenderArgs = {
   watermarkUrl?: string;
   includeLetterhead?: boolean;
   showPrintButton?: boolean;
+  autoPrint?: boolean;
 };
 
 export function renderReportHtml(args: RenderArgs) {
@@ -27630,6 +27733,15 @@ export function renderReportHtml(args: RenderArgs) {
     &lt;/div&gt;
   &lt;/main&gt;
 &lt;/body&gt;
+${
+  args.autoPrint
+    ? `&lt;script&gt;
+        window.addEventListener("load", function () {
+          setTimeout(function () { window.print(); }, 120);
+        });
+      &lt;/script&gt;`
+    : ""
+}
 &lt;/html&gt;
   `.trim();
 }
@@ -28305,7 +28417,7 @@ export async function trackReportAction(
 export async function renderReportForPreview(
   actor: ReportActor,
   reportId: string,
-  options?: { includeLetterhead?: boolean; showPrintButton?: boolean }
+  options?: { includeLetterhead?: boolean; showPrintButton?: boolean; autoPrint?: boolean }
 ) {
   const report = await getReportDetails(actor, reportId);
   const activeVersion = report.versions.find((version) =&gt; version.isActive) ?? report.versions[0] ?? null;
@@ -28329,6 +28441,7 @@ export async function renderReportForPreview(
     watermarkUrl: "/diagsync-watermark.png",
     includeLetterhead: options?.includeLetterhead ?? true,
     showPrintButton: options?.showPrintButton === true,
+    autoPrint: options?.autoPrint === true,
   });
 
   return {
