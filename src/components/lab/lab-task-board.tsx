@@ -1073,6 +1073,7 @@ export function LabTaskBoard() {
   const [statusFilter, setStatusFilter] = useState<"ACTIVE" | "ALL" | TaskStatus>("ACTIVE");
   const [priorityFilter, setPriorityFilter] = useState<"ALL" | Priority>("ALL");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
+  const [searchInput, setSearchInput] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
@@ -1250,7 +1251,9 @@ export function LabTaskBoard() {
 
     const requestId = opts?.silent ? loadTasksSeqRef.current : ++loadTasksSeqRef.current;
     if (!opts?.silent) {
-      setLoading(true);
+      if (tasksRef.current.length === 0) {
+        setLoading(true);
+      }
       setError("");
     }
     try {
@@ -1313,6 +1316,13 @@ export function LabTaskBoard() {
       }
     }
   }, [TASK_CACHE_TTL_MS, applyLoadedRows, dateFilter, searchFilter, sort, statusFilter]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearchFilter(searchInput.trim());
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
     if (!loading) return;
@@ -2084,8 +2094,8 @@ export function LabTaskBoard() {
       <div className="flex flex-wrap gap-2">
         <div className="w-full sm:w-auto">
           <input
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search patient name or ID..."
             className="h-8 w-full sm:w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
