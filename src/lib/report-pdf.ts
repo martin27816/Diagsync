@@ -19,21 +19,26 @@ function findLocalChromeExecutable() {
 
 export async function renderHtmlToPdfBuffer(html: string) {
   const onVercel = Boolean(process.env.VERCEL);
-  const executablePath = onVercel
-    ? await chromium.executablePath()
-    : findLocalChromeExecutable();
+  if (onVercel) {
+    // Better rendering stability in serverless environments.
+    chromium.setGraphicsMode = false;
+  }
+  const executablePath = onVercel ? await chromium.executablePath() : findLocalChromeExecutable();
 
   if (!executablePath) {
     throw new Error("PDF_BROWSER_NOT_FOUND");
   }
 
+  const launchArgs = onVercel
+    ? [...chromium.args, "--font-render-hinting=none"]
+    : ["--no-sandbox", "--disable-setuid-sandbox", "--font-render-hinting=medium"];
+
   const browser = await puppeteer.launch({
     executablePath,
-    headless: true,
-    args: onVercel
-      ? chromium.args
-      : ["--no-sandbox", "--disable-setuid-sandbox", "--font-render-hinting=medium"],
+    headless: onVercel ? chromium.headless : true,
+    args: launchArgs,
     defaultViewport: chromium.defaultViewport ?? { width: 794, height: 1123 },
+    ignoreHTTPSErrors: true,
   });
 
   try {

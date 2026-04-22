@@ -49,6 +49,7 @@ export async function GET(
       if (error.message === "REPORT_TYPE_MISMATCH") return new NextResponse("Invalid report state", { status: 409 });
       if (error.message === "CROSS_DEPARTMENT_CONTENT") return new NextResponse("Invalid report content", { status: 409 });
       if (error.message === "PDF_BROWSER_NOT_FOUND") return new NextResponse("PDF engine unavailable on server", { status: 500 });
+      if (error.message.startsWith("Protocol error")) return new NextResponse("PDF rendering failed on server", { status: 500 });
     }
     console.error("[REPORT_PDF_GET]", error);
     return new NextResponse("Internal server error", { status: 500 });
