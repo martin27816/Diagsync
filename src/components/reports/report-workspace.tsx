@@ -337,18 +337,45 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
 
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const imageWidth = pageWidth;
-      const imageHeight = (canvas.height * imageWidth) / canvas.width;
-      let heightLeft = imageHeight;
-      let position = 0;
+      const topPaddingPx = 252;
+      const bottomPaddingPx = 156;
+      const pxToMm = pageWidth / canvas.width;
+      const topPaddingMm = topPaddingPx * pxToMm;
+      const bottomPaddingMm = bottomPaddingPx * pxToMm;
+      const contentHeightMm = Math.max(1, pageHeight - topPaddingMm - bottomPaddingMm);
+      const pageSliceHeightPx = Math.max(1, Math.floor(contentHeightMm / pxToMm));
 
-      pdf.addImage(pngData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
-      heightLeft -= pageHeight;
-      while (heightLeft > 0) {
-        position = heightLeft - imageHeight;
-        pdf.addPage();
-        pdf.addImage(pngData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
-        heightLeft -= pageHeight;
+      const addPageSlice = (startY: number, sliceHeightPx: number, append: boolean) => {
+        if (append) pdf.addPage();
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = sliceHeightPx;
+        const sliceCtx = sliceCanvas.getContext("2d");
+        if (!sliceCtx) return;
+        sliceCtx.drawImage(
+          canvas,
+          0,
+          startY,
+          canvas.width,
+          sliceHeightPx,
+          0,
+          0,
+          canvas.width,
+          sliceHeightPx
+        );
+        const sliceDataUrl = sliceCanvas.toDataURL("image/png");
+        const sliceHeightMm = sliceHeightPx * pxToMm;
+        pdf.addImage(sliceDataUrl, "PNG", 0, topPaddingMm, pageWidth, sliceHeightMm, undefined, "FAST");
+      };
+
+      let startY = 0;
+      let isFirstPage = true;
+      while (startY < canvas.height) {
+        const remaining = canvas.height - startY;
+        const sliceHeightPx = Math.min(pageSliceHeightPx, remaining);
+        addPageSlice(startY, sliceHeightPx, !isFirstPage);
+        isFirstPage = false;
+        startY += sliceHeightPx;
       }
 
       const pdfBlob = pdf.output("blob");
