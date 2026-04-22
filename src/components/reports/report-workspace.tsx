@@ -304,12 +304,26 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
         if (whatsappWindow) {
           whatsappWindow.location.href = json.data.waUrl;
         } else {
-          window.location.href = json.data.waUrl;
+          try {
+            window.location.href = json.data.waUrl;
+          } catch {
+            // Keep downloaded PDF as fallback when app link cannot open.
+          }
         }
+        window.setTimeout(() => {
+          if (!whatsappWindow) return;
+          try {
+            if (whatsappWindow.location.href === "about:blank") {
+              whatsappWindow.close();
+            }
+          } catch {
+            // Ignore cross-origin access errors once protocol handler takes over.
+          }
+        }, 1200);
         shouldCloseWindow = false;
-        setMessage("PDF downloaded. WhatsApp opened, attach the PDF in chat.");
+        setMessage("PDF downloaded. We tried opening WhatsApp app; if it didn't open, attach the PDF manually in your app.");
       } else {
-        setError("WhatsApp destination unavailable.");
+        setMessage("PDF downloaded. WhatsApp app link unavailable; attach the PDF manually.");
       }
     } finally {
       if (shouldCloseWindow && whatsappWindow && whatsappWindow.location.href === "about:blank") {

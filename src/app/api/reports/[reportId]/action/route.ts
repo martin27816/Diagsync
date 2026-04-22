@@ -38,14 +38,14 @@ export async function POST(
       const text = `Hello ${report.visit.patient.fullName}, your ${
         report.department === "LABORATORY" ? "Laboratory" : "Radiology"
       } report is ready: ${publicUrl}`;
-      const waUrl = "https://web.whatsapp.com/";
+      const waUrl = "whatsapp://send";
       return NextResponse.json({
         success: true,
         data: {
           waUrl,
           shareText: text,
           limitation:
-            "Browser security does not allow auto-attaching file directly into WhatsApp Web chat. PDF is prepared for manual attach after WhatsApp opens.",
+            "Browser security does not allow auto-attaching file directly into WhatsApp chat. PDF is prepared for manual attach.",
         },
       });
     }
