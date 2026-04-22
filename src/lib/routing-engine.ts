@@ -34,6 +34,8 @@ type RoutingOptions = {
 export type RoutingAssignment = {
   department: Department;
   priority: Priority;
+  taskId: string;
+  mergedIntoExistingTask: boolean;
   staffId: string | null;
   staffName: string | null;
   testOrderIds: string[];
@@ -148,38 +150,65 @@ export async function assignTasksForVisit(
     const selected = chooseLeastLoadedStaff(candidates);
     const testOrderIds = orders.map((order) => order.id);
     const testNames = orders.map((order) => order.test.name);
+    const taskUpdate = await prisma.$transaction(async (tx) => {
+      const activeTask = await tx.routingTask.findFirst({
+        where: {
+          organizationId: options.organizationId,
+          visitId: visit.id,
+          department,
+          status: { in: [RoutingTaskStatus.PENDING, RoutingTaskStatus.IN_PROGRESS] },
+        },
+        orderBy: [{ status: "asc" }, { createdAt: "asc" }],
+      });
 
-    const createdTask = await prisma.$transaction(async (tx) => {
+      const assignedStaffId = activeTask?.staffId ?? selected?.id ?? null;
+
       await tx.testOrder.updateMany({
         where: {
           id: { in: testOrderIds },
           organizationId: options.organizationId,
         },
         data: {
-          status: OrderStatus.ASSIGNED,
+          status: activeTask?.status === RoutingTaskStatus.IN_PROGRESS ? OrderStatus.IN_PROGRESS : OrderStatus.ASSIGNED,
           assignedAt: now,
-          assignedToId: selected?.id ?? null,
+          assignedToId: assignedStaffId,
         },
       });
 
-      return tx.routingTask.create({
+      if (activeTask) {
+        const mergedOrderIds = Array.from(new Set([...activeTask.testOrderIds, ...testOrderIds]));
+        const updated = await tx.routingTask.update({
+          where: { id: activeTask.id },
+          data: {
+            testOrderIds: mergedOrderIds,
+            staffId: assignedStaffId,
+            priority: visit.priority,
+          },
+        });
+        return { task: updated, mergedIntoExistingTask: true, assignedStaffId };
+      }
+
+      const created = await tx.routingTask.create({
         data: {
           organizationId: options.organizationId,
           visitId: visit.id,
           department,
-          staffId: selected?.id ?? null,
+          staffId: assignedStaffId,
           priority: visit.priority,
           status: RoutingTaskStatus.PENDING,
           testOrderIds,
         },
       });
+      return { task: created, mergedIntoExistingTask: false, assignedStaffId };
     });
 
     assignments.push({
       department,
       priority: visit.priority,
-      staffId: selected?.id ?? null,
-      staffName: selected?.fullName ?? null,
+      taskId: taskUpdate.task.id,
+      mergedIntoExistingTask: taskUpdate.mergedIntoExistingTask,
+      staffId: taskUpdate.assignedStaffId,
+      staffName: candidates.find((c) => c.id === taskUpdate.assignedStaffId)?.fullName ?? null,
       testOrderIds,
       testNames,
     });
@@ -190,7 +219,7 @@ export async function assignTasksForVisit(
         organizationId: options.organizationId,
         department,
         role: targetRole,
-        taskId: createdTask.id,
+        taskId: taskUpdate.task.id,
         testNames,
         patientName: visit.patient.fullName,
         onlyAvailable: true,
@@ -212,6 +241,7 @@ export async function assignTasksForVisit(
             assignedTo: selected?.fullName ?? "Unassigned (no available staff)",
             department,
             priority: visit.priority,
+            mergedIntoExistingTask: taskUpdate.mergedIntoExistingTask,
           },
           ...options.auditMeta,
         });

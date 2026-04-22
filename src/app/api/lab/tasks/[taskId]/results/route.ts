@@ -84,9 +84,19 @@ export async function POST(
         endApiMetric(metric, { ok: false, status: 400, note: "invalid_test_order" });
         return NextResponse.json({ success: false, error: "Invalid test order for this task" }, { status: 400 });
       }
-      if (error.message === "MISSING_RESULTS") {
+      if (error.message.startsWith("MISSING_RESULTS")) {
+        const detail = error.message.split(":").slice(1).join(":").trim();
         endApiMetric(metric, { ok: false, status: 400, note: "missing_results" });
-        return NextResponse.json({ success: false, error: "Please enter results for all tests before submission" }, { status: 400 });
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              detail.length > 0
+                ? `Cannot submit. Missing result(s) for: ${detail}`
+                : "Please enter results for all tests before submission",
+          },
+          { status: 400 }
+        );
       }
       if (error.message === "TASK_ALREADY_COMPLETED") {
         endApiMetric(metric, { ok: false, status: 409, note: "task_already_submitted" });

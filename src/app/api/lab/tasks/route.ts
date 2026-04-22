@@ -33,6 +33,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const statusParam = searchParams.get("status") ?? "ACTIVE";
     const sortParam = searchParams.get("sort") === "oldest" ? "oldest" : "newest";
+    const searchParam = (searchParams.get("search") ?? "").trim();
+    const dateParam = searchParams.get("date") ?? "";
 
     const status =
       statusParam === "ALL" || statusParam === "ACTIVE"
@@ -51,7 +53,7 @@ export async function GET(req: NextRequest) {
           role: user.role,
           organizationId: user.organizationId,
         },
-        { status, sort: sortParam }
+        { status, sort: sortParam, search: searchParam, date: dateParam }
       ),
       prisma.routingTask.groupBy({
         by: ["status"],

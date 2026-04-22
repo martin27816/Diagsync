@@ -32,8 +32,18 @@ export async function PATCH(
       if (error.message === "TASK_NOT_FOUND") {
         return NextResponse.json({ success: false, error: "Task not found" }, { status: 404 });
       }
-      if (error.message === "MISSING_RESULTS") {
-        return NextResponse.json({ success: false, error: "Cannot complete task without all test results" }, { status: 400 });
+      if (error.message.startsWith("MISSING_RESULTS")) {
+        const detail = error.message.split(":").slice(1).join(":").trim();
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              detail.length > 0
+                ? `Cannot complete task. Missing result(s) for: ${detail}`
+                : "Cannot complete task without all test results",
+          },
+          { status: 400 }
+        );
       }
       if (error.message === "TASK_ALREADY_COMPLETED") {
         return NextResponse.json({ success: false, error: "Task already submitted" }, { status: 409 });

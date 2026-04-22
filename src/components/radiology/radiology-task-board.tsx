@@ -27,7 +27,16 @@ type Report = {
   extraFields?: Record<string, string> | null;
   isSubmitted: boolean;
 };
-type Task = { id: string; status: TaskStatus; priority: Priority; createdAt: string; updatedAt: string; visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } }; radiologyReport: Report | null };
+type Task = {
+  id: string;
+  status: TaskStatus;
+  priority: Priority;
+  createdAt: string;
+  updatedAt: string;
+  visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } };
+  radiologyReport: Report | null;
+  testOrders: Array<{ id: string; createdAt: string; test: { name: string; code: string } }>;
+};
 type Draft = {
   findings: string;
   impression: string;
@@ -61,6 +70,8 @@ export function RadiologyTaskBoard() {
   const [statusFilter, setStatusFilter] = useState<"ALL" | TaskStatus>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<"ALL" | Priority>("ALL");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [newExtraFieldLabel, setNewExtraFieldLabel] = useState<Record<string, string>>({});
@@ -113,7 +124,7 @@ export function RadiologyTaskBoard() {
   }
 
   async function loadTasks(opts?: { signal?: AbortSignal; force?: boolean }) {
-    const cacheKey = `${statusFilter}:${sort}`;
+    const cacheKey = `${statusFilter}:${sort}:${searchFilter.trim().toLowerCase()}:${dateFilter}`;
     if (!opts?.force) {
       const cached = taskCacheRef.current.get(cacheKey);
       if (cached && Date.now() - cached.at < TASK_CACHE_TTL_MS) {
@@ -127,7 +138,10 @@ export function RadiologyTaskBoard() {
     const requestId = ++loadTasksSeqRef.current;
     setLoading(true); setError("");
     try {
-      const res = await fetch(`/api/radiology/tasks?${new URLSearchParams({ status: statusFilter, sort })}`, { signal: opts?.signal });
+      const query = new URLSearchParams({ status: statusFilter, sort });
+      if (searchFilter.trim()) query.set("search", searchFilter.trim());
+      if (dateFilter) query.set("date", dateFilter);
+      const res = await fetch(`/api/radiology/tasks?${query.toString()}`, { signal: opts?.signal });
       const json = await res.json();
       if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success) { setError(json.error ?? "Failed to load tasks"); return; }
@@ -147,7 +161,7 @@ export function RadiologyTaskBoard() {
     const controller = new AbortController();
     void loadTasks({ signal: controller.signal });
     return () => controller.abort();
-  }, [statusFilter, sort]);
+  }, [statusFilter, sort, searchFilter, dateFilter]);
 
   useEffect(() => {
     const refreshNow = () => {
@@ -179,6 +193,13 @@ export function RadiologyTaskBoard() {
 
   const filtered = useMemo(() => tasks.filter((t) => priorityFilter === "ALL" || t.priority === priorityFilter), [tasks, priorityFilter]);
   const counts = useMemo(() => ({ pending: filtered.filter((t) => t.status === "PENDING").length, inProgress: filtered.filter((t) => t.status === "IN_PROGRESS").length, completed: filtered.filter((t) => t.status === "COMPLETED").length }), [filtered]);
+  function getNewlyAddedOrders(task: Task) {
+    const taskCreatedAt = new Date(task.createdAt).getTime();
+    return task.testOrders.filter((order) => {
+      const createdAt = new Date(order.createdAt).getTime();
+      return Number.isFinite(createdAt) && createdAt - taskCreatedAt > 60_000;
+    });
+  }
 
   function updateDraft(taskId: string, patch: Partial<Draft>) {
     setDrafts((prev) => ({
@@ -259,6 +280,8 @@ export function RadiologyTaskBoard() {
       const json = await (await fetch(`/api/radiology/tasks/${taskId}/start`, { method: "PATCH" })).json();
       if (!json.success) { setError(json.error ?? "Unable to start task"); return; }
       patchTask(taskId, { status: "IN_PROGRESS" });
+    } catch (error) {
+      setError(error instanceof Error && error.message ? `Unable to start task: ${error.message}` : "Unable to start task");
     } finally { setBusyTaskId(null); }
   }
 
@@ -289,6 +312,8 @@ export function RadiologyTaskBoard() {
           isSubmitted: false,
         },
       });
+    } catch (error) {
+      setError(error instanceof Error && error.message ? `Unable to save report: ${error.message}` : "Unable to save report");
     } finally { setBusyTaskId(null); }
   }
 
@@ -305,6 +330,12 @@ export function RadiologyTaskBoard() {
       if (pending) removeOfflineRadiologyDraft(pending.id);
       setExpandedTask(null);
       patchTask(taskId, { status: "COMPLETED" });
+    } catch (error) {
+      setError(
+        error instanceof Error && error.message
+          ? `Unable to submit report: ${error.message}`
+          : "Unable to submit report"
+      );
     } finally { setBusyTaskId(null); }
   }
 
@@ -387,6 +418,22 @@ export function RadiologyTaskBoard() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
+        <div className="w-full sm:w-auto">
+          <input
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            placeholder="Search patient name or ID..."
+            className="h-8 w-full sm:w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
           <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
@@ -443,6 +490,11 @@ export function RadiologyTaskBoard() {
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-slate-800">{task.visit.patient.fullName}</p>
                         <p className="font-mono text-slate-400">{task.visit.patient.patientId} · {task.visit.patient.age}y · {task.visit.patient.sex}</p>
+                        {getNewlyAddedOrders(task).length > 0 ? (
+                          <p className="text-[11px] text-emerald-700">
+                            New test(s) added: {getNewlyAddedOrders(task).map((order) => order.test.name).join(", ")}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-4 py-2.5">
                         <span className={`rounded px-1.5 py-0.5 font-medium ${priorityStyle[task.priority]}`}>{task.priority}</span>
@@ -450,7 +502,10 @@ export function RadiologyTaskBoard() {
                       <td className="px-4 py-2.5">
                         <span className={`rounded px-1.5 py-0.5 font-medium ${statusStyle[task.status]}`}>{task.status.replace("_", " ")}</span>
                       </td>
-                      <td className="px-4 py-2.5 text-slate-500">{task.radiologyReport?.findings?.trim() ? "Drafted" : "Pending"}</td>
+                      <td className="px-4 py-2.5 text-slate-500">
+                        {task.radiologyReport?.findings?.trim() ? "Drafted" : "Pending"}{" "}
+                        · {task.testOrders.map((order) => order.test.name).join(", ")}
+                      </td>
                       <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{formatDateTime(task.createdAt)}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex gap-1.5">

@@ -45,9 +45,19 @@ export async function PATCH(
         endApiMetric(metric, { ok: false, status: 400, note: "missing_report" });
         return NextResponse.json({ success: false, error: "Please enter report before submission" }, { status: 400 });
       }
-      if (error.message === "INCOMPLETE_REPORT") {
+      if (error.message.startsWith("INCOMPLETE_REPORT")) {
+        const detail = error.message.split(":").slice(1).join(":").trim();
         endApiMetric(metric, { ok: false, status: 400, note: "incomplete_report" });
-        return NextResponse.json({ success: false, error: "Findings and impression are required" }, { status: 400 });
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              detail.length > 0
+                ? `Cannot submit. Missing report section(s): ${detail}`
+                : "Findings and impression are required",
+          },
+          { status: 400 }
+        );
       }
       if (error.message === "TASK_ALREADY_COMPLETED") {
         endApiMetric(metric, { ok: false, status: 409, note: "task_already_submitted" });

@@ -74,13 +74,43 @@ async function assertOwnership(taskId: string, actor: RadiologyActor) {
 
 export async function getRadiologyTasks(
   actor: RadiologyActor,
-  opts?: { status?: RoutingTaskStatus | "ALL"; sort?: "newest" | "oldest" }
+  opts?: {
+    status?: RoutingTaskStatus | "ALL";
+    sort?: "newest" | "oldest";
+    search?: string;
+    date?: string;
+  }
 ) {
   assertRadiographer(actor);
-  return prisma.routingTask.findMany({
+  const search = opts?.search?.trim() ?? "";
+  const hasDateFilter = Boolean(opts?.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date));
+  const dateRange = hasDateFilter
+    ? (() => {
+        const [y, m, d] = String(opts?.date).split("-").map((value) => Number(value));
+        return {
+          gte: new Date(y, m - 1, d, 0, 0, 0, 0),
+          lte: new Date(y, m - 1, d, 23, 59, 59, 999),
+        };
+      })()
+    : null;
+
+  const rows = await prisma.routingTask.findMany({
     where: {
       organizationId: actor.organizationId,
       department: Department.RADIOLOGY,
+      ...(search
+        ? {
+            visit: {
+              patient: {
+                OR: [
+                  { fullName: { contains: search, mode: "insensitive" } },
+                  { patientId: { contains: search, mode: "insensitive" } },
+                ],
+              },
+            },
+          }
+        : {}),
+      ...(dateRange ? { createdAt: dateRange } : {}),
       ...(opts?.status && opts.status !== "ALL" ? { status: opts.status } : {}),
     },
     include: {
@@ -107,6 +137,26 @@ export async function getRadiologyTasks(
     },
     orderBy: { createdAt: opts?.sort === "oldest" ? "asc" : "desc" },
   });
+
+  const allOrderIds = Array.from(new Set(rows.flatMap((task) => task.testOrderIds)));
+  const orders = allOrderIds.length
+    ? await prisma.testOrder.findMany({
+        where: { organizationId: actor.organizationId, id: { in: allOrderIds } },
+        select: {
+          id: true,
+          createdAt: true,
+          test: { select: { name: true, code: true } },
+        },
+      })
+    : [];
+  const orderMap = new Map(orders.map((order) => [order.id, order]));
+
+  return rows.map((task) => ({
+    ...task,
+    testOrders: task.testOrderIds
+      .map((id) => orderMap.get(id))
+      .filter((order): order is (typeof orders)[number] => Boolean(order)),
+  }));
 }
 
 export async function startRadiologyTask(taskId: string, actor: RadiologyActor) {
@@ -292,7 +342,14 @@ export async function submitRadiologyTask(
   if (task.status === RoutingTaskStatus.COMPLETED && task.radiologyReport?.isSubmitted) return;
   if (!canSubmitRadiologyTask(task.status)) throw new Error("TASK_ALREADY_COMPLETED");
   if (!task.radiologyReport) throw new Error("MISSING_REPORT");
-  if (!hasRequiredReportFields(task.radiologyReport)) throw new Error("INCOMPLETE_REPORT");
+  if (!hasRequiredReportFields(task.radiologyReport)) {
+    const missingFields: string[] = [];
+    if (!task.radiologyReport.findings?.trim()) missingFields.push("findings");
+    if (!task.radiologyReport.impression?.trim()) missingFields.push("impression");
+    throw new Error(
+      missingFields.length > 0 ? `INCOMPLETE_REPORT:${missingFields.join(", ")}` : "INCOMPLETE_REPORT"
+    );
+  }
   const now = new Date();
   await prisma.$transaction(async (tx) => {
     await tx.radiologyReport.update({

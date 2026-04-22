@@ -70,13 +70,39 @@ async function assertTaskOwnership(taskId: string, actor: LabActor) {
 export async function getLabTasks(actor: LabActor, opts?: {
   status?: RoutingTaskStatus | "ALL" | "ACTIVE";
   sort?: "newest" | "oldest";
+  search?: string;
+  date?: string;
 }) {
   assertLabScientist(actor);
+  const search = opts?.search?.trim() ?? "";
+  const hasDateFilter = Boolean(opts?.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date));
+  const dateRange = hasDateFilter
+    ? (() => {
+        const [y, m, d] = String(opts?.date).split("-").map((value) => Number(value));
+        return {
+          gte: new Date(y, m - 1, d, 0, 0, 0, 0),
+          lte: new Date(y, m - 1, d, 23, 59, 59, 999),
+        };
+      })()
+    : null;
 
   const rows = await prisma.routingTask.findMany({
     where: {
       organizationId: actor.organizationId,
       department: Department.LABORATORY,
+      ...(search
+        ? {
+            visit: {
+              patient: {
+                OR: [
+                  { fullName: { contains: search, mode: "insensitive" } },
+                  { patientId: { contains: search, mode: "insensitive" } },
+                ],
+              },
+            },
+          }
+        : {}),
+      ...(dateRange ? { createdAt: dateRange } : {}),
       ...(opts?.status === "ACTIVE"
         ? { status: { in: [RoutingTaskStatus.PENDING, RoutingTaskStatus.IN_PROGRESS] } }
         : opts?.status && opts.status !== "ALL"
@@ -474,7 +500,18 @@ export async function submitLabTask(taskId: string, actor: LabActor) {
   });
 
   if (!hasResultsForAllTests(task.testOrderIds, existingResults.map((r) => r.testOrderId))) {
-    throw new Error("MISSING_RESULTS");
+    const existingOrderIds = new Set(existingResults.map((row) => row.testOrderId));
+    const missingOrderIds = task.testOrderIds.filter((id) => !existingOrderIds.has(id));
+    const missingOrders = missingOrderIds.length
+      ? await prisma.testOrder.findMany({
+          where: { organizationId: actor.organizationId, id: { in: missingOrderIds } },
+          select: { test: { select: { name: true } } },
+        })
+      : [];
+    const missingNames = missingOrders.map((row) => row.test.name).filter(Boolean);
+    throw new Error(
+      missingNames.length > 0 ? `MISSING_RESULTS:${missingNames.join(", ")}` : "MISSING_RESULTS"
+    );
   }
 
   const now = new Date();
