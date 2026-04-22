@@ -293,12 +293,6 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const res = await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "SEND_WHATSAPP" }) });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "WhatsApp handoff failed"); return; }
-      const link = document.createElement("a");
-      link.href = pdfUrl(details.id, "with");
-      link.rel = "noopener noreferrer";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
 
       if (json.data?.waUrl) {
         if (whatsappWindow) {
@@ -310,20 +304,10 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
             // Keep downloaded PDF as fallback when app link cannot open.
           }
         }
-        window.setTimeout(() => {
-          if (!whatsappWindow) return;
-          try {
-            if (whatsappWindow.location.href === "about:blank") {
-              whatsappWindow.close();
-            }
-          } catch {
-            // Ignore cross-origin access errors once protocol handler takes over.
-          }
-        }, 1200);
         shouldCloseWindow = false;
-        setMessage("PDF downloaded. We tried opening WhatsApp app; if it didn't open, attach the PDF manually in your app.");
+        setMessage("WhatsApp opened with report link text ready to send.");
       } else {
-        setMessage("PDF downloaded. WhatsApp app link unavailable; attach the PDF manually.");
+        setError("WhatsApp destination unavailable.");
       }
     } finally {
       if (shouldCloseWindow && whatsappWindow && whatsappWindow.location.href === "about:blank") {
