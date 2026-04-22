@@ -286,6 +286,8 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
 
   async function sendWhatsapp() {
     if (!details) return;
+    const whatsappWindow = window.open("about:blank", "_blank", "noopener,noreferrer");
+    let shouldCloseWindow = true;
     setBusy(true); setError(""); setMessage("");
     try {
       const res = await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "SEND_WHATSAPP" }) });
@@ -299,12 +301,22 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       link.remove();
 
       if (json.data?.waUrl) {
-        window.open(json.data.waUrl, "_blank", "noopener,noreferrer");
+        if (whatsappWindow) {
+          whatsappWindow.location.href = json.data.waUrl;
+        } else {
+          window.location.href = json.data.waUrl;
+        }
+        shouldCloseWindow = false;
         setMessage("PDF downloaded. WhatsApp opened, attach the PDF in chat.");
       } else {
         setError("WhatsApp destination unavailable.");
       }
-    } finally { setBusy(false); }
+    } finally {
+      if (shouldCloseWindow && whatsappWindow && whatsappWindow.location.href === "about:blank") {
+        whatsappWindow.close();
+      }
+      setBusy(false);
+    }
   }
 
   return (
