@@ -201,10 +201,12 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   }
 
   async function saveMdEdits() {
-    if (!details || !editReason.trim()) { setError("Edit reason is required."); return; }
+    if (!details) return;
+    const resolvedReason = editReason.trim() || (details.isReleased ? "Dispatch correction" : "");
+    if (!resolvedReason) { setError("Edit reason is required."); return; }
     setBusy(true); setError(""); setMessage("");
     try {
-      const json = await (await fetch(`/api/reports/${details.id}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportContent: editableContent, comments: editComments || null, prescription: editPrescription || null, reason: editReason.trim() }) })).json();
+      const json = await (await fetch(`/api/reports/${details.id}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportContent: editableContent, comments: editComments || null, prescription: editPrescription || null, reason: resolvedReason }) })).json();
       if (!json.success) { setError(json.error ?? "Unable to save edits"); return; }
       invalidateReportCache(details.id);
       setMessage(details.isReleased ? "Report updated." : "Draft updated."); setEditReason("");
@@ -532,8 +534,14 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                     <textarea rows={2} value={editPrescription} onChange={(e) => setEditPrescription(e.target.value)} className={areaCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>Edit reason *</label>
-                    <textarea rows={1} value={editReason} onChange={(e) => setEditReason(e.target.value)} className={areaCls} />
+                    <label className={labelCls}>{details.isReleased ? "Edit reason (optional)" : "Edit reason *"}</label>
+                    <textarea
+                      rows={1}
+                      value={editReason}
+                      onChange={(e) => setEditReason(e.target.value)}
+                      placeholder={details.isReleased ? "Optional for released report corrections" : ""}
+                      className={areaCls}
+                    />
                   </div>
                   <button disabled={busy} onClick={saveMdEdits}
                     className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
