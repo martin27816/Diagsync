@@ -549,6 +549,9 @@ export function renderReportHtml(args: RenderArgs) {
   const pageWidthPx = 794;
   const contentTopPx = hasLetterhead ? 252 : 148;
   const contentBottomPx = hasLetterhead ? 156 : 92;
+  const printMarginTopPx = hasLetterhead ? 252 : 92;
+  const printMarginBottomPx = hasLetterhead ? 156 : 96;
+  const printMarginSidePx = 44;
   const patient = args.content.patient ?? {};
   const meta = args.content.meta ?? {};
   const referringDoctor = String(meta.referringDoctor ?? "").trim();
@@ -661,7 +664,7 @@ export function renderReportHtml(args: RenderArgs) {
   <meta charset="utf-8" />
   <title>${escapeHtml(args.organization.name)} - ${args.department === Department.LABORATORY ? "Lab Report" : "Radiology Report"}</title>
   <style>
-    @page { size: A4; margin: 0; }
+    @page { size: A4; margin: ${printMarginTopPx}px ${printMarginSidePx}px ${printMarginBottomPx}px; }
     body {
       font-family: Arial, sans-serif;
       margin: 0;
@@ -866,9 +869,10 @@ export function renderReportHtml(args: RenderArgs) {
       .letterhead-layer {
         position: fixed !important;
         top: 0 !important;
+        bottom: 0 !important;
         left: 0 !important;
         right: 0 !important;
-        height: 100vh !important;
+        height: auto !important;
         z-index: 0 !important;
       }
       .letterhead-layer img {
@@ -882,11 +886,15 @@ export function renderReportHtml(args: RenderArgs) {
         min-height: 0 !important;
         height: auto !important;
         margin: 0 !important;
+        padding: 0 !important;
         overflow: visible !important;
       }
       .content-shell {
         border-radius: 0 !important;
         background: #ffffff !important;
+        margin: 0 !important;
+        max-width: none !important;
+        padding: 0 !important;
         overflow: visible !important;
       }
       .block,
