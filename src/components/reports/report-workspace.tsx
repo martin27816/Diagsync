@@ -174,13 +174,18 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   }, [selectedId]);
   useEffect(() => { setShowVersionHistory(false); }, [selectedId]);
 
-  function updateLabField(tIdx: number, rIdx: number, value: string) {
+  function updateLabField(
+    tIdx: number,
+    rIdx: number,
+    key: "value" | "unit" | "reference",
+    value: string
+  ) {
     setEditableContent((prev: any) => {
       if (!Array.isArray(prev?.tests) || !Array.isArray(prev.tests[tIdx]?.rows)) return prev;
       const tests = [...prev.tests];
       const test = { ...tests[tIdx] };
       const rows = [...test.rows];
-      rows[rIdx] = { ...rows[rIdx], value };
+      rows[rIdx] = { ...rows[rIdx], [key]: value };
       test.rows = rows;
       tests[tIdx] = test;
       return { ...prev, tests };
@@ -467,12 +472,37 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                       {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) => (
                         <div key={tIdx} className="rounded border border-slate-100 p-2">
                           <p className="text-xs font-medium text-slate-700 mb-2">{test?.name ?? `Test ${tIdx + 1}`}</p>
-                          <div className="grid grid-cols-2 gap-1.5">
+                          <div className="grid grid-cols-1 gap-2">
                             {(Array.isArray(test?.rows) ? test.rows : []).map((row: any, rIdx: number) => (
-                              <label key={rIdx}>
-                                <span className="block text-[11px] text-slate-400">{row?.name ?? `Field ${rIdx + 1}`}</span>
-                                <input value={row?.value ?? ""} onChange={(e) => updateLabField(tIdx, rIdx, e.target.value)} className={inputCls} />
-                              </label>
+                              <div key={rIdx} className="rounded border border-slate-100 p-2">
+                                <span className="block text-[11px] font-medium text-slate-500 mb-2">{row?.name ?? `Field ${rIdx + 1}`}</span>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
+                                  <label>
+                                    <span className="block text-[11px] text-slate-400">Result</span>
+                                    <input
+                                      value={row?.value ?? ""}
+                                      onChange={(e) => updateLabField(tIdx, rIdx, "value", e.target.value)}
+                                      className={inputCls}
+                                    />
+                                  </label>
+                                  <label>
+                                    <span className="block text-[11px] text-slate-400">Unit</span>
+                                    <input
+                                      value={row?.unit ?? ""}
+                                      onChange={(e) => updateLabField(tIdx, rIdx, "unit", e.target.value)}
+                                      className={inputCls}
+                                    />
+                                  </label>
+                                  <label>
+                                    <span className="block text-[11px] text-slate-400">Reference/Range</span>
+                                    <input
+                                      value={row?.reference ?? ""}
+                                      onChange={(e) => updateLabField(tIdx, rIdx, "reference", e.target.value)}
+                                      className={inputCls}
+                                    />
+                                  </label>
+                                </div>
+                              </div>
                             ))}
                           </div>
                         </div>
