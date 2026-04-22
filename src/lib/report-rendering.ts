@@ -666,7 +666,7 @@ export function renderReportHtml(args: RenderArgs) {
   <meta charset="utf-8" />
   <title>${escapeHtml(args.organization.name)} - ${args.department === Department.LABORATORY ? "Lab Report" : "Radiology Report"}</title>
   <style>
-    @page { size: A4; margin: ${printMarginTopPx}px ${printMarginSidePx}px ${printMarginBottomPx}px; }
+    @page { size: A4; margin: 0; }
     body {
       font-family: Arial, sans-serif;
       margin: 0;
@@ -884,15 +884,15 @@ export function renderReportHtml(args: RenderArgs) {
         min-height: 0 !important;
         height: auto !important;
         margin: 0 !important;
-        padding: 0 !important;
+        padding: ${contentTopPx}px ${printMarginSidePx}px ${contentBottomPx}px !important;
         overflow: visible !important;
       }
       .content-shell {
         border-radius: 0 !important;
         background: #ffffff !important;
-        margin: 0 !important;
+        margin: 0 auto !important;
         max-width: none !important;
-        padding: 0 !important;
+        padding: 14px 18px !important;
         overflow: visible !important;
       }
       .block,
