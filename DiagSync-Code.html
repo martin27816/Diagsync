@@ -111,6 +111,7 @@ declare module '*.module.sass';
     "@radix-ui/react-switch": "^1.0.3",
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.1.5",
+    "@sparticuz/chromium": "^123.0.1",
     "@types/web-push": "^3.6.4",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
@@ -121,6 +122,7 @@ declare module '*.module.sass';
     "lucide-react": "^0.383.0",
     "next": "^14.2.35",
     "next-auth": "^5.0.0-beta.19",
+    "puppeteer-core": "^22.13.1",
     "react": "^18",
     "react-dom": "^18",
     "react-hook-form": "^7.51.5",
@@ -8899,6 +8901,17 @@ export async function GET(req: NextRequest) {
     const type = searchParams.get("type") as TestType | null;
     const department = searchParams.get("department") as Department | null;
 
+    const normalizedSearch = search.trim().toLowerCase();
+    const searchParts = normalizedSearch.split(/[^a-z0-9]+/).filter(Boolean);
+    const hasMicroscopyWord = searchParts.some((part) =&gt; part.startsWith("micro"));
+    const hasCultureWord = searchParts.some((part) =&gt; part.startsWith("culture"));
+    const hasSensitivityWord = searchParts.some((part) =&gt; part.startsWith("sensitivity"));
+    const hasMcsAlias =
+      normalizedSearch.includes("m/c/s") ||
+      normalizedSearch.includes("mcs") ||
+      searchParts.join(" ").includes("m c s");
+    const shouldExpandToMcs = hasMcsAlias || (hasMicroscopyWord &amp;&amp; hasCultureWord &amp;&amp; hasSensitivityWord);
+
     const tests = await prisma.diagnosticTest.findMany({
       where: {
         organizationId: user.organizationId,
@@ -8910,6 +8923,7 @@ export async function GET(req: NextRequest) {
               OR: [
                 { name: { contains: search, mode: "insensitive" } },
                 { code: { contains: search, mode: "insensitive" } },
+                ...(shouldExpandToMcs ? [{ name: { contains: "M/C/S", mode: "insensitive" as const } }] : []),
               ],
             }
           : {}),
@@ -12662,6 +12676,85 @@ function isWidalTest(order: TestOrder) {
   return token.includes("widal");
 }
 
+function fieldNeedsReferenceAndFlag(field: ResultField) {
+  return field.fieldType === "NUMBER";
+}
+
+function normalizeToken(input: string) {
+  return input.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function isMcsTestName(testName: string) {
+  return normalizeToken(testName).includes("m c s");
+}
+
+type MicroscopyRowInput = {
+  wbcPus: string;
+  epithelial: string;
+  bacterial: string;
+  yeast: string;
+};
+
+const emptyMicroscopyRowInput = (): MicroscopyRowInput =&gt; ({
+  wbcPus: "",
+  epithelial: "",
+  bacterial: "",
+  yeast: "",
+});
+
+function parseMicroscopyRowInput(raw: unknown): MicroscopyRowInput {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text) return emptyMicroscopyRowInput();
+
+  const lines = text
+    .replace(/\r\n/g, "\n")
+    .split(/\n|;/)
+    .map((line) =&gt; line.trim())
+    .filter(Boolean);
+  const parsed = emptyMicroscopyRowInput();
+
+  for (const line of lines) {
+    const [leftRaw = "", ...rest] = line.split(":");
+    const left = normalizeToken(leftRaw);
+    const right = rest.join(":").trim();
+    if (!right) continue;
+    if (left.includes("wbc") || left.includes("pus") || left.includes("hpf")) {
+      parsed.wbcPus = right;
+      continue;
+    }
+    if (left.includes("epithelial")) {
+      parsed.epithelial = right;
+      continue;
+    }
+    if (left.includes("bacterial")) {
+      parsed.bacterial = right;
+      continue;
+    }
+    if (left.includes("yeast")) {
+      parsed.yeast = right;
+      continue;
+    }
+  }
+
+  if (parsed.wbcPus || parsed.epithelial || parsed.bacterial || parsed.yeast) return parsed;
+  return {
+    ...parsed,
+    wbcPus: text,
+  };
+}
+
+function serializeMicroscopyRowInput(input: MicroscopyRowInput) {
+  const lines = [
+    ["WBC/PUS cells/HPF", input.wbcPus],
+    ["Epithelial cells", input.epithelial],
+    ["Bacterial cells", input.bacterial],
+    ["Yeast cells", input.yeast],
+  ]
+    .map(([label, value]) =&gt; `${label}: ${String(value ?? "").trim()}`)
+    .filter((line) =&gt; !line.endsWith(":"));
+  return lines.join("\n");
+}
+
 function parseSensitivityPattern(raw: unknown): SensitivityCell[] {
   const text = typeof raw === "string" ? raw.trim() : "";
   if (!text) {
@@ -12908,6 +13001,7 @@ type OrderResultCardProps = {
   highlightFields: string[];
   isReady: boolean;
   suppressSensitivityField?: boolean;
+  hiddenDefaultFieldKeys?: string[];
   onPersist: (task: LabTask) =&gt; Promise&lt;void&gt;;
   onSetFieldValue: (testOrderId: string, fieldKey: string, value: unknown) =&gt; void;
   onSetNotes: (testOrderId: string, value: string) =&gt; void;
@@ -12930,6 +13024,7 @@ const OrderResultCard = memo(function OrderResultCard({
   highlightFields,
   isReady,
   suppressSensitivityField = false,
+  hiddenDefaultFieldKeys = [],
   onPersist,
   onSetFieldValue,
   onSetNotes,
@@ -12953,10 +13048,17 @@ const OrderResultCard = memo(function OrderResultCard({
     Record&lt;string, { unit: string; normalMin: string; normalMax: string; normalText: string }&gt;
   &gt;({});
   const removedDefaults = useMemo(() =&gt; new Set(draft.removedDefaultFieldKeys ?? []), [draft.removedDefaultFieldKeys]);
+  const hiddenDefaultFieldKeysSet = useMemo(
+    () =&gt; new Set(hiddenDefaultFieldKeys.map((key) =&gt; key.toLowerCase())),
+    [hiddenDefaultFieldKeys]
+  );
   const defaultFieldKeys = useMemo(() =&gt; new Set(order.test.resultFields.map((field) =&gt; field.fieldKey)), [order.test.resultFields]);
   const visibleDefaultFields = useMemo(
-    () =&gt; order.test.resultFields.filter((field) =&gt; !removedDefaults.has(field.fieldKey)),
-    [order.test.resultFields, removedDefaults]
+    () =&gt;
+      order.test.resultFields.filter(
+        (field) =&gt; !removedDefaults.has(field.fieldKey) &amp;&amp; !hiddenDefaultFieldKeysSet.has(field.fieldKey.toLowerCase())
+      ),
+    [hiddenDefaultFieldKeysSet, order.test.resultFields, removedDefaults]
   );
   const visibleFieldByKey = useMemo(() =&gt; {
     const map = new Map&lt;string, ResultField&gt;();
@@ -13145,6 +13247,10 @@ const OrderResultCard = memo(function OrderResultCard({
         (field) =&gt; !isSensitivityFieldKey(field.fieldKey) &amp;&amp; field.fieldType !== "TEXTAREA"
       ),
     [nonWidalDefaultFields]
+  );
+  const showReferenceAndFlagColumns = useMemo(
+    () =&gt; tabularFields.some((field) =&gt; fieldNeedsReferenceAndFlag(field)),
+    [tabularFields]
   );
 
   return (
@@ -13339,8 +13445,12 @@ const OrderResultCard = memo(function OrderResultCard({
                   &lt;tr className="bg-slate-50"&gt;
                     &lt;th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500"&gt;Parameter&lt;/th&gt;
                     &lt;th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500"&gt;Value&lt;/th&gt;
-                    &lt;th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500"&gt;Reference&lt;/th&gt;
-                    &lt;th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500"&gt;Flag&lt;/th&gt;
+                    {showReferenceAndFlagColumns ? (
+                      &lt;th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500"&gt;Reference&lt;/th&gt;
+                    ) : null}
+                    {showReferenceAndFlagColumns ? (
+                      &lt;th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500"&gt;Flag&lt;/th&gt;
+                    ) : null}
                     &lt;th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500"&gt;Action&lt;/th&gt;
                   &lt;/tr&gt;
                 &lt;/thead&gt;
@@ -13358,69 +13468,84 @@ const OrderResultCard = memo(function OrderResultCard({
                       normalMax: typeof draftMax === "number" || draftMax === null ? draftMax : field.normalMax ?? null,
                       normalText: referenceDraft.normalText.trim() || null,
                     };
-                    const referenceText = formatReferenceDisplay(effectiveField, {
-                      sex: task.visit.patient.sex,
-                      age: task.visit.patient.age,
-                    });
-                    const flag = evaluateReferenceFlag(effectiveField, value, {
-                      sex: task.visit.patient.sex,
-                      age: task.visit.patient.age,
-                    });
+                    const allowReferenceAndFlag = fieldNeedsReferenceAndFlag(field);
+                    const referenceText = allowReferenceAndFlag
+                      ? formatReferenceDisplay(effectiveField, {
+                          sex: task.visit.patient.sex,
+                          age: task.visit.patient.age,
+                        })
+                      : "";
+                    const flag = allowReferenceAndFlag
+                      ? evaluateReferenceFlag(effectiveField, value, {
+                          sex: task.visit.patient.sex,
+                          age: task.visit.patient.age,
+                        })
+                      : null;
                     const label = `${field.label}${field.isRequired ? " *" : ""}${effectiveField.unit ? ` (${effectiveField.unit})` : ""}`;
                     return (
                       &lt;tr key={field.id}&gt;
                         &lt;td className="border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700"&gt;{label}&lt;/td&gt;
                         &lt;td className="border border-slate-200 p-1.5"&gt;{renderFieldValueControl(field, highlight)}&lt;/td&gt;
-                        &lt;td className="border border-slate-200 px-2 py-1.5 text-[10px] text-slate-500"&gt;
-                          &lt;p className="mb-1"&gt;{referenceText || "-"}&lt;/p&gt;
-                          &lt;div className="grid grid-cols-3 gap-1.5"&gt;
-                            &lt;input
-                              type="number"
-                              placeholder="Min"
-                              value={referenceDraft.normalMin}
-                              onChange={(e) =&gt; setReferenceDraft(field, { normalMin: e.target.value })}
-                              onBlur={() =&gt; {
-                                void persistReferenceDraft(field).catch(() =&gt; undefined);
-                              }}
-                              className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            /&gt;
-                            &lt;input
-                              type="number"
-                              placeholder="Max"
-                              value={referenceDraft.normalMax}
-                              onChange={(e) =&gt; setReferenceDraft(field, { normalMax: e.target.value })}
-                              onBlur={() =&gt; {
-                                void persistReferenceDraft(field).catch(() =&gt; undefined);
-                              }}
-                              className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            /&gt;
-                            &lt;input
-                              type="text"
-                              placeholder="Unit"
-                              value={referenceDraft.unit}
-                              onChange={(e) =&gt; setReferenceDraft(field, { unit: e.target.value })}
-                              onBlur={() =&gt; {
-                                void persistReferenceDraft(field).catch(() =&gt; undefined);
-                              }}
-                              className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            /&gt;
-                          &lt;/div&gt;
-                        &lt;/td&gt;
-                        &lt;td className="border border-slate-200 px-2 py-1.5"&gt;
-                          {flag ? (
-                            &lt;span
-                              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                                flag === "NORMAL"
-                                  ? "bg-green-50 text-green-700"
-                                  : "bg-red-50 text-red-700"
-                              }`}
-                            &gt;
-                              {flag}
-                            &lt;/span&gt;
-                          ) : (
-                            &lt;span className="text-[10px] text-slate-400"&gt;-&lt;/span&gt;
-                          )}
-                        &lt;/td&gt;
+                        {showReferenceAndFlagColumns ? (
+                          &lt;td className="border border-slate-200 px-2 py-1.5 text-[10px] text-slate-500"&gt;
+                            {allowReferenceAndFlag ? (
+                              &lt;&gt;
+                                &lt;p className="mb-1"&gt;{referenceText || "-"}&lt;/p&gt;
+                                &lt;div className="grid grid-cols-3 gap-1.5"&gt;
+                                  &lt;input
+                                    type="number"
+                                    placeholder="Min"
+                                    value={referenceDraft.normalMin}
+                                    onChange={(e) =&gt; setReferenceDraft(field, { normalMin: e.target.value })}
+                                    onBlur={() =&gt; {
+                                      void persistReferenceDraft(field).catch(() =&gt; undefined);
+                                    }}
+                                    className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  /&gt;
+                                  &lt;input
+                                    type="number"
+                                    placeholder="Max"
+                                    value={referenceDraft.normalMax}
+                                    onChange={(e) =&gt; setReferenceDraft(field, { normalMax: e.target.value })}
+                                    onBlur={() =&gt; {
+                                      void persistReferenceDraft(field).catch(() =&gt; undefined);
+                                    }}
+                                    className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  /&gt;
+                                  &lt;input
+                                    type="text"
+                                    placeholder="Unit"
+                                    value={referenceDraft.unit}
+                                    onChange={(e) =&gt; setReferenceDraft(field, { unit: e.target.value })}
+                                    onBlur={() =&gt; {
+                                      void persistReferenceDraft(field).catch(() =&gt; undefined);
+                                    }}
+                                    className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  /&gt;
+                                &lt;/div&gt;
+                              &lt;/&gt;
+                            ) : (
+                              &lt;span className="text-[10px] text-slate-400"&gt;-&lt;/span&gt;
+                            )}
+                          &lt;/td&gt;
+                        ) : null}
+                        {showReferenceAndFlagColumns ? (
+                          &lt;td className="border border-slate-200 px-2 py-1.5"&gt;
+                            {allowReferenceAndFlag &amp;&amp; flag ? (
+                              &lt;span
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                  flag === "NORMAL"
+                                    ? "bg-green-50 text-green-700"
+                                    : "bg-red-50 text-red-700"
+                                }`}
+                              &gt;
+                                {flag}
+                              &lt;/span&gt;
+                            ) : (
+                              &lt;span className="text-[10px] text-slate-400"&gt;-&lt;/span&gt;
+                            )}
+                          &lt;/td&gt;
+                        ) : null}
                         &lt;td className="border border-slate-200 px-2 py-1.5"&gt;
                           &lt;button
                             type="button"
@@ -14286,6 +14411,142 @@ export function LabTaskBoard() {
     );
   }
 
+  function renderSharedMcsPanel(task: LabTask) {
+    const mcsOrders = task.testOrders.filter((order) =&gt; isMcsTestName(order.test.name));
+    if (mcsOrders.length === 0) return null;
+
+    const orderLabel = (order: TestOrder) =&gt; order.test.name.trim() || order.test.code || "Specimen";
+    const findField = (order: TestOrder, key: string) =&gt;
+      order.test.resultFields.find((field) =&gt; field.fieldKey.trim().toLowerCase() === key);
+    const isFieldRemoved = (orderId: string, fieldKey: string) =&gt;
+      (drafts[orderId]?.removedDefaultFieldKeys ?? []).some((key) =&gt; key.toLowerCase() === fieldKey.toLowerCase());
+    const testNames = mcsOrders.map((order) =&gt; order.test.name).join(", ");
+
+    return (
+      &lt;div className="rounded-lg border border-slate-200 bg-white p-4"&gt;
+        &lt;div className="mb-2 flex items-center justify-between gap-2"&gt;
+          &lt;label className="block text-[11px] font-medium text-slate-500"&gt;
+            Microscopy Culture And Sensitivity (Shared Entry)
+          &lt;/label&gt;
+          &lt;span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] text-blue-700"&gt;
+            Specimens: {testNames}
+          &lt;/span&gt;
+        &lt;/div&gt;
+
+        &lt;div className="overflow-x-auto rounded border border-slate-200 bg-white"&gt;
+          &lt;table className="w-full min-w-[900px] border-collapse text-[11px]"&gt;
+            &lt;thead&gt;
+              &lt;tr className="bg-slate-50"&gt;
+                &lt;th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500"&gt;SPECIMEN&lt;/th&gt;
+                {mcsOrders.map((order) =&gt; (
+                  &lt;th key={`mcs-h-${order.id}`} className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500"&gt;
+                    {orderLabel(order)}
+                  &lt;/th&gt;
+                ))}
+              &lt;/tr&gt;
+            &lt;/thead&gt;
+            &lt;tbody&gt;
+              {[
+                { key: "wbcPus" as const, label: "WBC/PUS cells/HPF" },
+                { key: "epithelial" as const, label: "Epithelial cells" },
+                { key: "bacterial" as const, label: "Bacterial cells" },
+                { key: "yeast" as const, label: "Yeast cells" },
+              ].map((microscopyRow) =&gt; (
+                &lt;tr key={microscopyRow.key}&gt;
+                  &lt;td className="border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700"&gt;
+                    {microscopyRow.label}
+                  &lt;/td&gt;
+                  {mcsOrders.map((order) =&gt; {
+                    const microscopyField = findField(order, "microscopy");
+                    const disabled = !microscopyField || isFieldRemoved(order.id, microscopyField.fieldKey);
+                    const parsed = parseMicroscopyRowInput(
+                      microscopyField ? drafts[order.id]?.values?.[microscopyField.fieldKey] : ""
+                    );
+                    return (
+                      &lt;td key={`mcs-micro-${order.id}-${microscopyRow.key}`} className="border border-slate-200 p-1.5"&gt;
+                        {disabled || !microscopyField ? (
+                          &lt;span className="text-[10px] text-slate-400"&gt;-&lt;/span&gt;
+                        ) : (
+                          &lt;input
+                            value={parsed[microscopyRow.key]}
+                            onBlur={() =&gt; void persistDraft(task).catch(() =&gt; undefined)}
+                            onChange={(e) =&gt; {
+                              const next = { ...parsed, [microscopyRow.key]: e.target.value };
+                              setDraftFieldValue(order.id, microscopyField.fieldKey, serializeMicroscopyRowInput(next));
+                            }}
+                            className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            placeholder="-"
+                          /&gt;
+                        )}
+                      &lt;/td&gt;
+                    );
+                  })}
+                &lt;/tr&gt;
+              ))}
+              &lt;tr className="bg-slate-50/40"&gt;
+                &lt;td className="border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700"&gt;CULTURE RESULT&lt;/td&gt;
+                {mcsOrders.map((order) =&gt; {
+                  const cultureField = findField(order, "culture_result");
+                  const disabled = !cultureField || isFieldRemoved(order.id, cultureField.fieldKey);
+                  const value = cultureField ? drafts[order.id]?.values?.[cultureField.fieldKey] : "";
+                  const options = (cultureField?.options ?? "")
+                    .split(",")
+                    .map((row) =&gt; row.trim())
+                    .filter(Boolean);
+                  return (
+                    &lt;td key={`mcs-culture-${order.id}`} className="border border-slate-200 p-1.5"&gt;
+                      {disabled || !cultureField ? (
+                        &lt;span className="text-[10px] text-slate-400"&gt;-&lt;/span&gt;
+                      ) : (
+                        &lt;select
+                          value={typeof value === "string" ? value : ""}
+                          onBlur={() =&gt; void persistDraft(task).catch(() =&gt; undefined)}
+                          onChange={(e) =&gt; setDraftFieldValue(order.id, cultureField.fieldKey, e.target.value)}
+                          className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        &gt;
+                          &lt;option value=""&gt;Select...&lt;/option&gt;
+                          {options.map((option) =&gt; (
+                            &lt;option key={option} value={option}&gt;
+                              {option}
+                            &lt;/option&gt;
+                          ))}
+                        &lt;/select&gt;
+                      )}
+                    &lt;/td&gt;
+                  );
+                })}
+              &lt;/tr&gt;
+              &lt;tr&gt;
+                &lt;td className="border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700"&gt;ISOLATED ORGANISM(S)&lt;/td&gt;
+                {mcsOrders.map((order) =&gt; {
+                  const organismField = findField(order, "organisms");
+                  const disabled = !organismField || isFieldRemoved(order.id, organismField.fieldKey);
+                  const value = organismField ? drafts[order.id]?.values?.[organismField.fieldKey] : "";
+                  return (
+                    &lt;td key={`mcs-org-${order.id}`} className="border border-slate-200 p-1.5"&gt;
+                      {disabled || !organismField ? (
+                        &lt;span className="text-[10px] text-slate-400"&gt;-&lt;/span&gt;
+                      ) : (
+                        &lt;textarea
+                          rows={2}
+                          value={typeof value === "string" ? value : ""}
+                          onBlur={() =&gt; void persistDraft(task).catch(() =&gt; undefined)}
+                          onChange={(e) =&gt; setDraftFieldValue(order.id, organismField.fieldKey, e.target.value)}
+                          className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Organism(s)"
+                        /&gt;
+                      )}
+                    &lt;/td&gt;
+                  );
+                })}
+              &lt;/tr&gt;
+            &lt;/tbody&gt;
+          &lt;/table&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    );
+  }
+
   function updateDraft(testOrderId: string, updater: (prev: Draft) =&gt; Draft) {
     setDrafts((prev) =&gt; {
       const current = prev[testOrderId] ?? createEmptyDraft();
@@ -14744,6 +15005,7 @@ export function LabTaskBoard() {
                   task.testOrders.filter((order) =&gt;
                     order.test.resultFields.some((field) =&gt; isSensitivityFieldKey(field.fieldKey))
                   ).length &gt; 1;
+                const shouldUseSharedMcsPanel = task.testOrders.some((order) =&gt; isMcsTestName(order.test.name));
                 return (
                   &lt;Fragment key={task.id}&gt;
                     &lt;tr id={`lab-task-row-${task.id}`} key={task.id} className={`hover:bg-slate-50 transition-colors ${expandedTask === task.id ? "bg-blue-50/30" : ""}`}&gt;
@@ -14897,6 +15159,7 @@ export function LabTaskBoard() {
                                 )}
                               &lt;/div&gt;
                             &lt;/div&gt;
+                            {shouldUseSharedMcsPanel ? renderSharedMcsPanel(task) : null}
                             {shouldUseSharedSensitivityPanel ? renderSharedSensitivityPanel(task) : null}
                             {task.testOrders.map((order) =&gt; (
                               &lt;OrderResultCard
@@ -14907,6 +15170,11 @@ export function LabTaskBoard() {
                                 highlightFields={highlightFields}
                                 isReady={isOrderReady(task, order)}
                                 suppressSensitivityField={shouldUseSharedSensitivityPanel}
+                                hiddenDefaultFieldKeys={
+                                  shouldUseSharedMcsPanel &amp;&amp; isMcsTestName(order.test.name)
+                                    ? ["microscopy", "culture_result", "organisms"]
+                                    : []
+                                }
                                 onPersist={persistDraft}
                                 onSetFieldValue={setDraftFieldValue}
                                 onSetNotes={setDraftNotesValue}
@@ -14948,7 +15216,8 @@ export function LabTaskBoard() {
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}</pre></div>
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/components/layout/dashboard-shell.tsx</div><pre>"use client";
 
 import { useState } from "react";
@@ -15457,6 +15726,7 @@ export function MdReviewBoard({
   const [rejectFieldHints, setRejectFieldHints] = useState&lt;Record&lt;string, string&gt;&gt;({});
   const [editReasons, setEditReasons] = useState&lt;Record&lt;string, string&gt;&gt;({});
   const [approveComments, setApproveComments] = useState&lt;Record&lt;string, string&gt;&gt;({});
+  const [unapproveReasons, setUnapproveReasons] = useState&lt;Record&lt;string, string&gt;&gt;({});
   const [labEdits, setLabEdits] = useState&lt;Record&lt;string, Record&lt;string, Record&lt;string, string&gt;&gt;&gt;&gt;({});
   const [labEditNotes, setLabEditNotes] = useState&lt;Record&lt;string, Record&lt;string, string&gt;&gt;&gt;({});
   const [radiologyEdits, setRadiologyEdits] = useState&lt;Record&lt;string, { findings: string; impression: string; notes: string; extraFields: Record&lt;string, string&gt; }&gt;&gt;({});
@@ -15573,6 +15843,22 @@ export function MdReviewBoard({
       const res = await fetch(`/api/md/reviews/${taskId}/reject`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason, highlightFields }) });
       const json = await res.json() as { success: boolean; error?: string };
       if (!json.success) { setError(json.error ?? "Rejection failed"); await loadData(); }
+      else setExpandedId(null);
+    } finally { setBusyTaskId(null); }
+  }
+
+  async function unapprove(taskId: string) {
+    setBusyTaskId(taskId); setError("");
+    invalidateReviewCache();
+    applyOptimisticReview(taskId, "PENDING");
+    try {
+      const res = await fetch(`/api/md/reviews/${taskId}/unapprove`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: unapproveReasons[taskId] ?? "" }),
+      });
+      const json = await res.json() as { success: boolean; error?: string };
+      if (!json.success) { setError(json.error ?? "Unapprove failed"); await loadData(); }
       else setExpandedId(null);
     } finally { setBusyTaskId(null); }
   }
@@ -15747,14 +16033,12 @@ export function MdReviewBoard({
                       &lt;td className="px-4 py-2.5 text-slate-500"&gt;{item.staff?.fullName ?? "â€”"}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-400"&gt;{minutesAgoLabel(item.updatedAt)}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5"&gt;
-                        {reviewStatus !== "APPROVED" &amp;&amp; (
-                          &lt;button
-                            onClick={() =&gt; setExpandedId(isExpanded ? null : item.id)}
-                            className="rounded border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50 transition-colors"
-                          &gt;
-                            {isExpanded ? "Close" : "Review"}
-                          &lt;/button&gt;
-                        )}
+                        &lt;button
+                          onClick={() =&gt; setExpandedId(isExpanded ? null : item.id)}
+                          className="rounded border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50 transition-colors"
+                        &gt;
+                          {isExpanded ? "Close" : "Review"}
+                        &lt;/button&gt;
                       &lt;/td&gt;
                     &lt;/tr&gt;
 
@@ -15863,11 +16147,31 @@ export function MdReviewBoard({
                                   className="h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                   placeholder="Optional comment..."
                                 /&gt;
-                                &lt;button disabled={busyTaskId === item.id} onClick={() =&gt; approve(item.id)}
+                                &lt;button disabled={busyTaskId === item.id || reviewStatus === "APPROVED"} onClick={() =&gt; approve(item.id)}
                                   className="mt-1.5 rounded bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"&gt;
-                                  Approve
+                                  {reviewStatus === "APPROVED" ? "Approved" : "Approve"}
                                 &lt;/button&gt;
                               &lt;/div&gt;
+
+                              {/* Unapprove */}
+                              {reviewStatus === "APPROVED" ? (
+                                &lt;div className="border-t border-slate-100 pt-3"&gt;
+                                  &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Unapprove reason (optional)&lt;/label&gt;
+                                  &lt;input
+                                    value={unapproveReasons[item.id] ?? ""}
+                                    onChange={(e) =&gt; setUnapproveReasons((p) =&gt; ({ ...p, [item.id]: e.target.value }))}
+                                    className="h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    placeholder="Why move this back to pending?"
+                                  /&gt;
+                                  &lt;button
+                                    disabled={busyTaskId === item.id}
+                                    onClick={() =&gt; unapprove(item.id)}
+                                    className="mt-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                                  &gt;
+                                    Unapprove To Pending
+                                  &lt;/button&gt;
+                                &lt;/div&gt;
+                              ) : null}
 
                               {/* Reject */}
                               &lt;div className="border-t border-slate-100 pt-3"&gt;
@@ -19619,8 +19923,6 @@ export function NewPatientForm() {
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/reports/report-workspace.tsx</div><pre>"use client";
 
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "@/lib/utils";
 
@@ -19636,6 +19938,20 @@ type ReportListItem = {
 type ReportDetails = ReportListItem &amp; {
   comments?: string | null; prescription?: string | null; releaseInstructions?: string | null;
   versions: Array&lt;{ id: string; version: number; isActive: boolean; content: any; comments?: string | null; prescription?: string | null; editReason: string; createdAt: string; editedBy: { id: string; fullName: string } }&gt;;
+};
+
+type LabCatalogTest = {
+  id: string;
+  name: string;
+  code: string;
+  resultFields?: Array&lt;{
+    id: string;
+    label: string;
+    unit?: string | null;
+    normalMin?: number | null;
+    normalMax?: number | null;
+    normalText?: string | null;
+  }&gt;;
 };
 
 function deepCopy&lt;T&gt;(value: T): T {
@@ -19669,6 +19985,10 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const [previewNonce, setPreviewNonce] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [printLetterheadMode, setPrintLetterheadMode] = useState&lt;"with" | "without"&gt;("with");
+  const [addLabTestName, setAddLabTestName] = useState("");
+  const [labTestSearch, setLabTestSearch] = useState("");
+  const [labTestSearchBusy, setLabTestSearchBusy] = useState(false);
+  const [labTestSearchResults, setLabTestSearchResults] = useState&lt;LabCatalogTest[]&gt;([]);
   const previewRef = useRef&lt;HTMLIFrameElement | null&gt;(null);
   const loadReportsSeqRef = useRef(0);
   const loadDetailsSeqRef = useRef(0);
@@ -19705,6 +20025,14 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     if (previewNonce &gt; 0) query.set("v", String(previewNonce));
     const suffix = query.toString();
     return `/api/reports/${reportId}/preview${suffix ? `?${suffix}` : ""}`;
+  }
+
+  function pdfUrl(reportId: string, letterheadMode: "with" | "without") {
+    const query = new URLSearchParams();
+    if (letterheadMode === "without") query.set("letterhead", "without");
+    if (previewNonce &gt; 0) query.set("v", String(previewNonce));
+    const suffix = query.toString();
+    return `/api/reports/${reportId}/pdf${suffix ? `?${suffix}` : ""}`;
   }
 
   async function loadReports(opts?: { signal?: AbortSignal; force?: boolean }) {
@@ -19798,6 +20126,12 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     return () =&gt; controller.abort();
   }, [selectedId]);
   useEffect(() =&gt; { setShowVersionHistory(false); }, [selectedId]);
+  useEffect(() =&gt; {
+    const timer = window.setTimeout(() =&gt; {
+      void searchLabCatalog(labTestSearch);
+    }, 250);
+    return () =&gt; window.clearTimeout(timer);
+  }, [labTestSearch]);
 
   function updateLabField(
     tIdx: number,
@@ -19816,6 +20150,125 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       return { ...prev, tests };
     });
   }
+
+  function updateLabTestName(tIdx: number, value: string) {
+    setEditableContent((prev: any) =&gt; {
+      if (!Array.isArray(prev?.tests) || !prev.tests[tIdx]) return prev;
+      const tests = [...prev.tests];
+      tests[tIdx] = { ...tests[tIdx], name: value };
+      return { ...prev, tests };
+    });
+  }
+
+  function addLabTest(testName?: string) {
+    setEditableContent((prev: any) =&gt; {
+      const tests = Array.isArray(prev?.tests) ? [...prev.tests] : [];
+      tests.push({
+        name: (testName ?? "").trim() || `Laboratory Test ${tests.length + 1}`,
+        forceShow: true,
+        rows: [{ name: "Result Field", value: "", unit: "", reference: "" }],
+      });
+      return { ...(prev ?? {}), tests };
+    });
+    setAddLabTestName("");
+  }
+
+  function removeLabTest(tIdx: number) {
+    setEditableContent((prev: any) =&gt; {
+      if (!Array.isArray(prev?.tests)) return prev;
+      return { ...prev, tests: prev.tests.filter((_: unknown, index: number) =&gt; index !== tIdx) };
+    });
+  }
+
+  function addLabField(tIdx: number) {
+    setEditableContent((prev: any) =&gt; {
+      if (!Array.isArray(prev?.tests) || !Array.isArray(prev.tests[tIdx]?.rows)) return prev;
+      const tests = [...prev.tests];
+      const test = { ...tests[tIdx] };
+      const rows = [...test.rows, { name: "Result Field", value: "", unit: "", reference: "" }];
+      test.rows = rows;
+      tests[tIdx] = test;
+      return { ...prev, tests };
+    });
+  }
+
+  function removeLabField(tIdx: number, rIdx: number) {
+    setEditableContent((prev: any) =&gt; {
+      if (!Array.isArray(prev?.tests) || !Array.isArray(prev.tests[tIdx]?.rows)) return prev;
+      const tests = [...prev.tests];
+      const test = { ...tests[tIdx] };
+      const rows = test.rows.filter((_: unknown, index: number) =&gt; index !== rIdx);
+      test.rows = rows.length &gt; 0 ? rows : [{ name: "Result Field", value: "", unit: "", reference: "" }];
+      tests[tIdx] = test;
+      return { ...prev, tests };
+    });
+  }
+
+  function updateLabFieldName(tIdx: number, rIdx: number, value: string) {
+    setEditableContent((prev: any) =&gt; {
+      if (!Array.isArray(prev?.tests) || !Array.isArray(prev.tests[tIdx]?.rows)) return prev;
+      const tests = [...prev.tests];
+      const test = { ...tests[tIdx] };
+      const rows = [...test.rows];
+      rows[rIdx] = { ...rows[rIdx], name: value };
+      test.rows = rows;
+      tests[tIdx] = test;
+      return { ...prev, tests };
+    });
+  }
+
+  function buildReferenceFromTemplate(field: NonNullable&lt;LabCatalogTest["resultFields"]&gt;[number]) {
+    const normalText = String(field.normalText ?? "").trim();
+    if (normalText) return normalText;
+    if (typeof field.normalMin === "number" &amp;&amp; typeof field.normalMax === "number") {
+      const range = `${field.normalMin} - ${field.normalMax}`;
+      return field.unit ? `${range} ${field.unit}` : range;
+    }
+    return "";
+  }
+
+  function addLabTestFromCatalog(test: LabCatalogTest) {
+    setEditableContent((prev: any) =&gt; {
+      const tests = Array.isArray(prev?.tests) ? [...prev.tests] : [];
+      const rows = (Array.isArray(test.resultFields) ? test.resultFields : []).map((field) =&gt; ({
+        name: field.label,
+        value: "",
+        unit: field.unit ?? "",
+        reference: buildReferenceFromTemplate(field),
+      }));
+      tests.push({
+        name: test.name,
+        forceShow: true,
+        rows: rows.length &gt; 0 ? rows : [{ name: "Result Field", value: "", unit: "", reference: "" }],
+      });
+      return { ...(prev ?? {}), tests };
+    });
+    setLabTestSearch("");
+    setLabTestSearchResults([]);
+  }
+
+  async function searchLabCatalog(query: string) {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setLabTestSearchResults([]);
+      return;
+    }
+    setLabTestSearchBusy(true);
+    try {
+      const res = await fetch(`/api/tests?search=${encodeURIComponent(trimmed)}&amp;type=LAB&amp;department=LABORATORY`);
+      const json = await res.json();
+      if (!json.success) {
+        setLabTestSearchResults([]);
+        return;
+      }
+      setLabTestSearchResults((json.data as LabCatalogTest[]).slice(0, 8));
+    } catch {
+      setLabTestSearchResults([]);
+    } finally {
+      setLabTestSearchBusy(false);
+    }
+  }
+
   function updateRadField(tIdx: number, key: "findings" | "impression" | "notes", value: string) {
     setEditableContent((prev: any) =&gt; {
       if (!Array.isArray(prev?.tests) || !prev.tests[tIdx]) return prev;
@@ -19879,157 +20332,55 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     );
   }
 
-  async function captureReportPng(mode: "with" | "without"): Promise&lt;{ blob: Blob; fileName: string } | null&gt; {
-    if (!details) return null;
-    let iframe = previewRef.current;
-    let temporaryIframe: HTMLIFrameElement | null = null;
-
-    if (mode !== printLetterheadMode || !iframe?.contentDocument) {
-      temporaryIframe = document.createElement("iframe");
-      temporaryIframe.src = previewUrl(details.id, mode);
-      temporaryIframe.style.position = "fixed";
-      temporaryIframe.style.left = "-99999px";
-      temporaryIframe.style.top = "0";
-      temporaryIframe.style.width = "794px";
-      temporaryIframe.style.height = "1123px";
-      temporaryIframe.style.opacity = "0";
-      document.body.appendChild(temporaryIframe);
-      await new Promise&lt;void&gt;((resolve, reject) =&gt; {
-        const timeout = window.setTimeout(() =&gt; reject(new Error("PREVIEW_TIMEOUT")), 10000);
-        temporaryIframe!.onload = () =&gt; {
-          window.clearTimeout(timeout);
-          resolve();
-        };
-      }).catch(() =&gt; undefined);
-      iframe = temporaryIframe;
-    }
-
-    if (!iframe?.contentDocument) {
-      if (temporaryIframe) temporaryIframe.remove();
-      setError("Preview not ready. Wait a moment and retry.");
-      return null;
-    }
-    const doc = iframe.contentDocument;
-    const target = (doc.body as HTMLElement | null) ?? (doc.querySelector(".page") as HTMLElement | null);
-    if (!target) {
-      if (temporaryIframe) temporaryIframe.remove();
-      setError("Preview content unavailable.");
-      return null;
-    }
-    try {
-      iframe.contentWindow?.scrollTo(0, 0);
-      const w = Math.max(doc.documentElement?.scrollWidth ?? 0, doc.body?.scrollWidth ?? 0, target.scrollWidth);
-      const h = Math.max(doc.documentElement?.scrollHeight ?? 0, doc.body?.scrollHeight ?? 0, target.scrollHeight);
-      const canvas = await html2canvas(target, { useCORS: true, allowTaint: false, scale: 2, backgroundColor: "#ffffff", scrollX: 0, scrollY: 0, width: w || target.clientWidth, height: h || target.clientHeight });
-      const blob = await new Promise&lt;Blob | null&gt;((res) =&gt; canvas.toBlob((b) =&gt; res(b), "image/png", 1));
-      if (!blob) { setError("Could not generate image."); return null; }
-      const safePatient = details.visit.patient.fullName.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
-      const safeVisit = details.visit.visitNumber.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
-      return { blob, fileName: `${safePatient}-${safeVisit}-${details.reportType}-report.png` };
-    } catch { setError("Image export failed. Check CORS settings, then retry."); return null; }
-    finally {
-      if (temporaryIframe) temporaryIframe.remove();
-    }
-  }
-
   async function downloadReport() {
+    if (!details) return;
     setError("");
-    const captured = await captureReportPng(printLetterheadMode);
-    if (!captured) return;
-    const url = URL.createObjectURL(captured.blob);
-    const a = document.createElement("a"); a.href = url; a.download = captured.fileName;
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    await fetch(`/api/reports/${details!.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "DOWNLOAD" }) });
-    setMessage("Report downloaded.");
+    setMessage("");
+    await fetch(`/api/reports/${details.id}/action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "DOWNLOAD" }),
+    });
+    const link = document.createElement("a");
+    link.href = pdfUrl(details.id, printLetterheadMode);
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setMessage("PDF download started.");
   }
 
   async function sendWhatsapp() {
     if (!details) return;
+    const whatsappWindow = window.open("about:blank", "_blank", "noopener,noreferrer");
+    let shouldCloseWindow = true;
     setBusy(true); setError(""); setMessage("");
     try {
       const res = await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "SEND_WHATSAPP" }) });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "WhatsApp handoff failed"); return; }
-      const captured = await captureReportPng("with");
-      if (!captured) return;
-
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const imageDataUrl = URL.createObjectURL(captured.blob);
-      const image = await new Promise&lt;HTMLImageElement&gt;((resolve, reject) =&gt; {
-        const img = new Image();
-        img.onload = () =&gt; resolve(img);
-        img.onerror = () =&gt; reject(new Error("Failed to prepare report image"));
-        img.src = imageDataUrl;
-      }).catch(() =&gt; null);
-      URL.revokeObjectURL(imageDataUrl);
-      if (!image) {
-        setError("Could not prepare report PDF.");
-        return;
-      }
-
-      const canvas = document.createElement("canvas");
-      canvas.width = image.width;
-      canvas.height = image.height;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        setError("Could not prepare report PDF.");
-        return;
-      }
-      context.drawImage(image, 0, 0);
-      const pngData = canvas.toDataURL("image/png");
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imageWidth = pageWidth;
-      const imageHeight = (canvas.height * imageWidth) / canvas.width;
-      let heightLeft = imageHeight;
-      let position = 0;
-
-      pdf.addImage(pngData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
-      heightLeft -= pageHeight;
-      while (heightLeft &gt; 0) {
-        position = heightLeft - imageHeight;
-        pdf.addPage();
-        pdf.addImage(pngData, "PNG", 0, position, imageWidth, imageHeight, undefined, "FAST");
-        heightLeft -= pageHeight;
-      }
-
-      const pdfBlob = pdf.output("blob");
-      const pdfName = captured.fileName.replace(/\.png$/i, ".pdf");
-      const canShare = typeof navigator?.share === "function" &amp;&amp; typeof navigator?.canShare === "function";
-      if (canShare) {
-        const file = new File([pdfBlob], pdfName, { type: "application/pdf" });
-        if (navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: "Diagnostic Report",
-              text: `Report for ${details.visit.patient.fullName}`,
-            });
-            setMessage("Share sheet opened. Choose WhatsApp and then choose recipient.");
-            return;
-          } catch (err) {
-            if (err instanceof DOMException &amp;&amp; err.name === "AbortError") return;
-          }
-        }
-      }
-
-      const downloadUrl = URL.createObjectURL(pdfBlob);
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = pdfName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(downloadUrl);
 
       if (json.data?.waUrl) {
-        window.open(json.data.waUrl, "_blank", "noopener,noreferrer");
-        setMessage("WhatsApp opened. Search recipient and attach the downloaded PDF.");
+        if (whatsappWindow) {
+          whatsappWindow.location.href = json.data.waUrl;
+        } else {
+          try {
+            window.location.href = json.data.waUrl;
+          } catch {
+            // Keep downloaded PDF as fallback when app link cannot open.
+          }
+        }
+        shouldCloseWindow = false;
+        setMessage("WhatsApp opened with report link text ready to send.");
       } else {
         setError("WhatsApp destination unavailable.");
       }
-    } finally { setBusy(false); }
+    } finally {
+      if (shouldCloseWindow &amp;&amp; whatsappWindow &amp;&amp; whatsappWindow.location.href === "about:blank") {
+        whatsappWindow.close();
+      }
+      setBusy(false);
+    }
   }
 
   return (
@@ -20114,13 +20465,99 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                   &lt;p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400"&gt;Report Edits&lt;/p&gt;
                   {details.department === "LABORATORY" ? (
                     &lt;div className="space-y-2"&gt;
+                      &lt;div className="rounded border border-slate-200 bg-slate-50 p-2.5 space-y-2"&gt;
+                        &lt;p className="text-[11px] font-medium text-slate-600"&gt;Add Missing Test&lt;/p&gt;
+                        &lt;div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]"&gt;
+                          &lt;input
+                            value={labTestSearch}
+                            onChange={(e) =&gt; setLabTestSearch(e.target.value)}
+                            className={inputCls}
+                            placeholder="Search lab test (e.g. urine m/c/s, fbc, genotype)"
+                          /&gt;
+                          &lt;button
+                            type="button"
+                            disabled={busy || labTestSearchBusy}
+                            onClick={() =&gt; void searchLabCatalog(labTestSearch)}
+                            className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          &gt;
+                            {labTestSearchBusy ? "Searching..." : "Search"}
+                          &lt;/button&gt;
+                        &lt;/div&gt;
+                        {labTestSearchResults.length &gt; 0 ? (
+                          &lt;div className="space-y-1 rounded border border-slate-200 bg-white p-2"&gt;
+                            {labTestSearchResults.map((test) =&gt; (
+                              &lt;div key={test.id} className="flex items-center justify-between gap-2 rounded border border-slate-100 px-2 py-1.5"&gt;
+                                &lt;div&gt;
+                                  &lt;p className="text-xs font-medium text-slate-700"&gt;{test.name}&lt;/p&gt;
+                                  &lt;p className="text-[11px] text-slate-400"&gt;{test.code}&lt;/p&gt;
+                                &lt;/div&gt;
+                                &lt;button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() =&gt; addLabTestFromCatalog(test)}
+                                  className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                                &gt;
+                                  Add Test
+                                &lt;/button&gt;
+                              &lt;/div&gt;
+                            ))}
+                          &lt;/div&gt;
+                        ) : null}
+                        &lt;div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]"&gt;
+                          &lt;input
+                            value={addLabTestName}
+                            onChange={(e) =&gt; setAddLabTestName(e.target.value)}
+                            className={inputCls}
+                            placeholder="Or add custom test name manually"
+                          /&gt;
+                          &lt;button
+                            type="button"
+                            disabled={busy}
+                            onClick={() =&gt; addLabTest(addLabTestName)}
+                            className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          &gt;
+                            Add Custom Test
+                          &lt;/button&gt;
+                        &lt;/div&gt;
+                      &lt;/div&gt;
+
                       {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) =&gt; (
                         &lt;div key={tIdx} className="rounded border border-slate-100 p-2"&gt;
-                          &lt;p className="text-xs font-medium text-slate-700 mb-2"&gt;{test?.name ?? `Test ${tIdx + 1}`}&lt;/p&gt;
+                          &lt;div className="mb-2 flex items-center gap-2"&gt;
+                            &lt;input
+                              value={test?.name ?? ""}
+                              onChange={(e) =&gt; updateLabTestName(tIdx, e.target.value)}
+                              className={`${inputCls} font-medium`}
+                              placeholder={`Test ${tIdx + 1}`}
+                            /&gt;
+                            &lt;button
+                              type="button"
+                              disabled={busy}
+                              onClick={() =&gt; removeLabTest(tIdx)}
+                              className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
+                            &gt;
+                              Remove Test
+                            &lt;/button&gt;
+                          &lt;/div&gt;
                           &lt;div className="grid grid-cols-1 gap-2"&gt;
                             {(Array.isArray(test?.rows) ? test.rows : []).map((row: any, rIdx: number) =&gt; (
                               &lt;div key={rIdx} className="rounded border border-slate-100 p-2"&gt;
-                                &lt;span className="block text-[11px] font-medium text-slate-500 mb-2"&gt;{row?.name ?? `Field ${rIdx + 1}`}&lt;/span&gt;
+                                &lt;div className="mb-2 flex items-center gap-2"&gt;
+                                  &lt;input
+                                    value={row?.name ?? ""}
+                                    onChange={(e) =&gt; updateLabFieldName(tIdx, rIdx, e.target.value)}
+                                    className={inputCls}
+                                    placeholder={`Field ${rIdx + 1}`}
+                                  /&gt;
+                                  &lt;button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() =&gt; removeLabField(tIdx, rIdx)}
+                                    className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
+                                  &gt;
+                                    Remove Field
+                                  &lt;/button&gt;
+                                &lt;/div&gt;
                                 &lt;div className="grid grid-cols-1 md:grid-cols-3 gap-1.5"&gt;
                                   &lt;label&gt;
                                     &lt;span className="block text-[11px] text-slate-400"&gt;Result&lt;/span&gt;
@@ -20150,6 +20587,14 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                               &lt;/div&gt;
                             ))}
                           &lt;/div&gt;
+                          &lt;button
+                            type="button"
+                            disabled={busy}
+                            onClick={() =&gt; addLabField(tIdx)}
+                            className="mt-2 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          &gt;
+                            Add Field
+                          &lt;/button&gt;
                         &lt;/div&gt;
                       ))}
                     &lt;/div&gt;
@@ -23928,6 +24373,7 @@ import {
 import {
   canApprove,
   canReject,
+  canUnapprove,
   canUseMdWorkflow,
   isTaskReviewable,
   requireRejectReason,
@@ -24390,6 +24836,61 @@ export async function rejectMdReview(taskId: string, actor: MdActor, reason: str
   });
 }
 
+export async function unapproveMdReview(taskId: string, actor: MdActor, reason?: string) {
+  assertMd(actor);
+  const task = await getTaskForReview(taskId, actor);
+  const currentStatus = task.review?.status ?? null;
+  if (!canUnapprove(currentStatus)) throw new Error("NOT_APPROVED");
+
+  const now = new Date();
+  const note = reason?.trim() || "Approval reverted for fresh MD review.";
+  await prisma.$transaction(async (tx) =&gt; {
+    const updated = await tx.review.updateMany({
+      where: {
+        taskId: task.id,
+        status: ReviewStatus.APPROVED,
+      },
+      data: {
+        reviewedById: actor.id,
+        status: ReviewStatus.PENDING,
+        comments: note,
+        rejectionReason: null,
+      },
+    });
+    if (updated.count === 0) throw new Error("NOT_APPROVED");
+
+    await tx.testOrder.updateMany({
+      where: { id: { in: task.testOrderIds }, organizationId: actor.organizationId },
+      data: {
+        status: OrderStatus.SUBMITTED_FOR_REVIEW,
+        submittedAt: now,
+        reviewedAt: null,
+        approvedAt: null,
+      },
+    });
+
+    await tx.routingTask.update({
+      where: { id: task.id },
+      data: { status: RoutingTaskStatus.COMPLETED },
+    });
+  });
+
+  await createAuditLog({
+    actorId: actor.id,
+    actorRole: actor.role as Role,
+    action: AUDIT_ACTIONS.REVIEW_EDITED,
+    entityType: "Review",
+    entityId: task.id,
+    changes: {
+      reason: note,
+      beforeStatus: "APPROVED",
+      afterStatus: "PENDING",
+    },
+    notes: note,
+    ...actor.auditMeta,
+  });
+}
+
 export async function editMdReview(
   taskId: string,
   actor: MdActor,
@@ -24650,6 +25151,7 @@ import {
   canApprove,
   canEdit,
   canReject,
+  canUnapprove,
   canUseMdWorkflow,
   isTaskReviewable,
   requireRejectReason,
@@ -24670,11 +25172,14 @@ function testApprovalGuards() {
 
 function testRejectAndEditGuards() {
   assert.equal(canReject(ReviewStatus.PENDING), true);
-  assert.equal(canReject(ReviewStatus.APPROVED), false);
+  assert.equal(canReject(ReviewStatus.APPROVED), true);
 
   assert.equal(canEdit(ReviewStatus.PENDING), true);
   assert.equal(canEdit(ReviewStatus.REJECTED), true);
   assert.equal(canEdit(ReviewStatus.APPROVED), false);
+
+  assert.equal(canUnapprove(ReviewStatus.APPROVED), true);
+  assert.equal(canUnapprove(ReviewStatus.PENDING), false);
 }
 
 function testTaskReviewable() {
@@ -24712,11 +25217,15 @@ export function canApprove(reviewStatus: ReviewStatus | null) {
 }
 
 export function canReject(reviewStatus: ReviewStatus | null) {
-  return reviewStatus !== ReviewStatus.APPROVED;
+  return reviewStatus === null || reviewStatus === ReviewStatus.PENDING || reviewStatus === ReviewStatus.REJECTED || reviewStatus === ReviewStatus.APPROVED;
 }
 
 export function canEdit(reviewStatus: ReviewStatus | null) {
   return reviewStatus !== ReviewStatus.APPROVED;
+}
+
+export function canUnapprove(reviewStatus: ReviewStatus | null) {
+  return reviewStatus === ReviewStatus.APPROVED;
 }
 
 export function requireRejectReason(reason?: string) {
@@ -26690,6 +27199,65 @@ export function formatReferenceDisplay(field: ReferenceField, context?: Referenc
   return "";
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/lib/report-pdf.ts</div><pre>import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
+
+function findLocalChromeExecutable() {
+  const candidates = [
+    process.env.CHROME_EXECUTABLE_PATH,
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  ].filter((value): value is string =&gt; Boolean(value));
+  return candidates[0];
+}
+
+export async function renderHtmlToPdfBuffer(html: string) {
+  const onVercel = Boolean(process.env.VERCEL);
+  if (onVercel) {
+    // Better rendering stability in serverless environments.
+    chromium.setGraphicsMode = false;
+  }
+  const executablePath = onVercel ? await chromium.executablePath() : findLocalChromeExecutable();
+
+  if (!executablePath) {
+    throw new Error("PDF_BROWSER_NOT_FOUND");
+  }
+
+  const launchArgs = onVercel
+    ? [...chromium.args, "--font-render-hinting=none"]
+    : ["--no-sandbox", "--disable-setuid-sandbox", "--font-render-hinting=medium"];
+
+  const browser = await puppeteer.launch({
+    executablePath,
+    headless: onVercel ? chromium.headless : true,
+    args: launchArgs,
+    defaultViewport: chromium.defaultViewport ?? { width: 794, height: 1123 },
+    ignoreHTTPSErrors: true,
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.emulateMediaType("print");
+    const pdf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: "0", right: "0", bottom: "0", left: "0" },
+    });
+    return Buffer.from(pdf);
+  } finally {
+    await browser.close();
+  }
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/lib/report-rendering.test.ts</div><pre>import assert from "node:assert/strict";
 import { Department } from "@prisma/client";
 import { renderReportHtml } from "./report-rendering";
@@ -26763,6 +27331,7 @@ type LabRenderRow = {
 
 type LabRenderTest = {
   name: string;
+  forceShow?: boolean;
   rows: LabRenderRow[];
 };
 
@@ -26802,6 +27371,64 @@ function isMicroscopyRow(rowName: string) {
   );
 }
 
+function isMicroscopySummaryRow(rowName: string) {
+  const token = normalizeToken(rowName);
+  return token === "microscopy" || token.includes("microscopy");
+}
+
+type ParsedMicroscopy = {
+  byToken: Map&lt;string, string&gt;;
+  raw: string;
+};
+
+const MICROSCOPY_TOKEN_PATTERNS: Array&lt;{ token: string; pattern: RegExp }&gt; = [
+  { token: normalizeToken("WBC/PUS cells/HPF"), pattern: /wbc\s*\/?\s*(?:pus|puc)?\s*cells?\s*\/?\s*hpf/gi },
+  { token: normalizeToken("Epithelial cells"), pattern: /epithelial\s*cells?/gi },
+  { token: normalizeToken("Bacterial cells"), pattern: /bacterial\s*cells?/gi },
+  { token: normalizeToken("Yeast cells"), pattern: /yeast\s*cells?/gi },
+];
+
+function parseMicroscopySummary(rawValue: string): ParsedMicroscopy {
+  const normalized = rawValue.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  const byToken = new Map&lt;string, string&gt;();
+  if (!normalized) return { byToken, raw: "" };
+
+  const hits: Array&lt;{ token: string; start: number; end: number }&gt; = [];
+  for (const entry of MICROSCOPY_TOKEN_PATTERNS) {
+    const pattern = new RegExp(entry.pattern.source, entry.pattern.flags);
+    let match: RegExpExecArray | null = pattern.exec(normalized);
+    while (match) {
+      if (match.index === undefined) {
+        match = pattern.exec(normalized);
+        continue;
+      }
+      hits.push({
+        token: entry.token,
+        start: match.index,
+        end: match.index + match[0].length,
+      });
+      match = pattern.exec(normalized);
+    }
+  }
+
+  hits.sort((a, b) =&gt; a.start - b.start);
+  for (let i = 0; i &lt; hits.length; i += 1) {
+    const current = hits[i];
+    const next = hits[i + 1];
+    const rawSegment = normalized.slice(current.end, next ? next.start : normalized.length);
+    const cleaned = rawSegment
+      .replace(/^[\s:=,-]+/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!cleaned) continue;
+    if (!byToken.has(current.token)) {
+      byToken.set(current.token, cleaned);
+    }
+  }
+
+  return { byToken, raw: normalized };
+}
+
 function isCommentRow(rowName: string) {
   const token = normalizeToken(rowName);
   return token === "comment" || token === "comments" || token.includes("comment");
@@ -26829,6 +27456,11 @@ function isPcvRow(rowName: string) {
 function isFbcTestName(testName: string) {
   const token = normalizeToken(testName);
   return token.includes("full blood count") || token === "fbc" || token.includes(" fbc ");
+}
+
+function isMcsTestName(testName: string) {
+  const token = normalizeToken(testName);
+  return token.includes("m c s");
 }
 
 function dualVariantBaseKey(rowName: string) {
@@ -27023,7 +27655,14 @@ function parseSensitivityEntries(rawValue: string): SensitivityEntry[] {
 }
 
 function renderGenericLabSection(test: LabRenderTest) {
-  const rows = orderLabRows(test).filter((row) =&gt; hasRenderableValue(row.value));
+  const orderedRows = orderLabRows(test);
+  const rowsWithValue = orderedRows.filter((row) =&gt; hasRenderableValue(row.value));
+  const rows =
+    rowsWithValue.length &gt; 0
+      ? rowsWithValue
+      : test.forceShow
+      ? orderedRows.map((row) =&gt; ({ ...row, value: hasRenderableValue(row.value) ? row.value : "-" }))
+      : [];
   if (rows.length === 0) return "";
 
   const showUnitColumn = rows.some((row) =&gt; row.unit.trim().length &gt; 0);
@@ -27066,6 +27705,9 @@ function renderMicroCultureSensitivitySection(tests: LabRenderTest[]) {
   const specimenColumns = tests.map((test) =&gt; ({
     label: test.name?.trim() || "SPECIMEN",
     rows: test.rows,
+    microscopySummary: parseMicroscopySummary(
+      test.rows.find((row) =&gt; isMicroscopySummaryRow(row.name) &amp;&amp; hasRenderableValue(row.value))?.value ?? ""
+    ),
   }));
 
   const preferredMicroscopyRows = [
@@ -27091,12 +27733,24 @@ function renderMicroCultureSensitivitySection(tests: LabRenderTest[]) {
   }
 
   const microscopyRows = Array.from(microscopyLabelMap.entries());
+  const shouldShowRawMicroscopyRow = specimenColumns.some(
+    (test) =&gt; test.microscopySummary.raw &amp;&amp; test.microscopySummary.byToken.size === 0
+  );
+  if (shouldShowRawMicroscopyRow) {
+    microscopyRows.push(["__microscopy_raw", "Microscopy"]);
+  }
+
   const microscopyHtmlRows = microscopyRows
     .map(([token, label]) =&gt; {
       const values = specimenColumns
         .map((test) =&gt; {
+          if (token === "__microscopy_raw") {
+            if (test.microscopySummary.byToken.size &gt; 0) return "-";
+            return escapeHtml(test.microscopySummary.raw || "-");
+          }
           const found = test.rows.find((row) =&gt; normalizeToken(row.name) === token);
-          return escapeHtml(found?.value ?? "-");
+          const inferred = found?.value || test.microscopySummary.byToken.get(token) || "";
+          return escapeHtml(inferred || "-");
         })
         .map((value) =&gt; `&lt;td&gt;${value}&lt;/td&gt;`)
         .join("");
@@ -27281,6 +27935,7 @@ type RenderArgs = {
   includeLetterhead?: boolean;
   showPrintButton?: boolean;
   autoPrint?: boolean;
+  baseUrl?: string;
 };
 
 export function renderReportHtml(args: RenderArgs) {
@@ -27312,6 +27967,7 @@ export function renderReportHtml(args: RenderArgs) {
       ? (() =&gt; {
           const normalizedLabTests: LabRenderTest[] = safeLabTests.map((test: any) =&gt; ({
             name: String(test?.name ?? "Laboratory Test"),
+            forceShow: Boolean(test?.forceShow ?? test?.__forceShow),
             rows: (Array.isArray(test?.rows) ? test.rows : []).map((row: any) =&gt; ({
               name: String(row?.name ?? ""),
               value: String(row?.value ?? ""),
@@ -27320,17 +27976,9 @@ export function renderReportHtml(args: RenderArgs) {
             })),
           }));
 
-          const microCultureTests = normalizedLabTests.filter((test) =&gt; {
-            const title = normalizeToken(test.name);
-            if (title.includes("m c s") || title.includes("culture") || title.includes("sensitivity")) {
-              return true;
-            }
-            return test.rows.some(
-              (row) =&gt; isSensitivityRow(row.name) || isCultureRow(row.name)
-            );
-          });
-
-          const microCultureHtml = renderMicroCultureSensitivitySection(microCultureTests);
+          const microCultureTests = normalizedLabTests.filter((test) =&gt; isMcsTestName(test.name));
+          const microCultureHtml =
+            microCultureTests.length &gt; 0 ? renderMicroCultureSensitivitySection(microCultureTests) : "";
           const renderedMicroCulture = new Set(microCultureTests);
           const genericHtml = normalizedLabTests
             .filter((test) =&gt; !renderedMicroCulture.has(test))
@@ -27402,9 +28050,16 @@ export function renderReportHtml(args: RenderArgs) {
 &lt;html&gt;
 &lt;head&gt;
   &lt;meta charset="utf-8" /&gt;
+  ${
+    args.baseUrl
+      ? `&lt;base href="${escapeHtml(
+          args.baseUrl.endsWith("/") ? args.baseUrl : `${args.baseUrl}/`
+        )}" /&gt;`
+      : ""
+  }
   &lt;title&gt;${escapeHtml(args.organization.name)} - ${args.department === Department.LABORATORY ? "Lab Report" : "Radiology Report"}&lt;/title&gt;
   &lt;style&gt;
-    @page { size: A4; margin: ${printMarginTopPx}px ${printMarginSidePx}px ${printMarginBottomPx}px; }
+    @page { size: A4; margin: 0; }
     body {
       font-family: Arial, sans-serif;
       margin: 0;
@@ -27622,15 +28277,15 @@ export function renderReportHtml(args: RenderArgs) {
         min-height: 0 !important;
         height: auto !important;
         margin: 0 !important;
-        padding: 0 !important;
+        padding: ${contentTopPx}px ${printMarginSidePx}px ${contentBottomPx}px !important;
         overflow: visible !important;
       }
       .content-shell {
         border-radius: 0 !important;
         background: #ffffff !important;
-        margin: 0 !important;
+        margin: 0 auto !important;
         max-width: none !important;
-        padding: 0 !important;
+        padding: 14px 18px !important;
         overflow: visible !important;
       }
       .block,
@@ -28417,7 +29072,12 @@ export async function trackReportAction(
 export async function renderReportForPreview(
   actor: ReportActor,
   reportId: string,
-  options?: { includeLetterhead?: boolean; showPrintButton?: boolean; autoPrint?: boolean }
+  options?: {
+    includeLetterhead?: boolean;
+    showPrintButton?: boolean;
+    autoPrint?: boolean;
+    baseUrl?: string;
+  }
 ) {
   const report = await getReportDetails(actor, reportId);
   const activeVersion = report.versions.find((version) =&gt; version.isActive) ?? report.versions[0] ?? null;
@@ -28442,6 +29102,7 @@ export async function renderReportForPreview(
     includeLetterhead: options?.includeLetterhead ?? true,
     showPrintButton: options?.showPrintButton === true,
     autoPrint: options?.autoPrint === true,
+    baseUrl: options?.baseUrl,
   });
 
   return {

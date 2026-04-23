@@ -36,9 +36,11 @@ function deepCopy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-const inputCls = "h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500";
-const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
-const areaCls = "w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500";
+// Shared input styles — larger, easier to read
+const inputCls = "h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition";
+const labelCls = "block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide";
+const areaCls = "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none";
+const sectionHeadingCls = "text-xs font-bold uppercase tracking-widest text-gray-400 mb-3";
 
 export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" | "RECEPTIONIST" }) {
   const REPORT_LIST_CACHE_TTL_MS = 20_000;
@@ -61,6 +63,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const [previewLoaded, setPreviewLoaded] = useState(false);
   const [previewNonce, setPreviewNonce] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showEditSection, setShowEditSection] = useState(false);
   const [printLetterheadMode, setPrintLetterheadMode] = useState<"with" | "without">("with");
   const [addLabTestName, setAddLabTestName] = useState("");
   const [labTestSearch, setLabTestSearch] = useState("");
@@ -117,20 +120,15 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     if (!opts?.force) {
       const cached = reportListCacheRef.current.get(cacheKey);
       if (cached && Date.now() - cached.at < REPORT_LIST_CACHE_TTL_MS) {
-        setError("");
-        setLoading(false);
-        setRows(cached.rows);
-        if (cached.rows.length === 0) {
-          setSelectedId("");
-          setDetails(null);
-        } else {
+        setError(""); setLoading(false); setRows(cached.rows);
+        if (cached.rows.length === 0) { setSelectedId(""); setDetails(null); }
+        else {
           const nextId = selectedId && cached.rows.some((r) => r.id === selectedId) ? selectedId : cached.rows[0].id;
           setSelectedId(nextId);
         }
         return;
       }
     }
-
     const requestId = ++loadReportsSeqRef.current;
     setLoading(true); setError("");
     try {
@@ -168,7 +166,6 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
         return;
       }
     }
-
     const requestId = ++loadDetailsSeqRef.current;
     setError("");
     try {
@@ -186,7 +183,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       setReceptionInstruction(data.releaseInstructions ?? "");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      setError("Network error while loading report details");
+      setError("Network error loading details");
     }
   }
 
@@ -195,35 +192,30 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     void loadReports({ signal: controller.signal });
     return () => controller.abort();
   }, [filterStatus, filterType]);
+
   useEffect(() => {
     if (!selectedId) return;
     setPreviewLoaded(false);
+    setShowEditSection(false);
     const controller = new AbortController();
     void loadDetails(selectedId, { signal: controller.signal });
     return () => controller.abort();
   }, [selectedId]);
+
   useEffect(() => { setShowVersionHistory(false); }, [selectedId]);
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void searchLabCatalog(labTestSearch);
-    }, 250);
+    const timer = window.setTimeout(() => { void searchLabCatalog(labTestSearch); }, 250);
     return () => window.clearTimeout(timer);
   }, [labTestSearch]);
 
-  function updateLabField(
-    tIdx: number,
-    rIdx: number,
-    key: "value" | "unit" | "reference",
-    value: string
-  ) {
+  function updateLabField(tIdx: number, rIdx: number, key: "value" | "unit" | "reference", value: string) {
     setEditableContent((prev: any) => {
       if (!Array.isArray(prev?.tests) || !Array.isArray(prev.tests[tIdx]?.rows)) return prev;
       const tests = [...prev.tests];
       const test = { ...tests[tIdx] };
       const rows = [...test.rows];
       rows[rIdx] = { ...rows[rIdx], [key]: value };
-      test.rows = rows;
-      tests[tIdx] = test;
+      test.rows = rows; tests[tIdx] = test;
       return { ...prev, tests };
     });
   }
@@ -240,11 +232,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   function addLabTest(testName?: string) {
     setEditableContent((prev: any) => {
       const tests = Array.isArray(prev?.tests) ? [...prev.tests] : [];
-      tests.push({
-        name: (testName ?? "").trim() || `Laboratory Test ${tests.length + 1}`,
-        forceShow: true,
-        rows: [{ name: "Result Field", value: "", unit: "", reference: "" }],
-      });
+      tests.push({ name: (testName ?? "").trim() || `Laboratory Test ${tests.length + 1}`, forceShow: true, rows: [{ name: "Result Field", value: "", unit: "", reference: "" }] });
       return { ...(prev ?? {}), tests };
     });
     setAddLabTestName("");
@@ -263,8 +251,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const tests = [...prev.tests];
       const test = { ...tests[tIdx] };
       const rows = [...test.rows, { name: "Result Field", value: "", unit: "", reference: "" }];
-      test.rows = rows;
-      tests[tIdx] = test;
+      test.rows = rows; tests[tIdx] = test;
       return { ...prev, tests };
     });
   }
@@ -288,8 +275,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const test = { ...tests[tIdx] };
       const rows = [...test.rows];
       rows[rIdx] = { ...rows[rIdx], name: value };
-      test.rows = rows;
-      tests[tIdx] = test;
+      test.rows = rows; tests[tIdx] = test;
       return { ...prev, tests };
     });
   }
@@ -308,42 +294,25 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     setEditableContent((prev: any) => {
       const tests = Array.isArray(prev?.tests) ? [...prev.tests] : [];
       const rows = (Array.isArray(test.resultFields) ? test.resultFields : []).map((field) => ({
-        name: field.label,
-        value: "",
-        unit: field.unit ?? "",
-        reference: buildReferenceFromTemplate(field),
+        name: field.label, value: "", unit: field.unit ?? "", reference: buildReferenceFromTemplate(field),
       }));
-      tests.push({
-        name: test.name,
-        forceShow: true,
-        rows: rows.length > 0 ? rows : [{ name: "Result Field", value: "", unit: "", reference: "" }],
-      });
+      tests.push({ name: test.name, forceShow: true, rows: rows.length > 0 ? rows : [{ name: "Result Field", value: "", unit: "", reference: "" }] });
       return { ...(prev ?? {}), tests };
     });
-    setLabTestSearch("");
-    setLabTestSearchResults([]);
+    setLabTestSearch(""); setLabTestSearchResults([]);
   }
 
   async function searchLabCatalog(query: string) {
     const trimmed = query.trim();
-    if (!trimmed) {
-      setLabTestSearchResults([]);
-      return;
-    }
+    if (!trimmed) { setLabTestSearchResults([]); return; }
     setLabTestSearchBusy(true);
     try {
       const res = await fetch(`/api/tests?search=${encodeURIComponent(trimmed)}&type=LAB&department=LABORATORY`);
       const json = await res.json();
-      if (!json.success) {
-        setLabTestSearchResults([]);
-        return;
-      }
+      if (!json.success) { setLabTestSearchResults([]); return; }
       setLabTestSearchResults((json.data as LabCatalogTest[]).slice(0, 8));
-    } catch {
-      setLabTestSearchResults([]);
-    } finally {
-      setLabTestSearchBusy(false);
-    }
+    } catch { setLabTestSearchResults([]); }
+    finally { setLabTestSearchBusy(false); }
   }
 
   function updateRadField(tIdx: number, key: "findings" | "impression" | "notes", value: string) {
@@ -358,15 +327,14 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   async function saveMdEdits() {
     if (!details) return;
     const resolvedReason = editReason.trim() || (details.isReleased ? "Dispatch correction" : "");
-    if (!resolvedReason) { setError("Edit reason is required."); return; }
+    if (!resolvedReason) { setError("Please enter an edit reason."); return; }
     setBusy(true); setError(""); setMessage("");
     try {
       const json = await (await fetch(`/api/reports/${details.id}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportContent: editableContent, comments: editComments || null, prescription: editPrescription || null, reason: resolvedReason }) })).json();
       if (!json.success) { setError(json.error ?? "Unable to save edits"); return; }
       invalidateReportCache(details.id);
-      setMessage(details.isReleased ? "Report updated." : "Draft updated."); setEditReason("");
-      setPreviewLoaded(false);
-      setPreviewNonce((value) => value + 1);
+      setMessage(details.isReleased ? "Report updated." : "Draft saved.");
+      setEditReason(""); setPreviewLoaded(false); setPreviewNonce((v) => v + 1);
       await loadDetails(details.id, { force: true }); await loadReports({ force: true });
     } finally { setBusy(false); }
   }
@@ -377,10 +345,8 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     try {
       const json = await (await fetch(`/api/reports/${details.id}/release`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: releaseMethod, instructions: receptionInstruction || undefined }) })).json();
       if (!json.success) { setError(json.error ?? "Release failed"); return; }
-      invalidateReportCache(details.id);
-      setMessage("Report released.");
-      setPreviewLoaded(false);
-      setPreviewNonce((value) => value + 1);
+      invalidateReportCache(details.id); setMessage("Report released.");
+      setPreviewLoaded(false); setPreviewNonce((v) => v + 1);
       await loadDetails(details.id, { force: true }); await loadReports({ force: true });
     } finally { setBusy(false); }
   }
@@ -388,42 +354,23 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   async function printReport() {
     if (!details) return;
     await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "PRINT" }) });
-    window.open(
-      previewUrl(details.id, printLetterheadMode, { showPrintButton: true }),
-      "_blank",
-      "noopener,noreferrer"
-    );
+    window.open(previewUrl(details.id, printLetterheadMode, { showPrintButton: true }), "_blank", "noopener,noreferrer");
   }
 
   async function printNow() {
     if (!details) return;
-    await fetch(`/api/reports/${details.id}/action`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "PRINT" }),
-    });
-    window.open(
-      previewUrl(details.id, printLetterheadMode, { showPrintButton: true, autoPrint: true }),
-      "_blank",
-      "noopener,noreferrer"
-    );
+    await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "PRINT" }) });
+    window.open(previewUrl(details.id, printLetterheadMode, { showPrintButton: true, autoPrint: true }), "_blank", "noopener,noreferrer");
   }
 
   async function downloadReport() {
     if (!details) return;
-    setError("");
-    setMessage("");
-    await fetch(`/api/reports/${details.id}/action`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "DOWNLOAD" }),
-    });
+    setError(""); setMessage("");
+    await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "DOWNLOAD" }) });
     const link = document.createElement("a");
     link.href = pdfUrl(details.id, printLetterheadMode);
     link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    document.body.appendChild(link); link.click(); link.remove();
     setMessage("PDF download started.");
   }
 
@@ -436,72 +383,86 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const res = await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "SEND_WHATSAPP" }) });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "WhatsApp handoff failed"); return; }
-
       if (json.data?.waUrl) {
-        if (whatsappWindow) {
-          whatsappWindow.location.href = json.data.waUrl;
-        } else {
-          try {
-            window.location.href = json.data.waUrl;
-          } catch {
-            // Keep downloaded PDF as fallback when app link cannot open.
-          }
-        }
+        if (whatsappWindow) { whatsappWindow.location.href = json.data.waUrl; }
+        else { try { window.location.href = json.data.waUrl; } catch { } }
         shouldCloseWindow = false;
-        setMessage("WhatsApp opened with report link text ready to send.");
-      } else {
-        setError("WhatsApp destination unavailable.");
-      }
+        setMessage("WhatsApp opened. Send the report link to the patient.");
+      } else { setError("WhatsApp destination unavailable."); }
     } finally {
-      if (shouldCloseWindow && whatsappWindow && whatsappWindow.location.href === "about:blank") {
-        whatsappWindow.close();
-      }
+      if (shouldCloseWindow && whatsappWindow && whatsappWindow.location.href === "about:blank") whatsappWindow.close();
       setBusy(false);
     }
   }
 
+  const canEdit = canMdEdit || ((canHrmRelease || canReceptionDispatch) && details?.isReleased);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Filters */}
-      <div className="flex gap-2">
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700">
+      <div className="flex flex-wrap gap-3 items-center">
+        <select
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value as any)}
+          className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+        >
           <option value="ALL">All types</option>
           <option value="lab">Lab reports</option>
           <option value="radiology">Radiology reports</option>
         </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700">
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value as any)}
+          className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+        >
           <option value="ALL">All statuses</option>
           <option value="DRAFT">Draft</option>
           <option value="RELEASED">Released</option>
         </select>
       </div>
 
-      {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
-      {message && <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">{message}</div>}
+      {/* Alerts */}
+      {error && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <span className="mt-0.5 text-red-500">⚠</span>
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+      {message && (
+        <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+          <span className="mt-0.5 text-green-500">✓</span>
+          <p className="text-sm text-green-700">{message}</p>
+        </div>
+      )}
 
-      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+      {/* Main layout */}
+      <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
+
         {/* Report list */}
-        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-          <div className="border-b border-slate-100 px-3 py-2.5">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reports</span>
+        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+          <div className="border-b border-gray-100 px-4 py-3">
+            <span className={sectionHeadingCls}>Reports</span>
           </div>
           {loading ? (
-            <p className="px-3 py-4 text-xs text-slate-400">Loading...</p>
+            <p className="px-4 py-6 text-sm text-gray-400">Loading reports…</p>
           ) : rows.length === 0 ? (
-            <p className="px-3 py-4 text-xs text-slate-400">No reports found.</p>
+            <p className="px-4 py-6 text-sm text-gray-400">No reports found.</p>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-gray-100">
               {rows.map((row) => (
-                <button key={row.id} onClick={() => setSelectedId(row.id)}
-                  className={`w-full px-3 py-2.5 text-left transition-colors ${row.id === selectedId ? "bg-blue-50" : "hover:bg-slate-50"}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-medium text-slate-800 truncate">{row.visit.patient.fullName}</p>
-                    <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${row.isReleased ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
+                <button
+                  key={row.id}
+                  onClick={() => setSelectedId(row.id)}
+                  className={`w-full px-4 py-3 text-left transition-colors ${row.id === selectedId ? "bg-blue-50 border-l-4 border-blue-500" : "hover:bg-gray-50 border-l-4 border-transparent"}`}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{row.visit.patient.fullName}</p>
+                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${row.isReleased ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
                       {row.isReleased ? "Released" : "Draft"}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400">{row.reportType === "lab" ? "Lab" : "Radiology"} · {row.visit.visitNumber}</p>
-                  <p className="text-[11px] text-slate-300">{formatDateTime(row.updatedAt)}</p>
+                  <p className="text-xs text-gray-400">{row.reportType === "lab" ? "Lab" : "Radiology"} · {row.visit.visitNumber}</p>
+                  <p className="text-xs text-gray-300 mt-0.5">{formatDateTime(row.updatedAt)}</p>
                 </button>
               ))}
             </div>
@@ -509,303 +470,366 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
         </div>
 
         {/* Detail panel */}
-        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
           {!details ? (
-            <p className="px-4 py-8 text-center text-xs text-slate-400">Select a report to view details.</p>
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="mb-3 text-4xl">📋</div>
+              <p className="text-sm font-medium text-gray-500">Select a report to view details</p>
+            </div>
           ) : (
-            <div className="divide-y divide-slate-100">
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3">
+            <div>
+              {/* Patient header */}
+              <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
                 <div>
-                  <p className="text-xs font-semibold text-slate-800">
-                    {details.reportType === "lab" ? "Lab Report" : "Radiology Report"} — {details.visit.patient.fullName}
-                  </p>
-                  <p className="font-mono text-[11px] text-slate-400">{details.visit.patient.patientId} · {details.visit.visitNumber}</p>
+                  <h2 className="text-base font-bold text-gray-900">{details.visit.patient.fullName}</h2>
+                  <p className="text-sm text-gray-400 mt-0.5 font-mono">{details.visit.patient.patientId} · {details.visit.visitNumber}</p>
                 </div>
-                <div className="flex gap-1.5">
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">{details.department}</span>
-                  <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${details.isReleased ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{details.status}</span>
+                <div className="flex gap-2 mt-1">
+                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+                    {details.reportType === "lab" ? "Lab" : "Radiology"}
+                  </span>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${details.isReleased ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                    {details.isReleased ? "Released" : "Draft"}
+                  </span>
                 </div>
               </div>
 
-              {/* Preview iframe */}
-              <div className="p-4">
-                <iframe title="Report preview" ref={previewRef}
+              {/* Report preview */}
+              <div className="px-6 py-5 border-b border-gray-100">
+                <p className={sectionHeadingCls}>Report Preview</p>
+                <iframe
+                  title="Report preview"
+                  ref={previewRef}
                   key={`${details.id}:${printLetterheadMode}`}
                   src={previewUrl(details.id, printLetterheadMode)}
-                  onLoad={() => setPreviewLoaded(true)} className="h-96 w-full rounded border border-slate-200" />
+                  onLoad={() => setPreviewLoaded(true)}
+                  className="h-96 w-full rounded-xl border border-gray-200"
+                />
               </div>
-
-              {/* Edit section */}
-              {(canMdEdit || ((canHrmRelease || canReceptionDispatch) && details.isReleased)) && (
-                <div className="p-4 space-y-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Report Edits</p>
-                  {details.department === "LABORATORY" ? (
-                    <div className="space-y-2">
-                      <div className="rounded border border-slate-200 bg-slate-50 p-2.5 space-y-2">
-                        <p className="text-[11px] font-medium text-slate-600">Add Missing Test</p>
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
-                          <input
-                            value={labTestSearch}
-                            onChange={(e) => setLabTestSearch(e.target.value)}
-                            className={inputCls}
-                            placeholder="Search lab test (e.g. urine m/c/s, fbc, genotype)"
-                          />
-                          <button
-                            type="button"
-                            disabled={busy || labTestSearchBusy}
-                            onClick={() => void searchLabCatalog(labTestSearch)}
-                            className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                          >
-                            {labTestSearchBusy ? "Searching..." : "Search"}
-                          </button>
-                        </div>
-                        {labTestSearchResults.length > 0 ? (
-                          <div className="space-y-1 rounded border border-slate-200 bg-white p-2">
-                            {labTestSearchResults.map((test) => (
-                              <div key={test.id} className="flex items-center justify-between gap-2 rounded border border-slate-100 px-2 py-1.5">
-                                <div>
-                                  <p className="text-xs font-medium text-slate-700">{test.name}</p>
-                                  <p className="text-[11px] text-slate-400">{test.code}</p>
-                                </div>
-                                <button
-                                  type="button"
-                                  disabled={busy}
-                                  onClick={() => addLabTestFromCatalog(test)}
-                                  className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                                >
-                                  Add Test
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
-                          <input
-                            value={addLabTestName}
-                            onChange={(e) => setAddLabTestName(e.target.value)}
-                            className={inputCls}
-                            placeholder="Or add custom test name manually"
-                          />
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => addLabTest(addLabTestName)}
-                            className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                          >
-                            Add Custom Test
-                          </button>
-                        </div>
-                      </div>
-
-                      {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) => (
-                        <div key={tIdx} className="rounded border border-slate-100 p-2">
-                          <div className="mb-2 flex items-center gap-2">
-                            <input
-                              value={test?.name ?? ""}
-                              onChange={(e) => updateLabTestName(tIdx, e.target.value)}
-                              className={`${inputCls} font-medium`}
-                              placeholder={`Test ${tIdx + 1}`}
-                            />
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => removeLabTest(tIdx)}
-                              className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
-                            >
-                              Remove Test
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-1 gap-2">
-                            {(Array.isArray(test?.rows) ? test.rows : []).map((row: any, rIdx: number) => (
-                              <div key={rIdx} className="rounded border border-slate-100 p-2">
-                                <div className="mb-2 flex items-center gap-2">
-                                  <input
-                                    value={row?.name ?? ""}
-                                    onChange={(e) => updateLabFieldName(tIdx, rIdx, e.target.value)}
-                                    className={inputCls}
-                                    placeholder={`Field ${rIdx + 1}`}
-                                  />
-                                  <button
-                                    type="button"
-                                    disabled={busy}
-                                    onClick={() => removeLabField(tIdx, rIdx)}
-                                    className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
-                                  >
-                                    Remove Field
-                                  </button>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
-                                  <label>
-                                    <span className="block text-[11px] text-slate-400">Result</span>
-                                    <input
-                                      value={row?.value ?? ""}
-                                      onChange={(e) => updateLabField(tIdx, rIdx, "value", e.target.value)}
-                                      className={inputCls}
-                                    />
-                                  </label>
-                                  <label>
-                                    <span className="block text-[11px] text-slate-400">Unit</span>
-                                    <input
-                                      value={row?.unit ?? ""}
-                                      onChange={(e) => updateLabField(tIdx, rIdx, "unit", e.target.value)}
-                                      className={inputCls}
-                                    />
-                                  </label>
-                                  <label>
-                                    <span className="block text-[11px] text-slate-400">Reference/Range</span>
-                                    <input
-                                      value={row?.reference ?? ""}
-                                      onChange={(e) => updateLabField(tIdx, rIdx, "reference", e.target.value)}
-                                      className={inputCls}
-                                    />
-                                  </label>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => addLabField(tIdx)}
-                            className="mt-2 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                          >
-                            Add Field
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) => (
-                        <div key={tIdx} className="rounded border border-slate-100 p-2 space-y-1.5">
-                          <p className="text-xs font-medium text-slate-700">{test?.name ?? `Report ${tIdx + 1}`}</p>
-                          {(["findings", "impression", "notes"] as const).map((key) => (
-                            <label key={key}>
-                              <span className={labelCls}>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                              <textarea rows={2} value={test?.[key] ?? ""} onChange={(e) => updateRadField(tIdx, key, e.target.value)} className={areaCls} />
-                            </label>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div>
-                    <label className={labelCls}>Comments (optional)</label>
-                    <textarea rows={2} value={editComments} onChange={(e) => setEditComments(e.target.value)} className={areaCls} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Prescription (optional)</label>
-                    <textarea rows={2} value={editPrescription} onChange={(e) => setEditPrescription(e.target.value)} className={areaCls} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>{details.isReleased ? "Edit reason (optional)" : "Edit reason *"}</label>
-                    <textarea
-                      rows={1}
-                      value={editReason}
-                      onChange={(e) => setEditReason(e.target.value)}
-                      placeholder={details.isReleased ? "Optional for released report corrections" : ""}
-                      className={areaCls}
-                    />
-                  </div>
-                  <button disabled={busy} onClick={saveMdEdits}
-                    className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                    {busy ? "Saving..." : "Save Edits"}
-                  </button>
-                </div>
-              )}
 
               {/* Release / Dispatch controls */}
               {(canHrmRelease || canReceptionDispatch) && (
-                <div className="p-4 space-y-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                    {canReceptionDispatch ? "Dispatch" : "Release"}
-                  </p>
-                  <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-                    Print option: choose with or without letterhead. Watermark stays in both modes. WhatsApp always uses letterhead.
-                  </div>
+                <div className="px-6 py-5 border-b border-gray-100 space-y-4">
+                  <p className={sectionHeadingCls}>{canReceptionDispatch ? "Dispatch" : "Release"}</p>
+
+                  {/* Print format */}
                   <div>
                     <label className={labelCls}>Print format</label>
                     <select
                       value={printLetterheadMode}
-                      onChange={(e) => {
-                        setPreviewLoaded(false);
-                        setPrintLetterheadMode(e.target.value as "with" | "without");
-                      }}
-                      className="h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"
+                      onChange={(e) => { setPreviewLoaded(false); setPrintLetterheadMode(e.target.value as "with" | "without"); }}
+                      className="h-9 w-full max-w-xs rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
                     >
                       <option value="with">With letterhead</option>
-                      <option value="without">Without letterhead (B/W friendly)</option>
+                      <option value="without">Without letterhead</option>
                     </select>
+                    <p className="mt-1.5 text-xs text-gray-400">Watermark appears in both formats. WhatsApp always uses letterhead.</p>
                   </div>
+
+                  {/* HRM-only: Release method + receptionist note */}
                   {!canReceptionDispatch && (
-                    <>
-                      <div>
-                        <label className={labelCls}>Instruction for receptionist (optional)</label>
-                        <textarea rows={2} value={receptionInstruction} onChange={(e) => setReceptionInstruction(e.target.value)} className={areaCls} />
-                      </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className={labelCls}>Release method</label>
-                        <select value={releaseMethod} onChange={(e) => setReleaseMethod(e.target.value as any)}
-                          className="h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700">
+                        <select
+                          value={releaseMethod}
+                          onChange={(e) => setReleaseMethod(e.target.value as any)}
+                          className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                        >
                           <option value="PRINT">Print</option>
                           <option value="DOWNLOAD">Download</option>
                           <option value="WHATSAPP">WhatsApp</option>
                         </select>
                       </div>
-                    </>
+                      <div>
+                        <label className={labelCls}>Note for receptionist</label>
+                        <input
+                          value={receptionInstruction}
+                          onChange={(e) => setReceptionInstruction(e.target.value)}
+                          className={inputCls}
+                          placeholder="Optional note…"
+                        />
+                      </div>
+                    </div>
                   )}
+
+                  {/* Action buttons */}
                   <div className="flex flex-wrap gap-2">
-                    <button disabled={busy} onClick={printNow} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">Print</button>
-                    <button disabled={busy} onClick={printReport} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">Print Preview</button>
-                    <button disabled={busy || !details.isReleased || !previewLoaded} onClick={downloadReport} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">Download</button>
-                    <button disabled={busy || !details.isReleased || !previewLoaded} onClick={sendWhatsapp} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">WhatsApp</button>
+                    <button
+                      disabled={busy}
+                      onClick={printNow}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    >
+                      🖨 Print Now
+                    </button>
+                    <button
+                      disabled={busy}
+                      onClick={printReport}
+                      className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                      Preview & Print
+                    </button>
+                    <button
+                      disabled={busy || !details.isReleased || !previewLoaded}
+                      onClick={downloadReport}
+                      className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                      ↓ Download PDF
+                    </button>
+                    <button
+                      disabled={busy || !details.isReleased || !previewLoaded}
+                      onClick={sendWhatsapp}
+                      className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700 hover:bg-green-100 disabled:opacity-50 transition-colors"
+                    >
+                      WhatsApp
+                    </button>
                     {!canReceptionDispatch && (
-                      <button disabled={busy || details.isReleased} onClick={releaseReport}
-                        className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                        {details.isReleased ? "Released" : "Release Report"}
+                      <button
+                        disabled={busy || details.isReleased}
+                        onClick={releaseReport}
+                        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                      >
+                        {details.isReleased ? "✓ Released" : "Release Report"}
                       </button>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* Version history */}
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Version History</p>
+              {/* Edit section — collapsible */}
+              {canEdit && (
+                <div className="px-6 py-5 border-b border-gray-100">
                   <button
-                    onClick={() => setShowVersionHistory((prev) => !prev)}
-                    className="rounded border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50 transition-colors"
+                    onClick={() => setShowEditSection((v) => !v)}
+                    className="flex w-full items-center justify-between"
                   >
-                    {showVersionHistory ? "Hide" : "Show"}
+                    <p className={sectionHeadingCls + " mb-0"}>Edit Report</p>
+                    <span className="text-xs text-gray-400 font-medium">{showEditSection ? "▲ Collapse" : "▼ Expand"}</span>
                   </button>
+
+                  {showEditSection && (
+                    <div className="mt-4 space-y-5">
+                      {/* Lab edits */}
+                      {details.department === "LABORATORY" ? (
+                        <div className="space-y-4">
+                          {/* Add test from catalog */}
+                          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                            <p className="text-sm font-semibold text-gray-700">Add a Test</p>
+                            <div className="flex gap-2">
+                              <input
+                                value={labTestSearch}
+                                onChange={(e) => setLabTestSearch(e.target.value)}
+                                className={inputCls}
+                                placeholder="Search catalog (e.g. FBC, urine M/C/S…)"
+                              />
+                              <button
+                                type="button"
+                                disabled={busy || labTestSearchBusy}
+                                onClick={() => void searchLabCatalog(labTestSearch)}
+                                className="shrink-0 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                              >
+                                {labTestSearchBusy ? "…" : "Search"}
+                              </button>
+                            </div>
+                            {labTestSearchResults.length > 0 && (
+                              <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+                                {labTestSearchResults.map((test) => (
+                                  <div key={test.id} className="flex items-center justify-between px-3 py-2.5 gap-3">
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-800">{test.name}</p>
+                                      <p className="text-xs text-gray-400">{test.code}</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      disabled={busy}
+                                      onClick={() => addLabTestFromCatalog(test)}
+                                      className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                                    >
+                                      + Add
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <input
+                                value={addLabTestName}
+                                onChange={(e) => setAddLabTestName(e.target.value)}
+                                className={inputCls}
+                                placeholder="Or enter a custom test name…"
+                              />
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => addLabTest(addLabTestName)}
+                                className="shrink-0 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                              >
+                                + Custom
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Existing tests */}
+                          {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) => (
+                            <div key={tIdx} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                              {/* Test name header */}
+                              <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
+                                <input
+                                  value={test?.name ?? ""}
+                                  onChange={(e) => updateLabTestName(tIdx, e.target.value)}
+                                  className="flex-1 rounded-lg border border-gray-200 bg-white px-3 h-9 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                                  placeholder={`Test ${tIdx + 1}`}
+                                />
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => removeLabTest(tIdx)}
+                                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+
+                              {/* Result rows */}
+                              <div className="divide-y divide-gray-100">
+                                {(Array.isArray(test?.rows) ? test.rows : []).map((row: any, rIdx: number) => (
+                                  <div key={rIdx} className="px-4 py-3 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        value={row?.name ?? ""}
+                                        onChange={(e) => updateLabFieldName(tIdx, rIdx, e.target.value)}
+                                        className="flex-1 h-8 rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                                        placeholder={`Field ${rIdx + 1} name`}
+                                      />
+                                      <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => removeLabField(tIdx, rIdx)}
+                                        className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1 text-xs text-red-500 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                      <div>
+                                        <label className="block text-xs text-gray-400 mb-1">Result</label>
+                                        <input value={row?.value ?? ""} onChange={(e) => updateLabField(tIdx, rIdx, "value", e.target.value)} className={inputCls} />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-gray-400 mb-1">Unit</label>
+                                        <input value={row?.unit ?? ""} onChange={(e) => updateLabField(tIdx, rIdx, "unit", e.target.value)} className={inputCls} />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-gray-400 mb-1">Reference</label>
+                                        <input value={row?.reference ?? ""} onChange={(e) => updateLabField(tIdx, rIdx, "reference", e.target.value)} className={inputCls} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => addLabField(tIdx)}
+                                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                                >
+                                  + Add Row
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        /* Radiology edits */
+                        <div className="space-y-3">
+                          {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) => (
+                            <div key={tIdx} className="rounded-xl border border-gray-200 p-4 space-y-3">
+                              <p className="text-sm font-semibold text-gray-700">{test?.name ?? `Report ${tIdx + 1}`}</p>
+                              {(["findings", "impression", "notes"] as const).map((key) => (
+                                <div key={key}>
+                                  <label className={labelCls}>{key}</label>
+                                  <textarea rows={2} value={test?.[key] ?? ""} onChange={(e) => updateRadField(tIdx, key, e.target.value)} className={areaCls} />
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Comments, Prescription, Edit reason */}
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className={labelCls}>Comments <span className="normal-case font-normal text-gray-400">(optional)</span></label>
+                          <textarea rows={3} value={editComments} onChange={(e) => setEditComments(e.target.value)} className={areaCls} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Prescription <span className="normal-case font-normal text-gray-400">(optional)</span></label>
+                          <textarea rows={3} value={editPrescription} onChange={(e) => setEditPrescription(e.target.value)} className={areaCls} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className={labelCls}>
+                          Reason for edit {!details.isReleased && <span className="text-red-500">*</span>}
+                        </label>
+                        <input
+                          value={editReason}
+                          onChange={(e) => setEditReason(e.target.value)}
+                          className={inputCls}
+                          placeholder={details.isReleased ? "Optional for released report corrections" : "Required — briefly describe the change"}
+                        />
+                      </div>
+
+                      <button
+                        disabled={busy}
+                        onClick={saveMdEdits}
+                        className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      >
+                        {busy ? "Saving…" : "Save Changes"}
+                      </button>
+                    </div>
+                  )}
                 </div>
+              )}
+
+              {/* Version history — collapsible */}
+              <div className="px-6 py-5">
+                <button
+                  onClick={() => setShowVersionHistory((v) => !v)}
+                  className="flex w-full items-center justify-between"
+                >
+                  <p className={sectionHeadingCls + " mb-0"}>Version History</p>
+                  <span className="text-xs text-gray-400 font-medium">{showVersionHistory ? "▲ Hide" : "▼ Show"}</span>
+                </button>
+
                 {showVersionHistory ? (
-                  <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-100">
-                        <th className="pb-1.5 text-left font-medium text-slate-400">Version</th>
-                        <th className="pb-1.5 text-left font-medium text-slate-400">By</th>
-                        <th className="pb-1.5 text-left font-medium text-slate-400">Reason</th>
-                        <th className="pb-1.5 text-right font-medium text-slate-400">Time</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {details.versions.map((v) => (
-                        <tr key={v.id}>
-                          <td className="py-1.5 font-mono text-slate-700">v{v.version} {v.isActive && <span className="text-blue-600">(active)</span>}</td>
-                          <td className="py-1.5 text-slate-600">{v.editedBy.fullName}</td>
-                          <td className="py-1.5 text-slate-400">{v.editReason}</td>
-                          <td className="py-1.5 text-right text-slate-400 whitespace-nowrap">{formatDateTime(v.createdAt)}</td>
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full min-w-[560px] text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          <th className="pb-2 text-left text-xs font-semibold text-gray-400">Version</th>
+                          <th className="pb-2 text-left text-xs font-semibold text-gray-400">Edited by</th>
+                          <th className="pb-2 text-left text-xs font-semibold text-gray-400">Reason</th>
+                          <th className="pb-2 text-right text-xs font-semibold text-gray-400">Time</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {details.versions.map((v) => (
+                          <tr key={v.id}>
+                            <td className="py-2.5 font-mono text-gray-700 text-sm">
+                              v{v.version} {v.isActive && <span className="ml-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-600">active</span>}
+                            </td>
+                            <td className="py-2.5 text-gray-600">{v.editedBy.fullName}</td>
+                            <td className="py-2.5 text-gray-400">{v.editReason}</td>
+                            <td className="py-2.5 text-right text-gray-400 whitespace-nowrap">{formatDateTime(v.createdAt)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
-                  <p className="text-[11px] text-slate-400">Version history is collapsed to keep this view fast.</p>
+                  <p className="mt-2 text-xs text-gray-400">Tap "Show" to see all edits made to this report.</p>
                 )}
               </div>
             </div>
