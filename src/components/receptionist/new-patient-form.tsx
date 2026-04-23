@@ -27,6 +27,7 @@ interface CartItem extends TestResult { enteredPrice: string }
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
 type PaymentStatus = "PENDING" | "PAID" | "PARTIAL" | "WAIVED";
 type Sex = "MALE" | "FEMALE" | "OTHER";
+type AgeUnit = "YEARS" | "MONTHS" | "DAYS";
 type RangeProfile = "MALE" | "FEMALE" | "CHILD";
 type FieldType = "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
 type TestType = "LAB" | "RADIOLOGY";
@@ -81,10 +82,20 @@ function profileKey(profile: RangeProfile): "male" | "female" | "child" {
   return "male";
 }
 
-function defaultRangeProfile(age: string, sex: Sex): RangeProfile {
-  const parsedAge = Number(age);
-  if (Number.isFinite(parsedAge) && parsedAge > 0 && parsedAge < 18) return "CHILD";
+function defaultRangeProfile(age: string, sex: Sex, ageUnit: AgeUnit = "YEARS"): RangeProfile {
+  const parsedAge = toAgeYears(age, ageUnit);
+  if (parsedAge !== null && parsedAge >= 0 && parsedAge < 18) return "CHILD";
   return sex === "FEMALE" ? "FEMALE" : "MALE";
+}
+
+function toAgeYears(ageInput: string, ageUnit: AgeUnit): number | null {
+  const parsedAge = Number(ageInput);
+  if (!Number.isFinite(parsedAge) || parsedAge < 0) return null;
+  const asYears =
+    ageUnit === "YEARS" ? parsedAge : ageUnit === "MONTHS" ? parsedAge / 12 : parsedAge / 365;
+  const normalized = Math.floor(asYears);
+  if (!Number.isFinite(normalized) || normalized < 0 || normalized > 150) return null;
+  return normalized;
 }
 
 function toNullableNumber(value: unknown): number | null {
@@ -103,6 +114,7 @@ export function NewPatientForm() {
   const [patientNumber, setPatientNumber] = useState("");
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState("");
+  const [ageUnit, setAgeUnit] = useState<AgeUnit>("YEARS");
   const [sex, setSex] = useState<Sex>("MALE");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -276,7 +288,7 @@ export function NewPatientForm() {
       [test.id]: (test.resultFields ?? []).map((field) => ({ ...field })),
     }));
     setExpandedRangeByTest((prev) => ({ ...prev, [test.id]: true }));
-    setRangeProfileByTest((prev) => ({ ...prev, [test.id]: defaultRangeProfile(age, sex) }));
+    setRangeProfileByTest((prev) => ({ ...prev, [test.id]: defaultRangeProfile(age, sex, ageUnit) }));
     setTestSearch("");
     setTestResults([]);
     setShowDropdown(false);
@@ -479,9 +491,10 @@ export function NewPatientForm() {
   }
 
   function buildPayload(): OfflinePatientPayload {
+    const ageYears = toAgeYears(age, ageUnit) ?? 0;
     return {
       patientId: patientNumber.trim(),
-      fullName: fullName.trim(), age: parseInt(age), sex, phone: phone.trim(),
+      fullName: fullName.trim(), age: ageYears, sex, phone: phone.trim(),
       email: email.trim() || undefined, address: address.trim() || undefined,
       dateOfBirth: dateOfBirth || undefined, referringDoctor: referringDoctor.trim() || undefined,
       clinicalNote: clinicalNote.trim() || undefined, priority, paymentStatus,
@@ -511,9 +524,10 @@ export function NewPatientForm() {
 
   async function handleSubmit() {
     setError("");
+    const ageYears = toAgeYears(age, ageUnit);
     if (!patientNumber.trim()) return setError("Patient number is required.");
     if (!fullName.trim()) return setError("Patient full name is required.");
-    if (!age || isNaN(parseInt(age))) return setError("Valid age is required.");
+    if (ageYears === null) return setError("Valid age is required.");
     if (!phone.trim()) return setError("Phone number is required.");
     if (cart.length === 0) return setError("Please add at least one test.");
     if (cart.some((item) => toNumberPrice(item.enteredPrice) <= 0)) return setError("Enter a valid price for each test.");
@@ -535,7 +549,7 @@ export function NewPatientForm() {
   }
 
   function resetForm() {
-    setPatientNumber(""); setFullName(""); setAge(""); setPhone(""); setEmail(""); setAddress(""); setDateOfBirth("");
+    setPatientNumber(""); setFullName(""); setAge(""); setAgeUnit("YEARS"); setPhone(""); setEmail(""); setAddress(""); setDateOfBirth("");
     setReferringDoctor(""); setClinicalNote(""); setPriority("ROUTINE"); setPaymentStatus("PENDING");
     setAmountPaid(""); setDiscount(""); setPaymentMethod(""); setVisitNotes(""); setCart([]);
     setRangeDraftByTest({});
@@ -602,7 +616,26 @@ export function NewPatientForm() {
               </div>
               <div>
                 <label className={labelCls}>Age *</label>
-                <input type="number" min="0" max="150" placeholder="32" value={age} onChange={(e) => setAge(e.target.value)} className={inputCls} />
+                <div className="grid grid-cols-[1fr_120px] gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max={ageUnit === "YEARS" ? 150 : ageUnit === "MONTHS" ? 1800 : 55000}
+                    placeholder={ageUnit === "YEARS" ? "32" : ageUnit === "MONTHS" ? "8" : "14"}
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    className={inputCls}
+                  />
+                  <Select value={ageUnit} onValueChange={(v) => setAgeUnit(v as AgeUnit)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="YEARS">Years</SelectItem>
+                      <SelectItem value="MONTHS">Months</SelectItem>
+                      <SelectItem value="DAYS">Days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">For babies, enter months or days.</p>
               </div>
               <div>
                 <label className={labelCls}>Sex *</label>
@@ -837,7 +870,7 @@ export function NewPatientForm() {
 
                     const isOpen = expandedRangeByTest[item.id] ?? true;
                     const isSaving = !!rangeSavingByTest[item.id];
-                    const activeProfile = rangeProfileByTest[item.id] ?? defaultRangeProfile(age, sex);
+                    const activeProfile = rangeProfileByTest[item.id] ?? defaultRangeProfile(age, sex, ageUnit);
 
                     return (
                       <div key={`${item.id}-ranges`} className="rounded border border-blue-100 bg-blue-50/40">
