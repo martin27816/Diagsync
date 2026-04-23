@@ -84,6 +84,7 @@ export function RadiologyTaskBoard() {
   const taskCacheRef = useRef<Map<string, { at: number; tasks: Task[] }>>(new Map());
   const draftsRef = useRef<Record<string, Draft>>({});
   const tasksRef = useRef<Task[]>([]);
+  const dirtyDraftTaskIdsRef = useRef<Set<string>>(new Set());
   function invalidateTaskCache() {
     taskCacheRef.current.clear();
   }
@@ -106,9 +107,13 @@ export function RadiologyTaskBoard() {
     tasksRef.current = rows;
     const offlineByTask = new Map(listOfflineRadiologyDraftItems().map((item) => [item.taskId, item]));
     const nextDrafts: Record<string, Draft> = {};
+    const nextTaskIds = new Set(rows.map((task) => task.id));
+    dirtyDraftTaskIdsRef.current.forEach((taskId) => {
+      if (!nextTaskIds.has(taskId)) dirtyDraftTaskIdsRef.current.delete(taskId);
+    });
     for (const task of rows) {
       const offline = offlineByTask.get(task.id)?.draft;
-      nextDrafts[task.id] = {
+      const baselineDraft: Draft = {
         findings: offline?.findings ?? task.radiologyReport?.findings ?? "",
         impression: offline?.impression ?? task.radiologyReport?.impression ?? "",
         notes: offline?.notes ?? task.radiologyReport?.notes ?? "",
@@ -118,6 +123,11 @@ export function RadiologyTaskBoard() {
         signatureImage:
           offline?.signatureImage ?? task.radiologyReport?.extraFields?.[SIGNOFF_IMAGE_KEY] ?? "",
       };
+      const shouldPreserveLocalDraft =
+        dirtyDraftTaskIdsRef.current.has(task.id) && Boolean(draftsRef.current[task.id]);
+      nextDrafts[task.id] = shouldPreserveLocalDraft
+        ? (draftsRef.current[task.id] as Draft)
+        : baselineDraft;
     }
     draftsRef.current = nextDrafts;
     setDrafts(nextDrafts);
@@ -185,7 +195,7 @@ export function RadiologyTaskBoard() {
       document.removeEventListener("visibilitychange", refreshNow);
       stream.close();
     };
-  }, [loadTasks]);
+  }, [statusFilter, sort, searchFilter, dateFilter]);
 
   useEffect(() => {
     setSignatureLibrary(loadSignaturePresets("reporting"));
@@ -228,6 +238,7 @@ export function RadiologyTaskBoard() {
   }
 
   function updateDraft(taskId: string, patch: Partial<Draft>) {
+    dirtyDraftTaskIdsRef.current.add(taskId);
     setDrafts((prev) => ({
       ...prev,
       [taskId]: {
@@ -320,6 +331,7 @@ export function RadiologyTaskBoard() {
       if (!json.success) { setError(json.error ?? "Unable to save report"); return; }
       const pending = listOfflineRadiologyDraftItems().find((item) => item.taskId === taskId);
       if (pending) removeOfflineRadiologyDraft(pending.id);
+      dirtyDraftTaskIdsRef.current.delete(taskId);
       patchTask(taskId, {
         radiologyReport: {
           findings: d.findings,
@@ -354,6 +366,7 @@ export function RadiologyTaskBoard() {
       if (!json.success) { setError(json.error ?? "Unable to submit report"); return; }
       const pending = listOfflineRadiologyDraftItems().find((item) => item.taskId === taskId);
       if (pending) removeOfflineRadiologyDraft(pending.id);
+      dirtyDraftTaskIdsRef.current.delete(taskId);
       setExpandedTask(null);
       patchTask(taskId, { status: "COMPLETED" });
     } catch (error) {
