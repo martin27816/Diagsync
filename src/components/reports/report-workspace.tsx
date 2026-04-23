@@ -242,6 +242,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const tests = Array.isArray(prev?.tests) ? [...prev.tests] : [];
       tests.push({
         name: (testName ?? "").trim() || `Laboratory Test ${tests.length + 1}`,
+        forceShow: true,
         rows: [{ name: "Result Field", value: "", unit: "", reference: "" }],
       });
       return { ...(prev ?? {}), tests };
@@ -314,6 +315,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       }));
       tests.push({
         name: test.name,
+        forceShow: true,
         rows: rows.length > 0 ? rows : [{ name: "Result Field", value: "", unit: "", reference: "" }],
       });
       return { ...(prev ?? {}), tests };

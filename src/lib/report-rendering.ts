@@ -25,6 +25,7 @@ type LabRenderRow = {
 
 type LabRenderTest = {
   name: string;
+  forceShow?: boolean;
   rows: LabRenderRow[];
 };
 
@@ -348,7 +349,14 @@ function parseSensitivityEntries(rawValue: string): SensitivityEntry[] {
 }
 
 function renderGenericLabSection(test: LabRenderTest) {
-  const rows = orderLabRows(test).filter((row) => hasRenderableValue(row.value));
+  const orderedRows = orderLabRows(test);
+  const rowsWithValue = orderedRows.filter((row) => hasRenderableValue(row.value));
+  const rows =
+    rowsWithValue.length > 0
+      ? rowsWithValue
+      : test.forceShow
+      ? orderedRows.map((row) => ({ ...row, value: hasRenderableValue(row.value) ? row.value : "-" }))
+      : [];
   if (rows.length === 0) return "";
 
   const showUnitColumn = rows.some((row) => row.unit.trim().length > 0);
@@ -653,6 +661,7 @@ export function renderReportHtml(args: RenderArgs) {
       ? (() => {
           const normalizedLabTests: LabRenderTest[] = safeLabTests.map((test: any) => ({
             name: String(test?.name ?? "Laboratory Test"),
+            forceShow: Boolean(test?.forceShow ?? test?.__forceShow),
             rows: (Array.isArray(test?.rows) ? test.rows : []).map((row: any) => ({
               name: String(row?.name ?? ""),
               value: String(row?.value ?? ""),
