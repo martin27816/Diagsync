@@ -13,6 +13,7 @@ import {
 import {
   canApprove,
   canReject,
+  canUnapprove,
   canUseMdWorkflow,
   isTaskReviewable,
   requireRejectReason,
@@ -472,6 +473,61 @@ export async function rejectMdReview(taskId: string, actor: MdActor, reason: str
     patientName: task.visit.patient.fullName,
     approved: false,
     reason,
+  });
+}
+
+export async function unapproveMdReview(taskId: string, actor: MdActor, reason?: string) {
+  assertMd(actor);
+  const task = await getTaskForReview(taskId, actor);
+  const currentStatus = task.review?.status ?? null;
+  if (!canUnapprove(currentStatus)) throw new Error("NOT_APPROVED");
+
+  const now = new Date();
+  const note = reason?.trim() || "Approval reverted for fresh MD review.";
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.review.updateMany({
+      where: {
+        taskId: task.id,
+        status: ReviewStatus.APPROVED,
+      },
+      data: {
+        reviewedById: actor.id,
+        status: ReviewStatus.PENDING,
+        comments: note,
+        rejectionReason: null,
+      },
+    });
+    if (updated.count === 0) throw new Error("NOT_APPROVED");
+
+    await tx.testOrder.updateMany({
+      where: { id: { in: task.testOrderIds }, organizationId: actor.organizationId },
+      data: {
+        status: OrderStatus.SUBMITTED_FOR_REVIEW,
+        submittedAt: now,
+        reviewedAt: null,
+        approvedAt: null,
+      },
+    });
+
+    await tx.routingTask.update({
+      where: { id: task.id },
+      data: { status: RoutingTaskStatus.COMPLETED },
+    });
+  });
+
+  await createAuditLog({
+    actorId: actor.id,
+    actorRole: actor.role as Role,
+    action: AUDIT_ACTIONS.REVIEW_EDITED,
+    entityType: "Review",
+    entityId: task.id,
+    changes: {
+      reason: note,
+      beforeStatus: "APPROVED",
+      afterStatus: "PENDING",
+    },
+    notes: note,
+    ...actor.auditMeta,
   });
 }
 

@@ -4,6 +4,7 @@ import {
   canApprove,
   canEdit,
   canReject,
+  canUnapprove,
   canUseMdWorkflow,
   isTaskReviewable,
   requireRejectReason,
@@ -24,11 +25,14 @@ function testApprovalGuards() {
 
 function testRejectAndEditGuards() {
   assert.equal(canReject(ReviewStatus.PENDING), true);
-  assert.equal(canReject(ReviewStatus.APPROVED), false);
+  assert.equal(canReject(ReviewStatus.APPROVED), true);
 
   assert.equal(canEdit(ReviewStatus.PENDING), true);
   assert.equal(canEdit(ReviewStatus.REJECTED), true);
   assert.equal(canEdit(ReviewStatus.APPROVED), false);
+
+  assert.equal(canUnapprove(ReviewStatus.APPROVED), true);
+  assert.equal(canUnapprove(ReviewStatus.PENDING), false);
 }
 
 function testTaskReviewable() {

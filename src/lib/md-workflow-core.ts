@@ -9,11 +9,15 @@ export function canApprove(reviewStatus: ReviewStatus | null) {
 }
 
 export function canReject(reviewStatus: ReviewStatus | null) {
-  return reviewStatus !== ReviewStatus.APPROVED;
+  return reviewStatus === null || reviewStatus === ReviewStatus.PENDING || reviewStatus === ReviewStatus.REJECTED || reviewStatus === ReviewStatus.APPROVED;
 }
 
 export function canEdit(reviewStatus: ReviewStatus | null) {
   return reviewStatus !== ReviewStatus.APPROVED;
+}
+
+export function canUnapprove(reviewStatus: ReviewStatus | null) {
+  return reviewStatus === ReviewStatus.APPROVED;
 }
 
 export function requireRejectReason(reason?: string) {

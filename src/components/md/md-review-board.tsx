@@ -138,6 +138,7 @@ export function MdReviewBoard({
   const [rejectFieldHints, setRejectFieldHints] = useState<Record<string, string>>({});
   const [editReasons, setEditReasons] = useState<Record<string, string>>({});
   const [approveComments, setApproveComments] = useState<Record<string, string>>({});
+  const [unapproveReasons, setUnapproveReasons] = useState<Record<string, string>>({});
   const [labEdits, setLabEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});
   const [labEditNotes, setLabEditNotes] = useState<Record<string, Record<string, string>>>({});
   const [radiologyEdits, setRadiologyEdits] = useState<Record<string, { findings: string; impression: string; notes: string; extraFields: Record<string, string> }>>({});
@@ -254,6 +255,22 @@ export function MdReviewBoard({
       const res = await fetch(`/api/md/reviews/${taskId}/reject`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason, highlightFields }) });
       const json = await res.json() as { success: boolean; error?: string };
       if (!json.success) { setError(json.error ?? "Rejection failed"); await loadData(); }
+      else setExpandedId(null);
+    } finally { setBusyTaskId(null); }
+  }
+
+  async function unapprove(taskId: string) {
+    setBusyTaskId(taskId); setError("");
+    invalidateReviewCache();
+    applyOptimisticReview(taskId, "PENDING");
+    try {
+      const res = await fetch(`/api/md/reviews/${taskId}/unapprove`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: unapproveReasons[taskId] ?? "" }),
+      });
+      const json = await res.json() as { success: boolean; error?: string };
+      if (!json.success) { setError(json.error ?? "Unapprove failed"); await loadData(); }
       else setExpandedId(null);
     } finally { setBusyTaskId(null); }
   }
@@ -428,14 +445,12 @@ export function MdReviewBoard({
                       <td className="px-4 py-2.5 text-slate-500">{item.staff?.fullName ?? "â€”"}</td>
                       <td className="px-4 py-2.5 text-slate-400">{minutesAgoLabel(item.updatedAt)}</td>
                       <td className="px-4 py-2.5">
-                        {reviewStatus !== "APPROVED" && (
-                          <button
-                            onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                            className="rounded border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50 transition-colors"
-                          >
-                            {isExpanded ? "Close" : "Review"}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                          className="rounded border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50 transition-colors"
+                        >
+                          {isExpanded ? "Close" : "Review"}
+                        </button>
                       </td>
                     </tr>
 
@@ -544,11 +559,31 @@ export function MdReviewBoard({
                                   className="h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                   placeholder="Optional comment..."
                                 />
-                                <button disabled={busyTaskId === item.id} onClick={() => approve(item.id)}
+                                <button disabled={busyTaskId === item.id || reviewStatus === "APPROVED"} onClick={() => approve(item.id)}
                                   className="mt-1.5 rounded bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors">
-                                  Approve
+                                  {reviewStatus === "APPROVED" ? "Approved" : "Approve"}
                                 </button>
                               </div>
+
+                              {/* Unapprove */}
+                              {reviewStatus === "APPROVED" ? (
+                                <div className="border-t border-slate-100 pt-3">
+                                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Unapprove reason (optional)</label>
+                                  <input
+                                    value={unapproveReasons[item.id] ?? ""}
+                                    onChange={(e) => setUnapproveReasons((p) => ({ ...p, [item.id]: e.target.value }))}
+                                    className="h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    placeholder="Why move this back to pending?"
+                                  />
+                                  <button
+                                    disabled={busyTaskId === item.id}
+                                    onClick={() => unapprove(item.id)}
+                                    className="mt-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                                  >
+                                    Unapprove To Pending
+                                  </button>
+                                </div>
+                              ) : null}
 
                               {/* Reject */}
                               <div className="border-t border-slate-100 pt-3">
