@@ -329,7 +329,7 @@ function parseSensitivityEntries(rawValue: string): SensitivityEntry[] {
         antibiotic = cleanLine.slice(0, zoneMatch.index).trim();
       }
 
-      antibiotic = antibiotic.replace(/[-":,]+$/g, "").trim();
+      antibiotic = antibiotic.replace(/[-–:,]+$/g, "").trim();
 
       return {
         antibiotic,
@@ -549,7 +549,7 @@ function splitRadiologyNarrative(raw: string) {
   const normalized = trimmed
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
-    .replace(/[•◦▪]/g, "\n")
+    .replace(/[•●▪]/g, "\n")
     .replace(/\t+/g, " ")
     .replace(/[ ]{2,}/g, " ")
     .trim();
@@ -796,17 +796,17 @@ export function renderReportHtml(args: RenderArgs) {
     .watermark {
       position: absolute;
       pointer-events: none;
-      z-index: 3;
+      z-index: 1;
       opacity: 1;
     }
     .watermark img {
-      width: 220px;
+      width: 120px;
       height: auto;
       max-width: none;
       transform: none;
     }
     .watermark-top-left {
-      top: calc(var(--wm-top-offset) + 40px);
+      top: var(--wm-top-offset);
       left: 42px;
     }
     .content-shell {
