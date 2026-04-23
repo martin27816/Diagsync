@@ -36,11 +36,10 @@ function deepCopy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-// Shared input styles — larger, easier to read
-const inputCls = "h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition";
-const labelCls = "block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide";
-const areaCls = "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none";
-const sectionHeadingCls = "text-xs font-bold uppercase tracking-widest text-gray-400 mb-3";
+const inputCls = "h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500";
+const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
+const areaCls = "w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500";
+const sectionHeadingCls = "text-[11px] font-semibold uppercase tracking-wide text-slate-400";
 
 export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" | "RECEPTIONIST" }) {
   const REPORT_LIST_CACHE_TTL_MS = 20_000;
@@ -398,71 +397,47 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const canEdit = canMdEdit || ((canHrmRelease || canReceptionDispatch) && details?.isReleased);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <select
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value as any)}
-          className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-        >
+      <div className="flex gap-2">
+        <select value={filterType} onChange={(e) => setFilterType(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700">
           <option value="ALL">All types</option>
           <option value="lab">Lab reports</option>
           <option value="radiology">Radiology reports</option>
         </select>
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value as any)}
-          className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-        >
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700">
           <option value="ALL">All statuses</option>
           <option value="DRAFT">Draft</option>
           <option value="RELEASED">Released</option>
         </select>
       </div>
 
-      {/* Alerts */}
-      {error && (
-        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <span className="mt-0.5 text-red-500">⚠</span>
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-      {message && (
-        <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
-          <span className="mt-0.5 text-green-500">✓</span>
-          <p className="text-sm text-green-700">{message}</p>
-        </div>
-      )}
+      {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
+      {message && <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">{message}</div>}
 
-      {/* Main layout */}
-      <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-
+      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
         {/* Report list */}
-        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
-          <div className="border-b border-gray-100 px-4 py-3">
-            <span className={sectionHeadingCls}>Reports</span>
+        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+          <div className="border-b border-slate-100 px-3 py-2.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reports</span>
           </div>
           {loading ? (
-            <p className="px-4 py-6 text-sm text-gray-400">Loading reports…</p>
+            <p className="px-3 py-4 text-xs text-slate-400">Loading...</p>
           ) : rows.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-gray-400">No reports found.</p>
+            <p className="px-3 py-4 text-xs text-slate-400">No reports found.</p>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-slate-100">
               {rows.map((row) => (
-                <button
-                  key={row.id}
-                  onClick={() => setSelectedId(row.id)}
-                  className={`w-full px-4 py-3 text-left transition-colors ${row.id === selectedId ? "bg-blue-50 border-l-4 border-blue-500" : "hover:bg-gray-50 border-l-4 border-transparent"}`}
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{row.visit.patient.fullName}</p>
-                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${row.isReleased ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                <button key={row.id} onClick={() => setSelectedId(row.id)}
+                  className={`w-full px-3 py-2.5 text-left transition-colors ${row.id === selectedId ? "bg-blue-50" : "hover:bg-slate-50"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-slate-800 truncate">{row.visit.patient.fullName}</p>
+                    <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${row.isReleased ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
                       {row.isReleased ? "Released" : "Draft"}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-400">{row.reportType === "lab" ? "Lab" : "Radiology"} · {row.visit.visitNumber}</p>
-                  <p className="text-xs text-gray-300 mt-0.5">{formatDateTime(row.updatedAt)}</p>
+                  <p className="text-[11px] text-slate-400">{row.reportType === "lab" ? "Lab" : "Radiology"} · {row.visit.visitNumber}</p>
+                  <p className="text-[11px] text-slate-300">{formatDateTime(row.updatedAt)}</p>
                 </button>
               ))}
             </div>
@@ -470,126 +445,79 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
         </div>
 
         {/* Detail panel */}
-        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
           {!details ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="mb-3 text-4xl">📋</div>
-              <p className="text-sm font-medium text-gray-500">Select a report to view details</p>
-            </div>
+            <p className="px-4 py-8 text-center text-xs text-slate-400">Select a report to view details.</p>
           ) : (
-            <div>
-              {/* Patient header */}
-              <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
+            <div className="divide-y divide-slate-100">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <h2 className="text-base font-bold text-gray-900">{details.visit.patient.fullName}</h2>
-                  <p className="text-sm text-gray-400 mt-0.5 font-mono">{details.visit.patient.patientId} · {details.visit.visitNumber}</p>
+                  <p className="text-xs font-semibold text-slate-800">
+                    {details.reportType === "lab" ? "Lab Report" : "Radiology Report"} — {details.visit.patient.fullName}
+                  </p>
+                  <p className="font-mono text-[11px] text-slate-400">{details.visit.patient.patientId} · {details.visit.visitNumber}</p>
                 </div>
-                <div className="flex gap-2 mt-1">
-                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-                    {details.reportType === "lab" ? "Lab" : "Radiology"}
-                  </span>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${details.isReleased ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-                    {details.isReleased ? "Released" : "Draft"}
-                  </span>
+                <div className="flex gap-1.5">
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">{details.department}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${details.isReleased ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{details.status}</span>
                 </div>
               </div>
 
-              {/* Report preview */}
-              <div className="px-6 py-5 border-b border-gray-100">
-                <p className={sectionHeadingCls}>Report Preview</p>
-                <iframe
-                  title="Report preview"
-                  ref={previewRef}
+              {/* Preview iframe */}
+              <div className="p-4">
+                <iframe title="Report preview" ref={previewRef}
                   key={`${details.id}:${printLetterheadMode}`}
                   src={previewUrl(details.id, printLetterheadMode)}
-                  onLoad={() => setPreviewLoaded(true)}
-                  className="h-96 w-full rounded-xl border border-gray-200"
-                />
+                  onLoad={() => setPreviewLoaded(true)} className="h-96 w-full rounded border border-slate-200" />
               </div>
 
               {/* Release / Dispatch controls */}
               {(canHrmRelease || canReceptionDispatch) && (
-                <div className="px-6 py-5 border-b border-gray-100 space-y-4">
-                  <p className={sectionHeadingCls}>{canReceptionDispatch ? "Dispatch" : "Release"}</p>
-
-                  {/* Print format */}
+                <div className="p-4 space-y-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    {canReceptionDispatch ? "Dispatch" : "Release"}
+                  </p>
+                  <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                    Print option: choose with or without letterhead. Watermark stays in both modes. WhatsApp always uses letterhead.
+                  </div>
                   <div>
                     <label className={labelCls}>Print format</label>
                     <select
                       value={printLetterheadMode}
                       onChange={(e) => { setPreviewLoaded(false); setPrintLetterheadMode(e.target.value as "with" | "without"); }}
-                      className="h-9 w-full max-w-xs rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                      className="h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"
                     >
                       <option value="with">With letterhead</option>
-                      <option value="without">Without letterhead</option>
+                      <option value="without">Without letterhead (B/W friendly)</option>
                     </select>
-                    <p className="mt-1.5 text-xs text-gray-400">Watermark appears in both formats. WhatsApp always uses letterhead.</p>
                   </div>
-
-                  {/* HRM-only: Release method + receptionist note */}
                   {!canReceptionDispatch && (
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <>
+                      <div>
+                        <label className={labelCls}>Instruction for receptionist (optional)</label>
+                        <textarea rows={2} value={receptionInstruction} onChange={(e) => setReceptionInstruction(e.target.value)} className={areaCls} />
+                      </div>
                       <div>
                         <label className={labelCls}>Release method</label>
-                        <select
-                          value={releaseMethod}
-                          onChange={(e) => setReleaseMethod(e.target.value as any)}
-                          className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                        >
+                        <select value={releaseMethod} onChange={(e) => setReleaseMethod(e.target.value as any)}
+                          className="h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700">
                           <option value="PRINT">Print</option>
                           <option value="DOWNLOAD">Download</option>
                           <option value="WHATSAPP">WhatsApp</option>
                         </select>
                       </div>
-                      <div>
-                        <label className={labelCls}>Note for receptionist</label>
-                        <input
-                          value={receptionInstruction}
-                          onChange={(e) => setReceptionInstruction(e.target.value)}
-                          className={inputCls}
-                          placeholder="Optional note…"
-                        />
-                      </div>
-                    </div>
+                    </>
                   )}
-
-                  {/* Action buttons */}
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      disabled={busy}
-                      onClick={printNow}
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                    >
-                      🖨 Print Now
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={printReport}
-                      className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                    >
-                      Preview & Print
-                    </button>
-                    <button
-                      disabled={busy || !details.isReleased || !previewLoaded}
-                      onClick={downloadReport}
-                      className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                    >
-                      ↓ Download PDF
-                    </button>
-                    <button
-                      disabled={busy || !details.isReleased || !previewLoaded}
-                      onClick={sendWhatsapp}
-                      className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700 hover:bg-green-100 disabled:opacity-50 transition-colors"
-                    >
-                      WhatsApp
-                    </button>
+                    <button disabled={busy} onClick={printNow} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">Print</button>
+                    <button disabled={busy} onClick={printReport} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">Print Preview</button>
+                    <button disabled={busy || !details.isReleased || !previewLoaded} onClick={downloadReport} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">Download</button>
+                    <button disabled={busy || !details.isReleased || !previewLoaded} onClick={sendWhatsapp} className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">WhatsApp</button>
                     {!canReceptionDispatch && (
-                      <button
-                        disabled={busy || details.isReleased}
-                        onClick={releaseReport}
-                        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                      >
-                        {details.isReleased ? "✓ Released" : "Release Report"}
+                      <button disabled={busy || details.isReleased} onClick={releaseReport}
+                        className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                        {details.isReleased ? "Released" : "Release Report"}
                       </button>
                     )}
                   </div>
@@ -598,238 +526,220 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
 
               {/* Edit section — collapsible */}
               {canEdit && (
-                <div className="px-6 py-5 border-b border-gray-100">
+                <div className="p-4 space-y-3">
                   <button
                     onClick={() => setShowEditSection((v) => !v)}
                     className="flex w-full items-center justify-between"
                   >
-                    <p className={sectionHeadingCls + " mb-0"}>Edit Report</p>
-                    <span className="text-xs text-gray-400 font-medium">{showEditSection ? "▲ Collapse" : "▼ Expand"}</span>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Report Edits</p>
+                    <span className="rounded border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50 transition-colors">
+                      {showEditSection ? "Hide" : "Show"}
+                    </span>
                   </button>
 
                   {showEditSection && (
-                    <div className="mt-4 space-y-5">
-                      {/* Lab edits */}
+                    <div className="space-y-3">
                       {details.department === "LABORATORY" ? (
-                        <div className="space-y-4">
-                          {/* Add test from catalog */}
-                          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
-                            <p className="text-sm font-semibold text-gray-700">Add a Test</p>
-                            <div className="flex gap-2">
+                        <div className="space-y-2">
+                          <div className="rounded border border-slate-200 bg-slate-50 p-2.5 space-y-2">
+                            <p className="text-[11px] font-medium text-slate-600">Add Missing Test</p>
+                            <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
                               <input
                                 value={labTestSearch}
                                 onChange={(e) => setLabTestSearch(e.target.value)}
                                 className={inputCls}
-                                placeholder="Search catalog (e.g. FBC, urine M/C/S…)"
+                                placeholder="Search lab test (e.g. urine m/c/s, fbc, genotype)"
                               />
                               <button
                                 type="button"
                                 disabled={busy || labTestSearchBusy}
                                 onClick={() => void searchLabCatalog(labTestSearch)}
-                                className="shrink-0 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                                className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                               >
-                                {labTestSearchBusy ? "…" : "Search"}
+                                {labTestSearchBusy ? "Searching..." : "Search"}
                               </button>
                             </div>
-                            {labTestSearchResults.length > 0 && (
-                              <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+                            {labTestSearchResults.length > 0 ? (
+                              <div className="space-y-1 rounded border border-slate-200 bg-white p-2">
                                 {labTestSearchResults.map((test) => (
-                                  <div key={test.id} className="flex items-center justify-between px-3 py-2.5 gap-3">
+                                  <div key={test.id} className="flex items-center justify-between gap-2 rounded border border-slate-100 px-2 py-1.5">
                                     <div>
-                                      <p className="text-sm font-medium text-gray-800">{test.name}</p>
-                                      <p className="text-xs text-gray-400">{test.code}</p>
+                                      <p className="text-xs font-medium text-slate-700">{test.name}</p>
+                                      <p className="text-[11px] text-slate-400">{test.code}</p>
                                     </div>
                                     <button
                                       type="button"
                                       disabled={busy}
                                       onClick={() => addLabTestFromCatalog(test)}
-                                      className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                                      className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] text-blue-700 hover:bg-blue-100 disabled:opacity-50"
                                     >
-                                      + Add
+                                      Add Test
                                     </button>
                                   </div>
                                 ))}
                               </div>
-                            )}
-                            <div className="flex gap-2">
+                            ) : null}
+                            <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
                               <input
                                 value={addLabTestName}
                                 onChange={(e) => setAddLabTestName(e.target.value)}
                                 className={inputCls}
-                                placeholder="Or enter a custom test name…"
+                                placeholder="Or add custom test name manually"
                               />
                               <button
                                 type="button"
                                 disabled={busy}
                                 onClick={() => addLabTest(addLabTestName)}
-                                className="shrink-0 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                                className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                               >
-                                + Custom
+                                Add Custom Test
                               </button>
                             </div>
                           </div>
 
-                          {/* Existing tests */}
                           {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) => (
-                            <div key={tIdx} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-                              {/* Test name header */}
-                              <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
+                            <div key={tIdx} className="rounded border border-slate-100 p-2">
+                              <div className="mb-2 flex items-center gap-2">
                                 <input
                                   value={test?.name ?? ""}
                                   onChange={(e) => updateLabTestName(tIdx, e.target.value)}
-                                  className="flex-1 rounded-lg border border-gray-200 bg-white px-3 h-9 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                                  className={`${inputCls} font-medium`}
                                   placeholder={`Test ${tIdx + 1}`}
                                 />
                                 <button
                                   type="button"
                                   disabled={busy}
                                   onClick={() => removeLabTest(tIdx)}
-                                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                                  className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
                                 >
-                                  Remove
+                                  Remove Test
                                 </button>
                               </div>
-
-                              {/* Result rows */}
-                              <div className="divide-y divide-gray-100">
+                              <div className="grid grid-cols-1 gap-2">
                                 {(Array.isArray(test?.rows) ? test.rows : []).map((row: any, rIdx: number) => (
-                                  <div key={rIdx} className="px-4 py-3 space-y-2">
-                                    <div className="flex items-center gap-2">
+                                  <div key={rIdx} className="rounded border border-slate-100 p-2">
+                                    <div className="mb-2 flex items-center gap-2">
                                       <input
                                         value={row?.name ?? ""}
                                         onChange={(e) => updateLabFieldName(tIdx, rIdx, e.target.value)}
-                                        className="flex-1 h-8 rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                                        placeholder={`Field ${rIdx + 1} name`}
+                                        className={inputCls}
+                                        placeholder={`Field ${rIdx + 1}`}
                                       />
                                       <button
                                         type="button"
                                         disabled={busy}
                                         onClick={() => removeLabField(tIdx, rIdx)}
-                                        className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1 text-xs text-red-500 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                                        className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
                                       >
                                         ✕
                                       </button>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                      <div>
-                                        <label className="block text-xs text-gray-400 mb-1">Result</label>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
+                                      <label>
+                                        <span className="block text-[11px] text-slate-400">Result</span>
                                         <input value={row?.value ?? ""} onChange={(e) => updateLabField(tIdx, rIdx, "value", e.target.value)} className={inputCls} />
-                                      </div>
-                                      <div>
-                                        <label className="block text-xs text-gray-400 mb-1">Unit</label>
+                                      </label>
+                                      <label>
+                                        <span className="block text-[11px] text-slate-400">Unit</span>
                                         <input value={row?.unit ?? ""} onChange={(e) => updateLabField(tIdx, rIdx, "unit", e.target.value)} className={inputCls} />
-                                      </div>
-                                      <div>
-                                        <label className="block text-xs text-gray-400 mb-1">Reference</label>
+                                      </label>
+                                      <label>
+                                        <span className="block text-[11px] text-slate-400">Reference/Range</span>
                                         <input value={row?.reference ?? ""} onChange={(e) => updateLabField(tIdx, rIdx, "reference", e.target.value)} className={inputCls} />
-                                      </div>
+                                      </label>
                                     </div>
                                   </div>
                                 ))}
                               </div>
-
-                              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
-                                <button
-                                  type="button"
-                                  disabled={busy}
-                                  onClick={() => addLabField(tIdx)}
-                                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                                >
-                                  + Add Row
-                                </button>
-                              </div>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => addLabField(tIdx)}
+                                className="mt-2 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              >
+                                Add Field
+                              </button>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        /* Radiology edits */
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                           {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) => (
-                            <div key={tIdx} className="rounded-xl border border-gray-200 p-4 space-y-3">
-                              <p className="text-sm font-semibold text-gray-700">{test?.name ?? `Report ${tIdx + 1}`}</p>
+                            <div key={tIdx} className="rounded border border-slate-100 p-2 space-y-1.5">
+                              <p className="text-xs font-medium text-slate-700">{test?.name ?? `Report ${tIdx + 1}`}</p>
                               {(["findings", "impression", "notes"] as const).map((key) => (
-                                <div key={key}>
-                                  <label className={labelCls}>{key}</label>
+                                <label key={key}>
+                                  <span className={labelCls}>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
                                   <textarea rows={2} value={test?.[key] ?? ""} onChange={(e) => updateRadField(tIdx, key, e.target.value)} className={areaCls} />
-                                </div>
+                                </label>
                               ))}
                             </div>
                           ))}
                         </div>
                       )}
-
-                      {/* Comments, Prescription, Edit reason */}
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div>
-                          <label className={labelCls}>Comments <span className="normal-case font-normal text-gray-400">(optional)</span></label>
-                          <textarea rows={3} value={editComments} onChange={(e) => setEditComments(e.target.value)} className={areaCls} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>Prescription <span className="normal-case font-normal text-gray-400">(optional)</span></label>
-                          <textarea rows={3} value={editPrescription} onChange={(e) => setEditPrescription(e.target.value)} className={areaCls} />
-                        </div>
+                      <div>
+                        <label className={labelCls}>Comments (optional)</label>
+                        <textarea rows={2} value={editComments} onChange={(e) => setEditComments(e.target.value)} className={areaCls} />
                       </div>
                       <div>
-                        <label className={labelCls}>
-                          Reason for edit {!details.isReleased && <span className="text-red-500">*</span>}
-                        </label>
-                        <input
+                        <label className={labelCls}>Prescription (optional)</label>
+                        <textarea rows={2} value={editPrescription} onChange={(e) => setEditPrescription(e.target.value)} className={areaCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>{details.isReleased ? "Edit reason (optional)" : "Edit reason *"}</label>
+                        <textarea
+                          rows={1}
                           value={editReason}
                           onChange={(e) => setEditReason(e.target.value)}
-                          className={inputCls}
-                          placeholder={details.isReleased ? "Optional for released report corrections" : "Required — briefly describe the change"}
+                          placeholder={details.isReleased ? "Optional for released report corrections" : ""}
+                          className={areaCls}
                         />
                       </div>
-
-                      <button
-                        disabled={busy}
-                        onClick={saveMdEdits}
-                        className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                      >
-                        {busy ? "Saving…" : "Save Changes"}
+                      <button disabled={busy} onClick={saveMdEdits}
+                        className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                        {busy ? "Saving..." : "Save Edits"}
                       </button>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Version history — collapsible */}
-              <div className="px-6 py-5">
-                <button
-                  onClick={() => setShowVersionHistory((v) => !v)}
-                  className="flex w-full items-center justify-between"
-                >
-                  <p className={sectionHeadingCls + " mb-0"}>Version History</p>
-                  <span className="text-xs text-gray-400 font-medium">{showVersionHistory ? "▲ Hide" : "▼ Show"}</span>
-                </button>
-
+              {/* Version history */}
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Version History</p>
+                  <button
+                    onClick={() => setShowVersionHistory((prev) => !prev)}
+                    className="rounded border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    {showVersionHistory ? "Hide" : "Show"}
+                  </button>
+                </div>
                 {showVersionHistory ? (
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="w-full min-w-[560px] text-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-xs">
                       <thead>
-                        <tr className="border-b border-gray-100">
-                          <th className="pb-2 text-left text-xs font-semibold text-gray-400">Version</th>
-                          <th className="pb-2 text-left text-xs font-semibold text-gray-400">Edited by</th>
-                          <th className="pb-2 text-left text-xs font-semibold text-gray-400">Reason</th>
-                          <th className="pb-2 text-right text-xs font-semibold text-gray-400">Time</th>
+                        <tr className="border-b border-slate-100">
+                          <th className="pb-1.5 text-left font-medium text-slate-400">Version</th>
+                          <th className="pb-1.5 text-left font-medium text-slate-400">By</th>
+                          <th className="pb-1.5 text-left font-medium text-slate-400">Reason</th>
+                          <th className="pb-1.5 text-right font-medium text-slate-400">Time</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-y divide-slate-100">
                         {details.versions.map((v) => (
                           <tr key={v.id}>
-                            <td className="py-2.5 font-mono text-gray-700 text-sm">
-                              v{v.version} {v.isActive && <span className="ml-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-600">active</span>}
-                            </td>
-                            <td className="py-2.5 text-gray-600">{v.editedBy.fullName}</td>
-                            <td className="py-2.5 text-gray-400">{v.editReason}</td>
-                            <td className="py-2.5 text-right text-gray-400 whitespace-nowrap">{formatDateTime(v.createdAt)}</td>
+                            <td className="py-1.5 font-mono text-slate-700">v{v.version} {v.isActive && <span className="text-blue-600">(active)</span>}</td>
+                            <td className="py-1.5 text-slate-600">{v.editedBy.fullName}</td>
+                            <td className="py-1.5 text-slate-400">{v.editReason}</td>
+                            <td className="py-1.5 text-right text-slate-400 whitespace-nowrap">{formatDateTime(v.createdAt)}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 ) : (
-                  <p className="mt-2 text-xs text-gray-400">Tap "Show" to see all edits made to this report.</p>
+                  <p className="text-[11px] text-slate-400">Version history is collapsed to keep this view fast.</p>
                 )}
               </div>
             </div>
