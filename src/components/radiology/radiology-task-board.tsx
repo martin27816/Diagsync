@@ -133,7 +133,7 @@ export function RadiologyTaskBoard() {
     setDrafts(nextDrafts);
   }
 
-  async function loadTasks(opts?: { signal?: AbortSignal; force?: boolean }) {
+  async function loadTasks(opts?: { signal?: AbortSignal; force?: boolean; silent?: boolean }) {
     const cacheKey = `${statusFilter}:${sort}:${searchFilter.trim().toLowerCase()}:${dateFilter}`;
     if (!opts?.force) {
       const cached = taskCacheRef.current.get(cacheKey);
@@ -146,7 +146,10 @@ export function RadiologyTaskBoard() {
     }
 
     const requestId = ++loadTasksSeqRef.current;
-    setLoading(true); setError("");
+    if (!opts?.silent) {
+      setLoading(true);
+    }
+    setError("");
     try {
       const query = new URLSearchParams({ status: statusFilter, sort });
       if (searchFilter.trim()) query.set("search", searchFilter.trim());
@@ -163,7 +166,9 @@ export function RadiologyTaskBoard() {
       setError("Network error while loading radiology tasks");
     } finally {
       if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
-      setLoading(false);
+      if (!opts?.silent) {
+        setLoading(false);
+      }
     }
   }
 
@@ -176,7 +181,7 @@ export function RadiologyTaskBoard() {
   useEffect(() => {
     const refreshNow = () => {
       if (document.visibilityState !== "visible") return;
-      void loadTasks({ force: true });
+      void loadTasks({ force: true, silent: true });
     };
 
     const poll = window.setInterval(refreshNow, 12_000);
