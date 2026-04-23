@@ -17,6 +17,20 @@ type ReportDetails = ReportListItem & {
   versions: Array<{ id: string; version: number; isActive: boolean; content: any; comments?: string | null; prescription?: string | null; editReason: string; createdAt: string; editedBy: { id: string; fullName: string } }>;
 };
 
+type LabCatalogTest = {
+  id: string;
+  name: string;
+  code: string;
+  resultFields?: Array<{
+    id: string;
+    label: string;
+    unit?: string | null;
+    normalMin?: number | null;
+    normalMax?: number | null;
+    normalText?: string | null;
+  }>;
+};
+
 function deepCopy<T>(value: T): T {
   if (typeof structuredClone === "function") return structuredClone(value);
   return JSON.parse(JSON.stringify(value)) as T;
@@ -48,6 +62,10 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const [previewNonce, setPreviewNonce] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [printLetterheadMode, setPrintLetterheadMode] = useState<"with" | "without">("with");
+  const [addLabTestName, setAddLabTestName] = useState("");
+  const [labTestSearch, setLabTestSearch] = useState("");
+  const [labTestSearchBusy, setLabTestSearchBusy] = useState(false);
+  const [labTestSearchResults, setLabTestSearchResults] = useState<LabCatalogTest[]>([]);
   const previewRef = useRef<HTMLIFrameElement | null>(null);
   const loadReportsSeqRef = useRef(0);
   const loadDetailsSeqRef = useRef(0);
@@ -185,6 +203,12 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     return () => controller.abort();
   }, [selectedId]);
   useEffect(() => { setShowVersionHistory(false); }, [selectedId]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void searchLabCatalog(labTestSearch);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [labTestSearch]);
 
   function updateLabField(
     tIdx: number,
@@ -203,6 +227,123 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       return { ...prev, tests };
     });
   }
+
+  function updateLabTestName(tIdx: number, value: string) {
+    setEditableContent((prev: any) => {
+      if (!Array.isArray(prev?.tests) || !prev.tests[tIdx]) return prev;
+      const tests = [...prev.tests];
+      tests[tIdx] = { ...tests[tIdx], name: value };
+      return { ...prev, tests };
+    });
+  }
+
+  function addLabTest(testName?: string) {
+    setEditableContent((prev: any) => {
+      const tests = Array.isArray(prev?.tests) ? [...prev.tests] : [];
+      tests.push({
+        name: (testName ?? "").trim() || `Laboratory Test ${tests.length + 1}`,
+        rows: [{ name: "Result Field", value: "", unit: "", reference: "" }],
+      });
+      return { ...(prev ?? {}), tests };
+    });
+    setAddLabTestName("");
+  }
+
+  function removeLabTest(tIdx: number) {
+    setEditableContent((prev: any) => {
+      if (!Array.isArray(prev?.tests)) return prev;
+      return { ...prev, tests: prev.tests.filter((_: unknown, index: number) => index !== tIdx) };
+    });
+  }
+
+  function addLabField(tIdx: number) {
+    setEditableContent((prev: any) => {
+      if (!Array.isArray(prev?.tests) || !Array.isArray(prev.tests[tIdx]?.rows)) return prev;
+      const tests = [...prev.tests];
+      const test = { ...tests[tIdx] };
+      const rows = [...test.rows, { name: "Result Field", value: "", unit: "", reference: "" }];
+      test.rows = rows;
+      tests[tIdx] = test;
+      return { ...prev, tests };
+    });
+  }
+
+  function removeLabField(tIdx: number, rIdx: number) {
+    setEditableContent((prev: any) => {
+      if (!Array.isArray(prev?.tests) || !Array.isArray(prev.tests[tIdx]?.rows)) return prev;
+      const tests = [...prev.tests];
+      const test = { ...tests[tIdx] };
+      const rows = test.rows.filter((_: unknown, index: number) => index !== rIdx);
+      test.rows = rows.length > 0 ? rows : [{ name: "Result Field", value: "", unit: "", reference: "" }];
+      tests[tIdx] = test;
+      return { ...prev, tests };
+    });
+  }
+
+  function updateLabFieldName(tIdx: number, rIdx: number, value: string) {
+    setEditableContent((prev: any) => {
+      if (!Array.isArray(prev?.tests) || !Array.isArray(prev.tests[tIdx]?.rows)) return prev;
+      const tests = [...prev.tests];
+      const test = { ...tests[tIdx] };
+      const rows = [...test.rows];
+      rows[rIdx] = { ...rows[rIdx], name: value };
+      test.rows = rows;
+      tests[tIdx] = test;
+      return { ...prev, tests };
+    });
+  }
+
+  function buildReferenceFromTemplate(field: NonNullable<LabCatalogTest["resultFields"]>[number]) {
+    const normalText = String(field.normalText ?? "").trim();
+    if (normalText) return normalText;
+    if (typeof field.normalMin === "number" && typeof field.normalMax === "number") {
+      const range = `${field.normalMin} - ${field.normalMax}`;
+      return field.unit ? `${range} ${field.unit}` : range;
+    }
+    return "";
+  }
+
+  function addLabTestFromCatalog(test: LabCatalogTest) {
+    setEditableContent((prev: any) => {
+      const tests = Array.isArray(prev?.tests) ? [...prev.tests] : [];
+      const rows = (Array.isArray(test.resultFields) ? test.resultFields : []).map((field) => ({
+        name: field.label,
+        value: "",
+        unit: field.unit ?? "",
+        reference: buildReferenceFromTemplate(field),
+      }));
+      tests.push({
+        name: test.name,
+        rows: rows.length > 0 ? rows : [{ name: "Result Field", value: "", unit: "", reference: "" }],
+      });
+      return { ...(prev ?? {}), tests };
+    });
+    setLabTestSearch("");
+    setLabTestSearchResults([]);
+  }
+
+  async function searchLabCatalog(query: string) {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setLabTestSearchResults([]);
+      return;
+    }
+    setLabTestSearchBusy(true);
+    try {
+      const res = await fetch(`/api/tests?search=${encodeURIComponent(trimmed)}&type=LAB&department=LABORATORY`);
+      const json = await res.json();
+      if (!json.success) {
+        setLabTestSearchResults([]);
+        return;
+      }
+      setLabTestSearchResults((json.data as LabCatalogTest[]).slice(0, 8));
+    } catch {
+      setLabTestSearchResults([]);
+    } finally {
+      setLabTestSearchBusy(false);
+    }
+  }
+
   function updateRadField(tIdx: number, key: "findings" | "impression" | "notes", value: string) {
     setEditableContent((prev: any) => {
       if (!Array.isArray(prev?.tests) || !prev.tests[tIdx]) return prev;
@@ -399,13 +540,99 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Report Edits</p>
                   {details.department === "LABORATORY" ? (
                     <div className="space-y-2">
+                      <div className="rounded border border-slate-200 bg-slate-50 p-2.5 space-y-2">
+                        <p className="text-[11px] font-medium text-slate-600">Add Missing Test</p>
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
+                          <input
+                            value={labTestSearch}
+                            onChange={(e) => setLabTestSearch(e.target.value)}
+                            className={inputCls}
+                            placeholder="Search lab test (e.g. urine m/c/s, fbc, genotype)"
+                          />
+                          <button
+                            type="button"
+                            disabled={busy || labTestSearchBusy}
+                            onClick={() => void searchLabCatalog(labTestSearch)}
+                            className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {labTestSearchBusy ? "Searching..." : "Search"}
+                          </button>
+                        </div>
+                        {labTestSearchResults.length > 0 ? (
+                          <div className="space-y-1 rounded border border-slate-200 bg-white p-2">
+                            {labTestSearchResults.map((test) => (
+                              <div key={test.id} className="flex items-center justify-between gap-2 rounded border border-slate-100 px-2 py-1.5">
+                                <div>
+                                  <p className="text-xs font-medium text-slate-700">{test.name}</p>
+                                  <p className="text-[11px] text-slate-400">{test.code}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => addLabTestFromCatalog(test)}
+                                  className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                                >
+                                  Add Test
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
+                          <input
+                            value={addLabTestName}
+                            onChange={(e) => setAddLabTestName(e.target.value)}
+                            className={inputCls}
+                            placeholder="Or add custom test name manually"
+                          />
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => addLabTest(addLabTestName)}
+                            className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Add Custom Test
+                          </button>
+                        </div>
+                      </div>
+
                       {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) => (
                         <div key={tIdx} className="rounded border border-slate-100 p-2">
-                          <p className="text-xs font-medium text-slate-700 mb-2">{test?.name ?? `Test ${tIdx + 1}`}</p>
+                          <div className="mb-2 flex items-center gap-2">
+                            <input
+                              value={test?.name ?? ""}
+                              onChange={(e) => updateLabTestName(tIdx, e.target.value)}
+                              className={`${inputCls} font-medium`}
+                              placeholder={`Test ${tIdx + 1}`}
+                            />
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => removeLabTest(tIdx)}
+                              className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
+                            >
+                              Remove Test
+                            </button>
+                          </div>
                           <div className="grid grid-cols-1 gap-2">
                             {(Array.isArray(test?.rows) ? test.rows : []).map((row: any, rIdx: number) => (
                               <div key={rIdx} className="rounded border border-slate-100 p-2">
-                                <span className="block text-[11px] font-medium text-slate-500 mb-2">{row?.name ?? `Field ${rIdx + 1}`}</span>
+                                <div className="mb-2 flex items-center gap-2">
+                                  <input
+                                    value={row?.name ?? ""}
+                                    onChange={(e) => updateLabFieldName(tIdx, rIdx, e.target.value)}
+                                    className={inputCls}
+                                    placeholder={`Field ${rIdx + 1}`}
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => removeLabField(tIdx, rIdx)}
+                                    className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
+                                  >
+                                    Remove Field
+                                  </button>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
                                   <label>
                                     <span className="block text-[11px] text-slate-400">Result</span>
@@ -435,6 +662,14 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                               </div>
                             ))}
                           </div>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => addLabField(tIdx)}
+                            className="mt-2 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Add Field
+                          </button>
                         </div>
                       ))}
                     </div>
