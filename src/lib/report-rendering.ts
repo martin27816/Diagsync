@@ -64,6 +64,64 @@ function isMicroscopyRow(rowName: string) {
   );
 }
 
+function isMicroscopySummaryRow(rowName: string) {
+  const token = normalizeToken(rowName);
+  return token === "microscopy" || token.includes("microscopy");
+}
+
+type ParsedMicroscopy = {
+  byToken: Map<string, string>;
+  raw: string;
+};
+
+const MICROSCOPY_TOKEN_PATTERNS: Array<{ token: string; pattern: RegExp }> = [
+  { token: normalizeToken("WBC/PUS cells/HPF"), pattern: /wbc\s*\/?\s*(?:pus|puc)?\s*cells?\s*\/?\s*hpf/gi },
+  { token: normalizeToken("Epithelial cells"), pattern: /epithelial\s*cells?/gi },
+  { token: normalizeToken("Bacterial cells"), pattern: /bacterial\s*cells?/gi },
+  { token: normalizeToken("Yeast cells"), pattern: /yeast\s*cells?/gi },
+];
+
+function parseMicroscopySummary(rawValue: string): ParsedMicroscopy {
+  const normalized = rawValue.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  const byToken = new Map<string, string>();
+  if (!normalized) return { byToken, raw: "" };
+
+  const hits: Array<{ token: string; start: number; end: number }> = [];
+  for (const entry of MICROSCOPY_TOKEN_PATTERNS) {
+    const pattern = new RegExp(entry.pattern.source, entry.pattern.flags);
+    let match: RegExpExecArray | null = pattern.exec(normalized);
+    while (match) {
+      if (match.index === undefined) {
+        match = pattern.exec(normalized);
+        continue;
+      }
+      hits.push({
+        token: entry.token,
+        start: match.index,
+        end: match.index + match[0].length,
+      });
+      match = pattern.exec(normalized);
+    }
+  }
+
+  hits.sort((a, b) => a.start - b.start);
+  for (let i = 0; i < hits.length; i += 1) {
+    const current = hits[i];
+    const next = hits[i + 1];
+    const rawSegment = normalized.slice(current.end, next ? next.start : normalized.length);
+    const cleaned = rawSegment
+      .replace(/^[\s:=,-]+/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!cleaned) continue;
+    if (!byToken.has(current.token)) {
+      byToken.set(current.token, cleaned);
+    }
+  }
+
+  return { byToken, raw: normalized };
+}
+
 function isCommentRow(rowName: string) {
   const token = normalizeToken(rowName);
   return token === "comment" || token === "comments" || token.includes("comment");
@@ -91,6 +149,11 @@ function isPcvRow(rowName: string) {
 function isFbcTestName(testName: string) {
   const token = normalizeToken(testName);
   return token.includes("full blood count") || token === "fbc" || token.includes(" fbc ");
+}
+
+function isMcsTestName(testName: string) {
+  const token = normalizeToken(testName);
+  return token.includes("m c s");
 }
 
 function dualVariantBaseKey(rowName: string) {
@@ -328,6 +391,9 @@ function renderMicroCultureSensitivitySection(tests: LabRenderTest[]) {
   const specimenColumns = tests.map((test) => ({
     label: test.name?.trim() || "SPECIMEN",
     rows: test.rows,
+    microscopySummary: parseMicroscopySummary(
+      test.rows.find((row) => isMicroscopySummaryRow(row.name) && hasRenderableValue(row.value))?.value ?? ""
+    ),
   }));
 
   const preferredMicroscopyRows = [
@@ -353,12 +419,24 @@ function renderMicroCultureSensitivitySection(tests: LabRenderTest[]) {
   }
 
   const microscopyRows = Array.from(microscopyLabelMap.entries());
+  const shouldShowRawMicroscopyRow = specimenColumns.some(
+    (test) => test.microscopySummary.raw && test.microscopySummary.byToken.size === 0
+  );
+  if (shouldShowRawMicroscopyRow) {
+    microscopyRows.push(["__microscopy_raw", "Microscopy"]);
+  }
+
   const microscopyHtmlRows = microscopyRows
     .map(([token, label]) => {
       const values = specimenColumns
         .map((test) => {
+          if (token === "__microscopy_raw") {
+            if (test.microscopySummary.byToken.size > 0) return "-";
+            return escapeHtml(test.microscopySummary.raw || "-");
+          }
           const found = test.rows.find((row) => normalizeToken(row.name) === token);
-          return escapeHtml(found?.value ?? "-");
+          const inferred = found?.value || test.microscopySummary.byToken.get(token) || "";
+          return escapeHtml(inferred || "-");
         })
         .map((value) => `<td>${value}</td>`)
         .join("");
@@ -583,17 +661,9 @@ export function renderReportHtml(args: RenderArgs) {
             })),
           }));
 
-          const microCultureTests = normalizedLabTests.filter((test) => {
-            const title = normalizeToken(test.name);
-            if (title.includes("m c s") || title.includes("culture") || title.includes("sensitivity")) {
-              return true;
-            }
-            return test.rows.some(
-              (row) => isSensitivityRow(row.name) || isCultureRow(row.name)
-            );
-          });
-
-          const microCultureHtml = renderMicroCultureSensitivitySection(microCultureTests);
+          const microCultureTests = normalizedLabTests.filter((test) => isMcsTestName(test.name));
+          const microCultureHtml =
+            microCultureTests.length > 0 ? renderMicroCultureSensitivitySection(microCultureTests) : "";
           const renderedMicroCulture = new Set(microCultureTests);
           const genericHtml = normalizedLabTests
             .filter((test) => !renderedMicroCulture.has(test))

@@ -126,6 +126,85 @@ function isWidalTest(order: TestOrder) {
   return token.includes("widal");
 }
 
+function fieldNeedsReferenceAndFlag(field: ResultField) {
+  return field.fieldType === "NUMBER";
+}
+
+function normalizeToken(input: string) {
+  return input.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function isMcsTestName(testName: string) {
+  return normalizeToken(testName).includes("m c s");
+}
+
+type MicroscopyRowInput = {
+  wbcPus: string;
+  epithelial: string;
+  bacterial: string;
+  yeast: string;
+};
+
+const emptyMicroscopyRowInput = (): MicroscopyRowInput => ({
+  wbcPus: "",
+  epithelial: "",
+  bacterial: "",
+  yeast: "",
+});
+
+function parseMicroscopyRowInput(raw: unknown): MicroscopyRowInput {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text) return emptyMicroscopyRowInput();
+
+  const lines = text
+    .replace(/\r\n/g, "\n")
+    .split(/\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const parsed = emptyMicroscopyRowInput();
+
+  for (const line of lines) {
+    const [leftRaw = "", ...rest] = line.split(":");
+    const left = normalizeToken(leftRaw);
+    const right = rest.join(":").trim();
+    if (!right) continue;
+    if (left.includes("wbc") || left.includes("pus") || left.includes("hpf")) {
+      parsed.wbcPus = right;
+      continue;
+    }
+    if (left.includes("epithelial")) {
+      parsed.epithelial = right;
+      continue;
+    }
+    if (left.includes("bacterial")) {
+      parsed.bacterial = right;
+      continue;
+    }
+    if (left.includes("yeast")) {
+      parsed.yeast = right;
+      continue;
+    }
+  }
+
+  if (parsed.wbcPus || parsed.epithelial || parsed.bacterial || parsed.yeast) return parsed;
+  return {
+    ...parsed,
+    wbcPus: text,
+  };
+}
+
+function serializeMicroscopyRowInput(input: MicroscopyRowInput) {
+  const lines = [
+    ["WBC/PUS cells/HPF", input.wbcPus],
+    ["Epithelial cells", input.epithelial],
+    ["Bacterial cells", input.bacterial],
+    ["Yeast cells", input.yeast],
+  ]
+    .map(([label, value]) => `${label}: ${String(value ?? "").trim()}`)
+    .filter((line) => !line.endsWith(":"));
+  return lines.join("\n");
+}
+
 function parseSensitivityPattern(raw: unknown): SensitivityCell[] {
   const text = typeof raw === "string" ? raw.trim() : "";
   if (!text) {
@@ -372,6 +451,7 @@ type OrderResultCardProps = {
   highlightFields: string[];
   isReady: boolean;
   suppressSensitivityField?: boolean;
+  hiddenDefaultFieldKeys?: string[];
   onPersist: (task: LabTask) => Promise<void>;
   onSetFieldValue: (testOrderId: string, fieldKey: string, value: unknown) => void;
   onSetNotes: (testOrderId: string, value: string) => void;
@@ -394,6 +474,7 @@ const OrderResultCard = memo(function OrderResultCard({
   highlightFields,
   isReady,
   suppressSensitivityField = false,
+  hiddenDefaultFieldKeys = [],
   onPersist,
   onSetFieldValue,
   onSetNotes,
@@ -417,10 +498,17 @@ const OrderResultCard = memo(function OrderResultCard({
     Record<string, { unit: string; normalMin: string; normalMax: string; normalText: string }>
   >({});
   const removedDefaults = useMemo(() => new Set(draft.removedDefaultFieldKeys ?? []), [draft.removedDefaultFieldKeys]);
+  const hiddenDefaultFieldKeysSet = useMemo(
+    () => new Set(hiddenDefaultFieldKeys.map((key) => key.toLowerCase())),
+    [hiddenDefaultFieldKeys]
+  );
   const defaultFieldKeys = useMemo(() => new Set(order.test.resultFields.map((field) => field.fieldKey)), [order.test.resultFields]);
   const visibleDefaultFields = useMemo(
-    () => order.test.resultFields.filter((field) => !removedDefaults.has(field.fieldKey)),
-    [order.test.resultFields, removedDefaults]
+    () =>
+      order.test.resultFields.filter(
+        (field) => !removedDefaults.has(field.fieldKey) && !hiddenDefaultFieldKeysSet.has(field.fieldKey.toLowerCase())
+      ),
+    [hiddenDefaultFieldKeysSet, order.test.resultFields, removedDefaults]
   );
   const visibleFieldByKey = useMemo(() => {
     const map = new Map<string, ResultField>();
@@ -609,6 +697,10 @@ const OrderResultCard = memo(function OrderResultCard({
         (field) => !isSensitivityFieldKey(field.fieldKey) && field.fieldType !== "TEXTAREA"
       ),
     [nonWidalDefaultFields]
+  );
+  const showReferenceAndFlagColumns = useMemo(
+    () => tabularFields.some((field) => fieldNeedsReferenceAndFlag(field)),
+    [tabularFields]
   );
 
   return (
@@ -803,8 +895,12 @@ const OrderResultCard = memo(function OrderResultCard({
                   <tr className="bg-slate-50">
                     <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Parameter</th>
                     <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Value</th>
-                    <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Reference</th>
-                    <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Flag</th>
+                    {showReferenceAndFlagColumns ? (
+                      <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Reference</th>
+                    ) : null}
+                    {showReferenceAndFlagColumns ? (
+                      <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Flag</th>
+                    ) : null}
                     <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">Action</th>
                   </tr>
                 </thead>
@@ -822,69 +918,84 @@ const OrderResultCard = memo(function OrderResultCard({
                       normalMax: typeof draftMax === "number" || draftMax === null ? draftMax : field.normalMax ?? null,
                       normalText: referenceDraft.normalText.trim() || null,
                     };
-                    const referenceText = formatReferenceDisplay(effectiveField, {
-                      sex: task.visit.patient.sex,
-                      age: task.visit.patient.age,
-                    });
-                    const flag = evaluateReferenceFlag(effectiveField, value, {
-                      sex: task.visit.patient.sex,
-                      age: task.visit.patient.age,
-                    });
+                    const allowReferenceAndFlag = fieldNeedsReferenceAndFlag(field);
+                    const referenceText = allowReferenceAndFlag
+                      ? formatReferenceDisplay(effectiveField, {
+                          sex: task.visit.patient.sex,
+                          age: task.visit.patient.age,
+                        })
+                      : "";
+                    const flag = allowReferenceAndFlag
+                      ? evaluateReferenceFlag(effectiveField, value, {
+                          sex: task.visit.patient.sex,
+                          age: task.visit.patient.age,
+                        })
+                      : null;
                     const label = `${field.label}${field.isRequired ? " *" : ""}${effectiveField.unit ? ` (${effectiveField.unit})` : ""}`;
                     return (
                       <tr key={field.id}>
                         <td className="border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700">{label}</td>
                         <td className="border border-slate-200 p-1.5">{renderFieldValueControl(field, highlight)}</td>
-                        <td className="border border-slate-200 px-2 py-1.5 text-[10px] text-slate-500">
-                          <p className="mb-1">{referenceText || "-"}</p>
-                          <div className="grid grid-cols-3 gap-1.5">
-                            <input
-                              type="number"
-                              placeholder="Min"
-                              value={referenceDraft.normalMin}
-                              onChange={(e) => setReferenceDraft(field, { normalMin: e.target.value })}
-                              onBlur={() => {
-                                void persistReferenceDraft(field).catch(() => undefined);
-                              }}
-                              className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                            <input
-                              type="number"
-                              placeholder="Max"
-                              value={referenceDraft.normalMax}
-                              onChange={(e) => setReferenceDraft(field, { normalMax: e.target.value })}
-                              onBlur={() => {
-                                void persistReferenceDraft(field).catch(() => undefined);
-                              }}
-                              className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                            <input
-                              type="text"
-                              placeholder="Unit"
-                              value={referenceDraft.unit}
-                              onChange={(e) => setReferenceDraft(field, { unit: e.target.value })}
-                              onBlur={() => {
-                                void persistReferenceDraft(field).catch(() => undefined);
-                              }}
-                              className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-                        </td>
-                        <td className="border border-slate-200 px-2 py-1.5">
-                          {flag ? (
-                            <span
-                              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                                flag === "NORMAL"
-                                  ? "bg-green-50 text-green-700"
-                                  : "bg-red-50 text-red-700"
-                              }`}
-                            >
-                              {flag}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-400">-</span>
-                          )}
-                        </td>
+                        {showReferenceAndFlagColumns ? (
+                          <td className="border border-slate-200 px-2 py-1.5 text-[10px] text-slate-500">
+                            {allowReferenceAndFlag ? (
+                              <>
+                                <p className="mb-1">{referenceText || "-"}</p>
+                                <div className="grid grid-cols-3 gap-1.5">
+                                  <input
+                                    type="number"
+                                    placeholder="Min"
+                                    value={referenceDraft.normalMin}
+                                    onChange={(e) => setReferenceDraft(field, { normalMin: e.target.value })}
+                                    onBlur={() => {
+                                      void persistReferenceDraft(field).catch(() => undefined);
+                                    }}
+                                    className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  <input
+                                    type="number"
+                                    placeholder="Max"
+                                    value={referenceDraft.normalMax}
+                                    onChange={(e) => setReferenceDraft(field, { normalMax: e.target.value })}
+                                    onBlur={() => {
+                                      void persistReferenceDraft(field).catch(() => undefined);
+                                    }}
+                                    className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="Unit"
+                                    value={referenceDraft.unit}
+                                    onChange={(e) => setReferenceDraft(field, { unit: e.target.value })}
+                                    onBlur={() => {
+                                      void persistReferenceDraft(field).catch(() => undefined);
+                                    }}
+                                    className="h-6 rounded border border-slate-200 px-1.5 text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">-</span>
+                            )}
+                          </td>
+                        ) : null}
+                        {showReferenceAndFlagColumns ? (
+                          <td className="border border-slate-200 px-2 py-1.5">
+                            {allowReferenceAndFlag && flag ? (
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                  flag === "NORMAL"
+                                    ? "bg-green-50 text-green-700"
+                                    : "bg-red-50 text-red-700"
+                                }`}
+                              >
+                                {flag}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">-</span>
+                            )}
+                          </td>
+                        ) : null}
                         <td className="border border-slate-200 px-2 py-1.5">
                           <button
                             type="button"
@@ -1750,6 +1861,142 @@ export function LabTaskBoard() {
     );
   }
 
+  function renderSharedMcsPanel(task: LabTask) {
+    const mcsOrders = task.testOrders.filter((order) => isMcsTestName(order.test.name));
+    if (mcsOrders.length === 0) return null;
+
+    const orderLabel = (order: TestOrder) => order.test.name.trim() || order.test.code || "Specimen";
+    const findField = (order: TestOrder, key: string) =>
+      order.test.resultFields.find((field) => field.fieldKey.trim().toLowerCase() === key);
+    const isFieldRemoved = (orderId: string, fieldKey: string) =>
+      (drafts[orderId]?.removedDefaultFieldKeys ?? []).some((key) => key.toLowerCase() === fieldKey.toLowerCase());
+    const testNames = mcsOrders.map((order) => order.test.name).join(", ");
+
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <label className="block text-[11px] font-medium text-slate-500">
+            Microscopy Culture And Sensitivity (Shared Entry)
+          </label>
+          <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] text-blue-700">
+            Specimens: {testNames}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto rounded border border-slate-200 bg-white">
+          <table className="w-full min-w-[900px] border-collapse text-[11px]">
+            <thead>
+              <tr className="bg-slate-50">
+                <th className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">SPECIMEN</th>
+                {mcsOrders.map((order) => (
+                  <th key={`mcs-h-${order.id}`} className="border border-slate-200 px-2 py-1 text-left font-semibold text-slate-500">
+                    {orderLabel(order)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { key: "wbcPus" as const, label: "WBC/PUS cells/HPF" },
+                { key: "epithelial" as const, label: "Epithelial cells" },
+                { key: "bacterial" as const, label: "Bacterial cells" },
+                { key: "yeast" as const, label: "Yeast cells" },
+              ].map((microscopyRow) => (
+                <tr key={microscopyRow.key}>
+                  <td className="border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700">
+                    {microscopyRow.label}
+                  </td>
+                  {mcsOrders.map((order) => {
+                    const microscopyField = findField(order, "microscopy");
+                    const disabled = !microscopyField || isFieldRemoved(order.id, microscopyField.fieldKey);
+                    const parsed = parseMicroscopyRowInput(
+                      microscopyField ? drafts[order.id]?.values?.[microscopyField.fieldKey] : ""
+                    );
+                    return (
+                      <td key={`mcs-micro-${order.id}-${microscopyRow.key}`} className="border border-slate-200 p-1.5">
+                        {disabled || !microscopyField ? (
+                          <span className="text-[10px] text-slate-400">-</span>
+                        ) : (
+                          <input
+                            value={parsed[microscopyRow.key]}
+                            onBlur={() => void persistDraft(task).catch(() => undefined)}
+                            onChange={(e) => {
+                              const next = { ...parsed, [microscopyRow.key]: e.target.value };
+                              setDraftFieldValue(order.id, microscopyField.fieldKey, serializeMicroscopyRowInput(next));
+                            }}
+                            className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            placeholder="-"
+                          />
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr className="bg-slate-50/40">
+                <td className="border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700">CULTURE RESULT</td>
+                {mcsOrders.map((order) => {
+                  const cultureField = findField(order, "culture_result");
+                  const disabled = !cultureField || isFieldRemoved(order.id, cultureField.fieldKey);
+                  const value = cultureField ? drafts[order.id]?.values?.[cultureField.fieldKey] : "";
+                  const options = (cultureField?.options ?? "")
+                    .split(",")
+                    .map((row) => row.trim())
+                    .filter(Boolean);
+                  return (
+                    <td key={`mcs-culture-${order.id}`} className="border border-slate-200 p-1.5">
+                      {disabled || !cultureField ? (
+                        <span className="text-[10px] text-slate-400">-</span>
+                      ) : (
+                        <select
+                          value={typeof value === "string" ? value : ""}
+                          onBlur={() => void persistDraft(task).catch(() => undefined)}
+                          onChange={(e) => setDraftFieldValue(order.id, cultureField.fieldKey, e.target.value)}
+                          className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">Select...</option>
+                          {options.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700">ISOLATED ORGANISM(S)</td>
+                {mcsOrders.map((order) => {
+                  const organismField = findField(order, "organisms");
+                  const disabled = !organismField || isFieldRemoved(order.id, organismField.fieldKey);
+                  const value = organismField ? drafts[order.id]?.values?.[organismField.fieldKey] : "";
+                  return (
+                    <td key={`mcs-org-${order.id}`} className="border border-slate-200 p-1.5">
+                      {disabled || !organismField ? (
+                        <span className="text-[10px] text-slate-400">-</span>
+                      ) : (
+                        <textarea
+                          rows={2}
+                          value={typeof value === "string" ? value : ""}
+                          onBlur={() => void persistDraft(task).catch(() => undefined)}
+                          onChange={(e) => setDraftFieldValue(order.id, organismField.fieldKey, e.target.value)}
+                          className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Organism(s)"
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
   function updateDraft(testOrderId: string, updater: (prev: Draft) => Draft) {
     setDrafts((prev) => {
       const current = prev[testOrderId] ?? createEmptyDraft();
@@ -2208,6 +2455,7 @@ export function LabTaskBoard() {
                   task.testOrders.filter((order) =>
                     order.test.resultFields.some((field) => isSensitivityFieldKey(field.fieldKey))
                   ).length > 1;
+                const shouldUseSharedMcsPanel = task.testOrders.some((order) => isMcsTestName(order.test.name));
                 return (
                   <Fragment key={task.id}>
                     <tr id={`lab-task-row-${task.id}`} key={task.id} className={`hover:bg-slate-50 transition-colors ${expandedTask === task.id ? "bg-blue-50/30" : ""}`}>
@@ -2361,6 +2609,7 @@ export function LabTaskBoard() {
                                 )}
                               </div>
                             </div>
+                            {shouldUseSharedMcsPanel ? renderSharedMcsPanel(task) : null}
                             {shouldUseSharedSensitivityPanel ? renderSharedSensitivityPanel(task) : null}
                             {task.testOrders.map((order) => (
                               <OrderResultCard
@@ -2371,6 +2620,11 @@ export function LabTaskBoard() {
                                 highlightFields={highlightFields}
                                 isReady={isOrderReady(task, order)}
                                 suppressSensitivityField={shouldUseSharedSensitivityPanel}
+                                hiddenDefaultFieldKeys={
+                                  shouldUseSharedMcsPanel && isMcsTestName(order.test.name)
+                                    ? ["microscopy", "culture_result", "organisms"]
+                                    : []
+                                }
                                 onPersist={persistDraft}
                                 onSetFieldValue={setDraftFieldValue}
                                 onSetNotes={setDraftNotesValue}

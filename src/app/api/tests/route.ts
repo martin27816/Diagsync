@@ -49,6 +49,17 @@ export async function GET(req: NextRequest) {
     const type = searchParams.get("type") as TestType | null;
     const department = searchParams.get("department") as Department | null;
 
+    const normalizedSearch = search.trim().toLowerCase();
+    const searchParts = normalizedSearch.split(/[^a-z0-9]+/).filter(Boolean);
+    const hasMicroscopyWord = searchParts.some((part) => part.startsWith("micro"));
+    const hasCultureWord = searchParts.some((part) => part.startsWith("culture"));
+    const hasSensitivityWord = searchParts.some((part) => part.startsWith("sensitivity"));
+    const hasMcsAlias =
+      normalizedSearch.includes("m/c/s") ||
+      normalizedSearch.includes("mcs") ||
+      searchParts.join(" ").includes("m c s");
+    const shouldExpandToMcs = hasMcsAlias || (hasMicroscopyWord && hasCultureWord && hasSensitivityWord);
+
     const tests = await prisma.diagnosticTest.findMany({
       where: {
         organizationId: user.organizationId,
@@ -60,6 +71,7 @@ export async function GET(req: NextRequest) {
               OR: [
                 { name: { contains: search, mode: "insensitive" } },
                 { code: { contains: search, mode: "insensitive" } },
+                ...(shouldExpandToMcs ? [{ name: { contains: "M/C/S", mode: "insensitive" as const } }] : []),
               ],
             }
           : {}),
