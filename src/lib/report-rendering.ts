@@ -1035,7 +1035,8 @@ export function renderReportHtml(args: RenderArgs) {
       <div class="meta-grid">
         <p><strong>Patient:</strong> ${escapeHtml(String(patient.fullName ?? "-"))}</p>
         <p><strong>Patient ID:</strong> ${escapeHtml(String(patient.patientId ?? "-"))}</p>
-        <p><strong>Age/Sex:</strong> ${escapeHtml(ageLabel)} / ${escapeHtml(String(patient.sex ?? "-"))}</p>
+        <p><strong>Age:</strong> ${escapeHtml(ageLabel)}</p>
+        <p><strong>Sex:</strong> ${escapeHtml(String(patient.sex ?? "-"))}</p>
         <p><strong>Visit Date:</strong> ${escapeHtml(String(meta.visitDate ?? "-"))}</p>
         <p><strong>Report Date:</strong> ${escapeHtml(String(meta.reportDate ?? "-"))}</p>
         ${referringDoctor ? `<p><strong>Referring Doctor:</strong> ${escapeHtml(referringDoctor)}</p>` : ""}
