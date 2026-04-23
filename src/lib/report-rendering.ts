@@ -1,5 +1,6 @@
 import { Department } from "@prisma/client";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY } from "./report-signoff";
+import { formatPatientAge } from "./patient-age";
 
 function escapeHtml(input: string) {
   return input
@@ -642,6 +643,10 @@ export function renderReportHtml(args: RenderArgs) {
   const printMarginBottomPx = hasLetterhead ? 156 : 96;
   const printMarginSidePx = 44;
   const patient = args.content.patient ?? {};
+  const ageLabel = formatPatientAge(
+    { age: patient.age, dateOfBirth: patient.dateOfBirth },
+    "long"
+  );
   const meta = args.content.meta ?? {};
   const referringDoctor = String(meta.referringDoctor ?? "").trim();
   const tests = Array.isArray(args.content.tests) ? args.content.tests : [];
@@ -1030,7 +1035,7 @@ export function renderReportHtml(args: RenderArgs) {
       <div class="meta-grid">
         <p><strong>Patient:</strong> ${escapeHtml(String(patient.fullName ?? "-"))}</p>
         <p><strong>Patient ID:</strong> ${escapeHtml(String(patient.patientId ?? "-"))}</p>
-        <p><strong>Age/Sex:</strong> ${escapeHtml(String(patient.age ?? "-"))} / ${escapeHtml(String(patient.sex ?? "-"))}</p>
+        <p><strong>Age/Sex:</strong> ${escapeHtml(ageLabel)} / ${escapeHtml(String(patient.sex ?? "-"))}</p>
         <p><strong>Visit Date:</strong> ${escapeHtml(String(meta.visitDate ?? "-"))}</p>
         <p><strong>Report Date:</strong> ${escapeHtml(String(meta.reportDate ?? "-"))}</p>
         ${referringDoctor ? `<p><strong>Referring Doctor:</strong> ${escapeHtml(referringDoctor)}</p>` : ""}

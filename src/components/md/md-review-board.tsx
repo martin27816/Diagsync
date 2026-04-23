@@ -9,6 +9,7 @@ import { PatientInsights } from "@/components/patients/patient-insights";
 import { analyzePatientInsights, type PatientHistoryRow } from "@/lib/patient-insights";
 import { toCustomFieldKey } from "@/lib/custom-fields-core";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY, isDataImageUrl } from "@/lib/report-signoff";
+import { formatPatientAge } from "@/lib/patient-age";
 
 type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 type TaskDepartment = "LABORATORY" | "RADIOLOGY";
@@ -18,7 +19,10 @@ type Item = {
   department: TaskDepartment;
   priority: "ROUTINE" | "URGENT" | "EMERGENCY";
   updatedAt: string;
-  visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } };
+  visit: {
+    visitNumber: string;
+    patient: { fullName: string; patientId: string; age: number; dateOfBirth?: string | null; sex: string };
+  };
   staff: { fullName: string } | null;
   review: { status: ReviewStatus; comments?: string | null; rejectionReason?: string | null; editedData?: unknown } | null;
   results: Array<{
@@ -428,7 +432,9 @@ export function MdReviewBoard({
                     <tr key={item.id} className={`hover:bg-slate-50 transition-colors ${isExpanded ? "bg-blue-50/20" : ""}`}>
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-slate-800">{item.visit.patient.fullName}</p>
-                        <p className="font-mono text-slate-400">{item.visit.patient.patientId} Â· {item.visit.patient.age}y Â· {item.visit.patient.sex}</p>
+                        <p className="font-mono text-slate-400">
+                          {item.visit.patient.patientId} Â· {formatPatientAge({ age: item.visit.patient.age, dateOfBirth: item.visit.patient.dateOfBirth })} Â· {item.visit.patient.sex}
+                        </p>
                       </td>
                       <td className="px-4 py-2.5 text-slate-500">{item.department}</td>
                       <td className="px-4 py-2.5 text-slate-500">

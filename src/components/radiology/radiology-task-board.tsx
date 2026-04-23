@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatDateTime } from "@/lib/utils";
 import { toCustomFieldKey } from "@/lib/custom-fields-core";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY } from "@/lib/report-signoff";
+import { formatPatientAge } from "@/lib/patient-age";
 import {
   listOfflineRadiologyDraftItems,
   removeOfflineRadiologyDraft,
@@ -33,7 +34,10 @@ type Task = {
   priority: Priority;
   createdAt: string;
   updatedAt: string;
-  visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } };
+  visit: {
+    visitNumber: string;
+    patient: { fullName: string; patientId: string; age: number; dateOfBirth?: string | null; sex: string };
+  };
   radiologyReport: Report | null;
   testOrders: Array<{ id: string; createdAt: string; test: { name: string; code: string } }>;
 };
@@ -549,7 +553,9 @@ export function RadiologyTaskBoard() {
                     <tr key={task.id} className={`hover:bg-slate-50 transition-colors ${isExpanded ? "bg-blue-50/20" : ""}`}>
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-slate-800">{task.visit.patient.fullName}</p>
-                        <p className="font-mono text-slate-400">{task.visit.patient.patientId} · {task.visit.patient.age}y · {task.visit.patient.sex}</p>
+                        <p className="font-mono text-slate-400">
+                          {task.visit.patient.patientId} · {formatPatientAge({ age: task.visit.patient.age, dateOfBirth: task.visit.patient.dateOfBirth })} · {task.visit.patient.sex}
+                        </p>
                         {getNewlyAddedOrders(task).length > 0 ? (
                           <p className="text-[11px] text-emerald-700">
                             New test(s) added: {getNewlyAddedOrders(task).map((order) => order.test.name).join(", ")}

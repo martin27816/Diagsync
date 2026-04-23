@@ -5,6 +5,7 @@ import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { formatDateTime, formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/index";
+import { formatPatientAge } from "@/lib/patient-age";
 
 export default async function ReceptionistDashboard() {
   const session = await auth();
@@ -166,7 +167,7 @@ export default async function ReceptionistDashboard() {
                         <td className="px-4 py-2.5 font-medium text-slate-800">{patient.fullName}</td>
                         <td className="px-4 py-2.5 text-slate-400 font-mono">{patient.patientId}</td>
                         <td className="px-4 py-2.5 text-slate-500">
-                          {patient.age}y · {patient.sex}
+                          {formatPatientAge({ age: patient.age, dateOfBirth: patient.dateOfBirth })} · {patient.sex}
                         </td>
                         <td className="px-4 py-2.5">
                           <div className="flex flex-wrap gap-1">
@@ -227,7 +228,7 @@ export default async function ReceptionistDashboard() {
                       <div>
                         <p className="text-xs font-medium text-slate-800">{patient.fullName}</p>
                         <p className="text-[11px] font-mono text-slate-400">
-                          {patient.patientId} · {patient.age}y · {patient.sex}
+                          {patient.patientId} · {formatPatientAge({ age: patient.age, dateOfBirth: patient.dateOfBirth })} · {patient.sex}
                         </p>
                       </div>
                       <p className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">

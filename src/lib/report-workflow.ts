@@ -98,6 +98,7 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
       fullName: task.visit.patient.fullName,
       patientId: task.visit.patient.patientId,
       age: task.visit.patient.age,
+      dateOfBirth: task.visit.patient.dateOfBirth?.toISOString() ?? null,
       sex: task.visit.patient.sex,
     },
     meta: {

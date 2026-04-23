@@ -6,6 +6,7 @@ import { UserPlus } from "lucide-react";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { DayRolloverRefresh } from "@/components/receptionist/day-rollover-refresh";
 import { DeletePatientButton } from "@/components/receptionist/delete-patient-button";
+import { formatPatientAge } from "@/lib/patient-age";
 
 type DaySummary = {
   key: string;
@@ -14,6 +15,7 @@ type DaySummary = {
     fullName: string;
     patientId: string;
     age: number;
+    dateOfBirth?: Date | null;
     sex: string;
     createdAt: Date;
     registeredById: string;
@@ -162,6 +164,7 @@ export default async function PatientsListPage({
       fullName: patient.fullName,
       patientId: patient.patientId,
       age: patient.age,
+      dateOfBirth: patient.dateOfBirth,
       sex: patient.sex,
       createdAt: patient.createdAt,
       registeredById: patient.registeredById,
@@ -299,7 +302,9 @@ export default async function PatientsListPage({
                       <tr key={row.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-2.5 font-medium text-slate-800">{row.fullName}</td>
                         <td className="px-4 py-2.5 font-mono text-slate-400">{row.patientId}</td>
-                        <td className="px-4 py-2.5 text-slate-500">{row.age}y - {row.sex}</td>
+                        <td className="px-4 py-2.5 text-slate-500">
+                          {formatPatientAge({ age: row.age, dateOfBirth: row.dateOfBirth })} - {row.sex}
+                        </td>
                         <td className="px-4 py-2.5">
                           <div className="flex flex-wrap gap-1">
                             {row.latestVisit?.testOrders.slice(0, 2).map((order) => (

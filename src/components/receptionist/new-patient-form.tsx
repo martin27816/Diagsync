@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatCurrency } from "@/lib/utils";
 import { enqueueOfflinePatient, listOfflinePatientItems, removeOfflinePatient, type OfflinePatientPayload } from "@/lib/offline-sync";
 import { buildReferenceNote, splitReferenceNote } from "@/lib/reference-ranges";
+import { estimateDateOfBirthFromEnteredAge } from "@/lib/patient-age";
 
 interface TestResult {
   id: string; name: string; code: string; type: "LAB" | "RADIOLOGY";
@@ -492,11 +493,14 @@ export function NewPatientForm() {
 
   function buildPayload(): OfflinePatientPayload {
     const ageYears = toAgeYears(age, ageUnit) ?? 0;
+    const resolvedDateOfBirth =
+      dateOfBirth ||
+      (ageUnit !== "YEARS" ? estimateDateOfBirthFromEnteredAge(age, ageUnit) ?? undefined : undefined);
     return {
       patientId: patientNumber.trim(),
       fullName: fullName.trim(), age: ageYears, sex, phone: phone.trim(),
       email: email.trim() || undefined, address: address.trim() || undefined,
-      dateOfBirth: dateOfBirth || undefined, referringDoctor: referringDoctor.trim() || undefined,
+      dateOfBirth: resolvedDateOfBirth, referringDoctor: referringDoctor.trim() || undefined,
       clinicalNote: clinicalNote.trim() || undefined, priority, paymentStatus,
       amountPaid: amountPaidNum, discount: discountAmount,
       paymentMethod: paymentMethod || undefined, notes: visitNotes.trim() || undefined,

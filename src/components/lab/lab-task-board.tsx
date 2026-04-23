@@ -11,6 +11,7 @@ import { listOfflineLabDraftItems, removeOfflineLabDraft, upsertOfflineLabDraft 
 import { evaluateReferenceFlag, formatReferenceDisplay } from "@/lib/reference-ranges";
 import { toCustomFieldKey } from "@/lib/custom-fields-core";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY } from "@/lib/report-signoff";
+import { formatPatientAge } from "@/lib/patient-age";
 import {
   SignaturePreset,
   loadSignaturePresets,
@@ -51,7 +52,10 @@ type LabTask = {
   priority: Priority;
   createdAt: string;
   updatedAt: string;
-  visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } };
+  visit: {
+    visitNumber: string;
+    patient: { fullName: string; patientId: string; age: number; dateOfBirth?: string | null; sex: string };
+  };
   sample?: { status: SampleStatus } | null;
   staff?: { id: string; fullName: string } | null;
   review?: { rejectionReason?: string | null; editedData?: unknown } | null;
@@ -2461,7 +2465,9 @@ export function LabTaskBoard() {
                     <tr id={`lab-task-row-${task.id}`} key={task.id} className={`hover:bg-slate-50 transition-colors ${expandedTask === task.id ? "bg-blue-50/30" : ""}`}>
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-slate-800">{task.visit.patient.fullName}</p>
-                        <p className="font-mono text-slate-400">{task.visit.patient.patientId} - {task.visit.patient.age}y - {task.visit.patient.sex}</p>
+                        <p className="font-mono text-slate-400">
+                          {task.visit.patient.patientId} - {formatPatientAge({ age: task.visit.patient.age, dateOfBirth: task.visit.patient.dateOfBirth })} - {task.visit.patient.sex}
+                        </p>
                         {getNewlyAddedOrders(task).length > 0 ? (
                           <p className="text-[11px] text-emerald-700">
                             New test(s) added: {getNewlyAddedOrders(task).map((order) => order.test.name).join(", ")}
