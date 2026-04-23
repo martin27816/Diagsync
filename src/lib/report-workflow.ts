@@ -648,6 +648,22 @@ export async function renderReportForPreview(
   const activeVersion = report.versions.find((version) => version.isActive) ?? report.versions[0] ?? null;
   if (!activeVersion) throw new Error("INVALID_VERSION_CHAIN");
   assertContentMatchesDepartment(activeVersion.content, report.department);
+  const versionContent = (activeVersion.content ?? {}) as Record<string, unknown>;
+  const existingPatient =
+    versionContent.patient && typeof versionContent.patient === "object"
+      ? (versionContent.patient as Record<string, unknown>)
+      : {};
+  const renderContent = {
+    ...versionContent,
+    patient: {
+      ...existingPatient,
+      fullName: report.visit.patient.fullName,
+      patientId: report.visit.patient.patientId,
+      age: report.visit.patient.age,
+      dateOfBirth: report.visit.patient.dateOfBirth?.toISOString() ?? null,
+      sex: report.visit.patient.sex,
+    },
+  };
 
   const html = renderReportHtml({
     organization: {
@@ -659,7 +675,7 @@ export async function renderReportForPreview(
       letterheadUrl: report.organization.letterheadUrl,
     },
     department: report.department,
-    content: activeVersion.content as any,
+    content: renderContent as any,
     comments: activeVersion.comments ?? report.comments,
     prescription: activeVersion.prescription ?? report.prescription,
     mdName: null,
