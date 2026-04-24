@@ -218,8 +218,7 @@ export function NewPatientForm() {
         const { plainText, demographicRanges } = splitReferenceNote(field.referenceNote);
         const fallbackMin = toNullableNumber(field.normalMin);
         const fallbackMax = toNullableNumber(field.normalMax);
-        const current = demographicRanges[key] ??
-          (fallbackMin !== null && fallbackMax !== null ? { min: fallbackMin, max: fallbackMax } : { min: 0, max: 0 });
+        const current = demographicRanges[key] ?? { min: fallbackMin, max: fallbackMax };
         const nextMin = patch.normalMin === undefined ? current.min : patch.normalMin;
         const nextMax = patch.normalMax === undefined ? current.max : patch.normalMax;
         const nextRanges = {

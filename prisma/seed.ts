@@ -64,10 +64,10 @@ async function bootstrapMegaAdmin() {
 }
 
 async function main() {
-  console.log("🌱 Seeding Tests...");
+  console.log("?? Seeding Tests...");
   await bootstrapMegaAdmin();
 
-  // ── Seed Test Categories ─────────────────────────────────────────────────────
+  // -- Seed Test Categories -----------------------------------------------------
   const categories = await Promise.all([
     prisma.testCategory.upsert({
       where: { id: "cat-haematology" },
@@ -106,9 +106,9 @@ async function main() {
     }),
   ]);
 
-  console.log(`✅ ${categories.length} test categories created`);
+  console.log(`? ${categories.length} test categories created`);
 
-  // ── Get Organization ─────────────────────────────────────────────────────────
+  // -- Get Organization ---------------------------------------------------------
   const seedOrganizationId = (process.env.SEED_ORGANIZATION_ID ?? "").trim();
   const seedOrganizationEmail = (process.env.SEED_ORGANIZATION_EMAIL ?? "").trim();
 
@@ -148,15 +148,15 @@ async function main() {
       },
     });
 
-    console.log("✅ Created default organization and super admin");
+    console.log("? Created default organization and super admin");
     console.log(`   Admin email: ${defaultAdminEmail}`);
     console.log(`   Admin password: ${defaultAdminPassword}`);
   }
 
   const orgId = org.id;
-  console.log(`✅ Organization found: ${org.name} (${org.id})`);
+  console.log(`? Organization found: ${org.name} (${org.id})`);
 
-  // ── Helper: upsert test + fields ──────────────────────────────────────────
+  // -- Helper: upsert test + fields ------------------------------------------
   async function seedTest(data: {
     code: string;
     name: string;
@@ -422,6 +422,17 @@ async function main() {
     return { groupKey, viewType, isDefaultInGroup };
   }
 
+  function canonicalizeRadiologyNameForDedup(input: string) {
+    return normalizeName(input)
+      .replace(/x[\s-]?ray/gi, "X-Ray")
+      .replace(/\(\s*(AP|PA|Lateral|Oblique)\s+View\s*\)/gi, " $1")
+      .replace(/\bLateral\b/gi, "LAT")
+      .replace(/\s*\/\s*/g, "/")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase();
+  }
+
   async function syncExistingTestFieldsByName(params: {
     name: string;
     type: TestType;
@@ -456,7 +467,7 @@ async function main() {
     return targets.length;
   }
 
-  // ── LAB TESTS ────────────────────────────────────────────────────────────────
+  // -- LAB TESTS ----------------------------------------------------------------
 
   // 1. Full Blood Count — added Basophils field
   await seedTest({
@@ -950,7 +961,7 @@ async function main() {
     ],
   });
 
-  // ── RADIOLOGY TESTS ──────────────────────────────────────────────────────────
+  // -- RADIOLOGY TESTS ----------------------------------------------------------
 
   // 21. Chest X-Ray
   await seedTest({
@@ -1132,7 +1143,7 @@ async function main() {
     "Chest X-ray AP",
     "Chest X-ray PA",
     "Chest X-ray AP/LAT",
-    "Chest PA/LAT",
+    "Chest X-ray PA/LAT",
     "Decubitus Chest (left/right)",
     "Apical lordotic view",
     "Skull X-ray AP/LAT",
@@ -1191,8 +1202,21 @@ async function main() {
     new Set(requestedExactRadiologyTestsRaw.map((name) => name.trim()).filter(Boolean))
   );
 
+  const existingRadiologyCanonicalNamesForUserList = new Set(
+    (
+      await prisma.diagnosticTest.findMany({
+        where: { organizationId: orgId, type: TestType.RADIOLOGY },
+        select: { name: true },
+      })
+    ).map((test) => canonicalizeRadiologyNameForDedup(test.name))
+  );
+
   for (let i = 0; i < requestedExactRadiologyTests.length; i += 1) {
     const name = requestedExactRadiologyTests[i];
+    const canonical = canonicalizeRadiologyNameForDedup(name);
+    if (existingRadiologyCanonicalNamesForUserList.has(canonical)) {
+      continue;
+    }
     const code = `XRUSR${String(i + 1).padStart(3, "0")}`;
     const grouping = deriveRadiologyGrouping(name);
     await seedTest({
@@ -1209,6 +1233,7 @@ async function main() {
       isDefaultInGroup: grouping.isDefaultInGroup,
       fields: makeRadiologyWorkflowFields(),
     });
+    existingRadiologyCanonicalNamesForUserList.add(canonical);
   }
 
   const structuredCardiologyTests: Array<{
@@ -1384,7 +1409,7 @@ async function main() {
       create: { id: "cat-cardiac", name: "Cardiac Markers", description: "Cardiac and heart-related markers" },
     }),
   ]);
-  console.log(`✅ ${extraCategories.length} additional categories ready`);
+  console.log(`? ${extraCategories.length} additional categories ready`);
 
   const rawLabTests = [
     "ALKALINE PHOSPHATASE (ALP)",
@@ -2202,7 +2227,7 @@ async function main() {
     { label: "pH", fieldKey: "ph", fieldType: FieldType.NUMBER, unit: "pH", normalMin: 7.2, normalMax: 8.0, sortOrder: 5 },
     { label: "Appearance", fieldKey: "appearance", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 6 },
     { label: "Liquefaction Time", fieldKey: "liquefaction_time", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 7 },
-    { label: "Sperm Count (Total)", fieldKey: "sperm_count", fieldType: FieldType.NUMBER, unit: "×10⁶", normalMin: 39, isRequired: false, sortOrder: 8 },
+    { label: "Sperm Count (Total)", fieldKey: "sperm_count", fieldType: FieldType.NUMBER, unit: "×106", normalMin: 39, isRequired: false, sortOrder: 8 },
     { label: "Sperm Concentration", fieldKey: "sperm_concentration", fieldType: FieldType.NUMBER, unit: "million/mL", normalMin: 15, sortOrder: 9 },
     { label: "Progressively Motile", fieldKey: "progressive_motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 32, normalMax: 100, sortOrder: 10 },
     { label: "Non-Progressively Motile", fieldKey: "non_progressive_motility", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 11 },
@@ -2272,7 +2297,7 @@ async function main() {
   ],
   "RETICULOCYTE COUNT": [
     { label: "Reticulocyte Count", fieldKey: "reticulocyte", fieldType: FieldType.NUMBER, unit: "%", normalMin: 0.5, normalMax: 2.5, sortOrder: 1 },
-    { label: "Absolute Reticulocyte Count", fieldKey: "abs_reticulocyte", fieldType: FieldType.NUMBER, unit: "×10⁹/L", normalMin: 25, normalMax: 100, isRequired: false, sortOrder: 2 },
+    { label: "Absolute Reticulocyte Count", fieldKey: "abs_reticulocyte", fieldType: FieldType.NUMBER, unit: "×10?/L", normalMin: 25, normalMax: 100, isRequired: false, sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "PERIPHERAL BLOOD FILM": [
@@ -2866,9 +2891,9 @@ async function main() {
     existingRadiologyNames.add(normalized);
   }
 
-  console.log(`✅ Added/updated ${dedupedLab.length} expanded lab tests`);
-  console.log(`✅ Added/updated ${dedupedRadiology.length} expanded radiology tests`);
-  console.log(`✅ Synced ${syncedLabTemplateCount} existing lab templates by name`);
+  console.log(`? Added/updated ${dedupedLab.length} expanded lab tests`);
+  console.log(`? Added/updated ${dedupedRadiology.length} expanded radiology tests`);
+  console.log(`? Synced ${syncedLabTemplateCount} existing lab templates by name`);
 
   console.log(`Migrated ${migratedLegacyCardiologyCount} legacy cardiology tests to Cardiology category`);
 
@@ -2967,7 +2992,7 @@ async function main() {
 
   const sourceOrgTestCount = await prisma.diagnosticTest.count({ where: { organizationId: orgId } });
   const globalTestCount = await prisma.diagnosticTest.count();
-  console.log(`\n✅ Seeding complete!`);
+  console.log(`\n? Seeding complete!`);
   console.log(`   Source organization tests: ${sourceOrgTestCount}`);
   console.log(`   Synced catalog to organizations: ${syncedOrganizations}`);
   console.log(`   Tests in database (all organizations): ${globalTestCount}`);
@@ -2983,3 +3008,4 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+
