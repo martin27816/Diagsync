@@ -108,6 +108,8 @@ const DEFAULT_SENSITIVITY_ANTIBIOTICS = [
 const SENSITIVITY_VALUE_OPTIONS = ["+", "2+", "3+", "4+", "5mm", "10mm", "15mm", "20mm", "25mm", "30mm"];
 const SENSITIVITY_INTERPRETATION_OPTIONS = ["S", "R", "I"];
 const SENSITIVITY_MEMORY_KEY = "diag_sync_sensitivity_memory_v1";
+const DEFAULT_CULTURE_RESULT_TEXT =
+  "Staphylococcus aureus & Candida albican isolated after 24hours incubation @ 370C";
 const WIDAL_FIELD_ALIASES = {
   typhiO: ["typhi_o"],
   typhiH: ["typhi_h"],
@@ -642,6 +644,10 @@ const OrderResultCard = memo(function OrderResultCard({
     (field: ResultField, highlight: boolean) => {
       const value = draft.values?.[field.fieldKey];
       const isCultureResultField = field.fieldKey.trim().toLowerCase() === "culture_result";
+      const hasCultureValueKey =
+        isCultureResultField && Object.prototype.hasOwnProperty.call(draft.values ?? {}, field.fieldKey);
+      const effectiveValue =
+        isCultureResultField && !hasCultureValueKey ? DEFAULT_CULTURE_RESULT_TEXT : value;
       if (field.fieldType === "DROPDOWN" && !isCultureResultField) {
         const options = (field.options ?? "").split(",").map((row) => row.trim()).filter(Boolean);
         return (
@@ -679,7 +685,7 @@ const OrderResultCard = memo(function OrderResultCard({
       return (
         <input
           type={field.fieldType === "NUMBER" ? "number" : "text"}
-          value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
+          value={typeof effectiveValue === "string" || typeof effectiveValue === "number" ? String(effectiveValue) : ""}
           onBlur={() => void onPersist(task).catch(() => undefined)}
           onChange={(e) => onSetFieldValue(order.id, field.fieldKey, e.target.value)}
           className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
@@ -1944,6 +1950,12 @@ export function LabTaskBoard() {
                   const cultureField = findField(order, "culture_result");
                   const disabled = !cultureField || isFieldRemoved(order.id, cultureField.fieldKey);
                   const value = cultureField ? drafts[order.id]?.values?.[cultureField.fieldKey] : "";
+                  const hasCultureValueKey = Boolean(
+                    cultureField &&
+                      Object.prototype.hasOwnProperty.call(drafts[order.id]?.values ?? {}, cultureField.fieldKey)
+                  );
+                  const effectiveCultureValue =
+                    !hasCultureValueKey && cultureField ? DEFAULT_CULTURE_RESULT_TEXT : value;
                   return (
                     <td key={`mcs-culture-${order.id}`} className="border border-slate-200 p-1.5">
                       {disabled || !cultureField ? (
@@ -1951,7 +1963,7 @@ export function LabTaskBoard() {
                       ) : (
                         <input
                           type="text"
-                          value={typeof value === "string" ? value : ""}
+                          value={typeof effectiveCultureValue === "string" ? effectiveCultureValue : ""}
                           onBlur={() => void persistDraft(task).catch(() => undefined)}
                           onChange={(e) => setDraftFieldValue(order.id, cultureField.fieldKey, e.target.value)}
                           className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"

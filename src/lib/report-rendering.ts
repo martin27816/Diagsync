@@ -550,7 +550,7 @@ function splitRadiologyNarrative(raw: string) {
   const normalized = trimmed
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
-    .replace(/[•●▪]/g, "\n")
+    .replace(/[•●▪]/g, "\n")
     .replace(/\t+/g, " ")
     .replace(/[ ]{2,}/g, " ")
     .trim();
@@ -560,6 +560,9 @@ function splitRadiologyNarrative(raw: string) {
   const labelMatches = Array.from(normalized.matchAll(labelRegex));
   if (labelMatches.length > 1) {
     const points: string[] = [];
+    const firstLabelStart = labelMatches[0]?.index ?? 0;
+    const intro = normalized.slice(0, firstLabelStart).trim().replace(/\s+/g, " ");
+    if (intro) points.push(intro);
     for (let i = 0; i < labelMatches.length; i += 1) {
       const start = labelMatches[i].index ?? 0;
       const end = i + 1 < labelMatches.length ? labelMatches[i + 1].index ?? normalized.length : normalized.length;
