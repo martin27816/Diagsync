@@ -1315,9 +1315,20 @@ export function LabTaskBoard() {
             const { [SIGNOFF_IMAGE_KEY]: _ignoredSignatureImage, [SIGNOFF_NAME_KEY]: _ignoredSignatureName, ...cleanValues } =
               existingValues;
             const offlineEntry = offlineByOrder.get(order.id);
+            const baseValues =
+              (offlineEntry?.resultData as Record<string, unknown> | undefined) ?? cleanValues;
+            const seededValues: Record<string, unknown> = { ...baseValues };
+            const cultureField = order.test.resultFields.find(
+              (field) => field.fieldKey.trim().toLowerCase() === "culture_result"
+            );
+            if (cultureField) {
+              const currentCultureValue = seededValues[cultureField.fieldKey];
+              if (typeof currentCultureValue !== "string" || currentCultureValue.trim() === "") {
+                seededValues[cultureField.fieldKey] = DEFAULT_CULTURE_RESULT_TEXT;
+              }
+            }
             next[order.id] = {
-              values:
-                (offlineEntry?.resultData as Record<string, unknown> | undefined) ?? cleanValues,
+              values: seededValues,
               notes: offlineEntry?.notes ?? existing?.notes ?? "",
               removedDefaultFieldKeys: [],
             };
