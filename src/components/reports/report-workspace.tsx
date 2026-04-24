@@ -36,6 +36,95 @@ function deepCopy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function normalizeToken(input: string) {
+  return input.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+const MICROSCOPY_EDITOR_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
+  { label: "WBC/PUS cells/HPF", pattern: /wbc\s*\/?\s*(?:pus|puc)?\s*cells?\s*\/?\s*hpf/gi },
+  { label: "Epithelial cells", pattern: /epithelial\s*cells?/gi },
+  { label: "Bacterial cells", pattern: /bacterial\s*cells?/gi },
+  { label: "Yeast cells", pattern: /yeast\s*cells?/gi },
+];
+
+function parseMicroscopySummaryForEditor(rawValue: string) {
+  const normalized = rawValue.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  const byLabel = new Map<string, string>();
+  if (!normalized) return byLabel;
+
+  const hits: Array<{ label: string; start: number; end: number }> = [];
+  for (const entry of MICROSCOPY_EDITOR_PATTERNS) {
+    const pattern = new RegExp(entry.pattern.source, entry.pattern.flags);
+    let match: RegExpExecArray | null = pattern.exec(normalized);
+    while (match) {
+      if (match.index === undefined) {
+        match = pattern.exec(normalized);
+        continue;
+      }
+      hits.push({
+        label: entry.label,
+        start: match.index,
+        end: match.index + match[0].length,
+      });
+      match = pattern.exec(normalized);
+    }
+  }
+
+  hits.sort((a, b) => a.start - b.start);
+  for (let i = 0; i < hits.length; i += 1) {
+    const current = hits[i];
+    const next = hits[i + 1];
+    const rawSegment = normalized.slice(current.end, next ? next.start : normalized.length);
+    const cleaned = rawSegment
+      .replace(/^[\s:=,-]+/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!cleaned) continue;
+    if (!byLabel.has(current.label)) byLabel.set(current.label, cleaned);
+  }
+
+  return byLabel;
+}
+
+function formatMicroscopySummaryForEditor(rawValue: string) {
+  const parsed = parseMicroscopySummaryForEditor(rawValue);
+  if (parsed.size === 0) return rawValue;
+  const ordered = MICROSCOPY_EDITOR_PATTERNS.map((entry) => entry.label)
+    .map((label) => {
+      const value = parsed.get(label);
+      return value ? `${label}: ${value}` : "";
+    })
+    .filter(Boolean);
+  return ordered.join("\n");
+}
+
+function shouldUseMicroscopyEditor(rowName: string, rowValue: string) {
+  const nameToken = normalizeToken(rowName);
+  if (nameToken.includes("microscopy")) return true;
+  const valueToken = normalizeToken(rowValue);
+  return (
+    valueToken.includes("wbc") &&
+    (valueToken.includes("epithelial") ||
+      valueToken.includes("bacterial") ||
+      valueToken.includes("yeast"))
+  );
+}
+
+function normalizeLabContentForEditor(content: any) {
+  if (!Array.isArray(content?.tests)) return content;
+  const tests = content.tests.map((test: any) => {
+    if (!Array.isArray(test?.rows)) return test;
+    const rows = test.rows.map((row: any) => {
+      const rowName = String(row?.name ?? "");
+      const rowValue = String(row?.value ?? "");
+      if (!shouldUseMicroscopyEditor(rowName, rowValue)) return row;
+      return { ...row, value: formatMicroscopySummaryForEditor(rowValue) };
+    });
+    return { ...test, rows };
+  });
+  return { ...content, tests };
+}
+
 const inputCls = "h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500";
 const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
 const areaCls = "w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -158,7 +247,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
         const data = cached.details;
         setDetails(data);
         const cur = data.versions.find((v) => v.isActive) ?? data.versions[0];
-        setEditableContent(deepCopy(cur?.content ?? {}));
+        setEditableContent(normalizeLabContentForEditor(deepCopy(cur?.content ?? {})));
         setEditComments(cur?.comments ?? data.comments ?? "");
         setEditPrescription(cur?.prescription ?? data.prescription ?? "");
         setReceptionInstruction(data.releaseInstructions ?? "");
@@ -176,7 +265,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       reportDetailsCacheRef.current.set(reportId, { at: Date.now(), details: data });
       setDetails(data);
       const cur = data.versions.find((v) => v.isActive) ?? data.versions[0];
-      setEditableContent(deepCopy(cur?.content ?? {}));
+      setEditableContent(normalizeLabContentForEditor(deepCopy(cur?.content ?? {})));
       setEditComments(cur?.comments ?? data.comments ?? "");
       setEditPrescription(cur?.prescription ?? data.prescription ?? "");
       setReceptionInstruction(data.releaseInstructions ?? "");
@@ -636,8 +725,26 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
                                       <label>
-                                        <span className="block text-[11px] text-slate-400">Result</span>
-                                        <input value={row?.value ?? ""} onChange={(e) => updateLabField(tIdx, rIdx, "value", e.target.value)} className={inputCls} />
+                                        <span className="block text-[11px] text-slate-400">
+                                          Result
+                                          {(shouldUseMicroscopyEditor(String(row?.name ?? ""), String(row?.value ?? "")) || String(row?.value ?? "").includes("\n"))
+                                            ? " (one item per line)"
+                                            : ""}
+                                        </span>
+                                        {(shouldUseMicroscopyEditor(String(row?.name ?? ""), String(row?.value ?? "")) || String(row?.value ?? "").includes("\n")) ? (
+                                          <textarea
+                                            rows={4}
+                                            value={row?.value ?? ""}
+                                            onChange={(e) => updateLabField(tIdx, rIdx, "value", e.target.value)}
+                                            className={areaCls}
+                                          />
+                                        ) : (
+                                          <input
+                                            value={row?.value ?? ""}
+                                            onChange={(e) => updateLabField(tIdx, rIdx, "value", e.target.value)}
+                                            className={inputCls}
+                                          />
+                                        )}
                                       </label>
                                       <label>
                                         <span className="block text-[11px] text-slate-400">Unit</span>

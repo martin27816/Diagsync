@@ -179,6 +179,9 @@ model DiagnosticTest {
   turnaroundMinutes Int
   sampleType        String?
   description       String?
+  groupKey          String?
+  viewType          String?
+  isDefaultInGroup  Boolean               @default(false)
   isActive          Boolean               @default(true)
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt

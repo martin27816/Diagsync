@@ -1,12 +1,12 @@
-import { config } from "dotenv";
+﻿import { config } from "dotenv";
 config();
 
 import { PrismaClient, Department, TestType, FieldType, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-//if (process.env.DIRECT_URL) {
- // process.env.DATABASE_URL = process.env.DIRECT_URL;
-//}
+if (process.env.DIRECT_URL) {
+  process.env.DATABASE_URL = process.env.DIRECT_URL;
+}
 
 const prisma = new PrismaClient();
 
@@ -95,6 +95,11 @@ async function main() {
       create: { id: "cat-imaging", name: "Imaging & Radiology", description: "X-Ray, Ultrasound, CT, MRI" },
     }),
     prisma.testCategory.upsert({
+      where: { id: "cat-cardiology" },
+      update: {},
+      create: { id: "cat-cardiology", name: "Cardiology", description: "ECG, Echocardiography, and cardiovascular diagnostics" },
+    }),
+    prisma.testCategory.upsert({
       where: { id: "cat-serology" },
       update: {},
       create: { id: "cat-serology", name: "Serology / Immunology", description: "Antibody and antigen tests" },
@@ -104,7 +109,20 @@ async function main() {
   console.log(`✅ ${categories.length} test categories created`);
 
   // ── Get Organization ─────────────────────────────────────────────────────────
-  let org = await prisma.organization.findFirst();
+  const seedOrganizationId = (process.env.SEED_ORGANIZATION_ID ?? "").trim();
+  const seedOrganizationEmail = (process.env.SEED_ORGANIZATION_EMAIL ?? "").trim();
+
+  let org = seedOrganizationId
+    ? await prisma.organization.findUnique({ where: { id: seedOrganizationId } })
+    : seedOrganizationEmail
+    ? await prisma.organization.findUnique({ where: { email: seedOrganizationEmail } })
+    : await prisma.organization.findFirst();
+
+  if (!org && (seedOrganizationId || seedOrganizationEmail)) {
+    throw new Error(
+      `Seed organization not found for ${seedOrganizationId ? `SEED_ORGANIZATION_ID=${seedOrganizationId}` : `SEED_ORGANIZATION_EMAIL=${seedOrganizationEmail}`}`
+    );
+  }
   if (!org) {
     const defaultAdminEmail = "admin@diagsync.local";
     const defaultAdminPassword = "Admin@123";
@@ -136,7 +154,7 @@ async function main() {
   }
 
   const orgId = org.id;
-  console.log(`✅ Organization found: ${org.name}`);
+  console.log(`✅ Organization found: ${org.name} (${org.id})`);
 
   // ── Helper: upsert test + fields ──────────────────────────────────────────
   async function seedTest(data: {
@@ -150,6 +168,9 @@ async function main() {
     turnaroundMinutes: number;
     sampleType?: string;
     description?: string;
+    groupKey?: string | null;
+    viewType?: string | null;
+    isDefaultInGroup?: boolean;
     fields: SeedField[];
   }) {
     const enrichedFields = withReferenceMetadata(data.name, data.type, data.fields);
@@ -182,6 +203,14 @@ async function main() {
         description: data.description,
       },
     });
+
+    await prisma.$executeRaw`
+      UPDATE "diagnostic_tests"
+      SET "groupKey" = ${data.groupKey ?? null},
+          "viewType" = ${data.viewType ?? null},
+          "isDefaultInGroup" = ${data.isDefaultInGroup ?? false}
+      WHERE "id" = ${test.id}
+    `;
 
     await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
     await prisma.resultTemplateField.createMany({
@@ -345,6 +374,52 @@ async function main() {
       { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
       { label: "Recommendation", fieldKey: "recommendation", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
     ];
+  }
+
+  function makeEcgWorkflowFields() {
+    return [
+      { label: "Heart Rate", fieldKey: "heartRate", fieldType: FieldType.TEXT, sortOrder: 1 },
+      { label: "Rhythm", fieldKey: "rhythm", fieldType: FieldType.TEXT, sortOrder: 2 },
+      { label: "Intervals", fieldKey: "intervals", fieldType: FieldType.TEXT, sortOrder: 3 },
+      { label: "Axis", fieldKey: "axis", fieldType: FieldType.TEXT, sortOrder: 4 },
+      { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
+    ];
+  }
+
+  function deriveRadiologyGrouping(testName: string) {
+    const lower = testName.toLowerCase();
+    if (!lower.includes("x-ray")) {
+      return { groupKey: null, viewType: null, isDefaultInGroup: false };
+    }
+
+    let bodyPart = "";
+    if (lower.startsWith("x-ray ")) {
+      bodyPart = testName.slice("X-Ray ".length).split("(")[0].trim();
+    } else {
+      bodyPart = testName.split("X-Ray")[0].trim();
+    }
+
+    const groupKey = `${bodyPart
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")}-xray`;
+
+    const viewMatch = testName.match(/\(([^)]+)\)/);
+    const rawView = viewMatch?.[1]?.trim() ?? "";
+    const viewType = rawView.replace(/\bview\b/gi, "").trim() || null;
+
+    const defaultViews = new Set(["AP", "PA", "Lateral"]);
+    let isDefaultInGroup = viewType ? defaultViews.has(viewType) : false;
+
+    if (groupKey === "chest-xray" && viewType === "AP") {
+      isDefaultInGroup = false;
+    }
+    if (viewType === "Oblique" || viewType === "Mortise" || viewType === "Skyline") {
+      isDefaultInGroup = false;
+    }
+
+    return { groupKey, viewType, isDefaultInGroup };
   }
 
   async function syncExistingTestFieldsByName(params: {
@@ -939,6 +1014,154 @@ async function main() {
     fields: makeRadiologyWorkflowFields(),
   });
 
+  const structuredRadiologyTests: Array<{
+    code: string;
+    name: string;
+    price: number;
+    turnaroundMinutes: number;
+    description?: string;
+    groupKey?: string | null;
+    viewType?: string | null;
+    isDefaultInGroup?: boolean;
+  }> = [
+    { code: "CXR-PA", name: "Chest X-Ray (PA View)", price: 5000, turnaroundMinutes: 45 },
+    { code: "CXR-AP", name: "Chest X-Ray (AP View)", price: 5000, turnaroundMinutes: 45 },
+    { code: "CXR-LAT", name: "Chest X-Ray (Lateral View)", price: 5000, turnaroundMinutes: 45 },
+    { code: "CXR-OBL", name: "Chest X-Ray (Oblique View)", price: 5000, turnaroundMinutes: 45 },
+    { code: "SKX-AP", name: "Skull X-Ray (AP)", price: 5500, turnaroundMinutes: 45 },
+    { code: "SKX-LAT", name: "Skull X-Ray (Lateral)", price: 5500, turnaroundMinutes: 45 },
+    { code: "SKX-TOW", name: "Skull X-Ray (Townes View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "SKX-OCC", name: "Skull X-Ray (Occipital View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "PNS-WAT", name: "X-Ray Paranasal Sinuses (Waters View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "PNS-CAL", name: "X-Ray Paranasal Sinuses (Caldwell View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "FACE-XR", name: "X-Ray Facial Bones", price: 6000, turnaroundMinutes: 45 },
+    { code: "MAN-AP", name: "X-Ray Mandible (AP View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "MAN-LAT", name: "X-Ray Mandible (Lateral View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "MAN-OBL", name: "X-Ray Mandible (Oblique View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "TMJ-XR", name: "TMJ X-Ray", price: 6000, turnaroundMinutes: 45 },
+    { code: "CSP-AP", name: "Cervical Spine X-Ray (AP View)", price: 6000, turnaroundMinutes: 50 },
+    { code: "CSP-LAT", name: "Cervical Spine X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 50 },
+    { code: "CSP-OBL", name: "Cervical Spine X-Ray (Oblique View)", price: 6500, turnaroundMinutes: 50 },
+    { code: "TSP-AP", name: "Thoracic Spine X-Ray (AP View)", price: 6500, turnaroundMinutes: 50 },
+    { code: "TSP-LAT", name: "Thoracic Spine X-Ray (Lateral View)", price: 6500, turnaroundMinutes: 50 },
+    { code: "TSP-OBL", name: "Thoracic Spine X-Ray (Oblique View)", price: 7000, turnaroundMinutes: 50 },
+    { code: "LSS-AP", name: "Lumbo-Sacral Spine X-Ray (AP View)", price: 6500, turnaroundMinutes: 50 },
+    { code: "LSS-LAT", name: "Lumbo-Sacral Spine X-Ray (Lateral View)", price: 6500, turnaroundMinutes: 50 },
+    { code: "LSS-OBL", name: "Lumbo-Sacral Spine X-Ray (Oblique View)", price: 7000, turnaroundMinutes: 50 },
+    { code: "SHD-AP", name: "Shoulder X-Ray (AP View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "SHD-LAT", name: "Shoulder X-Ray (Lateral View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "HUM-AP", name: "Humerus X-Ray (AP View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "HUM-LAT", name: "Humerus X-Ray (Lateral View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "ELB-AP", name: "Elbow X-Ray (AP View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "ELB-LAT", name: "Elbow X-Ray (Lateral View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "ELB-OBL", name: "Elbow X-Ray (Oblique View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "FAR-AP", name: "Forearm X-Ray (AP View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "FAR-LAT", name: "Forearm X-Ray (Lateral View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "WRS-PA", name: "Wrist X-Ray (PA View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "WRS-LAT", name: "Wrist X-Ray (Lateral View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "HND-PA", name: "Hand X-Ray (PA View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "HND-OBL", name: "Hand X-Ray (Oblique View)", price: 5500, turnaroundMinutes: 45 },
+    { code: "PEL-AP", name: "Pelvis X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "HIP-AP", name: "Hip X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "HIP-LAT", name: "Hip X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "FEM-AP", name: "Femur X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "FEM-LAT", name: "Femur X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "KNE-AP", name: "Knee X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "KNE-LAT", name: "Knee X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "KNE-SKY", name: "Knee X-Ray (Skyline View)", price: 6500, turnaroundMinutes: 45 },
+    { code: "TIB-AP", name: "Tibia/Fibula X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "TIB-LAT", name: "Tibia/Fibula X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "ANK-AP", name: "Ankle X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "ANK-LAT", name: "Ankle X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "ANK-MOR", name: "Ankle X-Ray (Mortise View)", price: 6500, turnaroundMinutes: 45 },
+    { code: "FOT-AP", name: "Foot X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "FOT-OBL", name: "Foot X-Ray (Oblique View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "FOT-LAT", name: "Foot X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
+    { code: "ABX-ERE", name: "Abdominal X-Ray (Erect)", price: 6500, turnaroundMinutes: 45 },
+    { code: "ABX-SUP", name: "Abdominal X-Ray (Supine)", price: 6500, turnaroundMinutes: 45 },
+    { code: "CTB-NC", name: "CT Brain (Non-Contrast)", price: 28000, turnaroundMinutes: 90 },
+    { code: "CTB-C", name: "CT Brain (Contrast)", price: 32000, turnaroundMinutes: 90 },
+    { code: "CTSIN", name: "CT Sinuses", price: 26000, turnaroundMinutes: 90 },
+    { code: "CTORB", name: "CT Orbit", price: 26000, turnaroundMinutes: 90 },
+    { code: "CTNEK", name: "CT Neck", price: 30000, turnaroundMinutes: 90 },
+    { code: "CTCH", name: "CT Chest", price: 32000, turnaroundMinutes: 90 },
+    { code: "CTABD", name: "CT Abdomen", price: 35000, turnaroundMinutes: 90 },
+    { code: "CTPEL", name: "CT Pelvis", price: 32000, turnaroundMinutes: 90 },
+    { code: "CTSP-C", name: "CT Spine (Cervical)", price: 30000, turnaroundMinutes: 90 },
+    { code: "CTSP-T", name: "CT Spine (Thoracic)", price: 30000, turnaroundMinutes: 90 },
+    { code: "CTSP-L", name: "CT Spine (Lumbar)", price: 30000, turnaroundMinutes: 90 },
+    { code: "CTA-BR", name: "CT Angiography (Brain)", price: 45000, turnaroundMinutes: 120 },
+    { code: "CTA-CR", name: "CT Angiography (Carotid)", price: 45000, turnaroundMinutes: 120 },
+    { code: "CTA-TH", name: "CT Angiography (Thoracic)", price: 45000, turnaroundMinutes: 120 },
+    { code: "US-BRS", name: "Breast Ultrasound", price: 8500, turnaroundMinutes: 60 },
+    { code: "US-OCL", name: "Ocular Ultrasound", price: 9000, turnaroundMinutes: 60 },
+    { code: "US-TRP", name: "Prostate (Transrectal Ultrasound)", price: 12000, turnaroundMinutes: 60 },
+    { code: "US-FOL", name: "Folliculometry", price: 10000, turnaroundMinutes: 60 },
+    { code: "US-HSG", name: "Sono-HSG", price: 13000, turnaroundMinutes: 60 },
+    { code: "US-DOP", name: "Doppler Ultrasound (General)", price: 14000, turnaroundMinutes: 60 },
+    { code: "US-VAS", name: "Vascular Doppler", price: 15000, turnaroundMinutes: 60 },
+    { code: "MAMMO", name: "Mammography", price: 18000, turnaroundMinutes: 90 },
+    { code: "BAR-SW", name: "Barium Swallow", price: 14000, turnaroundMinutes: 90 },
+    { code: "BAR-ML", name: "Barium Meal", price: 14000, turnaroundMinutes: 90 },
+    { code: "BAR-EN", name: "Barium Enema", price: 15000, turnaroundMinutes: 90 },
+    { code: "IVU", name: "IVU", price: 16000, turnaroundMinutes: 90 },
+    { code: "HSG", name: "HSG", price: 17000, turnaroundMinutes: 90 },
+    { code: "MCUG", name: "MCUG", price: 17000, turnaroundMinutes: 90 },
+    { code: "SIALO", name: "Sialography", price: 17000, turnaroundMinutes: 90 },
+  ];
+
+  for (const test of structuredRadiologyTests) {
+    const grouping = deriveRadiologyGrouping(test.name);
+    await seedTest({
+      code: test.code,
+      name: test.name,
+      type: TestType.RADIOLOGY,
+      department: Department.RADIOLOGY,
+      categoryId: "cat-imaging",
+      price: test.price,
+      turnaroundMinutes: test.turnaroundMinutes,
+      description: test.description ?? "Structured radiology catalog test",
+      groupKey: test.groupKey ?? grouping.groupKey,
+      viewType: test.viewType ?? grouping.viewType,
+      isDefaultInGroup: test.isDefaultInGroup ?? grouping.isDefaultInGroup,
+      fields: makeRadiologyWorkflowFields(),
+    });
+  }
+
+  const structuredCardiologyTests: Array<{
+    code: string;
+    name: string;
+    price: number;
+    turnaroundMinutes: number;
+    template: "ECG" | "STANDARD";
+  }> = [
+    { code: "ECG-R12", name: "Resting ECG (12-lead)", price: 8000, turnaroundMinutes: 45, template: "ECG" },
+    { code: "ECG-STR", name: "Stress ECG", price: 12000, turnaroundMinutes: 60, template: "ECG" },
+    { code: "ECG-HOL", name: "Ambulatory ECG (Holter)", price: 18000, turnaroundMinutes: 90, template: "ECG" },
+    { code: "ECHO-2D", name: "2D Echocardiography", price: 18000, turnaroundMinutes: 60, template: "STANDARD" },
+    { code: "ECHO-DOP", name: "Doppler Echocardiography", price: 22000, turnaroundMinutes: 60, template: "STANDARD" },
+    { code: "ECHO-STR", name: "Stress Echocardiography", price: 25000, turnaroundMinutes: 75, template: "STANDARD" },
+    { code: "ECHO-TEE", name: "Transesophageal Echo (TEE)", price: 35000, turnaroundMinutes: 90, template: "STANDARD" },
+    { code: "CRD-CAR", name: "Carotid Doppler", price: 18000, turnaroundMinutes: 60, template: "STANDARD" },
+    { code: "CRD-PER", name: "Peripheral Doppler", price: 18000, turnaroundMinutes: 60, template: "STANDARD" },
+    { code: "CRD-VEN", name: "Venous Doppler", price: 18000, turnaroundMinutes: 60, template: "STANDARD" },
+    { code: "CRD-ART", name: "Arterial Doppler", price: 18000, turnaroundMinutes: 60, template: "STANDARD" },
+  ];
+
+  for (const test of structuredCardiologyTests) {
+    await seedTest({
+      code: test.code,
+      name: test.name,
+      type: TestType.RADIOLOGY,
+      department: Department.RADIOLOGY,
+      categoryId: "cat-cardiology",
+      price: test.price,
+      turnaroundMinutes: test.turnaroundMinutes,
+      description: "Structured cardiology catalog test",
+      fields: test.template === "ECG" ? makeEcgWorkflowFields() : makeRadiologyWorkflowFields(),
+    });
+  }
+
   // 25b. Force-sync PSA templates for existing databases (even when test names already exist)
   const psaPanelFields: SeedField[] = [
     {
@@ -1282,13 +1505,11 @@ async function main() {
     "TRANSRECTAL/PROSTATE SCAN",
     "FOLLICULOMETRY",
     "SONO-HSG",
-    "ECHOCARDIOGRAM",
     "PROSTATE BIOPSY (ULTRASOUND GUIDED)",
     "LIVER BIOPSY (ULTRASOUND GUIDED)",
     "KIDNEY BIOPSY (ULTRASOUND GUIDED)",
     "BREAST BIOPSY (ULTRASOUND GUIDED)",
     "THYROID BIOPSY (ULTRASOUND GUIDED)",
-    "DOPPLER STUDY",
     "DIGITAL X-RAY SKULL",
     "DIGITAL X-RAY MANDIBLE",
     "DIGITAL X-RAY TMJ",
@@ -1339,9 +1560,6 @@ async function main() {
     "UPPER GI ENDOSCOPY",
     "SIGMOIDOSCOPY/COLONOSCOPY",
     "PROCTOSCOPY",
-    "REST ECG",
-    "STRESS ECG",
-    "AMBULATORY ECG (HOLTER)",
     "CT THORAX ROUTINE",
     "CT THORAX HR",
     "CT LUNG LOW DOSE",
@@ -2416,9 +2634,7 @@ async function main() {
     ];
   }
 
-  function buildRadiologyMainFields(testName: string) {
-    const specific = RADIOLOGY_FIELD_LIBRARY[testName];
-    if (specific) return specific;
+  function buildRadiologyMainFields(_testName: string) {
     return makeRadiologyWorkflowFields();
   }
 
@@ -2454,6 +2670,51 @@ async function main() {
       })),
     });
     syncedLabTemplateCount += 1;
+  }
+
+  const legacyCardiologyTemplateLibrary: Record<string, SeedField[]> = {
+    "REST ECG": makeEcgWorkflowFields(),
+    "STRESS ECG": makeEcgWorkflowFields(),
+    "AMBULATORY ECG (HOLTER)": makeEcgWorkflowFields(),
+    ECHOCARDIOGRAM: makeRadiologyWorkflowFields(),
+    "DOPPLER STUDY": makeRadiologyWorkflowFields(),
+  };
+  const legacyCardiologyLookup = new Map(
+    Object.entries(legacyCardiologyTemplateLibrary).map(([name, fields]) => [normalizeName(name).toUpperCase(), fields])
+  );
+  const existingRadiologyForCardiologySync = await prisma.diagnosticTest.findMany({
+    where: { organizationId: orgId, type: TestType.RADIOLOGY },
+    select: { id: true, name: true },
+  });
+  let migratedLegacyCardiologyCount = 0;
+  for (const test of existingRadiologyForCardiologySync) {
+    const normalized = normalizeName(test.name).toUpperCase();
+    const fields = legacyCardiologyLookup.get(normalized);
+    if (!fields) continue;
+
+    const enriched = withReferenceMetadata(test.name, TestType.RADIOLOGY, fields);
+    await prisma.diagnosticTest.update({
+      where: { id: test.id },
+      data: { categoryId: "cat-cardiology", department: Department.RADIOLOGY, isActive: true },
+    });
+    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
+    await prisma.resultTemplateField.createMany({
+      data: enriched.map((field) => ({
+        testId: test.id,
+        label: field.label,
+        fieldKey: field.fieldKey,
+        fieldType: field.fieldType,
+        unit: field.unit,
+        normalMin: field.normalMin,
+        normalMax: field.normalMax,
+        normalText: field.normalText,
+        referenceNote: field.referenceNote,
+        options: field.options,
+        isRequired: field.isRequired ?? true,
+        sortOrder: field.sortOrder,
+      })),
+    });
+    migratedLegacyCardiologyCount += 1;
   }
 
 
@@ -2526,9 +2787,107 @@ async function main() {
   console.log(`✅ Added/updated ${dedupedRadiology.length} expanded radiology tests`);
   console.log(`✅ Synced ${syncedLabTemplateCount} existing lab templates by name`);
 
-  const testCount = await prisma.diagnosticTest.count({ where: { organizationId: orgId } });
+  console.log(`Migrated ${migratedLegacyCardiologyCount} legacy cardiology tests to Cardiology category`);
+
+  const sourceCatalogTests = await prisma.diagnosticTest.findMany({
+    where: { organizationId: orgId },
+    include: {
+      resultFields: {
+        orderBy: { sortOrder: "asc" },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const otherOrganizations = await prisma.organization.findMany({
+    where: { id: { not: orgId } },
+    select: { id: true, name: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  let syncedOrganizations = 0;
+  for (const targetOrg of otherOrganizations) {
+    for (const test of sourceCatalogTests) {
+      const targetTest = await prisma.diagnosticTest.upsert({
+        where: {
+          organizationId_code: {
+            organizationId: targetOrg.id,
+            code: test.code,
+          },
+        },
+        update: {
+          categoryId: test.categoryId,
+          name: test.name,
+          type: test.type,
+          department: test.department,
+          price: test.price,
+          costPrice: test.costPrice,
+          turnaroundMinutes: test.turnaroundMinutes,
+          sampleType: test.sampleType,
+          description: test.description,
+          isActive: test.isActive,
+        },
+        create: {
+          organizationId: targetOrg.id,
+          categoryId: test.categoryId,
+          name: test.name,
+          code: test.code,
+          type: test.type,
+          department: test.department,
+          price: test.price,
+          costPrice: test.costPrice,
+          turnaroundMinutes: test.turnaroundMinutes,
+          sampleType: test.sampleType,
+          description: test.description,
+          isActive: test.isActive,
+        },
+        select: { id: true },
+      });
+
+      await prisma.resultTemplateField.deleteMany({
+        where: { testId: targetTest.id },
+      });
+
+      if (test.resultFields.length > 0) {
+        await prisma.resultTemplateField.createMany({
+          data: test.resultFields.map((field) => ({
+            testId: targetTest.id,
+            label: field.label,
+            fieldKey: field.fieldKey,
+            fieldType: field.fieldType,
+            unit: field.unit,
+            normalMin: field.normalMin,
+            normalMax: field.normalMax,
+            normalText: field.normalText,
+            referenceNote: field.referenceNote,
+            options: field.options,
+            isRequired: field.isRequired,
+            sortOrder: field.sortOrder,
+          })),
+        });
+      }
+    }
+
+    await prisma.$executeRaw`
+      UPDATE "diagnostic_tests" AS target
+      SET "groupKey" = source."groupKey",
+          "viewType" = source."viewType",
+          "isDefaultInGroup" = source."isDefaultInGroup"
+      FROM "diagnostic_tests" AS source
+      WHERE source."organizationId" = ${orgId}
+        AND target."organizationId" = ${targetOrg.id}
+        AND source."code" = target."code"
+    `;
+
+    syncedOrganizations += 1;
+  }
+
+  const sourceOrgTestCount = await prisma.diagnosticTest.count({ where: { organizationId: orgId } });
+  const globalTestCount = await prisma.diagnosticTest.count();
   console.log(`\n✅ Seeding complete!`);
-  console.log(`   Tests in database: ${testCount}`);
+  console.log(`   Source organization tests: ${sourceOrgTestCount}`);
+  console.log(`   Synced catalog to organizations: ${syncedOrganizations}`);
+  console.log(`   Tests in database (all organizations): ${globalTestCount}`);
   console.log(`   Categories: ${categories.length}`);
 }
 
