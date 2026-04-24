@@ -641,7 +641,8 @@ const OrderResultCard = memo(function OrderResultCard({
   const renderFieldValueControl = useCallback(
     (field: ResultField, highlight: boolean) => {
       const value = draft.values?.[field.fieldKey];
-      if (field.fieldType === "DROPDOWN") {
+      const isCultureResultField = field.fieldKey.trim().toLowerCase() === "culture_result";
+      if (field.fieldType === "DROPDOWN" && !isCultureResultField) {
         const options = (field.options ?? "").split(",").map((row) => row.trim()).filter(Boolean);
         return (
           <select
@@ -1943,28 +1944,19 @@ export function LabTaskBoard() {
                   const cultureField = findField(order, "culture_result");
                   const disabled = !cultureField || isFieldRemoved(order.id, cultureField.fieldKey);
                   const value = cultureField ? drafts[order.id]?.values?.[cultureField.fieldKey] : "";
-                  const options = (cultureField?.options ?? "")
-                    .split(",")
-                    .map((row) => row.trim())
-                    .filter(Boolean);
                   return (
                     <td key={`mcs-culture-${order.id}`} className="border border-slate-200 p-1.5">
                       {disabled || !cultureField ? (
                         <span className="text-[10px] text-slate-400">-</span>
                       ) : (
-                        <select
+                        <input
+                          type="text"
                           value={typeof value === "string" ? value : ""}
                           onBlur={() => void persistDraft(task).catch(() => undefined)}
                           onChange={(e) => setDraftFieldValue(order.id, cultureField.fieldKey, e.target.value)}
                           className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        >
-                          <option value="">Select...</option>
-                          {options.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
+                          placeholder="Type culture result"
+                        />
                       )}
                     </td>
                   );
