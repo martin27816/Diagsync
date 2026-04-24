@@ -752,6 +752,7 @@ export function renderReportHtml(args: RenderArgs) {
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   ${
     args.baseUrl
       ? `<base href="${escapeHtml(
@@ -768,6 +769,7 @@ export function renderReportHtml(args: RenderArgs) {
       color: #111827;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+      background: #f3f4f6;
     }
     .page {
       position: relative;
@@ -956,6 +958,38 @@ export function renderReportHtml(args: RenderArgs) {
     }
     .preview-print-btn:active {
       transform: translateY(1px);
+    }
+    @media screen and (max-width: 860px) {
+      .page {
+        width: 100%;
+        max-width: 100%;
+        min-height: auto;
+        padding: ${hasLetterhead ? "160px" : "96px"} 10px 76px;
+        margin: 0;
+      }
+      .content-shell {
+        max-width: 100%;
+        border-radius: 6px;
+        padding: 12px;
+      }
+      .meta-grid {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+      h2 { font-size: 15px; }
+      h3 { font-size: 13px; }
+      p { font-size: 12px; }
+      table { font-size: 11px; }
+      th, td { padding: 4px; }
+      .preview-actions {
+        top: 8px;
+        right: 8px;
+      }
+      .preview-print-btn {
+        font-size: 12px;
+        padding: 8px 11px;
+        border-radius: 7px;
+      }
     }
     @media print {
       .preview-actions { display: none !important; }
