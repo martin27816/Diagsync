@@ -25,6 +25,7 @@ type DaySummary = {
           id: string;
           priority: string;
           paymentStatus: string;
+          paymentMethod: string | null;
           totalAmount: number;
           amountPaid: number;
           testOrders: Array<{ id: string; test: { name: string } }>;
@@ -34,6 +35,7 @@ type DaySummary = {
   totalBilled: number;
   totalPaid: number;
   totalTests: number;
+  collectedByMethod: Record<string, number>;
 };
 
 function pad2(value: number) {
@@ -73,6 +75,22 @@ function formatDayLabel(dayKey: string) {
     month: "long",
     year: "numeric",
   });
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: "Cash",
+  TRANSFER: "Transfer",
+  POS: "POS / Card",
+  HMO: "HMO / Insurance",
+  OTHER: "Other",
+  UNKNOWN: "Unknown",
+};
+
+const PAYMENT_METHOD_KEYS = ["CASH", "TRANSFER", "POS", "HMO", "OTHER", "UNKNOWN"] as const;
+
+function normalizePaymentMethodKey(value?: string | null) {
+  const key = `${value ?? ""}`.trim().toUpperCase();
+  return PAYMENT_METHOD_KEYS.includes(key as (typeof PAYMENT_METHOD_KEYS)[number]) ? key : "UNKNOWN";
 }
 
 export default async function PatientsListPage({
@@ -144,7 +162,14 @@ export default async function PatientsListPage({
   const dayKeys = Array.from({ length: daysWindow }, (_, idx) => shiftDayKey(selectedDate, -idx));
   const grouped = new Map<string, DaySummary>();
   for (const key of dayKeys) {
-    grouped.set(key, { key, rows: [], totalBilled: 0, totalPaid: 0, totalTests: 0 });
+    grouped.set(key, {
+      key,
+      rows: [],
+      totalBilled: 0,
+      totalPaid: 0,
+      totalTests: 0,
+      collectedByMethod: { CASH: 0, TRANSFER: 0, POS: 0, HMO: 0, OTHER: 0, UNKNOWN: 0 },
+    });
   }
 
   for (const patient of patients) {
@@ -156,9 +181,11 @@ export default async function PatientsListPage({
     const billed = Number(visit.totalAmount);
     const paid = Number(visit.amountPaid);
     const testCount = visit?.testOrders.length ?? 0;
+    const paymentMethodKey = normalizePaymentMethodKey(visit.paymentMethod);
     bucket.totalBilled += billed;
     bucket.totalPaid += paid;
     bucket.totalTests += testCount;
+    bucket.collectedByMethod[paymentMethodKey] = (bucket.collectedByMethod[paymentMethodKey] ?? 0) + paid;
     bucket.rows.push({
       id: patient.id,
       fullName: patient.fullName,
@@ -173,6 +200,7 @@ export default async function PatientsListPage({
         id: visit.id,
         priority: visit.priority,
         paymentStatus: visit.paymentStatus,
+        paymentMethod: visit.paymentMethod ?? null,
         totalAmount: Number(visit.totalAmount),
         amountPaid: Number(visit.amountPaid),
         testOrders: visit.testOrders,
@@ -196,6 +224,14 @@ export default async function PatientsListPage({
     PARTIAL: "bg-amber-50 text-amber-700",
     PENDING: "bg-red-50 text-red-600",
     WAIVED: "bg-slate-100 text-slate-600",
+  };
+  const paymentMethodStyle: Record<string, string> = {
+    CASH: "bg-emerald-50 text-emerald-700",
+    TRANSFER: "bg-blue-50 text-blue-700",
+    POS: "bg-purple-50 text-purple-700",
+    HMO: "bg-cyan-50 text-cyan-700",
+    OTHER: "bg-slate-100 text-slate-700",
+    UNKNOWN: "bg-slate-100 text-slate-500",
   };
 
   return (
@@ -281,7 +317,7 @@ export default async function PatientsListPage({
               <p className="px-4 py-6 text-xs text-slate-400">No patients registered on this date.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1240px] text-xs">
+                <table className="w-full min-w-[1360px] text-xs">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50">
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
@@ -292,6 +328,7 @@ export default async function PatientsListPage({
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Paid</th>
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Priority</th>
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Payment</th>
+                      <th className="px-4 py-2.5 text-left font-medium text-slate-400">Method</th>
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Registered By</th>
                       <th className="px-4 py-2.5 text-left font-medium text-slate-400">Registered</th>
                       {canEditPatient || canDeletePatient ? <th className="px-4 py-2.5 text-left font-medium text-slate-400">Action</th> : null}
@@ -339,6 +376,17 @@ export default async function PatientsListPage({
                             </span>
                           ) : "-"}
                         </td>
+                        <td className="px-4 py-2.5">
+                          {row.latestVisit ? (
+                            <span
+                              className={`rounded px-1.5 py-0.5 font-medium ${
+                                paymentMethodStyle[normalizePaymentMethodKey(row.latestVisit.paymentMethod)] ?? "bg-slate-100 text-slate-500"
+                              }`}
+                            >
+                              {PAYMENT_METHOD_LABELS[normalizePaymentMethodKey(row.latestVisit.paymentMethod)]}
+                            </span>
+                          ) : "-"}
+                        </td>
                         <td className="px-4 py-2.5 text-slate-600 whitespace-nowrap">
                           {row.registeredById === user.id ? (
                             <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-700 font-medium">You</span>
@@ -378,8 +426,27 @@ export default async function PatientsListPage({
                       <td colSpan={4} className="px-4 py-2.5 font-semibold text-slate-700">Daily Summary</td>
                       <td className="px-4 py-2.5 font-semibold text-slate-700">{formatCurrency(section.totalBilled)}</td>
                       <td className="px-4 py-2.5 font-semibold text-slate-700">{formatCurrency(section.totalPaid)}</td>
-                      <td colSpan={canEditPatient || canDeletePatient ? 5 : 4} className="px-4 py-2.5 text-slate-500">
-                        {section.totalTests} test{section.totalTests !== 1 ? "s" : ""} registered
+                      <td colSpan={canEditPatient || canDeletePatient ? 6 : 5} className="px-4 py-2.5 text-slate-500">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span>{section.totalTests} test{section.totalTests !== 1 ? "s" : ""} registered</span>
+                          {(["CASH", "TRANSFER", "POS", "HMO"] as const).map((method) =>
+                            section.collectedByMethod[method] > 0 ? (
+                              <span key={`${section.key}-${method}`} className="rounded bg-white px-2 py-0.5 text-slate-600 border border-slate-200">
+                                {PAYMENT_METHOD_LABELS[method]}: {formatCurrency(section.collectedByMethod[method])}
+                              </span>
+                            ) : null
+                          )}
+                          {section.collectedByMethod.OTHER > 0 ? (
+                            <span className="rounded bg-white px-2 py-0.5 text-slate-600 border border-slate-200">
+                              Other: {formatCurrency(section.collectedByMethod.OTHER)}
+                            </span>
+                          ) : null}
+                          {section.collectedByMethod.UNKNOWN > 0 ? (
+                            <span className="rounded bg-white px-2 py-0.5 text-slate-600 border border-slate-200">
+                              Unknown: {formatCurrency(section.collectedByMethod.UNKNOWN)}
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   </tfoot>
