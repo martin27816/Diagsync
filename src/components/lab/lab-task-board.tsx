@@ -109,7 +109,7 @@ const SENSITIVITY_VALUE_OPTIONS = ["+", "2+", "3+", "4+", "5mm", "10mm", "15mm",
 const SENSITIVITY_INTERPRETATION_OPTIONS = ["S", "R", "I"];
 const SENSITIVITY_MEMORY_KEY = "diag_sync_sensitivity_memory_v1";
 const DEFAULT_CULTURE_RESULT_TEXT =
-  "Staphylococcus aureus & Candida albican isolated after 24hours incubation @ 370C";
+  "Staphylococcus aureus & Candida albican isolated after 24hours incubation @ 37°C";
 const WIDAL_FIELD_ALIASES = {
   typhiO: ["typhi_o"],
   typhiH: ["typhi_h"],
