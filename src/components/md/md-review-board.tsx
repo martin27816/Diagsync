@@ -10,9 +10,22 @@ import { analyzePatientInsights, type PatientHistoryRow } from "@/lib/patient-in
 import { toCustomFieldKey } from "@/lib/custom-fields-core";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY, isDataImageUrl } from "@/lib/report-signoff";
 import { formatPatientAge } from "@/lib/patient-age";
+import { formatReferenceDisplay } from "@/lib/reference-ranges";
 
 type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 type TaskDepartment = "LABORATORY" | "RADIOLOGY";
+type ResultTemplateFieldMeta = {
+  id: string;
+  label: string;
+  fieldKey: string;
+  fieldType: "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
+  unit?: string | null;
+  normalMin?: number | null;
+  normalMax?: number | null;
+  normalText?: string | null;
+  referenceNote?: string | null;
+  sortOrder: number;
+};
 
 type Item = {
   id: string;
@@ -27,7 +40,7 @@ type Item = {
   review: { status: ReviewStatus; comments?: string | null; rejectionReason?: string | null; editedData?: unknown } | null;
   results: Array<{
     testOrderId: string;
-    testOrder: { test: { name: string } };
+    testOrder: { test: { name: string; resultFields: ResultTemplateFieldMeta[] } };
     currentVersion: number;
     resultData: Record<string, unknown>;
     notes?: string | null;
@@ -476,7 +489,7 @@ export function MdReviewBoard({
                                       {(() => {
                                         const resultData = result.resultData as Record<string, unknown>;
                                         const sensitivityRows = parseMdSensitivity(resultData?.sensitivity);
-                                        const normalPairs = Object.entries(resultData)
+                                        const resultRows = Object.entries(resultData)
                                           .filter(
                                             ([key, value]) =>
                                               key !== "sensitivity" &&
@@ -484,13 +497,49 @@ export function MdReviewBoard({
                                               value !== undefined &&
                                               `${value}`.trim()
                                           )
-                                          .map(([k, v]) => `${k}: ${v}`);
+                                          .map(([fieldKey, rawValue]) => {
+                                            const fieldMeta = result.testOrder.test.resultFields.find(
+                                              (field) => field.fieldKey === fieldKey
+                                            );
+                                            const valueText = String(rawValue);
+                                            const referenceText = fieldMeta ? formatReferenceDisplay(fieldMeta) : "";
+                                            return {
+                                              fieldKey,
+                                              label: fieldMeta?.label ?? fieldKey,
+                                              valueText,
+                                              unitText: fieldMeta?.unit?.trim() ?? "",
+                                              referenceText,
+                                            };
+                                          });
                                         return (
                                           <>
                                       <p className="font-medium text-slate-800">{result.testOrder.test.name} <span className="font-mono text-slate-400 text-[11px]">v{result.currentVersion}</span></p>
-                                      <p className="text-slate-500 mt-1">
-                                        {normalPairs.join(" · ") || "—"}
-                                      </p>
+                                      {resultRows.length > 0 ? (
+                                        <div className="mt-2 overflow-x-auto rounded border border-slate-200">
+                                          <table className="w-full min-w-[620px] border-collapse text-[11px]">
+                                            <thead>
+                                              <tr className="bg-slate-50">
+                                                <th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500">Parameter</th>
+                                                <th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500">Result</th>
+                                                <th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500">Unit (SI)</th>
+                                                <th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500">Reference Range</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {resultRows.map((row) => (
+                                                <tr key={`${result.testOrderId}-${row.fieldKey}`}>
+                                                  <td className="border border-slate-200 px-1.5 py-1 text-slate-700">{row.label}</td>
+                                                  <td className="border border-slate-200 px-1.5 py-1 text-slate-700">{row.valueText}</td>
+                                                  <td className="border border-slate-200 px-1.5 py-1 text-slate-700">{row.unitText || "-"}</td>
+                                                  <td className="border border-slate-200 px-1.5 py-1 text-slate-700">{row.referenceText || "-"}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      ) : (
+                                        <p className="text-slate-500 mt-1">-</p>
+                                      )}
                                       {sensitivityRows.length > 0 ? (
                                         <div className="mt-2 overflow-x-auto rounded border border-slate-200">
                                           <table className="w-full min-w-[520px] border-collapse text-[11px]">

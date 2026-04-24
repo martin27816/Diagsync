@@ -1,12 +1,32 @@
 ﻿import { config } from "dotenv";
 config();
 
-import { PrismaClient, Department, TestType, FieldType, Role } from "@prisma/client";
+import { PrismaClient, Prisma, Department, TestType, FieldType, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
+
+function tuneSeedDatabaseUrl(raw?: string | null) {
+  if (!raw) return raw;
+  try {
+    const parsed = new URL(raw);
+    // Keep seed lightweight against shared Supabase pooler limits.
+    if (parsed.hostname.includes("pooler.supabase.com")) {
+      if (!parsed.searchParams.get("connection_limit")) {
+        parsed.searchParams.set("connection_limit", "1");
+      }
+      if (!parsed.searchParams.get("pool_timeout")) {
+        parsed.searchParams.set("pool_timeout", "60");
+      }
+    }
+    return parsed.toString();
+  } catch {
+    return raw;
+  }
+}
 
 if (process.env.DIRECT_URL) {
   process.env.DATABASE_URL = process.env.DIRECT_URL;
 }
+process.env.DATABASE_URL = tuneSeedDatabaseUrl(process.env.DATABASE_URL) ?? process.env.DATABASE_URL;
 
 const prisma = new PrismaClient();
 
@@ -68,43 +88,30 @@ async function main() {
   await bootstrapMegaAdmin();
 
   // -- Seed Test Categories -----------------------------------------------------
-  const categories = await Promise.all([
-    prisma.testCategory.upsert({
-      where: { id: "cat-haematology" },
-      update: {},
-      create: { id: "cat-haematology", name: "Haematology", description: "Blood count and related tests" },
-    }),
-    prisma.testCategory.upsert({
-      where: { id: "cat-chemistry" },
-      update: {},
-      create: { id: "cat-chemistry", name: "Clinical Chemistry", description: "Biochemistry and metabolic tests" },
-    }),
-    prisma.testCategory.upsert({
-      where: { id: "cat-micro" },
-      update: {},
-      create: { id: "cat-micro", name: "Microbiology", description: "Infection and parasitology tests" },
-    }),
-    prisma.testCategory.upsert({
-      where: { id: "cat-urine" },
-      update: {},
-      create: { id: "cat-urine", name: "Urinalysis", description: "Urine examination tests" },
-    }),
-    prisma.testCategory.upsert({
-      where: { id: "cat-imaging" },
-      update: {},
-      create: { id: "cat-imaging", name: "Imaging & Radiology", description: "X-Ray, Ultrasound, CT, MRI" },
-    }),
-    prisma.testCategory.upsert({
-      where: { id: "cat-cardiology" },
-      update: {},
-      create: { id: "cat-cardiology", name: "Cardiology", description: "ECG, Echocardiography, and cardiovascular diagnostics" },
-    }),
-    prisma.testCategory.upsert({
-      where: { id: "cat-serology" },
-      update: {},
-      create: { id: "cat-serology", name: "Serology / Immunology", description: "Antibody and antigen tests" },
-    }),
-  ]);
+  const categorySeeds = [
+    { id: "cat-haematology", name: "Haematology", description: "Blood count and related tests" },
+    { id: "cat-chemistry", name: "Clinical Chemistry", description: "Biochemistry and metabolic tests" },
+    { id: "cat-micro", name: "Microbiology", description: "Infection and parasitology tests" },
+    { id: "cat-urine", name: "Urinalysis", description: "Urine examination tests" },
+    { id: "cat-imaging", name: "Imaging & Radiology", description: "X-Ray, Ultrasound, CT, MRI" },
+    { id: "cat-cardiology", name: "Cardiology", description: "ECG, Echocardiography, and cardiovascular diagnostics" },
+    { id: "cat-serology", name: "Serology / Immunology", description: "Antibody and antigen tests" },
+  ] as const;
+
+  const categories = [];
+  for (const category of categorySeeds) {
+    categories.push(
+      await prisma.testCategory.upsert({
+        where: { id: category.id },
+        update: {},
+        create: {
+          id: category.id,
+          name: category.name,
+          description: category.description,
+        },
+      })
+    );
+  }
 
   console.log(`? ${categories.length} test categories created`);
 
@@ -155,6 +162,88 @@ async function main() {
 
   const orgId = org.id;
   console.log(`? Organization found: ${org.name} (${org.id})`);
+
+  const TEMPLATE_FIELD_CHUNK_SIZE = 100;
+  const RADIOLOGY_DELETE_CHUNK_SIZE = 100;
+  const DB_RETRY_LIMIT = 3;
+
+  function delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function mapTemplateFields(
+    testId: string,
+    fields: Array<{
+      label: string;
+      fieldKey: string;
+      fieldType: FieldType;
+      unit?: string | null;
+      normalMin?: Prisma.Decimal | number | null;
+      normalMax?: Prisma.Decimal | number | null;
+      normalText?: string | null;
+      referenceNote?: string | null;
+      options?: string | null;
+      isRequired?: boolean | null;
+      sortOrder: number;
+    }>
+  ): Prisma.ResultTemplateFieldCreateManyInput[] {
+    return fields.map((field) => ({
+      testId,
+      label: field.label,
+      fieldKey: field.fieldKey,
+      fieldType: field.fieldType,
+      unit: field.unit ?? null,
+      normalMin: field.normalMin ?? null,
+      normalMax: field.normalMax ?? null,
+      normalText: field.normalText ?? null,
+      referenceNote: field.referenceNote ?? null,
+      options: field.options ?? null,
+      isRequired: field.isRequired ?? true,
+      sortOrder: field.sortOrder,
+    }));
+  }
+
+  async function runWithRetry<T>(label: string, action: () => Promise<T>): Promise<T> {
+    let attempt = 0;
+    while (true) {
+      try {
+        return await action();
+      } catch (error: unknown) {
+        const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined;
+        const retryable = code === "P1017" || code === "P1001";
+        if (!retryable || attempt >= DB_RETRY_LIMIT) {
+          throw error;
+        }
+        attempt += 1;
+        console.warn(`${label} failed (${code}), retrying ${attempt}/${DB_RETRY_LIMIT}...`);
+        try {
+          await prisma.$disconnect();
+        } catch {
+          // best effort
+        }
+        await delay(400 * attempt);
+        await prisma.$connect();
+      }
+    }
+  }
+
+  async function replaceResultTemplateFields(
+    testId: string,
+    rows: Prisma.ResultTemplateFieldCreateManyInput[],
+    contextLabel: string
+  ) {
+    await runWithRetry(`${contextLabel}:deleteMany`, () =>
+      prisma.resultTemplateField.deleteMany({ where: { testId } })
+    );
+
+    for (let i = 0; i < rows.length; i += TEMPLATE_FIELD_CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + TEMPLATE_FIELD_CHUNK_SIZE);
+      if (chunk.length === 0) continue;
+      await runWithRetry(`${contextLabel}:createMany#${i / TEMPLATE_FIELD_CHUNK_SIZE + 1}`, () =>
+        prisma.resultTemplateField.createMany({ data: chunk })
+      );
+    }
+  }
 
   // -- Helper: upsert test + fields ------------------------------------------
   async function seedTest(data: {
@@ -212,23 +301,11 @@ async function main() {
       WHERE "id" = ${test.id}
     `;
 
-    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
-    await prisma.resultTemplateField.createMany({
-      data: enrichedFields.map((field) => ({
-        testId: test.id,
-        label: field.label,
-        fieldKey: field.fieldKey,
-        fieldType: field.fieldType,
-        unit: field.unit,
-        normalMin: field.normalMin,
-        normalMax: field.normalMax,
-        normalText: field.normalText,
-        referenceNote: field.referenceNote,
-        options: field.options,
-        isRequired: field.isRequired ?? true,
-        sortOrder: field.sortOrder,
-      })),
-    });
+    await replaceResultTemplateFields(
+      test.id,
+      mapTemplateFields(test.id, enrichedFields),
+      `seedTest:${data.code}`
+    );
 
     return test;
   }
@@ -446,23 +523,11 @@ async function main() {
 
     const enriched = withReferenceMetadata(params.name, params.type, params.fields);
     for (const target of targets) {
-      await prisma.resultTemplateField.deleteMany({ where: { testId: target.id } });
-      await prisma.resultTemplateField.createMany({
-        data: enriched.map((field) => ({
-          testId: target.id,
-          label: field.label,
-          fieldKey: field.fieldKey,
-          fieldType: field.fieldType,
-          unit: field.unit,
-          normalMin: field.normalMin,
-          normalMax: field.normalMax,
-          normalText: field.normalText,
-          referenceNote: field.referenceNote,
-          options: field.options,
-          isRequired: field.isRequired ?? true,
-          sortOrder: field.sortOrder,
-        })),
-      });
+      await replaceResultTemplateFields(
+        target.id,
+        mapTemplateFields(target.id, enriched),
+        `syncExistingTestFieldsByName:${params.name}`
+      );
     }
     return targets.length;
   }
@@ -962,166 +1027,128 @@ async function main() {
   });
 
   // -- RADIOLOGY TESTS ----------------------------------------------------------
-
-  // 21. Chest X-Ray
-  await seedTest({
-    code: "CXR",
-    name: "Chest X-Ray",
-    type: TestType.RADIOLOGY,
-    department: Department.RADIOLOGY,
-    categoryId: "cat-imaging",
-    price: 5000,
-    turnaroundMinutes: 45,
-    description: "Plain chest radiograph (PA view)",
-    fields: makeRadiologyWorkflowFields(),
+  const organizationsForRadiologyReset = await prisma.organization.findMany({
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
   });
+  let deletedRadiologyCount = 0;
+  let deactivatedReferencedRadiologyCount = 0;
 
-  // 22. Abdominal Ultrasound
-  await seedTest({
-    code: "AUS",
-    name: "Abdominal Ultrasound",
-    type: TestType.RADIOLOGY,
-    department: Department.RADIOLOGY,
-    categoryId: "cat-imaging",
-    price: 8000,
-    turnaroundMinutes: 60,
-    description: "Comprehensive abdominal ultrasound scan",
-    fields: makeRadiologyWorkflowFields(),
-  });
+  for (const targetOrg of organizationsForRadiologyReset) {
+    const deactivated = await runWithRetry(`radiology-reset-deactivate:${targetOrg.id}`, () =>
+      prisma.diagnosticTest.updateMany({
+        where: {
+          organizationId: targetOrg.id,
+          categoryId: "cat-imaging",
+          testOrders: { some: {} },
+        },
+        data: { isActive: false },
+      })
+    );
+    deactivatedReferencedRadiologyCount += deactivated.count;
 
-  // 23. Pelvic Ultrasound
-  await seedTest({
-    code: "PUS",
-    name: "Pelvic Ultrasound",
-    type: TestType.RADIOLOGY,
-    department: Department.RADIOLOGY,
-    categoryId: "cat-imaging",
-    price: 7000,
-    turnaroundMinutes: 60,
-    fields: makeRadiologyWorkflowFields(),
-  });
+    while (true) {
+      const deletable = await runWithRetry(`radiology-reset-find-deletable:${targetOrg.id}`, () =>
+        prisma.diagnosticTest.findMany({
+          where: {
+            organizationId: targetOrg.id,
+            categoryId: "cat-imaging",
+            testOrders: { none: {} },
+          },
+          select: { id: true },
+          take: RADIOLOGY_DELETE_CHUNK_SIZE,
+        })
+      );
 
-  // 24. Obstetric Ultrasound
-  await seedTest({
-    code: "OBS",
-    name: "Obstetric Ultrasound",
-    type: TestType.RADIOLOGY,
-    department: Department.RADIOLOGY,
-    categoryId: "cat-imaging",
-    price: 8000,
-    turnaroundMinutes: 60,
-    fields: makeRadiologyWorkflowFields(),
-  });
+      if (deletable.length === 0) break;
 
-  // 25. Skull X-Ray
-  await seedTest({
-    code: "SKX",
-    name: "Skull X-Ray",
-    type: TestType.RADIOLOGY,
-    department: Department.RADIOLOGY,
-    categoryId: "cat-imaging",
-    price: 5000,
-    turnaroundMinutes: 45,
-    fields: makeRadiologyWorkflowFields(),
-  });
+      const ids = deletable.map((row) => row.id);
+      const deleted = await runWithRetry(`radiology-reset-delete:${targetOrg.id}`, () =>
+        prisma.diagnosticTest.deleteMany({
+          where: { id: { in: ids } },
+        })
+      );
+      deletedRadiologyCount += deleted.count;
+    }
+  }
 
-  const structuredRadiologyTests: Array<{
-    code: string;
-    name: string;
-    price: number;
-    turnaroundMinutes: number;
-    description?: string;
-    groupKey?: string | null;
-    viewType?: string | null;
-    isDefaultInGroup?: boolean;
-  }> = [
-    { code: "CXR-PA", name: "Chest X-Ray (PA View)", price: 5000, turnaroundMinutes: 45 },
-    { code: "CXR-AP", name: "Chest X-Ray (AP View)", price: 5000, turnaroundMinutes: 45 },
-    { code: "CXR-LAT", name: "Chest X-Ray (Lateral View)", price: 5000, turnaroundMinutes: 45 },
-    { code: "CXR-OBL", name: "Chest X-Ray (Oblique View)", price: 5000, turnaroundMinutes: 45 },
-    { code: "SKX-AP", name: "Skull X-Ray (AP)", price: 5500, turnaroundMinutes: 45 },
-    { code: "SKX-LAT", name: "Skull X-Ray (Lateral)", price: 5500, turnaroundMinutes: 45 },
-    { code: "SKX-TOW", name: "Skull X-Ray (Townes View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "SKX-OCC", name: "Skull X-Ray (Occipital View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "PNS-WAT", name: "X-Ray Paranasal Sinuses (Waters View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "PNS-CAL", name: "X-Ray Paranasal Sinuses (Caldwell View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "FACE-XR", name: "X-Ray Facial Bones", price: 6000, turnaroundMinutes: 45 },
-    { code: "MAN-AP", name: "X-Ray Mandible (AP View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "MAN-LAT", name: "X-Ray Mandible (Lateral View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "MAN-OBL", name: "X-Ray Mandible (Oblique View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "TMJ-XR", name: "TMJ X-Ray", price: 6000, turnaroundMinutes: 45 },
-    { code: "CSP-AP", name: "Cervical Spine X-Ray (AP View)", price: 6000, turnaroundMinutes: 50 },
-    { code: "CSP-LAT", name: "Cervical Spine X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 50 },
-    { code: "CSP-OBL", name: "Cervical Spine X-Ray (Oblique View)", price: 6500, turnaroundMinutes: 50 },
-    { code: "TSP-AP", name: "Thoracic Spine X-Ray (AP View)", price: 6500, turnaroundMinutes: 50 },
-    { code: "TSP-LAT", name: "Thoracic Spine X-Ray (Lateral View)", price: 6500, turnaroundMinutes: 50 },
-    { code: "TSP-OBL", name: "Thoracic Spine X-Ray (Oblique View)", price: 7000, turnaroundMinutes: 50 },
-    { code: "LSS-AP", name: "Lumbo-Sacral Spine X-Ray (AP View)", price: 6500, turnaroundMinutes: 50 },
-    { code: "LSS-LAT", name: "Lumbo-Sacral Spine X-Ray (Lateral View)", price: 6500, turnaroundMinutes: 50 },
-    { code: "LSS-OBL", name: "Lumbo-Sacral Spine X-Ray (Oblique View)", price: 7000, turnaroundMinutes: 50 },
-    { code: "SHD-AP", name: "Shoulder X-Ray (AP View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "SHD-LAT", name: "Shoulder X-Ray (Lateral View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "HUM-AP", name: "Humerus X-Ray (AP View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "HUM-LAT", name: "Humerus X-Ray (Lateral View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "ELB-AP", name: "Elbow X-Ray (AP View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "ELB-LAT", name: "Elbow X-Ray (Lateral View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "ELB-OBL", name: "Elbow X-Ray (Oblique View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "FAR-AP", name: "Forearm X-Ray (AP View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "FAR-LAT", name: "Forearm X-Ray (Lateral View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "WRS-PA", name: "Wrist X-Ray (PA View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "WRS-LAT", name: "Wrist X-Ray (Lateral View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "HND-PA", name: "Hand X-Ray (PA View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "HND-OBL", name: "Hand X-Ray (Oblique View)", price: 5500, turnaroundMinutes: 45 },
-    { code: "PEL-AP", name: "Pelvis X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "HIP-AP", name: "Hip X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "HIP-LAT", name: "Hip X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "FEM-AP", name: "Femur X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "FEM-LAT", name: "Femur X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "KNE-AP", name: "Knee X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "KNE-LAT", name: "Knee X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "KNE-SKY", name: "Knee X-Ray (Skyline View)", price: 6500, turnaroundMinutes: 45 },
-    { code: "TIB-AP", name: "Tibia/Fibula X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "TIB-LAT", name: "Tibia/Fibula X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "ANK-AP", name: "Ankle X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "ANK-LAT", name: "Ankle X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "ANK-MOR", name: "Ankle X-Ray (Mortise View)", price: 6500, turnaroundMinutes: 45 },
-    { code: "FOT-AP", name: "Foot X-Ray (AP View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "FOT-OBL", name: "Foot X-Ray (Oblique View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "FOT-LAT", name: "Foot X-Ray (Lateral View)", price: 6000, turnaroundMinutes: 45 },
-    { code: "ABX-ERE", name: "Abdominal X-Ray (Erect)", price: 6500, turnaroundMinutes: 45 },
-    { code: "ABX-SUP", name: "Abdominal X-Ray (Supine)", price: 6500, turnaroundMinutes: 45 },
-    { code: "CTB-NC", name: "CT Brain (Non-Contrast)", price: 28000, turnaroundMinutes: 90 },
-    { code: "CTB-C", name: "CT Brain (Contrast)", price: 32000, turnaroundMinutes: 90 },
-    { code: "CTSIN", name: "CT Sinuses", price: 26000, turnaroundMinutes: 90 },
-    { code: "CTORB", name: "CT Orbit", price: 26000, turnaroundMinutes: 90 },
-    { code: "CTNEK", name: "CT Neck", price: 30000, turnaroundMinutes: 90 },
-    { code: "CTCH", name: "CT Chest", price: 32000, turnaroundMinutes: 90 },
-    { code: "CTABD", name: "CT Abdomen", price: 35000, turnaroundMinutes: 90 },
-    { code: "CTPEL", name: "CT Pelvis", price: 32000, turnaroundMinutes: 90 },
-    { code: "CTSP-C", name: "CT Spine (Cervical)", price: 30000, turnaroundMinutes: 90 },
-    { code: "CTSP-T", name: "CT Spine (Thoracic)", price: 30000, turnaroundMinutes: 90 },
-    { code: "CTSP-L", name: "CT Spine (Lumbar)", price: 30000, turnaroundMinutes: 90 },
-    { code: "CTA-BR", name: "CT Angiography (Brain)", price: 45000, turnaroundMinutes: 120 },
-    { code: "CTA-CR", name: "CT Angiography (Carotid)", price: 45000, turnaroundMinutes: 120 },
-    { code: "CTA-TH", name: "CT Angiography (Thoracic)", price: 45000, turnaroundMinutes: 120 },
-    { code: "US-BRS", name: "Breast Ultrasound", price: 8500, turnaroundMinutes: 60 },
-    { code: "US-OCL", name: "Ocular Ultrasound", price: 9000, turnaroundMinutes: 60 },
-    { code: "US-TRP", name: "Prostate (Transrectal Ultrasound)", price: 12000, turnaroundMinutes: 60 },
-    { code: "US-FOL", name: "Folliculometry", price: 10000, turnaroundMinutes: 60 },
-    { code: "US-HSG", name: "Sono-HSG", price: 13000, turnaroundMinutes: 60 },
-    { code: "US-DOP", name: "Doppler Ultrasound (General)", price: 14000, turnaroundMinutes: 60 },
-    { code: "US-VAS", name: "Vascular Doppler", price: 15000, turnaroundMinutes: 60 },
-    { code: "MAMMO", name: "Mammography", price: 18000, turnaroundMinutes: 90 },
-    { code: "BAR-SW", name: "Barium Swallow", price: 14000, turnaroundMinutes: 90 },
-    { code: "BAR-ML", name: "Barium Meal", price: 14000, turnaroundMinutes: 90 },
-    { code: "BAR-EN", name: "Barium Enema", price: 15000, turnaroundMinutes: 90 },
-    { code: "IVU", name: "IVU", price: 16000, turnaroundMinutes: 90 },
-    { code: "HSG", name: "HSG", price: 17000, turnaroundMinutes: 90 },
-    { code: "MCUG", name: "MCUG", price: 17000, turnaroundMinutes: 90 },
-    { code: "SIALO", name: "Sialography", price: 17000, turnaroundMinutes: 90 },
+  console.log(
+    `Radiology reset: deleted ${deletedRadiologyCount} unreferenced tests and deactivated ${deactivatedReferencedRadiologyCount} referenced tests`
+  );
+
+  const radiologyTests: Array<{ code: string; name: string }> = [
+    { code: "CXR-PA", name: "Chest X-Ray (PA)" },
+    { code: "CXR-AP", name: "Chest X-Ray (AP)" },
+    { code: "CXR-DEC", name: "Chest X-Ray (Decubitus)" },
+    { code: "CXR-LORD", name: "Chest X-Ray (Apical Lordotic)" },
+    { code: "SKL-APL", name: "Skull X-Ray (AP & Lateral)" },
+    { code: "PNS-WAT", name: "PNS X-Ray (Waters View)" },
+    { code: "PNS-CAL", name: "PNS X-Ray (Caldwell View)" },
+    { code: "SKL-SMV", name: "Skull X-Ray (SMV View)" },
+    { code: "NAS", name: "Nasal Bones X-Ray" },
+    { code: "FAC", name: "Facial Bones X-Ray" },
+    { code: "CSP-APL", name: "Cervical Spine X-Ray (AP & Lateral)" },
+    { code: "TSP-APL", name: "Thoracic Spine X-Ray (AP & Lateral)" },
+    { code: "LSP-APL", name: "Lumbosacral Spine X-Ray (AP & Lateral)" },
+    { code: "SAC", name: "Sacrum & Coccyx X-Ray" },
+    { code: "SHJ-APL", name: "Shoulder X-Ray (AP & Lateral)" },
+    { code: "CLA-APL", name: "Clavicle X-Ray (AP & Lateral)" },
+    { code: "SCA-APL", name: "Scapula X-Ray (AP & Lateral)" },
+    { code: "ACJ", name: "Acromioclavicular Joint X-Ray" },
+    { code: "HUM-APL", name: "Humerus X-Ray (AP & Lateral)" },
+    { code: "ELB-APL", name: "Elbow X-Ray (AP & Lateral)" },
+    { code: "FAR-APL", name: "Forearm X-Ray (AP & Lateral)" },
+    { code: "WRI-APL", name: "Wrist X-Ray (AP & Lateral)" },
+    { code: "HAN-APL", name: "Hand X-Ray (AP & Lateral)" },
+    { code: "DIG-APL", name: "Fingers X-Ray (AP & Lateral)" },
+    { code: "PEL-AP", name: "Pelvis X-Ray (AP)" },
+    { code: "HIP-APL", name: "Hip X-Ray (AP & Lateral)" },
+    { code: "FEM-APL", name: "Femur X-Ray (AP & Lateral)" },
+    { code: "LEG-APL", name: "Leg X-Ray (AP & Lateral)" },
+    { code: "KNE-APL", name: "Knee X-Ray (AP & Lateral)" },
+    { code: "TIB-APL", name: "Tibia & Fibula X-Ray (AP & Lateral)" },
+    { code: "ANK-APL", name: "Ankle X-Ray (AP & Lateral)" },
+    { code: "FOO-APL", name: "Foot X-Ray (AP & Lateral)" },
+    { code: "TOE-APL", name: "Toes X-Ray (AP & Lateral)" },
+    { code: "CAL", name: "Calcaneus X-Ray" },
+    { code: "ABD-ER", name: "Abdomen X-Ray (Erect)" },
+    { code: "ABD-SU", name: "Abdomen X-Ray (Supine)" },
+    { code: "KUB", name: "KUB X-Ray" },
+    { code: "BAS", name: "Barium Swallow" },
+    { code: "BAM", name: "Barium Meal" },
+    { code: "BAF", name: "Barium Follow-Through" },
+    { code: "BAE", name: "Barium Enema" },
+    { code: "IVU", name: "Intravenous Urography (IVU)" },
+    { code: "HSG", name: "Hysterosalpingography (HSG)" },
+    { code: "MCU", name: "Micturating Cystourethrogram (MCU)" },
+    { code: "SKS", name: "Skeletal Survey" },
+    { code: "BBG", name: "Babygram" },
+    { code: "STN", name: "Soft Tissue Neck X-Ray" },
+    { code: "FBL", name: "Foreign Body Localization" },
+    { code: "BAG", name: "Bone Age X-Ray" },
+    { code: "STR", name: "Stress View X-Ray" },
+    { code: "USS-ABD", name: "Abdominal Ultrasound" },
+    { code: "USS-PEL", name: "Pelvic Ultrasound" },
+    { code: "USS-OBS", name: "Obstetric Ultrasound" },
+    { code: "USS-BRS", name: "Breast Ultrasound" },
+    { code: "USS-THY", name: "Thyroid Ultrasound" },
+    { code: "USS-SC", name: "Scrotal Ultrasound" },
+    { code: "USS-PR", name: "Prostate Ultrasound" },
+    { code: "USS-REN", name: "Renal Ultrasound" },
+    { code: "USS-DOP", name: "Doppler Ultrasound" },
+    { code: "CT-BR", name: "CT Brain" },
+    { code: "CT-CH", name: "CT Chest" },
+    { code: "CT-ABD", name: "CT Abdomen" },
+    { code: "CT-PEL", name: "CT Pelvis" },
+    { code: "CT-SP", name: "CT Spine" },
+    { code: "CT-ANG", name: "CT Angiography" },
+    { code: "MRI-BR", name: "MRI Brain" },
+    { code: "MRI-SP", name: "MRI Spine" },
+    { code: "MRI-ABD", name: "MRI Abdomen" },
+    { code: "MRI-PEL", name: "MRI Pelvis" },
   ];
 
-  for (const test of structuredRadiologyTests) {
+  for (const test of radiologyTests) {
     const grouping = deriveRadiologyGrouping(test.name);
     await seedTest({
       code: test.code,
@@ -1129,111 +1156,57 @@ async function main() {
       type: TestType.RADIOLOGY,
       department: Department.RADIOLOGY,
       categoryId: "cat-imaging",
-      price: test.price,
-      turnaroundMinutes: test.turnaroundMinutes,
-      description: test.description ?? "Structured radiology catalog test",
-      groupKey: test.groupKey ?? grouping.groupKey,
-      viewType: test.viewType ?? grouping.viewType,
-      isDefaultInGroup: test.isDefaultInGroup ?? grouping.isDefaultInGroup,
-      fields: makeRadiologyWorkflowFields(),
-    });
-  }
-
-  const requestedExactRadiologyTestsRaw = [
-    "Chest X-ray AP",
-    "Chest X-ray PA",
-    "Chest X-ray AP/LAT",
-    "Chest X-ray PA/LAT",
-    "Decubitus Chest (left/right)",
-    "Apical lordotic view",
-    "Skull X-ray AP/LAT",
-    "Occipito-mental (OM view) – sinuses",
-    "Occipito-frontal (Caldwell view)",
-    "Submento-vertical (SMV)",
-    "Nasal bones",
-    "Facial bones",
-    "Paranasal sinuses (PNS)",
-    "Lumbosacral x-ray AP/LAT",
-    "Cervical spine AP/LAT",
-    "Thoracic spine AP/LAT",
-    "Lumbosacral spine",
-    "Sacrum & coccyx",
-    "Shoulder Region AP/LAT",
-    "Shoulder joint AP/LAT",
-    "Clavicle AP/LAT",
-    "Scapula AP/LAT",
-    "Acromioclavicular joint",
-    "Arm & Forearm AP/LAT",
-    "Humerus AP/LAT",
-    "Elbow joint AP/LAT",
-    "Forearm (radius & ulna) AP/LAT",
-    "Hand AP/LAT",
-    "Wrist joint AP/LAT",
-    "Fingers / digits AP/LAT",
-    "Hip & Thigh AP/LAT",
-    "Pelvis AP/LAT",
-    "Hip joint AP/LAT",
-    "Femur AP/LAT",
-    "Leg AP/LAT",
-    "Knee joint AP/LAT",
-    "Tibia & fibula AP/LAT",
-    "Foot AP/LAT",
-    "Ankle joint AP/LAT",
-    "Toes / digits AP/LAT",
-    "Calcaneus (heel)",
-    "Abdomen (erect/supine)",
-    "KUB (Kidney, Ureter, Bladder)",
-    "Barium swallow",
-    "Barium meal",
-    "Barium follow-through",
-    "Barium enema",
-    "Intravenous urography (IVU)",
-    "Hysterosalpingography (HSG)",
-    "Micturating cystourethrogram (MCU)",
-    "Skeletal survey",
-    "Babygram (whole body X-ray for infants)",
-    "Soft tissue neck X-ray",
-    "Foreign body localization",
-    "Bone age assessment (hand & wrist)",
-    "Stress views (e.g. knee, ankle)",
-  ];
-
-  const requestedExactRadiologyTests = Array.from(
-    new Set(requestedExactRadiologyTestsRaw.map((name) => name.trim()).filter(Boolean))
-  );
-
-  const existingRadiologyCanonicalNamesForUserList = new Set(
-    (
-      await prisma.diagnosticTest.findMany({
-        where: { organizationId: orgId, type: TestType.RADIOLOGY },
-        select: { name: true },
-      })
-    ).map((test) => canonicalizeRadiologyNameForDedup(test.name))
-  );
-
-  for (let i = 0; i < requestedExactRadiologyTests.length; i += 1) {
-    const name = requestedExactRadiologyTests[i];
-    const canonical = canonicalizeRadiologyNameForDedup(name);
-    if (existingRadiologyCanonicalNamesForUserList.has(canonical)) {
-      continue;
-    }
-    const code = `XRUSR${String(i + 1).padStart(3, "0")}`;
-    const grouping = deriveRadiologyGrouping(name);
-    await seedTest({
-      code,
-      name,
-      type: TestType.RADIOLOGY,
-      department: Department.RADIOLOGY,
-      categoryId: "cat-imaging",
       price: 7000,
       turnaroundMinutes: 60,
-      description: "User-requested radiology label",
+      description: "Standardized radiology catalog test",
       groupKey: grouping.groupKey,
       viewType: grouping.viewType,
       isDefaultInGroup: grouping.isDefaultInGroup,
       fields: makeRadiologyWorkflowFields(),
     });
-    existingRadiologyCanonicalNamesForUserList.add(canonical);
+  }
+
+  const missingRadiologyTests: Array<{ code: string; name: string }> = [
+    { code: "CXR-PAL", name: "Chest X-Ray (PA & Lateral)" },
+    { code: "CXR-LAT", name: "Chest X-Ray (Lateral)" },
+    { code: "ORB", name: "Orbital X-Ray" },
+    { code: "COB", name: "Scoliosis X-Ray (Full Spine)" },
+    { code: "SHS", name: "Shoulder Stress View X-Ray" },
+    { code: "KNE-SKY", name: "Knee X-Ray (Skyline View)" },
+    { code: "USS-NT", name: "Neck Ultrasound" },
+    { code: "USS-OB-ANOM", name: "Obstetric Ultrasound (Anomaly Scan)" },
+    { code: "CT-SIN", name: "CT Sinuses" },
+    { code: "CT-ORB", name: "CT Orbit" },
+    { code: "MRI-KNE", name: "MRI Knee" },
+    { code: "MRI-SHO", name: "MRI Shoulder" },
+  ];
+
+  for (const test of missingRadiologyTests) {
+    const exists = await prisma.diagnosticTest.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [{ code: test.code }, { name: test.name }],
+      },
+      select: { id: true },
+    });
+
+    if (!exists) {
+      const grouping = deriveRadiologyGrouping(test.name);
+      await seedTest({
+        code: test.code,
+        name: test.name,
+        type: TestType.RADIOLOGY,
+        department: Department.RADIOLOGY,
+        categoryId: "cat-imaging",
+        price: 7000,
+        turnaroundMinutes: 60,
+        description: "Standardized radiology catalog test",
+        groupKey: grouping.groupKey,
+        viewType: grouping.viewType,
+        isDefaultInGroup: grouping.isDefaultInGroup,
+        fields: makeRadiologyWorkflowFields(),
+      });
+    }
   }
 
   const structuredCardiologyTests: Array<{
@@ -1377,23 +1350,11 @@ async function main() {
       : psaPanelFields;
 
     const enriched = withReferenceMetadata(test.name, TestType.LAB, fields);
-    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
-    await prisma.resultTemplateField.createMany({
-      data: enriched.map((field) => ({
-        testId: test.id,
-        label: field.label,
-        fieldKey: field.fieldKey,
-        fieldType: field.fieldType,
-        unit: field.unit,
-        normalMin: field.normalMin,
-        normalMax: field.normalMax,
-        normalText: field.normalText,
-        referenceNote: field.referenceNote,
-        options: field.options,
-        isRequired: field.isRequired ?? true,
-        sortOrder: field.sortOrder,
-      })),
-    });
+    await replaceResultTemplateFields(
+      test.id,
+      mapTemplateFields(test.id, enriched),
+      `legacyPsaSync:${test.name}`
+    );
   }
 
   // 26. Bulk catalog expansion (Lab + Radiology master list)
@@ -2760,23 +2721,11 @@ async function main() {
     if (!mapped) continue;
 
     const enriched = withReferenceMetadata(key, TestType.LAB, mapped);
-    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
-    await prisma.resultTemplateField.createMany({
-      data: enriched.map((field) => ({
-        testId: test.id,
-        label: field.label,
-        fieldKey: field.fieldKey,
-        fieldType: field.fieldType,
-        unit: field.unit,
-        normalMin: field.normalMin,
-        normalMax: field.normalMax,
-        normalText: field.normalText,
-        referenceNote: field.referenceNote,
-        options: field.options,
-        isRequired: field.isRequired ?? true,
-        sortOrder: field.sortOrder,
-      })),
-    });
+    await replaceResultTemplateFields(
+      test.id,
+      mapTemplateFields(test.id, enriched),
+      `existingLabTemplateSync:${test.name}`
+    );
     syncedLabTemplateCount += 1;
   }
 
@@ -2805,23 +2754,11 @@ async function main() {
       where: { id: test.id },
       data: { categoryId: "cat-cardiology", department: Department.RADIOLOGY, isActive: true },
     });
-    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
-    await prisma.resultTemplateField.createMany({
-      data: enriched.map((field) => ({
-        testId: test.id,
-        label: field.label,
-        fieldKey: field.fieldKey,
-        fieldType: field.fieldType,
-        unit: field.unit,
-        normalMin: field.normalMin,
-        normalMax: field.normalMax,
-        normalText: field.normalText,
-        referenceNote: field.referenceNote,
-        options: field.options,
-        isRequired: field.isRequired ?? true,
-        sortOrder: field.sortOrder,
-      })),
-    });
+    await replaceResultTemplateFields(
+      test.id,
+      mapTemplateFields(test.id, enriched),
+      `legacyCardiologyMigration:${test.name}`
+    );
     migratedLegacyCardiologyCount += 1;
   }
 
@@ -2848,9 +2785,7 @@ async function main() {
     new Set(rawLabTests.map(normalizeName).filter(Boolean))
   ).filter((name) => !existingLabNames.has(name.toUpperCase()));
 
-  const dedupedRadiology = Array.from(
-    new Set(rawRadiologyTests.map(normalizeName).filter(Boolean))
-  ).filter((name) => !existingRadiologyNames.has(name.toUpperCase()));
+  const dedupedRadiology: string[] = [];
 
   for (let i = 0; i < dedupedLab.length; i += 1) {
     const testName = dedupedLab[i];
@@ -2913,6 +2848,8 @@ async function main() {
     orderBy: { createdAt: "asc" },
   });
 
+  await runWithRetry("org-sync-keepalive", () => prisma.$executeRaw`SELECT 1`);
+
   let syncedOrganizations = 0;
   for (const targetOrg of otherOrganizations) {
     for (const test of sourceCatalogTests) {
@@ -2952,28 +2889,11 @@ async function main() {
         select: { id: true },
       });
 
-      await prisma.resultTemplateField.deleteMany({
-        where: { testId: targetTest.id },
-      });
-
-      if (test.resultFields.length > 0) {
-        await prisma.resultTemplateField.createMany({
-          data: test.resultFields.map((field) => ({
-            testId: targetTest.id,
-            label: field.label,
-            fieldKey: field.fieldKey,
-            fieldType: field.fieldType,
-            unit: field.unit,
-            normalMin: field.normalMin,
-            normalMax: field.normalMax,
-            normalText: field.normalText,
-            referenceNote: field.referenceNote,
-            options: field.options,
-            isRequired: field.isRequired,
-            sortOrder: field.sortOrder,
-          })),
-        });
-      }
+      await replaceResultTemplateFields(
+        targetTest.id,
+        mapTemplateFields(targetTest.id, test.resultFields),
+        `orgSync:${targetOrg.id}:${test.code}`
+      );
     }
 
     await prisma.$executeRaw`

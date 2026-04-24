@@ -140,7 +140,29 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
       },
       results: {
         include: {
-          testOrder: { include: { test: true } },
+          testOrder: {
+            include: {
+              test: {
+                include: {
+                  resultFields: {
+                    orderBy: { sortOrder: "asc" },
+                    select: {
+                      id: true,
+                      label: true,
+                      fieldKey: true,
+                      fieldType: true,
+                      unit: true,
+                      normalMin: true,
+                      normalMax: true,
+                      normalText: true,
+                      referenceNote: true,
+                      sortOrder: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
           versions: {
             include: { editedBy: { select: { id: true, fullName: true } } },
             orderBy: { version: "desc" },

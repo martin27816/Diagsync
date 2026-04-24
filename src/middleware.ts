@@ -33,6 +33,7 @@ export default async function middleware(req: NextRequest) {
 
   const isPublicRoute =
     publicRoutes.has(pathname) ||
+    pathname.startsWith("/public/reports/") ||
     pathname.startsWith("/api/auth") ||
     pathname === "/api/uploads/branding" ||
     pathname === "/api/organizations/register";
