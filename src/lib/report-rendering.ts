@@ -771,12 +771,21 @@ export function renderReportHtml(args: RenderArgs) {
       print-color-adjust: exact;
       background: #f3f4f6;
     }
+    .report-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 12px 24px;
+      box-sizing: border-box;
+      overflow: auto;
+    }
     .page {
       position: relative;
       width: ${pageWidthPx}px;
       max-width: ${pageWidthPx}px;
       min-height: ${pageHeightPx}px;
-      height: auto;
+      height: ${pageHeightPx}px;
       margin: 0 auto;
       box-sizing: border-box;
       padding: ${contentTopPx}px 44px ${contentBottomPx}px;
@@ -825,11 +834,21 @@ export function renderReportHtml(args: RenderArgs) {
       max-width: 760px;
       margin: 0 auto;
       padding: 14px 18px;
+      height: calc(${pageHeightPx}px - ${contentTopPx}px - ${contentBottomPx}px);
       background: ${hasLetterhead ? "#ffffff" : "rgba(255, 255, 255, 0.93)"};
       border-radius: 8px;
-      overflow: visible;
+      overflow: hidden;
     }
-    .content { position: relative; z-index: 2; }
+    .content {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      overflow: hidden;
+    }
+    .content.allow-overflow {
+      overflow: visible;
+      height: auto;
+    }
     .header { margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
     h1 { margin: 0 0 6px; font-size: 20px; }
     h2 { margin: 8px 0; font-size: 16px; }
@@ -960,17 +979,9 @@ export function renderReportHtml(args: RenderArgs) {
       transform: translateY(1px);
     }
     @media screen and (max-width: 860px) {
-      .page {
-        width: 100%;
-        max-width: 100%;
-        min-height: auto;
-        padding: ${hasLetterhead ? "160px" : "96px"} 10px 76px;
-        margin: 0;
-      }
       .content-shell {
-        max-width: 100%;
         border-radius: 6px;
-        padding: 12px;
+        padding: 12px 14px;
       }
       .meta-grid {
         grid-template-columns: 1fr;
@@ -993,6 +1004,12 @@ export function renderReportHtml(args: RenderArgs) {
     }
     @media print {
       .preview-actions { display: none !important; }
+      .report-stack {
+        display: block !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: visible !important;
+      }
       .letterhead-layer {
         position: fixed !important;
         top: 0 !important;
@@ -1015,13 +1032,24 @@ export function renderReportHtml(args: RenderArgs) {
         margin: 0 !important;
         padding: ${contentTopPx}px ${printMarginSidePx}px ${contentBottomPx}px !important;
         overflow: visible !important;
+        page-break-after: always;
+        break-after: page;
+      }
+      .page:last-child {
+        page-break-after: auto;
+        break-after: auto;
       }
       .content-shell {
         border-radius: 0 !important;
         background: #ffffff !important;
         margin: 0 auto !important;
         max-width: none !important;
+        height: auto !important;
         padding: 14px 18px !important;
+        overflow: visible !important;
+      }
+      .content {
+        height: auto !important;
         overflow: visible !important;
       }
       .block,
@@ -1055,6 +1083,7 @@ export function renderReportHtml(args: RenderArgs) {
         </div>`
       : ""
   }
+  <div class="report-stack" id="report-stack">
   <main class="page">
     ${
       hasLetterhead && args.organization.letterheadUrl
@@ -1066,8 +1095,8 @@ export function renderReportHtml(args: RenderArgs) {
         ? `<div class="watermark watermark-top-left"><img src="${escapeHtml(effectiveWatermarkUrl)}" alt="watermark" crossorigin="anonymous" /></div>`
         : ""
     }
-    <div class="content-shell" id="content-shell">
-    <div class="content">
+    <div class="content-shell">
+    <div class="content" data-report-content="true">
       <h2>${args.department === Department.LABORATORY ? "Laboratory Report" : "Radiology Report"}</h2>
       <div class="meta-grid">
         <p><strong>Patient:</strong> ${escapeHtml(String(patient.fullName ?? "-"))}</p>
@@ -1124,12 +1153,64 @@ export function renderReportHtml(args: RenderArgs) {
     </div>
     </div>
   </main>
+  </div>
 </body>
-${
+<script>
+  (function () {
+    function paginatePreview() {
+      const stack = document.getElementById("report-stack");
+      if (!stack) return;
+      const firstPage = stack.querySelector(".page");
+      if (!firstPage) return;
+      const firstContent = firstPage.querySelector("[data-report-content='true']");
+      if (!firstContent) return;
+
+      const blocks = Array.from(firstContent.children);
+      if (blocks.length <= 1) return;
+      firstContent.innerHTML = "";
+
+      const pageTemplate = firstPage.cloneNode(true);
+      const templateContent = pageTemplate.querySelector("[data-report-content='true']");
+      if (templateContent) templateContent.innerHTML = "";
+
+      function createPage() {
+        const page = pageTemplate.cloneNode(true);
+        const content = page.querySelector("[data-report-content='true']");
+        if (content) content.innerHTML = "";
+        stack.appendChild(page);
+        return page;
+      }
+
+      let currentPage = firstPage;
+      let currentContent = firstContent;
+
+      for (const block of blocks) {
+        currentContent.appendChild(block);
+        if (currentContent.scrollHeight > currentContent.clientHeight + 1) {
+          currentContent.removeChild(block);
+          currentPage = createPage();
+          currentContent = currentPage.querySelector("[data-report-content='true']");
+          if (!currentContent) break;
+          currentContent.appendChild(block);
+          if (currentContent.scrollHeight > currentContent.clientHeight + 1) {
+            currentContent.classList.add("allow-overflow");
+          }
+        }
+      }
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", paginatePreview, { once: true });
+    } else {
+      paginatePreview();
+    }
+  })();
+</script>
+${  
   args.autoPrint
     ? `<script>
         window.addEventListener("load", function () {
-          setTimeout(function () { window.print(); }, 120);
+          setTimeout(function () { window.print(); }, 240);
         });
       </script>`
     : ""
