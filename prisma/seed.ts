@@ -1128,6 +1128,89 @@ async function main() {
     });
   }
 
+  const requestedExactRadiologyTestsRaw = [
+    "Chest X-ray AP",
+    "Chest X-ray PA",
+    "Chest X-ray AP/LAT",
+    "Chest PA/LAT",
+    "Decubitus Chest (left/right)",
+    "Apical lordotic view",
+    "Skull X-ray AP/LAT",
+    "Occipito-mental (OM view) – sinuses",
+    "Occipito-frontal (Caldwell view)",
+    "Submento-vertical (SMV)",
+    "Nasal bones",
+    "Facial bones",
+    "Paranasal sinuses (PNS)",
+    "Lumbosacral x-ray AP/LAT",
+    "Cervical spine AP/LAT",
+    "Thoracic spine AP/LAT",
+    "Lumbosacral spine",
+    "Sacrum & coccyx",
+    "Shoulder Region AP/LAT",
+    "Shoulder joint AP/LAT",
+    "Clavicle AP/LAT",
+    "Scapula AP/LAT",
+    "Acromioclavicular joint",
+    "Arm & Forearm AP/LAT",
+    "Humerus AP/LAT",
+    "Elbow joint AP/LAT",
+    "Forearm (radius & ulna) AP/LAT",
+    "Hand AP/LAT",
+    "Wrist joint AP/LAT",
+    "Fingers / digits AP/LAT",
+    "Hip & Thigh AP/LAT",
+    "Pelvis AP/LAT",
+    "Hip joint AP/LAT",
+    "Femur AP/LAT",
+    "Leg AP/LAT",
+    "Knee joint AP/LAT",
+    "Tibia & fibula AP/LAT",
+    "Foot AP/LAT",
+    "Ankle joint AP/LAT",
+    "Toes / digits AP/LAT",
+    "Calcaneus (heel)",
+    "Abdomen (erect/supine)",
+    "KUB (Kidney, Ureter, Bladder)",
+    "Barium swallow",
+    "Barium meal",
+    "Barium follow-through",
+    "Barium enema",
+    "Intravenous urography (IVU)",
+    "Hysterosalpingography (HSG)",
+    "Micturating cystourethrogram (MCU)",
+    "Skeletal survey",
+    "Babygram (whole body X-ray for infants)",
+    "Soft tissue neck X-ray",
+    "Foreign body localization",
+    "Bone age assessment (hand & wrist)",
+    "Stress views (e.g. knee, ankle)",
+  ];
+
+  const requestedExactRadiologyTests = Array.from(
+    new Set(requestedExactRadiologyTestsRaw.map((name) => name.trim()).filter(Boolean))
+  );
+
+  for (let i = 0; i < requestedExactRadiologyTests.length; i += 1) {
+    const name = requestedExactRadiologyTests[i];
+    const code = `XRUSR${String(i + 1).padStart(3, "0")}`;
+    const grouping = deriveRadiologyGrouping(name);
+    await seedTest({
+      code,
+      name,
+      type: TestType.RADIOLOGY,
+      department: Department.RADIOLOGY,
+      categoryId: "cat-imaging",
+      price: 7000,
+      turnaroundMinutes: 60,
+      description: "User-requested radiology label",
+      groupKey: grouping.groupKey,
+      viewType: grouping.viewType,
+      isDefaultInGroup: grouping.isDefaultInGroup,
+      fields: makeRadiologyWorkflowFields(),
+    });
+  }
+
   const structuredCardiologyTests: Array<{
     code: string;
     name: string;

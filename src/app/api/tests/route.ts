@@ -59,6 +59,18 @@ export async function GET(req: NextRequest) {
       normalizedSearch.includes("mcs") ||
       searchParts.join(" ").includes("m c s");
     const shouldExpandToMcs = hasMcsAlias || (hasMicroscopyWord && hasCultureWord && hasSensitivityWord);
+    const trimmedSearch = search.trim();
+    const searchVariants = new Set<string>();
+    if (trimmedSearch) {
+      searchVariants.add(trimmedSearch);
+      searchVariants.add(trimmedSearch.replace(/\bxray\b/gi, "x-ray"));
+      searchVariants.add(trimmedSearch.replace(/\bxray\b/gi, "x ray"));
+      searchVariants.add(trimmedSearch.replace(/\bx-ray\b/gi, "xray"));
+      searchVariants.add(trimmedSearch.replace(/\bx-ray\b/gi, "x ray"));
+      searchVariants.add(trimmedSearch.replace(/\bx\s+ray\b/gi, "xray"));
+      searchVariants.add(trimmedSearch.replace(/\bx\s+ray\b/gi, "x-ray"));
+    }
+    const searchTerms = Array.from(searchVariants).map((value) => value.trim()).filter(Boolean);
 
     const tests = await prisma.diagnosticTest.findMany({
       where: {
@@ -66,11 +78,13 @@ export async function GET(req: NextRequest) {
         isActive: true,
         ...(type ? { type } : {}),
         ...(department ? { department } : {}),
-        ...(search
+        ...(searchTerms.length > 0
           ? {
               OR: [
-                { name: { contains: search, mode: "insensitive" } },
-                { code: { contains: search, mode: "insensitive" } },
+                ...searchTerms.flatMap((term) => [
+                  { name: { contains: term, mode: "insensitive" as const } },
+                  { code: { contains: term, mode: "insensitive" as const } },
+                ]),
                 ...(shouldExpandToMcs ? [{ name: { contains: "M/C/S", mode: "insensitive" as const } }] : []),
               ],
             }

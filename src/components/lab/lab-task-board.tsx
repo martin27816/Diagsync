@@ -88,7 +88,7 @@ function isCommentLikeField(field: Pick<ResultField, "fieldKey" | "label">) {
 const DEFAULT_SENSITIVITY_ANTIBIOTICS = [
   "Lyntriaxone",
   "Gentamycin",
-  "Lynipro (Ciprofloxacin)",
+  "Lyncypro (Ciprofloxacin)",
   "Levosif (Levofloxacin)",
   "Velcone",
   "Amoxicillin",
