@@ -21,6 +21,30 @@ type DemographicRangeMap = Partial<Record<DemographicRangeKey, ParsedRange>>;
 
 const DEMOGRAPHIC_META_PREFIX = "[[DIAGSYNC_DEMO:";
 const DEMOGRAPHIC_META_SUFFIX = "]]";
+const NUMERIC_REFERENCE_FALLBACKS: Record<string, { min: number; max: number; unit?: string }> = {
+  urea: { min: 1.6, max: 8.3, unit: "mmol/L" },
+  creatinine: { min: 63, max: 130, unit: "µmol/L" },
+};
+
+function withNumericFallback(field: ReferenceField): ReferenceField {
+  if (field.fieldType !== "NUMBER") return field;
+  const key = field.fieldKey.trim().toLowerCase();
+  const fallback = NUMERIC_REFERENCE_FALLBACKS[key];
+  if (!fallback) return field;
+
+  const currentMin = toDecimalCompatibleNumber(field.normalMin);
+  const currentMax = toDecimalCompatibleNumber(field.normalMax);
+  if (currentMin !== null || currentMax !== null || (field.normalText?.trim() ?? "").length > 0) {
+    return field;
+  }
+
+  return {
+    ...field,
+    normalMin: fallback.min,
+    normalMax: fallback.max,
+    unit: field.unit?.trim() ? field.unit : fallback.unit ?? field.unit,
+  };
+}
 
 function parseRangeFromText(text: string): ParsedRange | null {
   const match = text.match(/(-?\d+(?:\.\d+)?)\s*[-–—]\s*(-?\d+(?:\.\d+)?)/);
@@ -154,13 +178,14 @@ function normalizeText(value: unknown) {
 }
 
 export function evaluateReferenceFlag(field: ReferenceField, value: unknown, context?: ReferenceContext): ReferenceFlag | null {
+  const effectiveField = withNumericFallback(field);
   if (value === null || value === undefined || `${value}`.trim() === "") return null;
 
-  if (field.fieldType === "NUMBER") {
+  if (effectiveField.fieldType === "NUMBER") {
     const numericValue = toNumber(value);
-    const contextual = chooseRangeForContext(field, context);
-    const min = contextual?.min ?? toDecimalCompatibleNumber(field.normalMin);
-    const max = contextual?.max ?? toDecimalCompatibleNumber(field.normalMax);
+    const contextual = chooseRangeForContext(effectiveField, context);
+    const min = contextual?.min ?? toDecimalCompatibleNumber(effectiveField.normalMin);
+    const max = contextual?.max ?? toDecimalCompatibleNumber(effectiveField.normalMax);
     if (numericValue === null) return null;
     if (min !== null && max !== null) {
       if (numericValue < min) return "LOW";
@@ -178,9 +203,9 @@ export function evaluateReferenceFlag(field: ReferenceField, value: unknown, con
     return null;
   }
 
-  if (field.fieldType === "DROPDOWN" || field.fieldType === "TEXT" || field.fieldType === "TEXTAREA") {
-    if (!field.normalText?.trim()) return null;
-    return normalizeText(value) === normalizeText(field.normalText) ? "NORMAL" : "ABNORMAL";
+  if (effectiveField.fieldType === "DROPDOWN" || effectiveField.fieldType === "TEXT" || effectiveField.fieldType === "TEXTAREA") {
+    if (!effectiveField.normalText?.trim()) return null;
+    return normalizeText(value) === normalizeText(effectiveField.normalText) ? "NORMAL" : "ABNORMAL";
   }
 
   return null;
@@ -196,18 +221,19 @@ export function computeAbnormalFlags(fields: ReferenceField[], resultData: Recor
 }
 
 export function formatReferenceDisplay(field: ReferenceField, context?: ReferenceContext) {
-  const contextual = chooseRangeForContext(field, context);
-  const min = contextual?.min ?? toDecimalCompatibleNumber(field.normalMin);
-  const max = contextual?.max ?? toDecimalCompatibleNumber(field.normalMax);
-  const unit = field.unit?.trim() ? ` ${field.unit.trim()}` : "";
+  const effectiveField = withNumericFallback(field);
+  const contextual = chooseRangeForContext(effectiveField, context);
+  const min = contextual?.min ?? toDecimalCompatibleNumber(effectiveField.normalMin);
+  const max = contextual?.max ?? toDecimalCompatibleNumber(effectiveField.normalMax);
+  const unit = effectiveField.unit?.trim() ? ` ${effectiveField.unit.trim()}` : "";
   const prefix = contextual?.label ? `Normal (${contextual.label})` : "Normal";
   if (min !== null && max !== null) {
     return `${prefix}: ${min} - ${max}${unit}`;
   }
-  if (field.normalText?.trim()) return `Normal: ${field.normalText.trim()}`;
+  if (effectiveField.normalText?.trim()) return `Normal: ${effectiveField.normalText.trim()}`;
   if (min !== null) return `${prefix}: >= ${min}${unit}`;
   if (max !== null) return `${prefix}: <= ${max}${unit}`;
-  const { plainText } = splitReferenceNote(field.referenceNote);
+  const { plainText } = splitReferenceNote(effectiveField.referenceNote);
   if (plainText) return `Reference: ${plainText}`;
   return "";
 }

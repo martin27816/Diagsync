@@ -6,6 +6,10 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
+function normalizeTestNameForGrouping(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 const fieldSchema = z.object({
   label: z.string().min(1, "Field label is required"),
   fieldKey: z.string().min(1, "Field key is required"),
@@ -99,7 +103,46 @@ export async function GET(req: NextRequest) {
       orderBy: [{ type: "asc" }, { name: "asc" }],
     });
 
-    return NextResponse.json({ success: true, data: tests });
+    const scoreTest = (test: (typeof tests)[number]) => {
+      const fields = test.resultFields ?? [];
+      const numericWithRange = fields.filter(
+        (field) =>
+          field.fieldType === FieldType.NUMBER &&
+          field.normalMin !== null &&
+          field.normalMax !== null
+      ).length;
+      const fieldsWithNormalText = fields.filter(
+        (field) => (field.normalText ?? "").trim().length > 0
+      ).length;
+      return numericWithRange * 100 + fieldsWithNormalText * 10 + fields.length;
+    };
+
+    const groupedBestByName = new Map<string, (typeof tests)[number]>();
+    for (const test of tests) {
+      const key = normalizeTestNameForGrouping(test.name);
+      const current = groupedBestByName.get(key);
+      if (!current) {
+        groupedBestByName.set(key, test);
+        continue;
+      }
+      const currentScore = scoreTest(current);
+      const nextScore = scoreTest(test);
+      if (nextScore > currentScore) {
+        groupedBestByName.set(key, test);
+        continue;
+      }
+      if (nextScore === currentScore && test.updatedAt > current.updatedAt) {
+        groupedBestByName.set(key, test);
+      }
+    }
+
+    const dedupedTests = Array.from(groupedBestByName.values()).sort((a, b) => {
+      const typeCmp = a.type.localeCompare(b.type);
+      if (typeCmp !== 0) return typeCmp;
+      return a.name.localeCompare(b.name);
+    });
+
+    return NextResponse.json({ success: true, data: dedupedTests });
   } catch (error) {
     console.error("[TESTS_GET]", error);
     return NextResponse.json(
