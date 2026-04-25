@@ -161,8 +161,17 @@ model Organization {
   id                         String              @id @default(cuid())
   name                       String
   email                      String              @unique
-  plan                       OrganizationPlan    @default(STARTER)
-  status                     OrganizationStatus  @default(ACTIVE)
+  plan                       OrganizationPlan    @default(TRIAL)
+  status                     OrganizationStatus  @default(EXPIRED)
+  trialStartedAt             DateTime?
+  trialEndsAt                DateTime?
+  subscriptionStartedAt      DateTime?
+  subscriptionEndsAt         DateTime?
+  lastPaymentAt              DateTime?
+  watermarkEnabled           Boolean             @default(true)
+  staffLimit                 Int?
+  billingLockedAt            DateTime?
+  billingLockReason          String?
   phone                      String
   address                    String
   logo                       String?
@@ -173,6 +182,7 @@ model Organization {
   updatedAt                  DateTime            @updatedAt
   consultationQueueEntries   ConsultationQueue[]
   reports                    DiagnosticReport[]
+  subscriptionPaymentRequests SubscriptionPaymentRequest[]
   tests                      DiagnosticTest[]
   patients                   Patient[]
   staff                      Staff[]
@@ -210,6 +220,7 @@ model Staff {
   generatedReports                     DiagnosticReport[]        @relation("ReportGeneratedBy")
   releasedReports                      DiagnosticReport[]        @relation("ReportReleasedBy")
   imagingFiles                         ImagingFile[]
+  reviewedSubscriptionPaymentRequests  SubscriptionPaymentRequest[] @relation("SubscriptionPaymentRequestReviewer")
   editedLabResultVersions              LabResultVersion[]        @relation("LabResultVersionEditedBy")
   labResults                           LabResult[]
   labSamples                           LabSample[]
@@ -762,13 +773,48 @@ enum Role {
 }
 
 enum OrganizationPlan {
+  TRIAL
   STARTER
-  ENTERPRISE
+  ADVANCED
 }
 
 enum OrganizationStatus {
   ACTIVE
   SUSPENDED
+  TRIAL_ACTIVE
+  TRIAL_EXPIRED
+  PAYMENT_PENDING
+  EXPIRED
+}
+
+model SubscriptionPaymentRequest {
+  id                   String               @id @default(cuid())
+  organizationId       String
+  requestedPlan        OrganizationPlan
+  amount               Decimal              @db.Decimal(10, 2)
+  status               PaymentRequestStatus @default(PENDING)
+  bankName             String
+  accountNumber        String
+  accountName          String
+  transactionReference String?
+  proofUrl             String?
+  notes                String?
+  reviewedById         String?
+  reviewedAt           DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewedBy           Staff?               @relation("SubscriptionPaymentRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([reviewedById])
+  @@map("subscription_payment_requests")
+}
+
+enum PaymentRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum Department {
@@ -4261,6 +4307,13 @@ export async function suspendLabAction(formData: FormData) {
   if (!id) return;
 
   await setOrganizationStatus(id, "SUSPENDED");
+  await prisma.organization.update({
+    where: { id },
+    data: {
+      billingLockedAt: new Date(),
+      billingLockReason: "Suspended by platform admin",
+    },
+  });
   revalidatePath("/admin/labs");
   revalidatePath(`/admin/labs/${id}`);
   revalidatePath("/admin/dashboard");
@@ -4273,6 +4326,13 @@ export async function activateLabAction(formData: FormData) {
   if (!id) return;
 
   await setOrganizationStatus(id, "ACTIVE");
+  await prisma.organization.update({
+    where: { id },
+    data: {
+      billingLockedAt: null,
+      billingLockReason: null,
+    },
+  });
   revalidatePath("/admin/labs");
   revalidatePath(`/admin/labs/${id}`);
   revalidatePath("/admin/dashboard");
@@ -4287,6 +4347,103 @@ export async function syncLabCatalogAction(formData: FormData) {
   await syncFullTestCatalogToOrganization(prisma, id);
   revalidatePath("/admin/labs");
   revalidatePath(`/admin/labs/${id}`);
+}
+
+export async function approvePaymentRequestAction(formData: FormData) {
+  const admin = await requireMegaAdmin();
+  const organizationId = String(formData.get("organizationId") ?? "");
+  const paymentRequestId = String(formData.get("paymentRequestId") ?? "");
+  if (!organizationId || !paymentRequestId) return;
+
+  const now = new Date();
+  const subscriptionEndsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  await prisma.$transaction(async (tx) =&gt; {
+    const request = await tx.subscriptionPaymentRequest.findFirst({
+      where: {
+        id: paymentRequestId,
+        organizationId,
+      },
+      select: {
+        id: true,
+        requestedPlan: true,
+        status: true,
+      },
+    });
+
+    if (!request || request.status !== "PENDING") {
+      throw new Error("PAYMENT_REQUEST_NOT_PENDING");
+    }
+
+    await tx.subscriptionPaymentRequest.update({
+      where: { id: request.id },
+      data: {
+        status: "APPROVED",
+        reviewedById: admin.id,
+        reviewedAt: now,
+      },
+    });
+
+    await tx.organization.update({
+      where: { id: organizationId },
+      data: {
+        plan: request.requestedPlan,
+        status: "ACTIVE",
+        subscriptionStartedAt: now,
+        subscriptionEndsAt,
+        lastPaymentAt: now,
+        watermarkEnabled: request.requestedPlan === "STARTER",
+        staffLimit: request.requestedPlan === "STARTER" ? 15 : null,
+        billingLockedAt: null,
+        billingLockReason: null,
+      },
+    });
+  });
+
+  revalidatePath("/admin/labs");
+  revalidatePath(`/admin/labs/${organizationId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/analytics");
+}
+
+export async function rejectPaymentRequestAction(formData: FormData) {
+  const admin = await requireMegaAdmin();
+  const organizationId = String(formData.get("organizationId") ?? "");
+  const paymentRequestId = String(formData.get("paymentRequestId") ?? "");
+  const rejectionNote = String(formData.get("rejectionNote") ?? "").trim();
+  if (!organizationId || !paymentRequestId) return;
+
+  await prisma.$transaction(async (tx) =&gt; {
+    const request = await tx.subscriptionPaymentRequest.findFirst({
+      where: {
+        id: paymentRequestId,
+        organizationId,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!request || request.status !== "PENDING") {
+      throw new Error("PAYMENT_REQUEST_NOT_PENDING");
+    }
+
+    await tx.subscriptionPaymentRequest.update({
+      where: { id: request.id },
+      data: {
+        status: "REJECTED",
+        reviewedById: admin.id,
+        reviewedAt: new Date(),
+        notes: rejectionNote || "Payment request rejected after review",
+      },
+    });
+  });
+
+  revalidatePath("/admin/labs");
+  revalidatePath(`/admin/labs/${organizationId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/analytics");
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/(admin)/admin/labs/page.tsx</div><pre>import Link from "next/link";
@@ -4324,11 +4481,10 @@ export default async function AdminLabsPage({ searchParams }: { searchParams: Se
     &lt;div className="space-y-5"&gt;
       &lt;div&gt;
         &lt;h1 className="text-base font-semibold text-gray-900"&gt;Labs&lt;/h1&gt;
-        &lt;p className="text-xs text-gray-400 mt-0.5"&gt;Monitor and manage organizations on the platform.&lt;/p&gt;
+        &lt;p className="mt-0.5 text-xs text-gray-400"&gt;Monitor organizations, trial/subscription state, and manual payment requests.&lt;/p&gt;
       &lt;/div&gt;
 
-      {/* Filters */}
-      &lt;form className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm grid grid-cols-1 gap-3 sm:grid-cols-4"&gt;
+      &lt;form className="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:grid-cols-4"&gt;
         &lt;input
           type="text"
           name="search"
@@ -4338,31 +4494,38 @@ export default async function AdminLabsPage({ searchParams }: { searchParams: Se
         /&gt;
         &lt;select name="plan" defaultValue={plan} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"&gt;
           &lt;option value=""&gt;All plans&lt;/option&gt;
+          &lt;option value="TRIAL"&gt;Trial&lt;/option&gt;
           &lt;option value="STARTER"&gt;Starter&lt;/option&gt;
-          &lt;option value="ENTERPRISE"&gt;Enterprise&lt;/option&gt;
+          &lt;option value="ADVANCED"&gt;Advanced&lt;/option&gt;
         &lt;/select&gt;
         &lt;select name="status" defaultValue={status} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"&gt;
           &lt;option value=""&gt;All statuses&lt;/option&gt;
           &lt;option value="ACTIVE"&gt;Active&lt;/option&gt;
+          &lt;option value="TRIAL_ACTIVE"&gt;Trial Active&lt;/option&gt;
+          &lt;option value="TRIAL_EXPIRED"&gt;Trial Expired&lt;/option&gt;
+          &lt;option value="PAYMENT_PENDING"&gt;Payment Pending&lt;/option&gt;
+          &lt;option value="EXPIRED"&gt;Expired&lt;/option&gt;
           &lt;option value="SUSPENDED"&gt;Suspended&lt;/option&gt;
         &lt;/select&gt;
-        &lt;button className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors"&gt;
+        &lt;button className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"&gt;
           Apply
         &lt;/button&gt;
       &lt;/form&gt;
 
-      {/* Table */}
-      &lt;div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"&gt;
+      &lt;div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"&gt;
         &lt;div className="overflow-x-auto"&gt;
-          &lt;table className="w-full text-sm min-w-[900px]"&gt;
+          &lt;table className="w-full min-w-[1300px] text-sm"&gt;
             &lt;thead&gt;
-              &lt;tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide"&gt;
+              &lt;tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-400"&gt;
                 &lt;th className="px-5 py-3"&gt;Lab Name&lt;/th&gt;
                 &lt;th className="px-5 py-3"&gt;Email&lt;/th&gt;
                 &lt;th className="px-5 py-3"&gt;Plan&lt;/th&gt;
                 &lt;th className="px-5 py-3"&gt;Status&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Billing&lt;/th&gt;
                 &lt;th className="px-5 py-3 text-right"&gt;Users&lt;/th&gt;
                 &lt;th className="px-5 py-3"&gt;Created&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Trial End&lt;/th&gt;
+                &lt;th className="px-5 py-3"&gt;Subscription End&lt;/th&gt;
                 &lt;th className="px-5 py-3"&gt;Last Activity&lt;/th&gt;
                 &lt;th className="px-5 py-3"&gt;Actions&lt;/th&gt;
               &lt;/tr&gt;
@@ -4370,51 +4533,74 @@ export default async function AdminLabsPage({ searchParams }: { searchParams: Se
             &lt;tbody className="divide-y divide-gray-100"&gt;
               {data.items.length === 0 ? (
                 &lt;tr&gt;
-                  &lt;td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400"&gt;No labs found&lt;/td&gt;
+                  &lt;td colSpan={11} className="px-5 py-10 text-center text-sm text-gray-400"&gt;No labs found&lt;/td&gt;
                 &lt;/tr&gt;
               ) : (
                 data.items.map((lab) =&gt; (
-                  &lt;tr key={lab.id} className="hover:bg-gray-50 transition-colors"&gt;
+                  &lt;tr key={lab.id} className="transition-colors hover:bg-gray-50"&gt;
                     &lt;td className="px-5 py-3 font-medium text-gray-800"&gt;{lab.name}&lt;/td&gt;
                     &lt;td className="px-5 py-3 text-gray-400"&gt;{lab.email}&lt;/td&gt;
                     &lt;td className="px-5 py-3"&gt;
-                      &lt;span className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-2.5 py-0.5"&gt;{lab.plan}&lt;/span&gt;
+                      &lt;span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600"&gt;{lab.plan}&lt;/span&gt;
                     &lt;/td&gt;
                     &lt;td className="px-5 py-3"&gt;
-                      &lt;span className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-0.5 ${
-                        lab.status === "ACTIVE"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-red-50 text-red-600"
-                      }`}&gt;
-                        &lt;span className={`w-1.5 h-1.5 rounded-full ${lab.status === "ACTIVE" ? "bg-emerald-500" : "bg-red-400"}`} /&gt;
+                      &lt;span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          lab.status === "ACTIVE" || lab.status === "TRIAL_ACTIVE"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : lab.status === "PAYMENT_PENDING"
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-red-50 text-red-600"
+                        }`}
+                      &gt;
+                        &lt;span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            lab.status === "ACTIVE" || lab.status === "TRIAL_ACTIVE"
+                              ? "bg-emerald-500"
+                              : lab.status === "PAYMENT_PENDING"
+                              ? "bg-amber-500"
+                              : "bg-red-400"
+                          }`}
+                        /&gt;
                         {lab.status}
                       &lt;/span&gt;
                     &lt;/td&gt;
-                    &lt;td className="px-5 py-3 text-right font-medium text-gray-700"&gt;{lab.totalUsers}&lt;/td&gt;
-                    &lt;td className="px-5 py-3 text-gray-400 text-xs"&gt;{formatDateTime(lab.createdAt)}&lt;/td&gt;
-                    &lt;td className="px-5 py-3 text-gray-400 text-xs"&gt;
-                      {lab.lastActivity ? formatDateTime(lab.lastActivity) : "â€”"}
+                    &lt;td className="px-5 py-3 text-xs text-gray-500"&gt;
+                      {lab.hasPendingPayment ? (
+                        &lt;span className="rounded-full bg-amber-50 px-2.5 py-0.5 font-medium text-amber-700"&gt;Payment Pending&lt;/span&gt;
+                      ) : lab.lastPaymentRequest ? (
+                        &lt;span&gt;
+                          {lab.lastPaymentRequest.requestedPlan} ({lab.lastPaymentRequest.status})
+                        &lt;/span&gt;
+                      ) : (
+                        "-"
+                      )}
                     &lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-right font-medium text-gray-700"&gt;{lab.totalUsers}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-xs text-gray-400"&gt;{formatDateTime(lab.createdAt)}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-xs text-gray-400"&gt;{lab.trialEndsAt ? formatDateTime(lab.trialEndsAt) : "-"}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-xs text-gray-400"&gt;{lab.subscriptionEndsAt ? formatDateTime(lab.subscriptionEndsAt) : "-"}&lt;/td&gt;
+                    &lt;td className="px-5 py-3 text-xs text-gray-400"&gt;{lab.lastActivity ? formatDateTime(lab.lastActivity) : "-"}&lt;/td&gt;
                     &lt;td className="px-5 py-3"&gt;
                       &lt;div className="flex items-center gap-2"&gt;
                         &lt;Link
                           href={`/admin/labs/${lab.id}`}
-                          className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                          className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
                         &gt;
                           View
                         &lt;/Link&gt;
-                        {lab.status === "ACTIVE" ? (
-                          &lt;form action={suspendLabAction}&gt;
+                        {lab.status === "SUSPENDED" ? (
+                          &lt;form action={activateLabAction}&gt;
                             &lt;input type="hidden" name="organizationId" value={lab.id} /&gt;
-                            &lt;button className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"&gt;
-                              Suspend
+                            &lt;button className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-50"&gt;
+                              Activate
                             &lt;/button&gt;
                           &lt;/form&gt;
                         ) : (
-                          &lt;form action={activateLabAction}&gt;
+                          &lt;form action={suspendLabAction}&gt;
                             &lt;input type="hidden" name="organizationId" value={lab.id} /&gt;
-                            &lt;button className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"&gt;
-                              Activate
+                            &lt;button className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-500 transition-colors hover:bg-red-50"&gt;
+                              Suspend
                             &lt;/button&gt;
                           &lt;/form&gt;
                         )}
@@ -4428,21 +4614,24 @@ export default async function AdminLabsPage({ searchParams }: { searchParams: Se
         &lt;/div&gt;
       &lt;/div&gt;
 
-      {/* Pagination */}
-      &lt;div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-3 shadow-sm text-sm"&gt;
-        &lt;p className="text-gray-400 text-xs"&gt;
-          Page {data.page} of {Math.max(data.totalPages, 1)} Â· {data.total} labs
+      &lt;div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm shadow-sm"&gt;
+        &lt;p className="text-xs text-gray-400"&gt;
+          Page {data.page} of {Math.max(data.totalPages, 1)} - {data.total} labs
         &lt;/p&gt;
         &lt;div className="flex items-center gap-2"&gt;
           &lt;Link
             href={`/admin/labs?page=${Math.max(1, data.page - 1)}&amp;pageSize=${data.pageSize}&amp;search=${encodeURIComponent(search)}&amp;plan=${plan}&amp;status=${status}`}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${data.page &lt;= 1 ? "pointer-events-none border-gray-100 text-gray-300" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              data.page &lt;= 1 ? "pointer-events-none border-gray-100 text-gray-300" : "border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
           &gt;
             Previous
           &lt;/Link&gt;
           &lt;Link
             href={`/admin/labs?page=${Math.min(data.totalPages || 1, data.page + 1)}&amp;pageSize=${data.pageSize}&amp;search=${encodeURIComponent(search)}&amp;plan=${plan}&amp;status=${status}`}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${data.page &gt;= data.totalPages ? "pointer-events-none border-gray-100 text-gray-300" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              data.page &gt;= data.totalPages ? "pointer-events-none border-gray-100 text-gray-300" : "border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
           &gt;
             Next
           &lt;/Link&gt;
@@ -4450,7 +4639,8 @@ export default async function AdminLabsPage({ searchParams }: { searchParams: Se
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}</pre></div>
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(admin)/admin/layout.tsx</div><pre>import Link from "next/link";
 import { requireMegaAdmin } from "@/lib/admin-auth";
 import { AdminSignOutButton } from "@/components/admin/admin-sign-out-button";
@@ -5104,6 +5294,18 @@ export default function RegisterPage() {
       &lt;/div&gt;
     &lt;/div&gt;
   );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/billing/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+
+export default async function BillingPage() {
+  const session = await auth();
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  return null;
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/analytics/page.tsx</div><pre>import { auth } from "@/lib/auth";
@@ -7866,6 +8068,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Role } from "@prisma/client";
+import { BillingOnboarding } from "@/components/billing/billing-onboarding";
+import { getOrganizationAccess } from "@/lib/billing-access";
+import { syncOrganizationBillingState } from "@/lib/billing-service";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -7875,7 +8080,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const staff = await prisma.staff.findUnique({
     where: { id: user.id },
-    include: { organization: true },
+    include: {
+      organization: true,
+    },
   });
 
   if (!staff || staff.status !== "ACTIVE") {
@@ -7886,12 +8093,39 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/admin/dashboard");
   }
 
-  if (!staff.organizationId || !staff.organization || staff.organization.status !== "ACTIVE") {
-    redirect("/login?suspended=1");
+  if (!staff.organizationId || !staff.organization) {
+    redirect("/login");
   }
+
+  const organization = await syncOrganizationBillingState(staff.organizationId);
+  const access = getOrganizationAccess(organization);
+  const canManageBilling = staff.role === "SUPER_ADMIN";
 
   const operationalRoles: Role[] = ["LAB_SCIENTIST", "RADIOGRAPHER", "MD", "RECEPTIONIST"];
   const showAvailability = operationalRoles.includes(staff.role);
+  const paymentRequests = canManageBilling
+    ? await prisma.subscriptionPaymentRequest.findMany({
+        where: { organizationId: staff.organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          requestedPlan: true,
+          amount: true,
+          status: true,
+          transactionReference: true,
+          createdAt: true,
+        },
+      })
+    : [];
+
+  const trialBanner =
+    access.status === "TRIAL_ACTIVE" &amp;&amp; access.trialDaysLeft !== null
+      ? {
+          text: `Trial ends in ${access.trialDaysLeft} day${access.trialDaysLeft === 1 ? "" : "s"}.`,
+          warning: access.isTrialWarning,
+        }
+      : null;
 
   return (
     &lt;DashboardShell
@@ -7906,8 +8140,40 @@ export default async function DashboardLayout({ children }: { children: React.Re
       role={staff.role}
       initialAvailability={staff.availabilityStatus === "AVAILABLE"}
       showAvailabilityToggle={showAvailability}
+      trialBanner={trialBanner}
     &gt;
-      {children}
+      {access.billingLocked ? (
+        canManageBilling ? (
+          &lt;BillingOnboarding
+            organization={{
+              plan: organization.plan,
+              status: organization.status,
+              trialStartedAt: organization.trialStartedAt?.toISOString() ?? null,
+              trialEndsAt: organization.trialEndsAt?.toISOString() ?? null,
+              subscriptionEndsAt: organization.subscriptionEndsAt?.toISOString() ?? null,
+            }}
+            access={{
+              trialDaysLeft: access.trialDaysLeft,
+              isTrialWarning: access.isTrialWarning,
+              billingLocked: access.billingLocked,
+            }}
+            paymentRequests={paymentRequests.map((item) =&gt; ({
+              id: item.id,
+              requestedPlan: item.requestedPlan,
+              amount: Number(item.amount),
+              status: item.status,
+              transactionReference: item.transactionReference,
+              createdAt: item.createdAt.toISOString(),
+            }))}
+          /&gt;
+        ) : (
+          &lt;div className="mx-auto w-full max-w-3xl rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700"&gt;
+            Your free trial has ended. Choose a plan from the Super Admin to continue.
+          &lt;/div&gt;
+        )
+      ) : (
+        children
+      )}
     &lt;/DashboardShell&gt;
   );
 }
@@ -7995,6 +8261,288 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ success: true, data });
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/billing/overview/route.ts</div><pre>import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { getOrganizationAccess, PLAN_MONTHLY_AMOUNT_NGN } from "@/lib/billing-access";
+import { syncOrganizationBillingState } from "@/lib/billing-service";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const user = session.user as any;
+  if (!user.organizationId) {
+    return NextResponse.json({ success: false, error: "Organization not found" }, { status: 404 });
+  }
+
+  try {
+    const [organization, paymentRequests] = await Promise.all([
+      syncOrganizationBillingState(user.organizationId),
+      prisma.subscriptionPaymentRequest.findMany({
+        where: { organizationId: user.organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          requestedPlan: true,
+          amount: true,
+          status: true,
+          transactionReference: true,
+          proofUrl: true,
+          notes: true,
+          reviewedAt: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        organization,
+        access: getOrganizationAccess(organization),
+        pricing: {
+          STARTER: PLAN_MONTHLY_AMOUNT_NGN.STARTER,
+          ADVANCED: PLAN_MONTHLY_AMOUNT_NGN.ADVANCED,
+        },
+        paymentRequests,
+      },
+    });
+  } catch (error) {
+    console.error("[BILLING_OVERVIEW_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/billing/payment-requests/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { OrganizationPlan } from "@prisma/client";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { BILLING_BANK_DETAILS, PLAN_MONTHLY_AMOUNT_NGN } from "@/lib/billing-access";
+import { uploadToCloudinarySigned } from "@/lib/cloudinary";
+
+export const dynamic = "force-dynamic";
+
+function parseRequestedPlan(value: FormDataEntryValue | null): OrganizationPlan | null {
+  if (typeof value !== "string") return null;
+  if (value === "STARTER" || value === "ADVANCED") return value;
+  return null;
+}
+
+export async function GET() {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const user = session.user as any;
+  if (!user.organizationId) {
+    return NextResponse.json({ success: false, error: "Organization not found" }, { status: 404 });
+  }
+
+  const items = await prisma.subscriptionPaymentRequest.findMany({
+    where: { organizationId: user.organizationId },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      requestedPlan: true,
+      amount: true,
+      status: true,
+      bankName: true,
+      accountNumber: true,
+      accountName: true,
+      transactionReference: true,
+      proofUrl: true,
+      notes: true,
+      reviewedAt: true,
+      createdAt: true,
+    },
+  });
+
+  return NextResponse.json({ success: true, data: items });
+}
+
+export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const user = session.user as any;
+  if (!user.organizationId) {
+    return NextResponse.json({ success: false, error: "Organization not found" }, { status: 404 });
+  }
+
+  try {
+    const form = await req.formData();
+    const requestedPlan = parseRequestedPlan(form.get("requestedPlan"));
+    const transactionReference = String(form.get("transactionReference") ?? "").trim();
+    const notes = String(form.get("notes") ?? "").trim();
+    const proof = form.get("proof");
+
+    if (!requestedPlan) {
+      return NextResponse.json({ success: false, error: "Invalid plan selection." }, { status: 400 });
+    }
+
+    if (!transactionReference) {
+      return NextResponse.json({ success: false, error: "Transaction reference is required." }, { status: 400 });
+    }
+
+    let proofUrl: string | null = null;
+    if (proof instanceof File &amp;&amp; proof.size &gt; 0) {
+      if (proof.size &gt; 10 * 1024 * 1024) {
+        return NextResponse.json({ success: false, error: "Proof upload is too large (max 10MB)." }, { status: 400 });
+      }
+      const buffer = Buffer.from(await proof.arrayBuffer());
+      const uploadJson = await uploadToCloudinarySigned({
+        fileType: proof.type || "application/octet-stream",
+        buffer,
+        folder: "diagsync/billing/proofs",
+      });
+      proofUrl = uploadJson.secure_url;
+    }
+
+    const amount = PLAN_MONTHLY_AMOUNT_NGN[requestedPlan];
+
+    const result = await prisma.$transaction(async (tx) =&gt; {
+      const request = await tx.subscriptionPaymentRequest.create({
+        data: {
+          organizationId: user.organizationId,
+          requestedPlan,
+          amount,
+          status: "PENDING",
+          bankName: BILLING_BANK_DETAILS.bankName,
+          accountNumber: BILLING_BANK_DETAILS.accountNumber,
+          accountName: BILLING_BANK_DETAILS.accountName,
+          transactionReference,
+          proofUrl,
+          notes: notes || null,
+        },
+        select: {
+          id: true,
+          requestedPlan: true,
+          amount: true,
+          status: true,
+          createdAt: true,
+        },
+      });
+
+      await tx.organization.update({
+        where: { id: user.organizationId },
+        data: {
+          status: "PAYMENT_PENDING",
+          billingLockedAt: new Date(),
+          billingLockReason: `Awaiting payment verification for ${requestedPlan}`,
+        },
+      });
+
+      return request;
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Payment submitted. Your account will be activated after verification.",
+      data: result,
+    });
+  } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "CLOUDINARY_SIGNED_ENV_MISSING") {
+      return NextResponse.json(
+        { success: false, error: "Payment proof storage is not configured." },
+        { status: 500 }
+      );
+    }
+    if (error instanceof Error &amp;&amp; error.message.startsWith("CLOUDINARY_UPLOAD_FAILED:")) {
+      return NextResponse.json(
+        { success: false, error: error.message.replace("CLOUDINARY_UPLOAD_FAILED:", "") },
+        { status: 502 }
+      );
+    }
+    console.error("[BILLING_PAYMENT_REQUEST_POST]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/billing/trial/start/route.ts</div><pre>import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+export async function POST() {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const user = session.user as any;
+  if (!user.organizationId) {
+    return NextResponse.json({ success: false, error: "Organization not found" }, { status: 404 });
+  }
+
+  try {
+    const organization = await prisma.organization.findUnique({
+      where: { id: user.organizationId },
+      select: { id: true, trialStartedAt: true, status: true },
+    });
+    if (!organization) {
+      return NextResponse.json({ success: false, error: "Organization not found" }, { status: 404 });
+    }
+
+    if (organization.trialStartedAt) {
+      return NextResponse.json(
+        { success: false, error: "Free trial has already been used for this organization." },
+        { status: 409 }
+      );
+    }
+
+    if (organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") {
+      return NextResponse.json(
+        { success: false, error: "Free trial is no longer available for this organization." },
+        { status: 409 }
+      );
+    }
+
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+    const updated = await prisma.organization.update({
+      where: { id: user.organizationId },
+      data: {
+        plan: "TRIAL",
+        status: "TRIAL_ACTIVE",
+        trialStartedAt: now,
+        trialEndsAt,
+        watermarkEnabled: true,
+        staffLimit: null,
+        billingLockedAt: null,
+        billingLockReason: null,
+      },
+      select: {
+        id: true,
+        plan: true,
+        status: true,
+        trialStartedAt: true,
+        trialEndsAt: true,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Free trial started. You now have full access for 14 days.",
+      data: updated,
+    });
+  } catch (error) {
+    console.error("[BILLING_TRIAL_START_POST]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/consultations/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { addConsultationPatient, listConsultationQueue } from "@/lib/consultation-workflow";
@@ -8029,6 +8577,12 @@ export async function GET(req: NextRequest) {
     }, { search, date, days });
     return NextResponse.json({ success: true, data });
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     if (error instanceof Error &amp;&amp; error.message === "FORBIDDEN_ROLE") {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
@@ -8055,6 +8609,12 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json({ success: true, data: created }, { status: 201 });
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     if (error instanceof Error &amp;&amp; error.message === "FORBIDDEN_ROLE") {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
@@ -8065,21 +8625,44 @@ export async function POST(req: NextRequest) {
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/departments/route.ts</div><pre>import { NextResponse } from "next/server";
 import { DEPARTMENT_LABELS } from "@/lib/utils";
+import { auth } from "@/lib/auth";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
+import { canUseRadiology } from "@/lib/billing-access";
+
+export const dynamic = "force-dynamic";
 
 // GET /api/departments - returns all departments for dropdowns
 export async function GET() {
   try {
-    const departments = Object.entries(DEPARTMENT_LABELS).map(([value, label]) =&gt; ({
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = session.user as any;
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
+    const showRadiology = canUseRadiology(organization);
+
+    const departments = Object.entries(DEPARTMENT_LABELS)
+      .filter(([value]) =&gt; (showRadiology ? true : value !== "RADIOLOGY"))
+      .map(([value, label]) =&gt; ({
       value,
       label,
-    }));
+      }));
 
     return NextResponse.json({ success: true, data: departments });
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[DEPARTMENTS_GET]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
-}</pre></div>
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/hrm/overview/route.ts</div><pre>import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getHrmOverview } from "@/lib/hrm-monitoring";
@@ -8299,6 +8882,13 @@ export async function GET(req: NextRequest) {
     endApiMetric(metric, { ok: true, status: 200 });
     return NextResponse.json({ success: true, data: { tasks, counts } });
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      endApiMetric(metric, { ok: false, status: 403, note: "billing_locked" });
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[LAB_TASKS_GET]", error);
     endApiMetric(metric, { ok: false, status: 500, note: "internal_error" });
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
@@ -8590,6 +9180,8 @@ import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import { z } from "zod";
+import { canUseCustomLetterhead } from "@/lib/billing-access";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export const dynamic = "force-dynamic";
 
@@ -8614,6 +9206,7 @@ export async function GET() {
     if (!session?.user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     const user = session.user as any;
     assertAdmin(user.role);
+    await requireOrganizationCoreAccess(user.organizationId);
 
     const organization = await prisma.organization.findUnique({
       where: { id: user.organizationId },
@@ -8626,6 +9219,12 @@ export async function GET() {
     if (error instanceof Error &amp;&amp; error.message === "FORBIDDEN_ROLE") {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[ORG_SETTINGS_GET]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
@@ -8637,10 +9236,21 @@ export async function PATCH(req: NextRequest) {
     if (!session?.user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     const user = session.user as any;
     assertAdmin(user.role);
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
 
     const parsed = bodySchema.safeParse(await req.json().catch(() =&gt; ({})));
     if (!parsed.success) {
       return NextResponse.json({ success: false, error: parsed.error.errors[0].message }, { status: 400 });
+    }
+
+    if (
+      !canUseCustomLetterhead(organization) &amp;&amp;
+      (parsed.data.letterheadUrl !== undefined || parsed.data.logo !== undefined)
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Custom branding is available on Trial or Advanced plan." },
+        { status: 403 }
+      );
     }
 
     const oldOrg = await prisma.organization.findUnique({
@@ -8688,6 +9298,12 @@ export async function PATCH(req: NextRequest) {
   } catch (error) {
     if (error instanceof Error &amp;&amp; error.message === "FORBIDDEN_ROLE") {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
     }
     console.error("[ORG_SETTINGS_PATCH]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
@@ -8771,8 +9387,11 @@ export async function POST(req: NextRequest) {
         data: {
           name: data.orgName,
           email: data.orgEmail,
-          plan: "STARTER",
-          status: "ACTIVE",
+          plan: "TRIAL",
+          status: "EXPIRED",
+          watermarkEnabled: true,
+          billingLockedAt: new Date(),
+          billingLockReason: "No active subscription",
           phone: data.orgPhone,
           address: data.orgAddress,
           contactInfo: data.orgContactInfo ?? null,
@@ -8841,8 +9460,14 @@ import { z } from "zod";
 import { Role, Sex, Priority, PaymentStatus, PaymentEntryType } from "@prisma/client";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { assignTasksForVisit } from "@/lib/routing-engine";
+import { canUseCardiology, canUseRadiology } from "@/lib/billing-access";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export const dynamic = "force-dynamic";
+
+function isCardiologyToken(value: string) {
+  return /(cardio|ecg|ekg|echo|echocardi|troponin|ck-mb)/i.test(value);
+}
 
 const registerPatientSchema = z.object({
   // Patient details
@@ -8885,6 +9510,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
     const user = session.user as any;
+    await requireOrganizationCoreAccess(user.organizationId);
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") ?? "";
@@ -8942,6 +9568,12 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[PATIENTS_GET]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
@@ -8955,6 +9587,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
     const user = session.user as any;
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
 
     if (!["RECEPTIONIST", "SUPER_ADMIN", "HRM"].includes(user.role)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
@@ -8994,12 +9627,36 @@ export async function POST(req: NextRequest) {
         organizationId: user.organizationId,
         isActive: true,
       },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        description: true,
+        department: true,
+        price: true,
+      },
     });
 
     if (tests.length !== data.testIds.length) {
       return NextResponse.json(
         { success: false, error: "One or more tests not found or inactive" },
         { status: 400 }
+      );
+    }
+
+    if (!canUseRadiology(organization) &amp;&amp; tests.some((test) =&gt; test.department === "RADIOLOGY")) {
+      return NextResponse.json(
+        { success: false, error: "Radiology tests are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
+    if (
+      !canUseCardiology(organization) &amp;&amp;
+      tests.some((test) =&gt; isCardiologyToken(`${test.name} ${test.code} ${test.description ?? ""}`))
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Cardiology tests are available on Trial or Advanced plan." },
+        { status: 403 }
       );
     }
 
@@ -9150,6 +9807,12 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[PATIENTS_POST]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
@@ -9158,29 +9821,51 @@ export async function POST(req: NextRequest) {
 <div class='file-block'><div class='file-header'>src/app/api/push/public-key/route.ts</div><pre>import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getPushPublicKey } from "@/lib/push-notifications";
+import { requireOrganizationFeature } from "@/lib/billing-service";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const user = session.user as any;
+    await requireOrganizationFeature(user.organizationId, "web_push");
 
-  const publicKey = getPushPublicKey();
-  if (!publicKey) {
-    return NextResponse.json(
-      { success: false, error: "Push is not configured on server" },
-      { status: 503 }
-    );
-  }
+    const publicKey = getPushPublicKey();
+    if (!publicKey) {
+      return NextResponse.json(
+        { success: false, error: "Push is not configured on server" },
+        { status: 503 }
+      );
+    }
 
-  return NextResponse.json({ success: true, data: { publicKey } });
+    return NextResponse.json({ success: true, data: { publicKey } });
+  } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
+    if (error instanceof Error &amp;&amp; error.message === "FEATURE_NOT_AVAILABLE") {
+      return NextResponse.json(
+        { success: false, error: "Web push notifications are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
+    console.error("[PUSH_PUBLIC_KEY_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/push/subscription/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireOrganizationFeature } from "@/lib/billing-service";
 
 export const runtime = "nodejs";
 
@@ -9204,6 +9889,23 @@ export async function POST(req: NextRequest) {
   }
 
   const user = session.user as any;
+  try {
+    await requireOrganizationFeature(user.organizationId, "web_push");
+  } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
+    if (error instanceof Error &amp;&amp; error.message === "FEATURE_NOT_AVAILABLE") {
+      return NextResponse.json(
+        { success: false, error: "Web push notifications are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
+    throw error;
+  }
   const body = await req.json().catch(() =&gt; null);
   const parsed = parseSubscription(body);
   if (!parsed) {
@@ -9256,6 +9958,23 @@ export async function DELETE(req: NextRequest) {
   }
 
   const user = session.user as any;
+  try {
+    await requireOrganizationFeature(user.organizationId, "web_push");
+  } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
+    if (error instanceof Error &amp;&amp; error.message === "FEATURE_NOT_AVAILABLE") {
+      return NextResponse.json(
+        { success: false, error: "Web push notifications are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
+    throw error;
+  }
   const body = await req.json().catch(() =&gt; null);
   const endpoint = typeof body?.endpoint === "string" ? body.endpoint : "";
   if (!endpoint) {
@@ -9330,6 +10049,18 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: { tasks, counts } });
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
+    if (error instanceof Error &amp;&amp; error.message === "FEATURE_NOT_AVAILABLE") {
+      return NextResponse.json(
+        { success: false, error: "Radiology is available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
     console.error("[RAD_TASKS_GET]", error);
     const detail = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
@@ -9369,6 +10100,12 @@ export async function GET(req: NextRequest) {
     );
     return NextResponse.json({ success: true, data });
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     if (error instanceof Error &amp;&amp; error.message === "FORBIDDEN_ROLE") {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
@@ -9392,6 +10129,8 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { Role, Department, Shift } from "@prisma/client";
+import { canAddStaff } from "@/lib/billing-access";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export const dynamic = "force-dynamic";
 
@@ -9415,6 +10154,7 @@ export async function GET(req: NextRequest) {
     }
 
     const user = session.user as any;
+    await requireOrganizationCoreAccess(user.organizationId);
 
     // Only SUPER_ADMIN and HRM can list all staff
     if (!["SUPER_ADMIN", "HRM"].includes(user.role)) {
@@ -9480,6 +10220,12 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[STAFF_GET]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
@@ -9494,6 +10240,7 @@ export async function POST(req: NextRequest) {
     }
 
     const user = session.user as any;
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
 
     if (!["SUPER_ADMIN", "HRM"].includes(user.role)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
@@ -9517,12 +10264,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (organization.plan === "STARTER" &amp;&amp; data.role === "RADIOGRAPHER") {
+      return NextResponse.json(
+        { success: false, error: "Radiographer role is available on Advanced plan only." },
+        { status: 403 }
+      );
+    }
+
     // Check email uniqueness
     const existing = await prisma.staff.findUnique({ where: { email: data.email } });
     if (existing) {
       return NextResponse.json(
         { success: false, error: "A staff member with this email already exists" },
         { status: 409 }
+      );
+    }
+
+    const currentStaffCount = await prisma.staff.count({ where: { organizationId: user.organizationId } });
+    if (!canAddStaff(organization, currentStaffCount)) {
+      return NextResponse.json(
+        { success: false, error: "Staff limit reached for your current plan. Upgrade to add more staff." },
+        { status: 403 }
       );
     }
 
@@ -9569,6 +10331,12 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[STAFF_POST]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
@@ -9579,11 +10347,18 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TestType, Department, FieldType } from "@prisma/client";
 import { z } from "zod";
+import { canUseCardiology, canUseRadiology } from "@/lib/billing-access";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export const dynamic = "force-dynamic";
 
 function normalizeTestNameForGrouping(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function isCardiologyTest(payload: { name: string; code: string; description?: string | null; categoryName?: string | null }) {
+  const token = `${payload.name} ${payload.code} ${payload.description ?? ""} ${payload.categoryName ?? ""}`.toLowerCase();
+  return /(cardio|ecg|ekg|echo|echocardi|troponin|ck-mb)/.test(token);
 }
 
 const fieldSchema = z.object({
@@ -9623,6 +10398,7 @@ export async function GET(req: NextRequest) {
     }
 
     const user = session.user as any;
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
     const { searchParams } = new URL(req.url);
 
     const search = searchParams.get("search") ?? "";
@@ -9656,6 +10432,7 @@ export async function GET(req: NextRequest) {
       where: {
         organizationId: user.organizationId,
         isActive: true,
+        ...(canUseRadiology(organization) ? {} : { department: { not: Department.RADIOLOGY } }),
         ...(type ? { type } : {}),
         ...(department ? { department } : {}),
         ...(searchTerms.length &gt; 0
@@ -9720,6 +10497,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: dedupedTests });
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[TESTS_GET]", error);
     return NextResponse.json(
       { success: false, error: "Internal server error" },
@@ -9736,6 +10519,7 @@ export async function POST(req: NextRequest) {
     }
 
     const user = session.user as { id: string; role: string; organizationId: string };
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
     if (!["RECEPTIONIST", "HRM", "SUPER_ADMIN"].includes(user.role)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
@@ -9755,6 +10539,12 @@ export async function POST(req: NextRequest) {
     if (payload.type === "RADIOLOGY" &amp;&amp; payload.department !== "RADIOLOGY") {
       return NextResponse.json({ success: false, error: "RADIOLOGY tests must use RADIOLOGY department" }, { status: 400 });
     }
+    if (payload.department === "RADIOLOGY" &amp;&amp; !canUseRadiology(organization)) {
+      return NextResponse.json(
+        { success: false, error: "Radiology tests are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
 
     const uniqueFieldKeys = new Set(payload.fields.map((field) =&gt; field.fieldKey.trim().toLowerCase()));
     if (uniqueFieldKeys.size !== payload.fields.length) {
@@ -9772,10 +10562,24 @@ export async function POST(req: NextRequest) {
     }
 
     const category = payload.categoryId
-      ? await prisma.testCategory.findUnique({ where: { id: payload.categoryId }, select: { id: true } })
+      ? await prisma.testCategory.findUnique({ where: { id: payload.categoryId }, select: { id: true, name: true } })
       : null;
     if (payload.categoryId &amp;&amp; !category) {
       return NextResponse.json({ success: false, error: "Selected category not found" }, { status: 400 });
+    }
+    if (
+      !canUseCardiology(organization) &amp;&amp;
+      isCardiologyTest({
+        name: payload.name,
+        code: payload.code,
+        description: payload.description,
+        categoryName: category?.name ?? null,
+      })
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Cardiology tests are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
     }
 
     const test = await prisma.$transaction(async (tx) =&gt; {
@@ -9817,6 +10621,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: { id: test.id }, message: "Test added successfully" }, { status: 201 });
   } catch (error: unknown) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     if (
       typeof error === "object" &amp;&amp;
       error !== null &amp;&amp;
@@ -9832,11 +10642,19 @@ export async function POST(req: NextRequest) {
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/uploads/branding/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
 import { uploadToCloudinarySigned } from "@/lib/cloudinary";
+import { auth } from "@/lib/auth";
+import { requireOrganizationFeature } from "@/lib/billing-service";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await auth();
+    if (session?.user) {
+      const user = session.user as any;
+      await requireOrganizationFeature(user.organizationId, "custom_letterhead");
+    }
+
     const form = await req.formData();
     const file = form.get("file");
     const folder = (form.get("folder") as string) || "diagsync/branding";
@@ -9861,6 +10679,18 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Error) {
+      if (error.message === "BILLING_LOCKED") {
+        return NextResponse.json(
+          { success: false, error: "Billing access required. Please choose or renew a plan." },
+          { status: 403 }
+        );
+      }
+      if (error.message === "FEATURE_NOT_AVAILABLE") {
+        return NextResponse.json(
+          { success: false, error: "Custom branding uploads are available on Trial or Advanced plan." },
+          { status: 403 }
+        );
+      }
       if (error.message === "CLOUDINARY_SIGNED_ENV_MISSING") {
         return NextResponse.json(
           { success: false, error: "Branding storage is not configured (Cloudinary signed env missing)" },
@@ -11121,6 +11951,322 @@ export function AdminSignOutButton({ className }: AdminSignOutButtonProps) {
   );
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/components/billing/billing-onboarding.tsx</div><pre>"use client";
+
+import { useMemo, useState } from "react";
+import { OrganizationPlan, OrganizationStatus, PaymentRequestStatus } from "@prisma/client";
+import { BILLING_BANK_DETAILS, PLAN_MONTHLY_AMOUNT_NGN } from "@/lib/billing-access";
+import { formatCurrency } from "@/lib/utils";
+
+type BillingProps = {
+  organization: {
+    plan: OrganizationPlan;
+    status: OrganizationStatus;
+    trialStartedAt: string | null;
+    trialEndsAt: string | null;
+    subscriptionEndsAt: string | null;
+  };
+  access: {
+    trialDaysLeft: number | null;
+    isTrialWarning: boolean;
+    billingLocked: boolean;
+  };
+  paymentRequests: Array&lt;{
+    id: string;
+    requestedPlan: OrganizationPlan;
+    amount: number;
+    status: PaymentRequestStatus;
+    transactionReference: string | null;
+    createdAt: string;
+  }&gt;;
+};
+
+function formatShortDate(value: string | null) {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+type PlanCardProps = {
+  name: string;
+  subtitle: string;
+  price: string;
+  note: string;
+  buttonText: string;
+  onClick: () =&gt; void;
+  disabled?: boolean;
+};
+
+function PlanCard({ name, subtitle, price, note, buttonText, onClick, disabled = false }: PlanCardProps) {
+  return (
+    &lt;div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"&gt;
+      &lt;p className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;{name}&lt;/p&gt;
+      &lt;p className="mt-1 text-sm text-slate-600"&gt;{subtitle}&lt;/p&gt;
+      &lt;p className="mt-3 text-2xl font-bold text-slate-900"&gt;{price}&lt;/p&gt;
+      &lt;p className="mt-2 text-xs text-slate-500"&gt;{note}&lt;/p&gt;
+      &lt;button
+        type="button"
+        disabled={disabled}
+        onClick={onClick}
+        className="mt-4 inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+      &gt;
+        {buttonText}
+      &lt;/button&gt;
+    &lt;/div&gt;
+  );
+}
+
+export function BillingOnboarding({ organization, access, paymentRequests }: BillingProps) {
+  const [selectedPlan, setSelectedPlan] = useState&lt;OrganizationPlan | null&gt;(null);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState&lt;"trial" | "payment" | null&gt;(null);
+
+  const canStartTrial = useMemo(() =&gt; {
+    if (organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") return false;
+    return !organization.trialStartedAt;
+  }, [organization.status, organization.trialStartedAt]);
+  const activePending = useMemo(
+    () =&gt; paymentRequests.find((item) =&gt; item.status === "PENDING"),
+    [paymentRequests]
+  );
+
+  async function handleStartTrial() {
+    setError("");
+    setMessage("");
+    setBusy("trial");
+    try {
+      const res = await fetch("/api/billing/trial/start", { method: "POST" });
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error ?? "Could not start trial");
+        return;
+      }
+      setMessage("Free trial started. Refreshing your billing status...");
+      window.location.reload();
+    } catch {
+      setError("Network error. Could not start free trial.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handlePaymentSubmit(formData: FormData) {
+    setError("");
+    setMessage("");
+    setBusy("payment");
+    try {
+      const res = await fetch("/api/billing/payment-requests", {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error ?? "Could not submit payment request");
+        return;
+      }
+      setMessage("Payment submitted. Your account will be activated after verification.");
+      setSelectedPlan(null);
+      window.location.reload();
+    } catch {
+      setError("Network error. Could not submit payment request.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    &lt;div className="mx-auto w-full max-w-5xl space-y-4"&gt;
+      &lt;div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"&gt;
+        &lt;h1 className="text-lg font-semibold text-slate-900"&gt;Choose Your DiagSync Plan&lt;/h1&gt;
+        &lt;p className="mt-1 text-sm text-slate-600"&gt;
+          Pick a plan to continue using your lab workspace. Your data remains safe even when billing is locked.
+        &lt;/p&gt;
+        &lt;div className="mt-3 flex flex-wrap gap-2 text-xs"&gt;
+          &lt;span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600"&gt;Current plan: {organization.plan}&lt;/span&gt;
+          &lt;span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600"&gt;Status: {organization.status}&lt;/span&gt;
+          {organization.trialEndsAt ? (
+            &lt;span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600"&gt;
+              Trial ends: {formatShortDate(organization.trialEndsAt)}
+            &lt;/span&gt;
+          ) : null}
+        &lt;/div&gt;
+        {access.trialDaysLeft !== null ? (
+          &lt;p className={`mt-3 text-sm font-medium ${access.isTrialWarning ? "text-amber-600" : "text-slate-700"}`}&gt;
+            Trial ends in {access.trialDaysLeft} day{access.trialDaysLeft === 1 ? "" : "s"}.
+          &lt;/p&gt;
+        ) : null}
+        {organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED" ? (
+          &lt;p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"&gt;
+            Your free trial has ended. Choose a plan to continue.
+          &lt;/p&gt;
+        ) : null}
+        {organization.status === "PAYMENT_PENDING" ? (
+          &lt;p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700"&gt;
+            Payment submitted. Your account will be activated after verification.
+          &lt;/p&gt;
+        ) : null}
+      &lt;/div&gt;
+
+      {error ? &lt;div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"&gt;{error}&lt;/div&gt; : null}
+      {message ? &lt;div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700"&gt;{message}&lt;/div&gt; : null}
+
+      &lt;div className="grid grid-cols-1 gap-4 md:grid-cols-3"&gt;
+        &lt;PlanCard
+          name="Free 2-week trial"
+          subtitle="Free 2-week trial â€” full access, no payment needed"
+          price="Free"
+          note="Everything unlocked from day one. The only catch: all printed reports carry a DiagSync watermark."
+          buttonText={canStartTrial ? (busy === "trial" ? "Starting..." : "Start Free Trial") : "Trial Ended"}
+          disabled={!canStartTrial || busy !== null}
+          onClick={() =&gt; {
+            if (!canStartTrial || busy) return;
+            void handleStartTrial();
+          }}
+        /&gt;
+        &lt;PlanCard
+          name="Starter Pack"
+          subtitle="Laboratory-focused plan"
+          price={`${formatCurrency(PLAN_MONTHLY_AMOUNT_NGN.STARTER)} / month`}
+          note="Up to 15 staff. No radiology, imaging uploads, custom letterhead, or web push."
+          buttonText="Get Starter"
+          onClick={() =&gt; setSelectedPlan("STARTER")}
+        /&gt;
+        &lt;PlanCard
+          name="Advanced Pack"
+          subtitle="Full multi-department access"
+          price={`${formatCurrency(PLAN_MONTHLY_AMOUNT_NGN.ADVANCED)} / month`}
+          note="Unlimited staff. Includes radiology, cardiology, imaging uploads, branding, and web push."
+          buttonText="Get Advanced"
+          onClick={() =&gt; setSelectedPlan("ADVANCED")}
+        /&gt;
+      &lt;/div&gt;
+
+      {selectedPlan ? (
+        &lt;div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"&gt;
+          &lt;h2 className="text-base font-semibold text-slate-900"&gt;Manual Payment Instructions&lt;/h2&gt;
+          &lt;div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2"&gt;
+            &lt;div className="rounded-md border border-slate-200 bg-slate-50 p-3"&gt;
+              &lt;p className="font-medium text-slate-800"&gt;Selected Plan&lt;/p&gt;
+              &lt;p className="mt-1 text-slate-700"&gt;{selectedPlan}&lt;/p&gt;
+              &lt;p className="text-slate-700"&gt;{formatCurrency(PLAN_MONTHLY_AMOUNT_NGN[selectedPlan])} / month&lt;/p&gt;
+            &lt;/div&gt;
+            &lt;div className="rounded-md border border-slate-200 bg-slate-50 p-3"&gt;
+              &lt;p className="font-medium text-slate-800"&gt;Bank Details&lt;/p&gt;
+              &lt;p className="mt-1 text-slate-700"&gt;Bank: {BILLING_BANK_DETAILS.bankName}&lt;/p&gt;
+              &lt;p className="text-slate-700"&gt;Account Number: {BILLING_BANK_DETAILS.accountNumber}&lt;/p&gt;
+              &lt;p className="text-slate-700"&gt;Account Name: {BILLING_BANK_DETAILS.accountName}&lt;/p&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+
+          &lt;form
+            className="mt-4 space-y-3"
+            onSubmit={(event) =&gt; {
+              event.preventDefault();
+              const form = event.currentTarget;
+              const data = new FormData(form);
+              data.set("requestedPlan", selectedPlan);
+              void handlePaymentSubmit(data);
+            }}
+          &gt;
+            &lt;input type="hidden" name="requestedPlan" value={selectedPlan} /&gt;
+            &lt;div&gt;
+              &lt;label className="mb-1 block text-xs font-medium text-slate-600"&gt;Transaction Reference&lt;/label&gt;
+              &lt;input
+                name="transactionReference"
+                required
+                className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm text-slate-800"
+                placeholder="Enter bank transfer reference"
+              /&gt;
+            &lt;/div&gt;
+            &lt;div&gt;
+              &lt;label className="mb-1 block text-xs font-medium text-slate-600"&gt;Payment Proof (Optional)&lt;/label&gt;
+              &lt;input name="proof" type="file" className="block w-full text-xs text-slate-600" /&gt;
+            &lt;/div&gt;
+            &lt;div&gt;
+              &lt;label className="mb-1 block text-xs font-medium text-slate-600"&gt;Message (Optional)&lt;/label&gt;
+              &lt;textarea
+                name="notes"
+                rows={3}
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800"
+                placeholder="Any note for verification"
+              /&gt;
+            &lt;/div&gt;
+            &lt;div className="flex flex-wrap gap-2"&gt;
+              &lt;button
+                type="submit"
+                disabled={busy === "payment"}
+                className="rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              &gt;
+                {busy === "payment" ? "Submitting..." : "I have made payment"}
+              &lt;/button&gt;
+              &lt;button
+                type="button"
+                onClick={() =&gt; setSelectedPlan(null)}
+                className="rounded-md border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              &gt;
+                Cancel
+              &lt;/button&gt;
+            &lt;/div&gt;
+          &lt;/form&gt;
+        &lt;/div&gt;
+      ) : null}
+
+      &lt;div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"&gt;
+        &lt;h3 className="text-sm font-semibold text-slate-800"&gt;Recent Payment Requests&lt;/h3&gt;
+        {paymentRequests.length === 0 ? (
+          &lt;p className="mt-2 text-xs text-slate-500"&gt;No payment requests submitted yet.&lt;/p&gt;
+        ) : (
+          &lt;div className="mt-2 overflow-x-auto"&gt;
+            &lt;table className="w-full min-w-[620px] text-xs"&gt;
+              &lt;thead&gt;
+                &lt;tr className="border-b border-slate-100 text-left text-slate-500"&gt;
+                  &lt;th className="px-2 py-2"&gt;Plan&lt;/th&gt;
+                  &lt;th className="px-2 py-2"&gt;Amount&lt;/th&gt;
+                  &lt;th className="px-2 py-2"&gt;Reference&lt;/th&gt;
+                  &lt;th className="px-2 py-2"&gt;Status&lt;/th&gt;
+                  &lt;th className="px-2 py-2"&gt;Submitted&lt;/th&gt;
+                &lt;/tr&gt;
+              &lt;/thead&gt;
+              &lt;tbody className="divide-y divide-slate-100"&gt;
+                {paymentRequests.map((item) =&gt; (
+                  &lt;tr key={item.id}&gt;
+                    &lt;td className="px-2 py-2 text-slate-700"&gt;{item.requestedPlan}&lt;/td&gt;
+                    &lt;td className="px-2 py-2 text-slate-700"&gt;{formatCurrency(item.amount)}&lt;/td&gt;
+                    &lt;td className="px-2 py-2 text-slate-600"&gt;{item.transactionReference ?? "-"}&lt;/td&gt;
+                    &lt;td className="px-2 py-2"&gt;
+                      &lt;span
+                        className={`rounded-full px-2 py-0.5 ${
+                          item.status === "APPROVED"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : item.status === "REJECTED"
+                            ? "bg-red-50 text-red-600"
+                            : "bg-amber-50 text-amber-700"
+                        }`}
+                      &gt;
+                        {item.status}
+                      &lt;/span&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-2 py-2 text-slate-500"&gt;{formatShortDate(item.createdAt)}&lt;/td&gt;
+                  &lt;/tr&gt;
+                ))}
+              &lt;/tbody&gt;
+            &lt;/table&gt;
+          &lt;/div&gt;
+        )}
+        {activePending ? (
+          &lt;p className="mt-3 text-xs text-amber-700"&gt;
+            Latest pending request: {activePending.requestedPlan} ({formatCurrency(activePending.amount)}).
+          &lt;/p&gt;
+        ) : null}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/components/consultation/consultation-board.tsx</div><pre>"use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -11618,7 +12764,7 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/forms/add-staff-form.tsx</div><pre>"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11658,9 +12804,23 @@ export function AddStaffForm() {
   const [serverError, setServerError] = useState("");
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [radiologyAllowed, setRadiologyAllowed] = useState(true);
 
   const { register, handleSubmit, setValue, reset, formState: { errors, isSubmitting } } =
     useForm&lt;FormData&gt;({ resolver: zodResolver(schema), defaultValues: { defaultShift: Shift.MORNING } });
+
+  useEffect(() =&gt; {
+    void (async () =&gt; {
+      try {
+        const res = await fetch("/api/billing/overview");
+        const json = await res.json();
+        if (!json.success) return;
+        setRadiologyAllowed(Boolean(json.data?.access?.canUseRadiology ?? true));
+      } catch {
+        // no-op
+      }
+    })();
+  }, []);
 
   async function onSubmit(data: FormData) {
     setServerError("");
@@ -11732,9 +12892,14 @@ export function AddStaffForm() {
             &lt;Select onValueChange={(v) =&gt; setValue("role", v as Role)}&gt;
               &lt;SelectTrigger className="h-8 text-xs"&gt;&lt;SelectValue placeholder="Select role" /&gt;&lt;/SelectTrigger&gt;
               &lt;SelectContent&gt;
-                {ROLES_FOR_FORM.map(([value, label]) =&gt; (
-                  &lt;SelectItem key={value} value={value}&gt;{label}&lt;/SelectItem&gt;
-                ))}
+                {ROLES_FOR_FORM.map(([value, label]) =&gt; {
+                  if (value === "RADIOGRAPHER" &amp;&amp; !radiologyAllowed) return null;
+                  return (
+                    &lt;SelectItem key={value} value={value}&gt;
+                      {label}
+                    &lt;/SelectItem&gt;
+                  );
+                })}
               &lt;/SelectContent&gt;
             &lt;/Select&gt;
             {errors.role &amp;&amp; &lt;p className={errCls}&gt;{errors.role.message}&lt;/p&gt;}
@@ -16045,6 +17210,7 @@ type DashboardShellProps = {
   role: Role;
   initialAvailability: boolean;
   showAvailabilityToggle?: boolean;
+  trialBanner?: { text: string; warning?: boolean } | null;
   children: React.ReactNode;
 };
 
@@ -16055,6 +17221,7 @@ export function DashboardShell({
   role,
   initialAvailability,
   showAvailabilityToggle = true,
+  trialBanner = null,
   children,
 }: DashboardShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -16089,6 +17256,17 @@ export function DashboardShell({
           onOpenSidebar={() =&gt; setMobileSidebarOpen(true)}
         /&gt;
         &lt;OfflineStatusBar /&gt;
+        {trialBanner ? (
+          &lt;div
+            className={`mx-3 mt-3 rounded-md border px-3 py-2 text-xs sm:mx-4 md:mx-6 ${
+              trialBanner.warning
+                ? "border-amber-200 bg-amber-50 text-amber-700"
+                : "border-blue-200 bg-blue-50 text-blue-700"
+            }`}
+          &gt;
+            {trialBanner.text}
+          &lt;/div&gt;
+        ) : null}
         &lt;main className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 md:p-6"&gt;{children}&lt;/main&gt;
       &lt;/div&gt;
     &lt;/div&gt;
@@ -16215,6 +17393,7 @@ import {
   Activity,
   TestTube2,
   Settings2,
+  CreditCard,
 } from "lucide-react";
 import { cn, ROLE_LABELS } from "@/lib/utils";
 import { Role } from "@prisma/client";
@@ -16358,6 +17537,14 @@ export function Sidebar({ user, className, onNavigate }: SidebarProps) {
 
       {/* Notifications */}
       &lt;div className="border-t border-slate-200 px-2 py-1"&gt;
+        &lt;Link
+          href="/dashboard/billing"
+          onClick={onNavigate}
+          className="flex items-center gap-2.5 rounded px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+        &gt;
+          &lt;CreditCard className="h-4 w-4" /&gt;
+          Billing
+        &lt;/Link&gt;
         &lt;Link
           href={notificationPathForRole(user.role)}
           onClick={onNavigate}
@@ -22696,7 +23883,7 @@ export async function requireMegaAdminApi() {
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/admin-data.ts</div><pre>import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { OrganizationStatus, Prisma } from "@prisma/client";
 
 type ListOrganizationsParams = {
   page: number;
@@ -22733,12 +23920,25 @@ export async function listOrganizations(params: ListOrganizationsParams) {
         email: true,
         plan: true,
         status: true,
+        trialEndsAt: true,
+        subscriptionEndsAt: true,
         createdAt: true,
         _count: {
           select: {
             staff: true,
             patients: true,
           },
+        },
+        subscriptionPaymentRequests: {
+          select: {
+            id: true,
+            requestedPlan: true,
+            amount: true,
+            status: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 1,
         },
       },
       orderBy: { createdAt: "desc" },
@@ -22763,6 +23963,19 @@ export async function listOrganizations(params: ListOrganizationsParams) {
       .map((item) =&gt; [item.organizationId as string, item._max.lastSeen])
   );
 
+  const pendingByOrg = new Set(
+    (
+      await prisma.subscriptionPaymentRequest.groupBy({
+        by: ["organizationId"],
+        where: {
+          organizationId: { in: items.map((item) =&gt; item.id) },
+          status: "PENDING",
+        },
+        _count: { _all: true },
+      })
+    ).map((item) =&gt; item.organizationId)
+  );
+
   return {
     items: items.map((item) =&gt; ({
       id: item.id,
@@ -22770,10 +23983,22 @@ export async function listOrganizations(params: ListOrganizationsParams) {
       email: item.email,
       plan: item.plan,
       status: item.status,
+      trialEndsAt: item.trialEndsAt,
+      subscriptionEndsAt: item.subscriptionEndsAt,
       createdAt: item.createdAt,
       totalUsers: item._count.staff,
       totalPatients: item._count.patients,
       lastActivity: activityByOrg.get(item.id) ?? null,
+      hasPendingPayment: pendingByOrg.has(item.id),
+      lastPaymentRequest: item.subscriptionPaymentRequests[0]
+        ? {
+            id: item.subscriptionPaymentRequests[0].id,
+            requestedPlan: item.subscriptionPaymentRequests[0].requestedPlan,
+            amount: item.subscriptionPaymentRequests[0].amount,
+            status: item.subscriptionPaymentRequests[0].status,
+            createdAt: item.subscriptionPaymentRequests[0].createdAt,
+          }
+        : null,
     })),
     total,
     page,
@@ -22793,6 +24018,15 @@ export async function getOrganizationDetail(organizationId: string) {
       status: true,
       phone: true,
       address: true,
+      trialStartedAt: true,
+      trialEndsAt: true,
+      subscriptionStartedAt: true,
+      subscriptionEndsAt: true,
+      lastPaymentAt: true,
+      staffLimit: true,
+      watermarkEnabled: true,
+      billingLockedAt: true,
+      billingLockReason: true,
       createdAt: true,
       _count: {
         select: {
@@ -22807,7 +24041,7 @@ export async function getOrganizationDetail(organizationId: string) {
     return null;
   }
 
-  const [users, totalTestRequests, lastActivityResult] = await Promise.all([
+  const [users, totalTestRequests, lastActivityResult, paymentRequests] = await Promise.all([
     prisma.staff.findMany({
       where: { organizationId },
       select: {
@@ -22826,11 +24060,26 @@ export async function getOrganizationDetail(organizationId: string) {
       where: { organizationId, lastSeen: { not: null } },
       _max: { lastSeen: true },
     }),
+    prisma.subscriptionPaymentRequest.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      include: {
+        reviewedBy: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+      },
+    }),
   ]);
 
   return {
     organization,
     users,
+    paymentRequests,
     stats: {
       totalUsers: organization._count.staff,
       totalPatients: organization._count.patients,
@@ -22913,7 +24162,7 @@ export async function listPlatformUsers(params: ListPlatformUsersParams) {
   };
 }
 
-export async function setOrganizationStatus(organizationId: string, status: "ACTIVE" | "SUSPENDED") {
+export async function setOrganizationStatus(organizationId: string, status: OrganizationStatus) {
   return prisma.organization.update({
     where: { id: organizationId },
     data: { status },
@@ -23179,7 +24428,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.role = (user as any).role;
         token.organizationId = (user as any).organizationId;
+        token.organizationPlan = (user as any).organizationPlan;
         token.organizationStatus = (user as any).organizationStatus;
+        token.trialEndsAt = (user as any).trialEndsAt;
         token.fullName = (user as any).fullName;
         token.department = (user as any).department;
       }
@@ -23190,7 +24441,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string;
         (session.user as any).role = token.role;
         (session.user as any).organizationId = token.organizationId;
+        (session.user as any).organizationPlan = token.organizationPlan;
         (session.user as any).organizationStatus = token.organizationStatus;
+        (session.user as any).trialEndsAt = token.trialEndsAt;
         (session.user as any).fullName = token.fullName;
         (session.user as any).department = token.department;
       }
@@ -23210,9 +24463,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const { email, password } = parsed.data;
 
-        // OPTIMISED: select only required fields â€” removed `include: { organization: true }`
-        // which was doing an unnecessary JOIN on every login. We only need organizationId (the FK),
-        // not the full org record. The JWT stores the ID, not org details.
         const staff = await prisma.staff.findUnique({
           where: { email },
           select: {
@@ -23226,7 +24476,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             status: true,
             organization: {
               select: {
+                plan: true,
                 status: true,
+                trialEndsAt: true,
               },
             },
           },
@@ -23236,7 +24488,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (staff.status !== "ACTIVE") return null;
         if (staff.role !== "MEGA_ADMIN") {
           if (!staff.organizationId) return null;
-          if (!staff.organization || staff.organization.status !== "ACTIVE") return null;
+          if (!staff.organization) return null;
         }
 
         const passwordMatch = await bcrypt.compare(password, staff.passwordHash);
@@ -23253,7 +24505,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: staff.fullName,
           role: staff.role,
           organizationId: staff.organizationId,
+          organizationPlan: staff.organization?.plan ?? null,
           organizationStatus: staff.organization?.status ?? null,
+          trialEndsAt: staff.organization?.trialEndsAt?.toISOString() ?? null,
           fullName: staff.fullName,
           department: staff.department,
         };
@@ -23261,6 +24515,259 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
 });
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/billing-access.ts</div><pre>import { OrganizationPlan, OrganizationStatus } from "@prisma/client";
+
+export const BILLING_BANK_DETAILS = {
+  bankName: "Access Bank",
+  accountNumber: "0080409488",
+  accountName: "Martin Chinedu-Ihim",
+} as const;
+
+export const PLAN_MONTHLY_AMOUNT_NGN: Record&lt;OrganizationPlan, number&gt; = {
+  TRIAL: 0,
+  STARTER: 15000,
+  ADVANCED: 25000,
+};
+
+type OrganizationBillingLike = {
+  plan: OrganizationPlan;
+  status: OrganizationStatus;
+  trialStartedAt?: Date | null;
+  trialEndsAt?: Date | null;
+  subscriptionStartedAt?: Date | null;
+  subscriptionEndsAt?: Date | null;
+  watermarkEnabled?: boolean | null;
+  staffLimit?: number | null;
+  billingLockedAt?: Date | null;
+  billingLockReason?: string | null;
+};
+
+function startOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function daysUntil(target: Date, now = new Date()) {
+  const diffMs = startOfDay(target).getTime() - startOfDay(now).getTime();
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+export function getEffectiveOrganizationStatus(
+  organization: OrganizationBillingLike,
+  now = new Date()
+): OrganizationStatus {
+  if (organization.status === "TRIAL_ACTIVE" &amp;&amp; organization.trialEndsAt &amp;&amp; organization.trialEndsAt &lt;= now) {
+    return "TRIAL_EXPIRED";
+  }
+
+  if (
+    organization.status === "ACTIVE" &amp;&amp;
+    organization.plan !== "TRIAL" &amp;&amp;
+    organization.subscriptionEndsAt &amp;&amp;
+    organization.subscriptionEndsAt &lt;= now
+  ) {
+    return "EXPIRED";
+  }
+
+  return organization.status;
+}
+
+export function isBillingLocked(organization: OrganizationBillingLike, now = new Date()) {
+  const status = getEffectiveOrganizationStatus(organization, now);
+  if (status === "TRIAL_EXPIRED" || status === "EXPIRED" || status === "SUSPENDED") return true;
+  if (status === "PAYMENT_PENDING" &amp;&amp; Boolean(organization.billingLockedAt)) return true;
+  return false;
+}
+
+export function canUseRadiology(organization: OrganizationBillingLike, now = new Date()) {
+  if (isBillingLocked(organization, now)) return false;
+  return organization.plan === "TRIAL" || organization.plan === "ADVANCED";
+}
+
+export function canUseCardiology(organization: OrganizationBillingLike, now = new Date()) {
+  if (isBillingLocked(organization, now)) return false;
+  return organization.plan === "TRIAL" || organization.plan === "ADVANCED";
+}
+
+export function canUploadImaging(organization: OrganizationBillingLike, now = new Date()) {
+  if (isBillingLocked(organization, now)) return false;
+  return organization.plan === "TRIAL" || organization.plan === "ADVANCED";
+}
+
+export function canUseWebPush(organization: OrganizationBillingLike, now = new Date()) {
+  if (isBillingLocked(organization, now)) return false;
+  return organization.plan === "TRIAL" || organization.plan === "ADVANCED";
+}
+
+export function canUseCustomLetterhead(organization: OrganizationBillingLike, now = new Date()) {
+  if (isBillingLocked(organization, now)) return false;
+  return organization.plan === "TRIAL" || organization.plan === "ADVANCED";
+}
+
+export function shouldShowWatermark(organization: OrganizationBillingLike) {
+  if (organization.plan === "ADVANCED") return false;
+  if (organization.plan === "TRIAL" || organization.plan === "STARTER") return true;
+  return Boolean(organization.watermarkEnabled ?? true);
+}
+
+export function canAddStaff(organization: OrganizationBillingLike, currentStaffCount: number, now = new Date()) {
+  if (isBillingLocked(organization, now)) return false;
+  const limit = organization.plan === "STARTER" ? 15 : organization.staffLimit;
+  if (!limit || limit &lt;= 0) return true;
+  return currentStaffCount &lt; limit;
+}
+
+export function getOrganizationAccess(organization: OrganizationBillingLike, now = new Date()) {
+  const effectiveStatus = getEffectiveOrganizationStatus(organization, now);
+  const billingLocked = isBillingLocked(organization, now);
+  const trialDaysLeft =
+    organization.trialEndsAt &amp;&amp; effectiveStatus === "TRIAL_ACTIVE" ? Math.max(0, daysUntil(organization.trialEndsAt, now)) : null;
+  const subscriptionDaysLeft =
+    organization.subscriptionEndsAt &amp;&amp; effectiveStatus === "ACTIVE" ? Math.max(0, daysUntil(organization.subscriptionEndsAt, now)) : null;
+
+  return {
+    plan: organization.plan,
+    status: effectiveStatus,
+    billingLocked,
+    trialDaysLeft,
+    subscriptionDaysLeft,
+    canUseRadiology: canUseRadiology(organization, now),
+    canUseCardiology: canUseCardiology(organization, now),
+    canUploadImaging: canUploadImaging(organization, now),
+    canUseWebPush: canUseWebPush(organization, now),
+    canUseCustomLetterhead: canUseCustomLetterhead(organization, now),
+    shouldShowWatermark: shouldShowWatermark(organization),
+    isTrialWarning: trialDaysLeft !== null &amp;&amp; trialDaysLeft &lt; 3,
+  };
+}
+
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/billing-service.ts</div><pre>import { OrganizationPlan, OrganizationStatus, Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { getEffectiveOrganizationStatus, getOrganizationAccess } from "@/lib/billing-access";
+
+export const organizationBillingSelect = {
+  id: true,
+  name: true,
+  email: true,
+  plan: true,
+  status: true,
+  trialStartedAt: true,
+  trialEndsAt: true,
+  subscriptionStartedAt: true,
+  subscriptionEndsAt: true,
+  lastPaymentAt: true,
+  watermarkEnabled: true,
+  staffLimit: true,
+  billingLockedAt: true,
+  billingLockReason: true,
+  logo: true,
+  letterheadUrl: true,
+  address: true,
+  phone: true,
+  contactInfo: true,
+} satisfies Prisma.OrganizationSelect;
+
+export async function syncOrganizationBillingState(organizationId: string) {
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: organizationBillingSelect,
+  });
+
+  if (!organization) {
+    throw new Error("ORGANIZATION_NOT_FOUND");
+  }
+
+  const now = new Date();
+  const nextStatus = getEffectiveOrganizationStatus(organization, now);
+  const updates: Prisma.OrganizationUpdateInput = {};
+
+  if (nextStatus !== organization.status) {
+    updates.status = nextStatus;
+  }
+
+  if (nextStatus === "TRIAL_EXPIRED" &amp;&amp; !organization.billingLockedAt) {
+    updates.billingLockedAt = now;
+    updates.billingLockReason = "Trial expired";
+  }
+
+  if (nextStatus === "EXPIRED" &amp;&amp; !organization.billingLockedAt) {
+    updates.billingLockedAt = now;
+    updates.billingLockReason = "Subscription expired";
+  }
+
+  if ((nextStatus === "ACTIVE" || nextStatus === "TRIAL_ACTIVE") &amp;&amp; organization.billingLockedAt) {
+    updates.billingLockedAt = null;
+    updates.billingLockReason = null;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return organization;
+  }
+
+  return prisma.organization.update({
+    where: { id: organizationId },
+    data: updates,
+    select: organizationBillingSelect,
+  });
+}
+
+export async function requireOrganizationCoreAccess(organizationId: string) {
+  const organization = await syncOrganizationBillingState(organizationId);
+  const access = getOrganizationAccess(organization);
+  if (access.billingLocked) {
+    throw new Error("BILLING_LOCKED");
+  }
+  return { organization, access };
+}
+
+export async function requireOrganizationFeature(
+  organizationId: string,
+  feature: "radiology" | "cardiology" | "imaging" | "web_push" | "custom_letterhead"
+) {
+  const organization = await syncOrganizationBillingState(organizationId);
+  const access = getOrganizationAccess(organization);
+
+  if (access.billingLocked) {
+    throw new Error("BILLING_LOCKED");
+  }
+
+  const allowed =
+    feature === "radiology"
+      ? access.canUseRadiology
+      : feature === "cardiology"
+      ? access.canUseCardiology
+      : feature === "imaging"
+      ? access.canUploadImaging
+      : feature === "web_push"
+      ? access.canUseWebPush
+      : access.canUseCustomLetterhead;
+
+  if (!allowed) {
+    throw new Error("FEATURE_NOT_AVAILABLE");
+  }
+
+  return { organization, access };
+}
+
+export function getPlanDefaults(plan: OrganizationPlan) {
+  if (plan === "STARTER") {
+    return {
+      watermarkEnabled: true,
+      staffLimit: 15,
+      status: "ACTIVE" as OrganizationStatus,
+    };
+  }
+
+  return {
+    watermarkEnabled: false,
+    staffLimit: null,
+    status: "ACTIVE" as OrganizationStatus,
+  };
+}
+
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/cloudinary.ts</div><pre>import { createHash } from "node:crypto";
 
@@ -23340,6 +24847,7 @@ export async function uploadToCloudinarySigned(input: {
 <div class='file-block'><div class='file-header'>src/lib/consultation-workflow.ts</div><pre>import { NotificationType, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendNotification, sendNotificationToRoles } from "@/lib/notifications";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export type ConsultationActor = {
   id: string;
@@ -23374,6 +24882,10 @@ function assertReceptionOrMd(role: string) {
   if (!["RECEPTIONIST", "MD", "HRM", "SUPER_ADMIN"].includes(role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+}
+
+async function assertConsultationCoreAccess(actor: ConsultationActor) {
+  await requireOrganizationCoreAccess(actor.organizationId);
 }
 
 function dayRange(date = new Date()) {
@@ -23452,6 +24964,7 @@ export async function listConsultationQueue(
   opts?: { search?: string; date?: string; days?: number }
 ) {
   assertReceptionOrMd(actor.role);
+  await assertConsultationCoreAccess(actor);
   const { timeoutMinutes } = await autoExpireCalledConsultations(actor.organizationId);
   const search = opts?.search?.trim() ?? "";
   const selectedDate =
@@ -23534,6 +25047,7 @@ export async function addConsultationPatient(
   if (!["RECEPTIONIST", "SUPER_ADMIN"].includes(actor.role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+  await assertConsultationCoreAccess(actor);
 
   const created = await prisma.consultationQueue.create({
     data: {
@@ -23564,6 +25078,7 @@ export async function callConsultationPatient(actor: ConsultationActor, queueId:
   if (!["MD", "SUPER_ADMIN"].includes(actor.role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+  await assertConsultationCoreAccess(actor);
 
   const existing = await prisma.consultationQueue.findFirst({
     where: { id: queueId, organizationId: actor.organizationId },
@@ -23599,6 +25114,7 @@ export async function markConsultationAsConsulted(actor: ConsultationActor, queu
   if (!["MD", "SUPER_ADMIN"].includes(actor.role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+  await assertConsultationCoreAccess(actor);
 
   const existing = await prisma.consultationQueue.findFirst({
     where: { id: queueId, organizationId: actor.organizationId },
@@ -23645,6 +25161,7 @@ export async function markConsultationPatientIn(actor: ConsultationActor, queueI
   if (!["RECEPTIONIST", "SUPER_ADMIN"].includes(actor.role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+  await assertConsultationCoreAccess(actor);
 
   const existing = await prisma.consultationQueue.findFirst({
     where: { id: queueId, organizationId: actor.organizationId },
@@ -24645,6 +26162,7 @@ export function isOverloaded(activeTaskCount: number, threshold = 8) {
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/lab-workflow.ts</div><pre>import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 import { notifyMdResultSubmitted } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
@@ -24683,6 +26201,10 @@ function assertLabScientist(actor: LabActor) {
   if (actor.role !== "LAB_SCIENTIST") {
     throw new Error("FORBIDDEN_ROLE");
   }
+}
+
+async function assertLabCoreAccess(actor: LabActor) {
+  await requireOrganizationCoreAccess(actor.organizationId);
 }
 
 async function assertTaskOwnership(taskId: string, actor: LabActor) {
@@ -24774,6 +26296,7 @@ export async function getLabTasks(actor: LabActor, opts?: {
   date?: string;
 }) {
   assertLabScientist(actor);
+  await assertLabCoreAccess(actor);
   const search = opts?.search?.trim() ?? "";
   const hasDateFilter = Boolean(opts?.date &amp;&amp; /^\d{4}-\d{2}-\d{2}$/.test(opts.date));
   const dateRange = hasDateFilter
@@ -24871,6 +26394,7 @@ export async function getLabTasks(actor: LabActor, opts?: {
 
 export async function startLabTask(taskId: string, actor: LabActor) {
   assertLabScientist(actor);
+  await assertLabCoreAccess(actor);
   const task = await prisma.routingTask.findFirst({
     where: {
       id: taskId,
@@ -24968,6 +26492,7 @@ export async function updateSampleForLabTask(
   notes?: string
 ) {
   assertLabScientist(actor);
+  await assertLabCoreAccess(actor);
   const task = await assertTaskOwnership(taskId, actor);
   const now = new Date();
 
@@ -25049,6 +26574,7 @@ export async function updateSampleForLabTask(
 
 export async function saveLabResults(taskId: string, actor: LabActor, inputs: SaveResultInput[]) {
   assertLabScientist(actor);
+  await assertLabCoreAccess(actor);
   const task = await assertTaskOwnership(taskId, actor);
   if (task.status === RoutingTaskStatus.COMPLETED || task.status === RoutingTaskStatus.CANCELLED) {
     throw new Error("TASK_ALREADY_COMPLETED");
@@ -25198,6 +26724,7 @@ export async function saveLabResults(taskId: string, actor: LabActor, inputs: Sa
 
 export async function submitLabTask(taskId: string, actor: LabActor) {
   assertLabScientist(actor);
+  await assertLabCoreAccess(actor);
   const task = await assertTaskOwnership(taskId, actor);
 
   if (task.status === RoutingTaskStatus.COMPLETED) {
@@ -25453,6 +26980,7 @@ export function applySharedSensitivity&lt;T extends { testOrderId: string; resul
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/md-workflow.ts</div><pre>import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 import { notifyResultEdited, notifyTaskReviewOutcome } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
@@ -25493,6 +27021,10 @@ function assertMd(actor: MdActor) {
   if (!canUseMdWorkflow(actor.role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+}
+
+async function assertMdCoreAccess(actor: MdActor) {
+  await requireOrganizationCoreAccess(actor.organizationId);
 }
 
 function normalizeJsonForInput(value: Prisma.JsonValue | null | undefined) {
@@ -25538,6 +27070,7 @@ async function getTaskForReview(taskId: string, actor: MdActor) {
 
 export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pending") {
   assertMd(actor);
+  await assertMdCoreAccess(actor);
 
   const baseWhere: Prisma.RoutingTaskWhereInput = {
     organizationId: actor.organizationId,
@@ -25800,6 +27333,7 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
 
 export async function approveMdReview(taskId: string, actor: MdActor, comments?: string) {
   assertMd(actor);
+  await assertMdCoreAccess(actor);
   const task = await getTaskForReview(taskId, actor);
 
   if (task.department === Department.LABORATORY) {
@@ -25916,6 +27450,7 @@ export async function approveMdReview(taskId: string, actor: MdActor, comments?:
 
 export async function rejectMdReview(taskId: string, actor: MdActor, reason: string, highlightFields: string[] = []) {
   assertMd(actor);
+  await assertMdCoreAccess(actor);
   const task = await getTaskForReview(taskId, actor);
 
   const currentStatus = task.review?.status ?? null;
@@ -25991,6 +27526,7 @@ export async function rejectMdReview(taskId: string, actor: MdActor, reason: str
 
 export async function unapproveMdReview(taskId: string, actor: MdActor, reason?: string) {
   assertMd(actor);
+  await assertMdCoreAccess(actor);
   const task = await getTaskForReview(taskId, actor);
   const currentStatus = task.review?.status ?? null;
   if (!canUnapprove(currentStatus)) throw new Error("NOT_APPROVED");
@@ -26054,6 +27590,7 @@ export async function editMdReview(
   }
 ) {
   if (!canUseControlledEdit(actor.role)) throw new Error("FORBIDDEN_ROLE");
+  await assertMdCoreAccess(actor);
   if (!requireEditReason(payload.reason)) throw new Error("REASON_REQUIRED");
 
   const task = await getTaskForReview(taskId, actor);
@@ -27791,6 +29328,7 @@ export async function getGroupedRadiologyTests(params: {
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/radiology-workflow.ts</div><pre>import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
+import { requireOrganizationCoreAccess, requireOrganizationFeature } from "@/lib/billing-service";
 import { notifyMdResultSubmitted } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
@@ -27825,6 +29363,11 @@ export type ImagingUploadInput = {
 
 function assertRadiographer(actor: RadiologyActor) {
   if (actor.role !== "RADIOGRAPHER") throw new Error("FORBIDDEN_ROLE");
+}
+
+async function assertRadiologyAccess(actor: RadiologyActor) {
+  await requireOrganizationCoreAccess(actor.organizationId);
+  await requireOrganizationFeature(actor.organizationId, "radiology");
 }
 
 async function assertOwnership(taskId: string, actor: RadiologyActor) {
@@ -27873,6 +29416,7 @@ export async function getRadiologyTasks(
   }
 ) {
   assertRadiographer(actor);
+  await assertRadiologyAccess(actor);
   const search = opts?.search?.trim() ?? "";
   const hasDateFilter = Boolean(opts?.date &amp;&amp; /^\d{4}-\d{2}-\d{2}$/.test(opts.date));
   const dateRange = hasDateFilter
@@ -27952,6 +29496,7 @@ export async function getRadiologyTasks(
 
 export async function startRadiologyTask(taskId: string, actor: RadiologyActor) {
   assertRadiographer(actor);
+  await assertRadiologyAccess(actor);
   const task = await prisma.routingTask.findFirst({
     where: {
       id: taskId,
@@ -28041,6 +29586,8 @@ export async function startRadiologyTask(taskId: string, actor: RadiologyActor) 
 
 export async function addImagingFile(taskId: string, actor: RadiologyActor, input: ImagingUploadInput) {
   assertRadiographer(actor);
+  await assertRadiologyAccess(actor);
+  await requireOrganizationFeature(actor.organizationId, "imaging");
   const task = await assertOwnership(taskId, actor);
 
   if (!isValidImagingFile({ mimeType: input.fileType, sizeBytes: input.fileSizeBytes })) {
@@ -28084,6 +29631,7 @@ export async function saveRadiologyReport(
   }
 ) {
   assertRadiographer(actor);
+  await assertRadiologyAccess(actor);
   const task = await assertOwnership(taskId, actor);
 
   const report = await prisma.radiologyReport.upsert({
@@ -28128,6 +29676,7 @@ export async function submitRadiologyTask(
   actor: RadiologyActor
 ) {
   assertRadiographer(actor);
+  await assertRadiologyAccess(actor);
   const task = await assertOwnership(taskId, actor);
 
   if (task.status === RoutingTaskStatus.COMPLETED &amp;&amp; task.radiologyReport?.isSubmitted) return;
@@ -29873,9 +31422,11 @@ import {
 import { notifyResultEdited, sendNotificationToRoles, sendNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { renderReportHtml } from "@/lib/report-rendering";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 import { Department, NotificationType, OrderStatus, ReportStatus, Role, ReviewStatus, ReportType, VisitStatus } from "@prisma/client";
 import { formatReferenceDisplay } from "./reference-ranges";
 import { extractSignOffFromMap, stripSignOffKeys } from "./report-signoff";
+import { canUseCustomLetterhead, shouldShowWatermark } from "./billing-access";
 
 export type ReportActor = {
   id: string;
@@ -29892,6 +31443,10 @@ function assertDepartment(department: Department) {
 
 function ensurePreviewAccess(actor: ReportActor) {
   if (!canPreviewReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
+}
+
+async function assertReportCoreAccess(actor: ReportActor) {
+  await requireOrganizationCoreAccess(actor.organizationId);
 }
 
 function pickExtraFields(value: unknown): Record&lt;string, unknown&gt; | null {
@@ -30126,6 +31681,7 @@ export async function listReports(
   }
 ) {
   ensurePreviewAccess(actor);
+  await assertReportCoreAccess(actor);
   const search = String(opts?.search ?? "").trim();
   const hasDate = /^\d{4}-\d{2}-\d{2}$/.test(String(opts?.date ?? ""));
   const dateRange = hasDate
@@ -30164,6 +31720,7 @@ export async function listReports(
 
 export async function getReportDetails(actor: ReportActor, reportId: string) {
   ensurePreviewAccess(actor);
+  await assertReportCoreAccess(actor);
   const report = await prisma.diagnosticReport.findFirst({
     where: { id: reportId, organizationId: actor.organizationId },
     include: {
@@ -30203,6 +31760,7 @@ export async function updateReportDraft(
   }
 ) {
   if (!input.reason?.trim()) throw new Error("REASON_REQUIRED");
+  await assertReportCoreAccess(actor);
   const canMdEdit = canMdEditReport(actor.role);
   const canDispatchEdit = canDispatchReleasedReport(actor.role);
   if (!canMdEdit &amp;&amp; !canDispatchEdit) throw new Error("FORBIDDEN_ROLE");
@@ -30344,6 +31902,7 @@ export async function releaseReport(
   }
 ) {
   if (!canHrmReleaseReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
+  await assertReportCoreAccess(actor);
 
   const report = await getReportDetails(actor, input.reportId);
   if (!canRelease(report.status, report.isReleased)) throw new Error("REPORT_ALREADY_RELEASED");
@@ -30463,6 +32022,7 @@ export async function trackReportAction(
   }
 ) {
   if (!canDispatchReleasedReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
+  await assertReportCoreAccess(actor);
   const report = await getReportDetails(actor, input.reportId);
   if (!report.isReleased &amp;&amp; input.action !== "PRINT") {
     throw new Error("REPORT_NOT_RELEASED");
@@ -30529,6 +32089,7 @@ export async function renderReportForPreview(
     baseUrl?: string;
   }
 ) {
+  await assertReportCoreAccess(actor);
   const report = await getReportDetails(actor, reportId);
   const activeVersion = report.versions.find((version) =&gt; version.isActive) ?? report.versions[0] ?? null;
   if (!activeVersion) throw new Error("INVALID_VERSION_CHAIN");
@@ -30550,6 +32111,9 @@ export async function renderReportForPreview(
     },
   };
 
+  const allowLetterhead = canUseCustomLetterhead(report.organization);
+  const showWatermark = shouldShowWatermark(report.organization);
+
   const html = renderReportHtml({
     organization: {
       name: report.organization.name,
@@ -30564,8 +32128,8 @@ export async function renderReportForPreview(
     comments: activeVersion.comments ?? report.comments,
     prescription: activeVersion.prescription ?? report.prescription,
     mdName: null,
-    watermarkUrl: "/diagsync-watermark.png",
-    includeLetterhead: options?.includeLetterhead ?? true,
+    watermarkUrl: showWatermark ? "/diagsync-watermark.png" : undefined,
+    includeLetterhead: (options?.includeLetterhead ?? true) &amp;&amp; allowLetterhead,
     showPrintButton: options?.showPrintButton === true,
     autoPrint: options?.autoPrint === true,
     baseUrl: options?.baseUrl,
@@ -31787,7 +33351,7 @@ export async function reconcileWorkflowStatesIfDue(input: {
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { getDashboardPath } from "@/lib/utils";
-import { OrganizationStatus, Role } from "@prisma/client";
+import { Role } from "@prisma/client";
 
 const publicRoutes = new Set(["/", "/login", "/register"]);
 const AUTH_SECRET =
@@ -31837,18 +33401,6 @@ export default async function middleware(req: NextRequest) {
   }
 
   const userRole = token.role as Role;
-  const organizationStatus = token.organizationStatus as OrganizationStatus | undefined;
-
-  if (
-    userRole !== "MEGA_ADMIN" &amp;&amp;
-    organizationStatus === "SUSPENDED" &amp;&amp;
-    !pathname.startsWith("/admin")
-  ) {
-    const loginUrl = new URL("/login", nextUrl.origin);
-    loginUrl.searchParams.set("suspended", "1");
-    return NextResponse.redirect(loginUrl);
-  }
-
   if (pathname === "/dashboard") {
     return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
   }
@@ -32032,7 +33584,7 @@ export interface TestCartItem {
   price: number;
 }
 </pre></div>
-<div class='file-block'><div class='file-header'>src/types/next-auth.d.ts</div><pre>import { Role, Department, OrganizationStatus } from "@prisma/client";
+<div class='file-block'><div class='file-header'>src/types/next-auth.d.ts</div><pre>import { Role, Department, OrganizationPlan, OrganizationStatus } from "@prisma/client";
 import "next-auth";
 
 declare module "next-auth" {
@@ -32043,7 +33595,9 @@ declare module "next-auth" {
       name: string;
       role: Role;
       organizationId: string | null;
+      organizationPlan?: OrganizationPlan | null;
       organizationStatus?: OrganizationStatus | null;
+      trialEndsAt?: string | null;
       fullName: string;
       department: Department;
     };
@@ -32055,7 +33609,9 @@ declare module "next-auth" {
     name: string;
     role: Role;
     organizationId: string | null;
+    organizationPlan?: OrganizationPlan | null;
     organizationStatus?: OrganizationStatus | null;
+    trialEndsAt?: string | null;
     fullName: string;
     department: Department;
   }
@@ -32066,7 +33622,9 @@ declare module "next-auth/jwt" {
     id: string;
     role: Role;
     organizationId: string | null;
+    organizationPlan?: OrganizationPlan | null;
     organizationStatus?: OrganizationStatus | null;
+    trialEndsAt?: string | null;
     fullName: string;
     department: Department;
   }

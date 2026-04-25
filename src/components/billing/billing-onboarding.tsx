@@ -1,14 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { OrganizationPlan, OrganizationStatus, PaymentRequestStatus } from "@prisma/client";
 import { BILLING_BANK_DETAILS, PLAN_MONTHLY_AMOUNT_NGN } from "@/lib/billing-access";
 import { formatCurrency } from "@/lib/utils";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type BillingProps = {
   organization: {
-    plan: OrganizationPlan;
-    status: OrganizationStatus;
+    plan: BillingPlan;
+    status: BillingStatus;
     trialStartedAt: string | null;
     trialEndsAt: string | null;
     subscriptionEndsAt: string | null;
@@ -20,13 +21,23 @@ type BillingProps = {
   };
   paymentRequests: Array<{
     id: string;
-    requestedPlan: OrganizationPlan;
+    requestedPlan: BillingPlan;
     amount: number;
-    status: PaymentRequestStatus;
+    status: PaymentRequestStatusValue;
     transactionReference: string | null;
     createdAt: string;
   }>;
 };
+
+type BillingPlan = "TRIAL" | "STARTER" | "ADVANCED";
+type BillingStatus =
+  | "ACTIVE"
+  | "SUSPENDED"
+  | "TRIAL_ACTIVE"
+  | "TRIAL_EXPIRED"
+  | "PAYMENT_PENDING"
+  | "EXPIRED";
+type PaymentRequestStatusValue = "PENDING" | "APPROVED" | "REJECTED";
 
 function formatShortDate(value: string | null) {
   if (!value) return "-";
@@ -37,45 +48,166 @@ function formatShortDate(value: string | null) {
   });
 }
 
-type PlanCardProps = {
-  name: string;
-  subtitle: string;
-  price: string;
-  note: string;
-  buttonText: string;
-  onClick: () => void;
-  disabled?: boolean;
-};
+// ─── Feature lists ────────────────────────────────────────────────────────────
 
-function PlanCard({ name, subtitle, price, note, buttonText, onClick, disabled = false }: PlanCardProps) {
+const TRIAL_FEATURES = [
+  { text: "All departments & roles unlocked", included: true },
+  { text: "Radiology & Cardiology access", included: true },
+  { text: "Unlimited patients & visits", included: true },
+  { text: "Imaging file uploads (Cloudinary)", included: true },
+  { text: "Web push notifications", included: true },
+  { text: "Shareable report links", included: true },
+  { text: "DiagSync watermark on all reports", included: false, warn: true },
+];
+
+const STARTER_FEATURES = [
+  { text: "Up to 15 staff accounts", included: true },
+  { text: "Roles: Receptionist, Lab Scientist, MD, HRM", included: true },
+  { text: "Laboratory — full access (all lab tests)", included: true },
+  { text: "Reception, Medical Review & HR Operations", included: true },
+  { text: "Unlimited patients & visits", included: true },
+  { text: "Audit logs & result versioning", included: true },
+  { text: "In-app notifications & shareable links", included: true },
+  { text: "WhatsApp support", included: true },
+  { text: "Radiology / Cardiology department", included: false },
+  { text: "Imaging uploads & custom letterhead", included: false },
+  { text: "Web push notifications", included: false },
+  { text: "DiagSync watermark on all reports", included: false, warn: true },
+];
+
+const ADVANCED_FEATURES = [
+  { text: "Unlimited staff accounts", included: true },
+  { text: "All roles including Radiographer", included: true },
+  { text: "Laboratory — full access (all lab tests)", included: true },
+  { text: "Radiology department & tests", included: true },
+  { text: "Cardiology tests", included: true },
+  { text: "Unlimited patients & visits", included: true },
+  { text: "Imaging file uploads (Cloudinary)", included: true },
+  { text: "Custom letterhead on reports", included: true },
+  { text: "In-app + web push notifications", included: true },
+  { text: "Shareable report links", included: true },
+  { text: "Priority WhatsApp support", included: true },
+  { text: "No DiagSync watermark — clean reports", included: true },
+];
+
+// ─── Feature Row ──────────────────────────────────────────────────────────────
+
+function FeatureRow({ text, included, warn }: { text: string; included: boolean; warn?: boolean }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{name}</p>
-      <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
-      <p className="mt-3 text-2xl font-bold text-slate-900">{price}</p>
-      <p className="mt-2 text-xs text-slate-500">{note}</p>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onClick}
-        className="mt-4 inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+    <div className="flex items-start gap-2.5 py-1.5">
+      <span
+        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold
+          ${warn ? "bg-amber-100 text-amber-600" : included ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"}`}
       >
-        {buttonText}
-      </button>
+        {warn ? "!" : included ? "✓" : "–"}
+      </span>
+      <span
+        className={`text-xs leading-relaxed ${
+          warn ? "text-amber-700" : included ? "text-slate-700" : "text-slate-400"
+        }`}
+      >
+        {text}
+      </span>
     </div>
   );
 }
 
+// ─── Plan Card ────────────────────────────────────────────────────────────────
+
+type PlanCardProps = {
+  badge: string;
+  badgeColor: string;
+  name: string;
+  price: string;
+  priceNote?: string;
+  desc: string;
+  features: { text: string; included: boolean; warn?: boolean }[];
+  buttonText: string;
+  buttonClass: string;
+  onClick: () => void;
+  disabled?: boolean;
+  highlight?: boolean;
+  tag?: string;
+};
+
+function PlanCard({
+  badge,
+  badgeColor,
+  name,
+  price,
+  priceNote,
+  desc,
+  features,
+  buttonText,
+  buttonClass,
+  onClick,
+  disabled = false,
+  highlight = false,
+  tag,
+}: PlanCardProps) {
+  return (
+    <div
+      className={`relative flex flex-col rounded-2xl border bg-white shadow-sm transition-shadow hover:shadow-md
+        ${highlight ? "border-blue-500 ring-1 ring-blue-500" : "border-slate-200"}`}
+    >
+      {tag && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+          <span className="rounded-full bg-blue-600 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow">
+            {tag}
+          </span>
+        </div>
+      )}
+
+      <div className="p-5 pb-4">
+        <span
+          className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${badgeColor}`}
+        >
+          {badge}
+        </span>
+        <h3 className="mt-3 text-base font-bold text-slate-900">{name}</h3>
+        <div className="mt-1 flex items-baseline gap-1">
+          <span className="text-2xl font-extrabold text-slate-900">{price}</span>
+          {priceNote && <span className="text-xs text-slate-500">{priceNote}</span>}
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-slate-500">{desc}</p>
+      </div>
+
+      <div className="mx-5 border-t border-slate-100" />
+
+      <div className="flex-1 px-5 py-3">
+        {features.map((f, i) => (
+          <FeatureRow key={i} {...f} />
+        ))}
+      </div>
+
+      <div className="p-5 pt-3">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onClick}
+          className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${buttonClass}`}
+        >
+          {buttonText}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export function BillingOnboarding({ organization, access, paymentRequests }: BillingProps) {
-  const [selectedPlan, setSelectedPlan] = useState<OrganizationPlan | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<Extract<BillingPlan, "STARTER" | "ADVANCED"> | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<"trial" | "payment" | null>(null);
+  const planPriceMap = PLAN_MONTHLY_AMOUNT_NGN as unknown as Record<string, number>;
 
   const canStartTrial = useMemo(() => {
     if (organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") return false;
     return !organization.trialStartedAt;
   }, [organization.status, organization.trialStartedAt]);
+
   const activePending = useMemo(
     () => paymentRequests.find((item) => item.status === "PENDING"),
     [paymentRequests]
@@ -126,48 +258,102 @@ export function BillingOnboarding({ organization, access, paymentRequests }: Bil
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h1 className="text-lg font-semibold text-slate-900">Choose Your DiagSync Plan</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Pick a plan to continue using your lab workspace. Your data remains safe even when billing is locked.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">Current plan: {organization.plan}</span>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">Status: {organization.status}</span>
-          {organization.trialEndsAt ? (
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
-              Trial ends: {formatShortDate(organization.trialEndsAt)}
+    <div className="mx-auto w-full max-w-5xl space-y-5">
+
+      {/* ── Header card ── */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Choose Your DiagSync Plan</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Pick a plan to continue using your lab workspace. Your data remains safe even when billing is locked.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+              Current plan: <strong>{organization.plan}</strong>
             </span>
-          ) : null}
+            <span
+              className={`rounded-full border px-3 py-1 text-xs font-medium
+                ${organization.status === "TRIAL_ACTIVE"
+                  ? "border-blue-200 bg-blue-50 text-blue-700"
+                  : organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED"
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : organization.status === "ACTIVE"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"}`}
+            >
+              Status: <strong>{organization.status}</strong>
+            </span>
+            {organization.trialEndsAt && (
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                Trial ends: <strong>{formatShortDate(organization.trialEndsAt)}</strong>
+              </span>
+            )}
+          </div>
         </div>
-        {access.trialDaysLeft !== null ? (
-          <p className={`mt-3 text-sm font-medium ${access.isTrialWarning ? "text-amber-600" : "text-slate-700"}`}>
-            Trial ends in {access.trialDaysLeft} day{access.trialDaysLeft === 1 ? "" : "s"}.
-          </p>
-        ) : null}
-        {organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED" ? (
-          <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            Your free trial has ended. Choose a plan to continue.
-          </p>
-        ) : null}
-        {organization.status === "PAYMENT_PENDING" ? (
-          <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-            Payment submitted. Your account will be activated after verification.
-          </p>
-        ) : null}
+
+        {/* Trial countdown */}
+        {access.trialDaysLeft !== null && (
+          <div
+            className={`mt-4 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium
+              ${access.isTrialWarning ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"}`}
+          >
+            <span>{access.isTrialWarning ? "⚠️" : "⏳"}</span>
+            <span>
+              Your free trial ends in{" "}
+              <strong>{access.trialDaysLeft} day{access.trialDaysLeft === 1 ? "" : "s"}</strong>.
+              Upgrade anytime to remove the watermark and unlock more features.
+            </span>
+          </div>
+        )}
+
+        {/* Expired alert */}
+        {(organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") && (
+          <div className="mt-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+            <span className="mt-0.5 text-red-500">🔒</span>
+            <div>
+              <p className="text-sm font-semibold text-red-800">Your free trial has ended</p>
+              <p className="text-xs text-red-600">
+                Choose a plan below to unlock your workspace. All your data is safe.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Payment pending alert */}
+        {organization.status === "PAYMENT_PENDING" && (
+          <div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <span className="mt-0.5 text-amber-500">⏳</span>
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Payment submitted — awaiting verification</p>
+              <p className="text-xs text-amber-600">
+                We'll activate your account as soon as we confirm your payment.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {error ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
-      {message ? <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
+      {/* ── Alerts ── */}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
+      {message && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>
+      )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {/* ── Plan cards ── */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
         <PlanCard
-          name="Free 2-week trial"
-          subtitle="Free 2-week trial — full access, no payment needed"
+          badge="Free Trial"
+          badgeColor="bg-amber-100 text-amber-700"
+          name="2-Week Free Trial"
           price="Free"
-          note="Everything unlocked from day one. The only catch: all printed reports carry a DiagSync watermark."
+          desc="Full access from day one — every feature unlocked. The only catch: a DiagSync watermark appears on all printed reports."
+          features={TRIAL_FEATURES}
           buttonText={canStartTrial ? (busy === "trial" ? "Starting..." : "Start Free Trial") : "Trial Ended"}
+          buttonClass="bg-amber-500 text-white hover:bg-amber-600"
           disabled={!canStartTrial || busy !== null}
           onClick={() => {
             if (!canStartTrial || busy) return;
@@ -175,141 +361,182 @@ export function BillingOnboarding({ organization, access, paymentRequests }: Bil
           }}
         />
         <PlanCard
+          badge="Starter"
+          badgeColor="bg-blue-100 text-blue-700"
           name="Starter Pack"
-          subtitle="Laboratory-focused plan"
-          price={`${formatCurrency(PLAN_MONTHLY_AMOUNT_NGN.STARTER)} / month`}
-          note="Up to 15 staff. No radiology, imaging uploads, custom letterhead, or web push."
+          price={formatCurrency(planPriceMap.STARTER)}
+          priceNote="/ month"
+          desc="For labs focused on laboratory work. Full lab workflow and team tools — DiagSync watermark remains on prints."
+          features={STARTER_FEATURES}
           buttonText="Get Starter"
+          buttonClass="border border-blue-600 text-blue-600 hover:bg-blue-50"
           onClick={() => setSelectedPlan("STARTER")}
         />
         <PlanCard
+          badge="Advanced"
+          badgeColor="bg-emerald-100 text-emerald-700"
           name="Advanced Pack"
-          subtitle="Full multi-department access"
-          price={`${formatCurrency(PLAN_MONTHLY_AMOUNT_NGN.ADVANCED)} / month`}
-          note="Unlimited staff. Includes radiology, cardiology, imaging uploads, branding, and web push."
+          price={formatCurrency(planPriceMap.ADVANCED)}
+          priceNote="/ month"
+          desc="Full-service labs. Lab + Radiology + Cardiology, custom branding, imaging uploads, push notifications — clean reports, no watermark."
+          features={ADVANCED_FEATURES}
           buttonText="Get Advanced"
+          buttonClass="bg-blue-600 text-white hover:bg-blue-700"
+          highlight
+          tag="Most Popular"
           onClick={() => setSelectedPlan("ADVANCED")}
         />
       </div>
 
-      {selectedPlan ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">Manual Payment Instructions</h2>
-          <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-              <p className="font-medium text-slate-800">Selected Plan</p>
-              <p className="mt-1 text-slate-700">{selectedPlan}</p>
-              <p className="text-slate-700">{formatCurrency(PLAN_MONTHLY_AMOUNT_NGN[selectedPlan])} / month</p>
+      {/* ── Payment form ── */}
+      {selectedPlan && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Manual Payment Instructions</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Transfer the exact amount and submit your reference below.
+              </p>
             </div>
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-              <p className="font-medium text-slate-800">Bank Details</p>
-              <p className="mt-1 text-slate-700">Bank: {BILLING_BANK_DETAILS.bankName}</p>
-              <p className="text-slate-700">Account Number: {BILLING_BANK_DETAILS.accountNumber}</p>
-              <p className="text-slate-700">Account Name: {BILLING_BANK_DETAILS.accountName}</p>
+            <button
+              type="button"
+              onClick={() => setSelectedPlan(null)}
+              className="rounded-md px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-100"
+            >
+              ✕ Cancel
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-500">Selected Plan</p>
+              <p className="mt-1 text-lg font-bold text-slate-800">
+                {selectedPlan === "STARTER" ? "Starter Pack" : "Advanced Pack"}
+              </p>
+              <p className="text-sm font-semibold text-blue-700">
+                {formatCurrency(planPriceMap[selectedPlan])} / month
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Bank Details</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">{BILLING_BANK_DETAILS.bankName}</p>
+              <p className="mt-0.5 text-xs text-slate-600">Account: {BILLING_BANK_DETAILS.accountNumber}</p>
+              <p className="text-xs text-slate-600">Name: {BILLING_BANK_DETAILS.accountName}</p>
             </div>
           </div>
 
           <form
             className="mt-4 space-y-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const form = event.currentTarget;
-              const data = new FormData(form);
+            onSubmit={(e) => {
+              e.preventDefault();
+              const data = new FormData(e.currentTarget);
               data.set("requestedPlan", selectedPlan);
               void handlePaymentSubmit(data);
             }}
           >
             <input type="hidden" name="requestedPlan" value={selectedPlan} />
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Transaction Reference</label>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                Transaction Reference <span className="text-red-500">*</span>
+              </label>
               <input
                 name="transactionReference"
                 required
-                className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm text-slate-800"
-                placeholder="Enter bank transfer reference"
+                className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="e.g. TRF20250401XYZ"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Payment Proof (Optional)</label>
-              <input name="proof" type="file" className="block w-full text-xs text-slate-600" />
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                Payment Proof <span className="text-slate-400">(Optional)</span>
+              </label>
+              <input
+                name="proof"
+                type="file"
+                className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-xs file:text-blue-600"
+              />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Message (Optional)</label>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                Note <span className="text-slate-400">(Optional)</span>
+              </label>
               <textarea
                 name="notes"
-                rows={3}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800"
-                placeholder="Any note for verification"
+                rows={2}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="Any extra info for verification..."
               />
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 pt-1">
               <button
                 type="submit"
                 disabled={busy === "payment"}
-                className="rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
               >
                 {busy === "payment" ? "Submitting..." : "I have made payment"}
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedPlan(null)}
-                className="rounded-md border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </button>
             </div>
           </form>
         </div>
-      ) : null}
+      )}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-800">Recent Payment Requests</h3>
+      {/* ── Recent payment requests ── */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-slate-800">Recent Payment Requests</h3>
         {paymentRequests.length === 0 ? (
-          <p className="mt-2 text-xs text-slate-500">No payment requests submitted yet.</p>
+          <p className="mt-3 text-xs text-slate-400">No payment requests submitted yet.</p>
         ) : (
-          <div className="mt-2 overflow-x-auto">
+          <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[620px] text-xs">
               <thead>
-                <tr className="border-b border-slate-100 text-left text-slate-500">
-                  <th className="px-2 py-2">Plan</th>
-                  <th className="px-2 py-2">Amount</th>
-                  <th className="px-2 py-2">Reference</th>
-                  <th className="px-2 py-2">Status</th>
-                  <th className="px-2 py-2">Submitted</th>
+                <tr className="border-b border-slate-100 text-left text-slate-400">
+                  <th className="pb-2 pr-4 font-medium">Plan</th>
+                  <th className="pb-2 pr-4 font-medium">Amount</th>
+                  <th className="pb-2 pr-4 font-medium">Reference</th>
+                  <th className="pb-2 pr-4 font-medium">Status</th>
+                  <th className="pb-2 font-medium">Submitted</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-50">
                 {paymentRequests.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-2 py-2 text-slate-700">{item.requestedPlan}</td>
-                    <td className="px-2 py-2 text-slate-700">{formatCurrency(item.amount)}</td>
-                    <td className="px-2 py-2 text-slate-600">{item.transactionReference ?? "-"}</td>
-                    <td className="px-2 py-2">
+                  <tr key={item.id} className="text-slate-700">
+                    <td className="py-2.5 pr-4">{item.requestedPlan}</td>
+                    <td className="py-2.5 pr-4">{formatCurrency(item.amount)}</td>
+                    <td className="py-2.5 pr-4 text-slate-500">{item.transactionReference ?? "–"}</td>
+                    <td className="py-2.5 pr-4">
                       <span
-                        className={`rounded-full px-2 py-0.5 ${
-                          item.status === "APPROVED"
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold
+                          ${item.status === "APPROVED"
                             ? "bg-emerald-50 text-emerald-700"
                             : item.status === "REJECTED"
                             ? "bg-red-50 text-red-600"
-                            : "bg-amber-50 text-amber-700"
-                        }`}
+                            : "bg-amber-50 text-amber-700"}`}
                       >
                         {item.status}
                       </span>
                     </td>
-                    <td className="px-2 py-2 text-slate-500">{formatShortDate(item.createdAt)}</td>
+                    <td className="py-2.5 text-slate-400">{formatShortDate(item.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        {activePending ? (
-          <p className="mt-3 text-xs text-amber-700">
-            Latest pending request: {activePending.requestedPlan} ({formatCurrency(activePending.amount)}).
+        {activePending && (
+          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            ⏳ Pending request: <strong>{activePending.requestedPlan}</strong> (
+            {formatCurrency(activePending.amount)}) — awaiting verification.
           </p>
-        ) : null}
+        )}
       </div>
+
     </div>
   );
 }
