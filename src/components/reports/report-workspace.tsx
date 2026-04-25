@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "@/lib/utils";
+import { UpgradeHint } from "@/components/billing/upgrade-hint";
 
 type ReportType = "lab" | "radiology";
 type Department = "LABORATORY" | "RADIOLOGY";
@@ -29,6 +30,11 @@ type LabCatalogTest = {
     normalMax?: number | null;
     normalText?: string | null;
   }>;
+};
+
+type BillingAccessHint = {
+  shouldShowWatermark: boolean;
+  canUseCustomLetterhead: boolean;
 };
 
 function deepCopy<T>(value: T): T {
@@ -161,6 +167,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const [labTestSearch, setLabTestSearch] = useState("");
   const [labTestSearchBusy, setLabTestSearchBusy] = useState(false);
   const [labTestSearchResults, setLabTestSearchResults] = useState<LabCatalogTest[]>([]);
+  const [billingAccess, setBillingAccess] = useState<BillingAccessHint | null>(null);
   const previewRef = useRef<HTMLIFrameElement | null>(null);
   const loadReportsSeqRef = useRef(0);
   const loadDetailsSeqRef = useRef(0);
@@ -305,6 +312,22 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     const timer = window.setTimeout(() => { void searchLabCatalog(labTestSearch); }, 250);
     return () => window.clearTimeout(timer);
   }, [labTestSearch]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/billing/overview");
+        const json = await res.json();
+        if (!json?.success) return;
+        setBillingAccess({
+          shouldShowWatermark: Boolean(json.data?.access?.shouldShowWatermark),
+          canUseCustomLetterhead: Boolean(json.data?.access?.canUseCustomLetterhead),
+        });
+      } catch {
+        // no-op
+      }
+    })();
+  }, []);
 
   function updateLabField(tIdx: number, rIdx: number, key: "value" | "unit" | "reference", value: string) {
     setEditableContent((prev: any) => {
@@ -631,8 +654,21 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                     {canReceptionDispatch ? "Dispatch" : "Release"}
                   </p>
                   <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-                    Print option: choose with or without letterhead. Watermark stays in both modes. WhatsApp always uses letterhead.
+                    Print option: choose with or without letterhead. WhatsApp always uses letterhead.
+                    {billingAccess?.shouldShowWatermark ? " Watermark is currently enabled for this plan." : " Watermark is currently removed for this plan."}
                   </div>
+                  {billingAccess?.shouldShowWatermark ? (
+                    <UpgradeHint
+                      message="Upgrade to Advanced to remove DiagSync watermark on printed/downloaded reports and unlock custom branding."
+                      ctaLabel="Upgrade on Billing"
+                    />
+                  ) : null}
+                  {billingAccess && !billingAccess.canUseCustomLetterhead ? (
+                    <UpgradeHint
+                      message="Custom letterhead is not available on this plan. Upgrade to Advanced for branded report letterheads."
+                      ctaLabel="Go to Billing"
+                    />
+                  ) : null}
                   <div>
                     <label className={labelCls}>Print format</label>
                     <select

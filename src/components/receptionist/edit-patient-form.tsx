@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Plus, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { formatCurrency } from "@/lib/utils";
+import { UpgradeHint } from "@/components/billing/upgrade-hint";
 
 type Sex = "MALE" | "FEMALE" | "OTHER";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -110,6 +111,35 @@ function emptyField(): CreateFieldDraft {
     referenceNote: "",
     options: "",
   };
+}
+
+function isAdvancedFeatureSearch(query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+  return [
+    "xray",
+    "x-ray",
+    "x ray",
+    "mri",
+    "ct",
+    "scan",
+    "ultrasound",
+    "uss",
+    "radiology",
+    "cardio",
+    "ecg",
+    "echo",
+    "doppler",
+  ].some((token) => q.includes(token));
+}
+
+function isUpgradeRelatedMessage(message: string) {
+  const value = message.toLowerCase();
+  return (
+    value.includes("available on trial or advanced plan") ||
+    value.includes("staff limit reached") ||
+    value.includes("upgrade")
+  );
 }
 
 const inputCls =
@@ -407,7 +437,14 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
         Remove test is allowed only before result submission to MD. Added tests are routed to lab automatically.
       </div>
 
-      {error ? <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div> : null}
+      {error ? (
+        <div className="space-y-2">
+          <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>
+          {isUpgradeRelatedMessage(error) ? (
+            <UpgradeHint message="Your current plan limits this action. Upgrade to continue." ctaLabel="Open Billing" />
+          ) : null}
+        </div>
+      ) : null}
       {success ? <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">{success}</div> : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -504,6 +541,18 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
                         </span>
                       </button>
                     ))}
+                  </div>
+                ) : null}
+                {showDropdown && testSearch.length > 0 && testResults.length === 0 && !searchLoading ? (
+                  <div className="absolute z-50 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg px-3 py-3">
+                    {isAdvancedFeatureSearch(testSearch) ? (
+                      <UpgradeHint
+                        message={`No tests found for "${testSearch}". Radiology/Cardiology tests are available on Advanced plan.`}
+                        ctaLabel="Go to Billing"
+                      />
+                    ) : (
+                      <p className="text-center text-xs text-slate-400">No tests found for "{testSearch}"</p>
+                    )}
                   </div>
                 ) : null}
               </div>

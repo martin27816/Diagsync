@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ROLE_LABELS, DEPARTMENT_LABELS } from "@/lib/utils";
 import { Role, Department, Shift } from "@prisma/client";
 import { Eye, EyeOff } from "lucide-react";
+import { UpgradeHint } from "@/components/billing/upgrade-hint";
 
 const schema = z.object({
   fullName: z.string().min(2, "Full name is required"),
@@ -139,6 +140,14 @@ export function AddStaffForm() {
               </SelectContent>
             </Select>
             {errors.role && <p className={errCls}>{errors.role.message}</p>}
+            {!radiologyAllowed ? (
+              <div className="mt-1.5">
+                <UpgradeHint
+                  message="Radiographer role is not available on this plan. Upgrade to Advanced to add Radiology staff."
+                  ctaLabel="Open Billing"
+                />
+              </div>
+            ) : null}
           </div>
 
           <div>
