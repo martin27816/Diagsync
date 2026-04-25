@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDateTime } from "@/lib/utils";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 function formatResultData(data: unknown): string {
@@ -13,11 +14,28 @@ function formatResultData(data: unknown): string {
   return pairs.length === 0 ? "-" : pairs.join(" · ");
 }
 
-export default async function LabResultsPage() {
+function dayKeyToRange(dayKey: string) {
+  const [y, m, d] = dayKey.split("-").map((v) => Number(v));
+  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+  return { start, end };
+}
+
+export default async function LabResultsPage({
+  searchParams,
+}: {
+  searchParams?: { search?: string; date?: string };
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
   if (!["LAB_SCIENTIST", "SUPER_ADMIN"].includes(user.role)) redirect("/dashboard");
+
+  const search = (searchParams?.search ?? "").trim();
+  const selectedDate = /^\d{4}-\d{2}-\d{2}$/.test(searchParams?.date ?? "")
+    ? String(searchParams?.date)
+    : "";
+  const dateRange = selectedDate ? dayKeyToRange(selectedDate) : null;
 
   const ROW_LIMIT = 700;
   const labResults = await prisma.labResult.findMany({
@@ -25,6 +43,28 @@ export default async function LabResultsPage() {
       organizationId: user.organizationId,
       isSubmitted: true,
       ...(user.role === "LAB_SCIENTIST" ? { staffId: user.id } : {}),
+      ...(search
+        ? {
+            task: {
+              visit: {
+                patient: {
+                  OR: [
+                    { fullName: { contains: search, mode: "insensitive" } },
+                    { patientId: { contains: search, mode: "insensitive" } },
+                  ],
+                },
+              },
+            },
+          }
+        : {}),
+      ...(dateRange
+        ? {
+            submittedAt: {
+              gte: dateRange.start,
+              lte: dateRange.end,
+            },
+          }
+        : {}),
     },
     take: ROW_LIMIT,
     select: {
@@ -87,10 +127,7 @@ export default async function LabResultsPage() {
       existing.tests.push(testItem);
       if (startedByName) existing.startedBy.add(startedByName);
       if (submittedByName) existing.submittedBy.add(submittedByName);
-      if (
-        result.submittedAt &&
-        (!existing.submittedAt || result.submittedAt > existing.submittedAt)
-      ) {
+      if (result.submittedAt && (!existing.submittedAt || result.submittedAt > existing.submittedAt)) {
         existing.submittedAt = result.submittedAt;
       }
     } else {
@@ -118,16 +155,47 @@ export default async function LabResultsPage() {
       <div>
         <h1 className="text-base font-semibold text-slate-800">Submitted Results</h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          {rows.length} visit{rows.length !== 1 ? "s" : ""} with submitted lab results (latest{" "}
-          {ROW_LIMIT} result entries)
+          {rows.length} visit{rows.length !== 1 ? "s" : ""} with submitted lab results (latest {ROW_LIMIT} result
+          entries)
         </p>
       </div>
 
+      <form method="GET" className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3">
+        <div className="w-full sm:w-auto">
+          <label className="block text-[11px] font-medium text-slate-500 mb-1">Search patient</label>
+          <input
+            name="search"
+            defaultValue={search}
+            placeholder="Name or patient ID..."
+            className="h-8 w-full sm:w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-slate-500 mb-1">Go to date</label>
+          <input
+            type="date"
+            name="date"
+            defaultValue={selectedDate}
+            className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <button
+          type="submit"
+          className="rounded bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors"
+        >
+          Apply
+        </button>
+        <Link href="/dashboard/lab-scientist/results" className="text-xs text-slate-400 hover:text-slate-600 pb-1">
+          Reset
+        </Link>
+        <span className="w-full text-left text-xs text-slate-400 pb-1 sm:ml-auto sm:w-auto sm:text-right">
+          {rows.length} visit row{rows.length !== 1 ? "s" : ""} in view
+        </span>
+      </form>
+
       <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
         {rows.length === 0 ? (
-          <p className="px-4 py-10 text-center text-xs text-slate-400">
-            No submitted lab results yet.
-          </p>
+          <p className="px-4 py-10 text-center text-xs text-slate-400">No submitted lab results yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1080px] text-xs">
@@ -135,9 +203,7 @@ export default async function LabResultsPage() {
                 <tr className="border-b border-slate-100 bg-slate-50">
                   <th className="px-4 py-2.5 text-left font-medium text-slate-400">Patient</th>
                   <th className="px-4 py-2.5 text-left font-medium text-slate-400">Visit</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">
-                    Tests & Results
-                  </th>
+                  <th className="px-4 py-2.5 text-left font-medium text-slate-400">Tests & Results</th>
                   <th className="px-4 py-2.5 text-left font-medium text-slate-400">Audit Trail</th>
                   <th className="px-4 py-2.5 text-left font-medium text-slate-400">Submitted</th>
                 </tr>
