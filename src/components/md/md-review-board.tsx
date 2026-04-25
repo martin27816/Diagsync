@@ -67,8 +67,25 @@ const reviewStyle: Record<string, string> = {
 };
 
 function minutesAgoLabel(dateText: string) {
-  const mins = Math.max(1, Math.floor((Date.now() - new Date(dateText).getTime()) / 60000));
-  return `${mins}m ago`;
+  const deltaMs = Math.max(0, Date.now() - new Date(dateText).getTime());
+  const mins = Math.max(1, Math.floor(deltaMs / 60000));
+  if (mins < 60) return `${mins}min ago`;
+
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  if (hours < 24) {
+    if (remMins === 0) return `${hours}hr${hours > 1 ? "s" : ""} ago`;
+    return `${hours}hr${hours > 1 ? "s" : ""} ${remMins}min ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} day${days > 1 ? "s" : ""} ago`;
+
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} month${months > 1 ? "s" : ""} ago`;
+
+  const years = Math.floor(days / 365);
+  return `${years} yr${years > 1 ? "s" : ""} ago`;
 }
 
 function normalizeResultData(value: Record<string, unknown>) {
