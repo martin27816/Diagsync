@@ -60,6 +60,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
           text: `Trial ends in ${access.trialDaysLeft} day${access.trialDaysLeft === 1 ? "" : "s"}.`,
           warning: access.isTrialWarning,
         }
+      : access.status === "ACTIVE" &&
+        organization.plan !== "TRIAL" &&
+        access.subscriptionDaysLeft !== null
+      ? {
+          text: `Subscription ends in ${access.subscriptionDaysLeft} day${
+            access.subscriptionDaysLeft === 1 ? "" : "s"
+          }.`,
+          warning: access.subscriptionDaysLeft < 3,
+        }
       : null;
 
   return (
