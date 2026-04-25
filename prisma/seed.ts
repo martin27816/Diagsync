@@ -8,13 +8,12 @@ function tuneSeedDatabaseUrl(raw?: string | null) {
   if (!raw) return raw;
   try {
     const parsed = new URL(raw);
-    // Keep seed lightweight against shared Supabase pooler limits.
     if (parsed.hostname.includes("pooler.supabase.com")) {
-      if (!parsed.searchParams.get("connection_limit")) {
-        parsed.searchParams.set("connection_limit", "1");
-      }
-      if (!parsed.searchParams.get("pool_timeout")) {
-        parsed.searchParams.set("pool_timeout", "60");
+      parsed.searchParams.set("connection_limit", "1");
+      parsed.searchParams.set("pool_timeout", "120");
+      // Remove pgbouncer flag for session pooler (port 5432)
+      if (parsed.port === "5432") {
+        parsed.searchParams.delete("pgbouncer");
       }
     }
     return parsed.toString();
@@ -165,7 +164,7 @@ async function main() {
 
   const TEMPLATE_FIELD_CHUNK_SIZE = 100;
   const RADIOLOGY_DELETE_CHUNK_SIZE = 100;
-  const DB_RETRY_LIMIT = 3;
+  const DB_RETRY_LIMIT = 6;
 
   function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -203,14 +202,27 @@ async function main() {
     }));
   }
 
+  function getPrismaErrorCode(error: unknown): string | undefined {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) return error.code;
+    if (error instanceof Prisma.PrismaClientInitializationError) return error.errorCode;
+    if (error && typeof error === "object" && "code" in error && typeof (error as { code?: unknown }).code === "string") {
+      return (error as { code: string }).code;
+    }
+    return undefined;
+  }
+
+  function isRetryableDbCode(code?: string) {
+    return code === "P1001" || code === "P1002" || code === "P1008" || code === "P1017";
+  }
+
   async function runWithRetry<T>(label: string, action: () => Promise<T>): Promise<T> {
     let attempt = 0;
     while (true) {
       try {
         return await action();
       } catch (error: unknown) {
-        const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined;
-        const retryable = code === "P1017" || code === "P1001";
+        const code = getPrismaErrorCode(error);
+        const retryable = isRetryableDbCode(code);
         if (!retryable || attempt >= DB_RETRY_LIMIT) {
           throw error;
         }
@@ -221,8 +233,20 @@ async function main() {
         } catch {
           // best effort
         }
-        await delay(400 * attempt);
-        await prisma.$connect();
+        await delay(700 * attempt);
+        try {
+          await prisma.$connect();
+        } catch (connectError: unknown) {
+          const connectCode = getPrismaErrorCode(connectError);
+          const reconnectRetryable = isRetryableDbCode(connectCode);
+          if (!reconnectRetryable || attempt >= DB_RETRY_LIMIT) {
+            throw connectError;
+          }
+          console.warn(
+            `${label} reconnect failed (${connectCode}), retrying ${attempt}/${DB_RETRY_LIMIT}...`
+          );
+          continue;
+        }
       }
     }
   }
@@ -1081,35 +1105,35 @@ async function main() {
     { code: "CXR-AP", name: "Chest X-Ray (AP)" },
     { code: "CXR-DEC", name: "Chest X-Ray (Decubitus)" },
     { code: "CXR-LORD", name: "Chest X-Ray (Apical Lordotic)" },
-    { code: "SKL-APL", name: "Skull X-Ray (AP & Lateral)" },
+    { code: "SKL-APL", name: "Skull X-Ray (AP & LAT)" },
     { code: "PNS-WAT", name: "PNS X-Ray (Waters View)" },
     { code: "PNS-CAL", name: "PNS X-Ray (Caldwell View)" },
     { code: "SKL-SMV", name: "Skull X-Ray (SMV View)" },
     { code: "NAS", name: "Nasal Bones X-Ray" },
     { code: "FAC", name: "Facial Bones X-Ray" },
-    { code: "CSP-APL", name: "Cervical Spine X-Ray (AP & Lateral)" },
-    { code: "TSP-APL", name: "Thoracic Spine X-Ray (AP & Lateral)" },
-    { code: "LSP-APL", name: "Lumbosacral Spine X-Ray (AP & Lateral)" },
+    { code: "CSP-APL", name: "Cervical Spine X-Ray (AP & LAT)" },
+    { code: "TSP-APL", name: "Thoracic Spine X-Ray (AP & LAT)" },
+    { code: "LSP-APL", name: "Lumbosacral Spine X-Ray (AP & LAT)" },
     { code: "SAC", name: "Sacrum & Coccyx X-Ray" },
-    { code: "SHJ-APL", name: "Shoulder X-Ray (AP & Lateral)" },
-    { code: "CLA-APL", name: "Clavicle X-Ray (AP & Lateral)" },
-    { code: "SCA-APL", name: "Scapula X-Ray (AP & Lateral)" },
+    { code: "SHJ-APL", name: "Shoulder X-Ray (AP & LAT)" },
+    { code: "CLA-APL", name: "Clavicle X-Ray (AP & LAT)" },
+    { code: "SCA-APL", name: "Scapula X-Ray (AP & LAT)" },
     { code: "ACJ", name: "Acromioclavicular Joint X-Ray" },
-    { code: "HUM-APL", name: "Humerus X-Ray (AP & Lateral)" },
-    { code: "ELB-APL", name: "Elbow X-Ray (AP & Lateral)" },
-    { code: "FAR-APL", name: "Forearm X-Ray (AP & Lateral)" },
-    { code: "WRI-APL", name: "Wrist X-Ray (AP & Lateral)" },
-    { code: "HAN-APL", name: "Hand X-Ray (AP & Lateral)" },
-    { code: "DIG-APL", name: "Fingers X-Ray (AP & Lateral)" },
+    { code: "HUM-APL", name: "Humerus X-Ray (AP & LAT)" },
+    { code: "ELB-APL", name: "Elbow X-Ray (AP & LAT)" },
+    { code: "FAR-APL", name: "Forearm X-Ray (AP & LAT)" },
+    { code: "WRI-APL", name: "Wrist X-Ray (AP & LAT)" },
+    { code: "HAN-APL", name: "Hand X-Ray (AP & LAT)" },
+    { code: "DIG-APL", name: "Fingers X-Ray (AP & LAT)" },
     { code: "PEL-AP", name: "Pelvis X-Ray (AP)" },
-    { code: "HIP-APL", name: "Hip X-Ray (AP & Lateral)" },
-    { code: "FEM-APL", name: "Femur X-Ray (AP & Lateral)" },
-    { code: "LEG-APL", name: "Leg X-Ray (AP & Lateral)" },
-    { code: "KNE-APL", name: "Knee X-Ray (AP & Lateral)" },
-    { code: "TIB-APL", name: "Tibia & Fibula X-Ray (AP & Lateral)" },
-    { code: "ANK-APL", name: "Ankle X-Ray (AP & Lateral)" },
-    { code: "FOO-APL", name: "Foot X-Ray (AP & Lateral)" },
-    { code: "TOE-APL", name: "Toes X-Ray (AP & Lateral)" },
+    { code: "HIP-APL", name: "Hip X-Ray (AP & LAT)" },
+    { code: "FEM-APL", name: "Femur X-Ray (AP & LAT)" },
+    { code: "LEG-APL", name: "Leg X-Ray (AP & LAT)" },
+    { code: "KNE-APL", name: "Knee X-Ray (AP & LAT)" },
+    { code: "TIB-APL", name: "Tibia & Fibula X-Ray (AP & LAT)" },
+    { code: "ANK-APL", name: "Ankle X-Ray (AP & LAT)" },
+    { code: "FOO-APL", name: "Foot X-Ray (AP & LAT)" },
+    { code: "TOE-APL", name: "Toes X-Ray (AP & LAT)" },
     { code: "CAL", name: "Calcaneus X-Ray" },
     { code: "ABD-ER", name: "Abdomen X-Ray (Erect)" },
     { code: "ABD-SU", name: "Abdomen X-Ray (Supine)" },
@@ -1167,7 +1191,7 @@ async function main() {
   }
 
   const missingRadiologyTests: Array<{ code: string; name: string }> = [
-    { code: "CXR-PAL", name: "Chest X-Ray (PA & Lateral)" },
+    { code: "CXR-PAL", name: "Chest X-Ray (AP & LAT)" },
     { code: "CXR-LAT", name: "Chest X-Ray (Lateral)" },
     { code: "ORB", name: "Orbital X-Ray" },
     { code: "COB", name: "Scoliosis X-Ray (Full Spine)" },
@@ -1182,15 +1206,15 @@ async function main() {
   ];
 
   for (const test of missingRadiologyTests) {
-    const exists = await prisma.diagnosticTest.findFirst({
+    const existingByCode = await prisma.diagnosticTest.findFirst({
       where: {
         organizationId: orgId,
-        OR: [{ code: test.code }, { name: test.name }],
+        code: test.code,
       },
       select: { id: true },
     });
 
-    if (!exists) {
+    if (existingByCode) {
       const grouping = deriveRadiologyGrouping(test.name);
       await seedTest({
         code: test.code,
@@ -1206,7 +1230,34 @@ async function main() {
         isDefaultInGroup: grouping.isDefaultInGroup,
         fields: makeRadiologyWorkflowFields(),
       });
+      continue;
     }
+
+    const existingByName = await prisma.diagnosticTest.findFirst({
+      where: {
+        organizationId: orgId,
+        name: test.name,
+      },
+      select: { id: true },
+    });
+
+    if (existingByName) continue;
+
+    const grouping = deriveRadiologyGrouping(test.name);
+    await seedTest({
+      code: test.code,
+      name: test.name,
+      type: TestType.RADIOLOGY,
+      department: Department.RADIOLOGY,
+      categoryId: "cat-imaging",
+      price: 7000,
+      turnaroundMinutes: 60,
+      description: "Standardized radiology catalog test",
+      groupKey: grouping.groupKey,
+      viewType: grouping.viewType,
+      isDefaultInGroup: grouping.isDefaultInGroup,
+      fields: makeRadiologyWorkflowFields(),
+    });
   }
 
   const structuredCardiologyTests: Array<{
@@ -2832,62 +2883,70 @@ async function main() {
 
   console.log(`Migrated ${migratedLegacyCardiologyCount} legacy cardiology tests to Cardiology category`);
 
-  const sourceCatalogTests = await prisma.diagnosticTest.findMany({
-    where: { organizationId: orgId },
-    include: {
-      resultFields: {
-        orderBy: { sortOrder: "asc" },
+  const sourceCatalogTests = await runWithRetry("org-sync:sourceCatalogTests", () =>
+    prisma.diagnosticTest.findMany({
+      where: { organizationId: orgId },
+      include: {
+        resultFields: {
+          orderBy: { sortOrder: "asc" },
+        },
       },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+      orderBy: { createdAt: "asc" },
+    })
+  );
 
-  const otherOrganizations = await prisma.organization.findMany({
-    where: { id: { not: orgId } },
-    select: { id: true, name: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const otherOrganizations = await runWithRetry("org-sync:otherOrganizations", () =>
+    prisma.organization.findMany({
+      where: { id: { not: orgId } },
+      select: { id: true, name: true },
+      orderBy: { createdAt: "asc" },
+    })
+  );
 
   await runWithRetry("org-sync-keepalive", () => prisma.$executeRaw`SELECT 1`);
 
   let syncedOrganizations = 0;
   for (const targetOrg of otherOrganizations) {
     for (const test of sourceCatalogTests) {
-      const targetTest = await prisma.diagnosticTest.upsert({
-        where: {
-          organizationId_code: {
-            organizationId: targetOrg.id,
-            code: test.code,
-          },
-        },
-        update: {
-          categoryId: test.categoryId,
-          name: test.name,
-          type: test.type,
-          department: test.department,
-          price: test.price,
-          costPrice: test.costPrice,
-          turnaroundMinutes: test.turnaroundMinutes,
-          sampleType: test.sampleType,
-          description: test.description,
-          isActive: test.isActive,
-        },
-        create: {
-          organizationId: targetOrg.id,
-          categoryId: test.categoryId,
-          name: test.name,
-          code: test.code,
-          type: test.type,
-          department: test.department,
-          price: test.price,
-          costPrice: test.costPrice,
-          turnaroundMinutes: test.turnaroundMinutes,
-          sampleType: test.sampleType,
-          description: test.description,
-          isActive: test.isActive,
-        },
-        select: { id: true },
-      });
+      const targetTest = await runWithRetry(
+        `org-sync:upsert:${targetOrg.id}:${test.code}`,
+        () =>
+          prisma.diagnosticTest.upsert({
+            where: {
+              organizationId_code: {
+                organizationId: targetOrg.id,
+                code: test.code,
+              },
+            },
+            update: {
+              categoryId: test.categoryId,
+              name: test.name,
+              type: test.type,
+              department: test.department,
+              price: test.price,
+              costPrice: test.costPrice,
+              turnaroundMinutes: test.turnaroundMinutes,
+              sampleType: test.sampleType,
+              description: test.description,
+              isActive: test.isActive,
+            },
+            create: {
+              organizationId: targetOrg.id,
+              categoryId: test.categoryId,
+              name: test.name,
+              code: test.code,
+              type: test.type,
+              department: test.department,
+              price: test.price,
+              costPrice: test.costPrice,
+              turnaroundMinutes: test.turnaroundMinutes,
+              sampleType: test.sampleType,
+              description: test.description,
+              isActive: test.isActive,
+            },
+            select: { id: true },
+          })
+      );
 
       await replaceResultTemplateFields(
         targetTest.id,
@@ -2896,22 +2955,28 @@ async function main() {
       );
     }
 
-    await prisma.$executeRaw`
-      UPDATE "diagnostic_tests" AS target
-      SET "groupKey" = source."groupKey",
-          "viewType" = source."viewType",
-          "isDefaultInGroup" = source."isDefaultInGroup"
-      FROM "diagnostic_tests" AS source
-      WHERE source."organizationId" = ${orgId}
-        AND target."organizationId" = ${targetOrg.id}
-        AND source."code" = target."code"
-    `;
+    await runWithRetry(`org-sync:groupingCopy:${targetOrg.id}`, () =>
+      prisma.$executeRaw`
+        UPDATE "diagnostic_tests" AS target
+        SET "groupKey" = source."groupKey",
+            "viewType" = source."viewType",
+            "isDefaultInGroup" = source."isDefaultInGroup"
+        FROM "diagnostic_tests" AS source
+        WHERE source."organizationId" = ${orgId}
+          AND target."organizationId" = ${targetOrg.id}
+          AND source."code" = target."code"
+      `
+    );
 
     syncedOrganizations += 1;
   }
 
-  const sourceOrgTestCount = await prisma.diagnosticTest.count({ where: { organizationId: orgId } });
-  const globalTestCount = await prisma.diagnosticTest.count();
+  const sourceOrgTestCount = await runWithRetry("org-sync:sourceOrgTestCount", () =>
+    prisma.diagnosticTest.count({ where: { organizationId: orgId } })
+  );
+  const globalTestCount = await runWithRetry("org-sync:globalTestCount", () =>
+    prisma.diagnosticTest.count()
+  );
   console.log(`\n? Seeding complete!`);
   console.log(`   Source organization tests: ${sourceOrgTestCount}`);
   console.log(`   Synced catalog to organizations: ${syncedOrganizations}`);
@@ -2928,4 +2993,5 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+
 

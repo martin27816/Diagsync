@@ -593,10 +593,19 @@ export async function submitLabTask(taskId: string, actor: LabActor) {
     ...actor.auditMeta,
   });
 
-  await notifyMdResultSubmitted({
-    organizationId: actor.organizationId,
-    taskId: task.id,
-    patientName: task.visit.patient.fullName,
-    department: task.department,
-  });
+  try {
+    await notifyMdResultSubmitted({
+      organizationId: actor.organizationId,
+      taskId: task.id,
+      patientName: task.visit.patient.fullName,
+      department: task.department,
+    });
+  } catch (error) {
+    // Result submission is already committed; notification failures should not roll back user-facing workflow.
+    console.error("[LAB_SUBMIT_NOTIFY_FAILED]", {
+      taskId: task.id,
+      organizationId: actor.organizationId,
+      error,
+    });
+  }
 }

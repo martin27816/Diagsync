@@ -2338,7 +2338,6 @@ export function LabTaskBoard() {
         return;
       }
 
-      setTasks((prev) => prev.filter((row) => row.id !== task.id));
       const res = await fetch(`/api/lab/tasks/${task.id}/results`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2350,6 +2349,7 @@ export function LabTaskBoard() {
         await loadTasks();
         return;
       }
+      await loadTasks({ force: true, silent: true });
       const pending = listOfflineLabDraftItems().find((item) => item.taskId === task.id);
       if (pending) removeOfflineLabDraft(pending.id);
       setExpandedTask(null);

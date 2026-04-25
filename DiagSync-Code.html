@@ -328,6 +328,9 @@ model DiagnosticTest {
   turnaroundMinutes Int
   sampleType        String?
   description       String?
+  groupKey          String?
+  viewType          String?
+  isDefaultInGroup  Boolean               @default(false)
   isActive          Boolean               @default(true)
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
@@ -915,12 +918,32 @@ enum ConsultationStatus {
 <div class='file-block'><div class='file-header'>prisma/seed.ts</div><pre>import { config } from "dotenv";
 config();
 
-import { PrismaClient, Department, TestType, FieldType, Role } from "@prisma/client";
+import { PrismaClient, Prisma, Department, TestType, FieldType, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-//if (process.env.DIRECT_URL) {
- // process.env.DATABASE_URL = process.env.DIRECT_URL;
-//}
+function tuneSeedDatabaseUrl(raw?: string | null) {
+  if (!raw) return raw;
+  try {
+    const parsed = new URL(raw);
+    // Keep seed lightweight against shared Supabase pooler limits.
+    if (parsed.hostname.includes("pooler.supabase.com")) {
+      if (!parsed.searchParams.get("connection_limit")) {
+        parsed.searchParams.set("connection_limit", "1");
+      }
+      if (!parsed.searchParams.get("pool_timeout")) {
+        parsed.searchParams.set("pool_timeout", "60");
+      }
+    }
+    return parsed.toString();
+  } catch {
+    return raw;
+  }
+}
+
+if (process.env.DIRECT_URL) {
+  process.env.DATABASE_URL = process.env.DIRECT_URL;
+}
+process.env.DATABASE_URL = tuneSeedDatabaseUrl(process.env.DATABASE_URL) ?? process.env.DATABASE_URL;
 
 const prisma = new PrismaClient();
 
@@ -978,47 +1001,52 @@ async function bootstrapMegaAdmin() {
 }
 
 async function main() {
-  console.log("ðŸŒ± Seeding Tests...");
+  console.log("?? Seeding Tests...");
   await bootstrapMegaAdmin();
 
-  // â”€â”€ Seed Test Categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const categories = await Promise.all([
-    prisma.testCategory.upsert({
-      where: { id: "cat-haematology" },
-      update: {},
-      create: { id: "cat-haematology", name: "Haematology", description: "Blood count and related tests" },
-    }),
-    prisma.testCategory.upsert({
-      where: { id: "cat-chemistry" },
-      update: {},
-      create: { id: "cat-chemistry", name: "Clinical Chemistry", description: "Biochemistry and metabolic tests" },
-    }),
-    prisma.testCategory.upsert({
-      where: { id: "cat-micro" },
-      update: {},
-      create: { id: "cat-micro", name: "Microbiology", description: "Infection and parasitology tests" },
-    }),
-    prisma.testCategory.upsert({
-      where: { id: "cat-urine" },
-      update: {},
-      create: { id: "cat-urine", name: "Urinalysis", description: "Urine examination tests" },
-    }),
-    prisma.testCategory.upsert({
-      where: { id: "cat-imaging" },
-      update: {},
-      create: { id: "cat-imaging", name: "Imaging &amp; Radiology", description: "X-Ray, Ultrasound, CT, MRI" },
-    }),
-    prisma.testCategory.upsert({
-      where: { id: "cat-serology" },
-      update: {},
-      create: { id: "cat-serology", name: "Serology / Immunology", description: "Antibody and antigen tests" },
-    }),
-  ]);
+  // -- Seed Test Categories -----------------------------------------------------
+  const categorySeeds = [
+    { id: "cat-haematology", name: "Haematology", description: "Blood count and related tests" },
+    { id: "cat-chemistry", name: "Clinical Chemistry", description: "Biochemistry and metabolic tests" },
+    { id: "cat-micro", name: "Microbiology", description: "Infection and parasitology tests" },
+    { id: "cat-urine", name: "Urinalysis", description: "Urine examination tests" },
+    { id: "cat-imaging", name: "Imaging &amp; Radiology", description: "X-Ray, Ultrasound, CT, MRI" },
+    { id: "cat-cardiology", name: "Cardiology", description: "ECG, Echocardiography, and cardiovascular diagnostics" },
+    { id: "cat-serology", name: "Serology / Immunology", description: "Antibody and antigen tests" },
+  ] as const;
 
-  console.log(`âœ… ${categories.length} test categories created`);
+  const categories = [];
+  for (const category of categorySeeds) {
+    categories.push(
+      await prisma.testCategory.upsert({
+        where: { id: category.id },
+        update: {},
+        create: {
+          id: category.id,
+          name: category.name,
+          description: category.description,
+        },
+      })
+    );
+  }
 
-  // â”€â”€ Get Organization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  let org = await prisma.organization.findFirst();
+  console.log(`? ${categories.length} test categories created`);
+
+  // -- Get Organization ---------------------------------------------------------
+  const seedOrganizationId = (process.env.SEED_ORGANIZATION_ID ?? "").trim();
+  const seedOrganizationEmail = (process.env.SEED_ORGANIZATION_EMAIL ?? "").trim();
+
+  let org = seedOrganizationId
+    ? await prisma.organization.findUnique({ where: { id: seedOrganizationId } })
+    : seedOrganizationEmail
+    ? await prisma.organization.findUnique({ where: { email: seedOrganizationEmail } })
+    : await prisma.organization.findFirst();
+
+  if (!org &amp;&amp; (seedOrganizationId || seedOrganizationEmail)) {
+    throw new Error(
+      `Seed organization not found for ${seedOrganizationId ? `SEED_ORGANIZATION_ID=${seedOrganizationId}` : `SEED_ORGANIZATION_EMAIL=${seedOrganizationEmail}`}`
+    );
+  }
   if (!org) {
     const defaultAdminEmail = "admin@diagsync.local";
     const defaultAdminPassword = "Admin@123";
@@ -1044,15 +1072,122 @@ async function main() {
       },
     });
 
-    console.log("âœ… Created default organization and super admin");
+    console.log("? Created default organization and super admin");
     console.log(`   Admin email: ${defaultAdminEmail}`);
     console.log(`   Admin password: ${defaultAdminPassword}`);
   }
 
   const orgId = org.id;
-  console.log(`âœ… Organization found: ${org.name}`);
+  console.log(`? Organization found: ${org.name} (${org.id})`);
 
-  // â”€â”€ Helper: upsert test + fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const TEMPLATE_FIELD_CHUNK_SIZE = 100;
+  const RADIOLOGY_DELETE_CHUNK_SIZE = 100;
+  const DB_RETRY_LIMIT = 6;
+
+  function delay(ms: number) {
+    return new Promise((resolve) =&gt; setTimeout(resolve, ms));
+  }
+
+  function mapTemplateFields(
+    testId: string,
+    fields: Array&lt;{
+      label: string;
+      fieldKey: string;
+      fieldType: FieldType;
+      unit?: string | null;
+      normalMin?: Prisma.Decimal | number | null;
+      normalMax?: Prisma.Decimal | number | null;
+      normalText?: string | null;
+      referenceNote?: string | null;
+      options?: string | null;
+      isRequired?: boolean | null;
+      sortOrder: number;
+    }&gt;
+  ): Prisma.ResultTemplateFieldCreateManyInput[] {
+    return fields.map((field) =&gt; ({
+      testId,
+      label: field.label,
+      fieldKey: field.fieldKey,
+      fieldType: field.fieldType,
+      unit: field.unit ?? null,
+      normalMin: field.normalMin ?? null,
+      normalMax: field.normalMax ?? null,
+      normalText: field.normalText ?? null,
+      referenceNote: field.referenceNote ?? null,
+      options: field.options ?? null,
+      isRequired: field.isRequired ?? true,
+      sortOrder: field.sortOrder,
+    }));
+  }
+
+  function getPrismaErrorCode(error: unknown): string | undefined {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) return error.code;
+    if (error instanceof Prisma.PrismaClientInitializationError) return error.errorCode;
+    if (error &amp;&amp; typeof error === "object" &amp;&amp; "code" in error &amp;&amp; typeof (error as { code?: unknown }).code === "string") {
+      return (error as { code: string }).code;
+    }
+    return undefined;
+  }
+
+  function isRetryableDbCode(code?: string) {
+    return code === "P1001" || code === "P1002" || code === "P1008" || code === "P1017";
+  }
+
+  async function runWithRetry&lt;T&gt;(label: string, action: () =&gt; Promise&lt;T&gt;): Promise&lt;T&gt; {
+    let attempt = 0;
+    while (true) {
+      try {
+        return await action();
+      } catch (error: unknown) {
+        const code = getPrismaErrorCode(error);
+        const retryable = isRetryableDbCode(code);
+        if (!retryable || attempt &gt;= DB_RETRY_LIMIT) {
+          throw error;
+        }
+        attempt += 1;
+        console.warn(`${label} failed (${code}), retrying ${attempt}/${DB_RETRY_LIMIT}...`);
+        try {
+          await prisma.$disconnect();
+        } catch {
+          // best effort
+        }
+        await delay(700 * attempt);
+        try {
+          await prisma.$connect();
+        } catch (connectError: unknown) {
+          const connectCode = getPrismaErrorCode(connectError);
+          const reconnectRetryable = isRetryableDbCode(connectCode);
+          if (!reconnectRetryable || attempt &gt;= DB_RETRY_LIMIT) {
+            throw connectError;
+          }
+          console.warn(
+            `${label} reconnect failed (${connectCode}), retrying ${attempt}/${DB_RETRY_LIMIT}...`
+          );
+          continue;
+        }
+      }
+    }
+  }
+
+  async function replaceResultTemplateFields(
+    testId: string,
+    rows: Prisma.ResultTemplateFieldCreateManyInput[],
+    contextLabel: string
+  ) {
+    await runWithRetry(`${contextLabel}:deleteMany`, () =&gt;
+      prisma.resultTemplateField.deleteMany({ where: { testId } })
+    );
+
+    for (let i = 0; i &lt; rows.length; i += TEMPLATE_FIELD_CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + TEMPLATE_FIELD_CHUNK_SIZE);
+      if (chunk.length === 0) continue;
+      await runWithRetry(`${contextLabel}:createMany#${i / TEMPLATE_FIELD_CHUNK_SIZE + 1}`, () =&gt;
+        prisma.resultTemplateField.createMany({ data: chunk })
+      );
+    }
+  }
+
+  // -- Helper: upsert test + fields ------------------------------------------
   async function seedTest(data: {
     code: string;
     name: string;
@@ -1064,6 +1199,9 @@ async function main() {
     turnaroundMinutes: number;
     sampleType?: string;
     description?: string;
+    groupKey?: string | null;
+    viewType?: string | null;
+    isDefaultInGroup?: boolean;
     fields: SeedField[];
   }) {
     const enrichedFields = withReferenceMetadata(data.name, data.type, data.fields);
@@ -1097,23 +1235,19 @@ async function main() {
       },
     });
 
-    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
-    await prisma.resultTemplateField.createMany({
-      data: enrichedFields.map((field) =&gt; ({
-        testId: test.id,
-        label: field.label,
-        fieldKey: field.fieldKey,
-        fieldType: field.fieldType,
-        unit: field.unit,
-        normalMin: field.normalMin,
-        normalMax: field.normalMax,
-        normalText: field.normalText,
-        referenceNote: field.referenceNote,
-        options: field.options,
-        isRequired: field.isRequired ?? true,
-        sortOrder: field.sortOrder,
-      })),
-    });
+    await prisma.$executeRaw`
+      UPDATE "diagnostic_tests"
+      SET "groupKey" = ${data.groupKey ?? null},
+          "viewType" = ${data.viewType ?? null},
+          "isDefaultInGroup" = ${data.isDefaultInGroup ?? false}
+      WHERE "id" = ${test.id}
+    `;
+
+    await replaceResultTemplateFields(
+      test.id,
+      mapTemplateFields(test.id, enrichedFields),
+      `seedTest:${data.code}`
+    );
 
     return test;
   }
@@ -1261,6 +1395,63 @@ async function main() {
     ];
   }
 
+  function makeEcgWorkflowFields() {
+    return [
+      { label: "Heart Rate", fieldKey: "heartRate", fieldType: FieldType.TEXT, sortOrder: 1 },
+      { label: "Rhythm", fieldKey: "rhythm", fieldType: FieldType.TEXT, sortOrder: 2 },
+      { label: "Intervals", fieldKey: "intervals", fieldType: FieldType.TEXT, sortOrder: 3 },
+      { label: "Axis", fieldKey: "axis", fieldType: FieldType.TEXT, sortOrder: 4 },
+      { label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+      { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 6 },
+    ];
+  }
+
+  function deriveRadiologyGrouping(testName: string) {
+    const lower = testName.toLowerCase();
+    if (!lower.includes("x-ray")) {
+      return { groupKey: null, viewType: null, isDefaultInGroup: false };
+    }
+
+    let bodyPart = "";
+    if (lower.startsWith("x-ray ")) {
+      bodyPart = testName.slice("X-Ray ".length).split("(")[0].trim();
+    } else {
+      bodyPart = testName.split("X-Ray")[0].trim();
+    }
+
+    const groupKey = `${bodyPart
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")}-xray`;
+
+    const viewMatch = testName.match(/\(([^)]+)\)/);
+    const rawView = viewMatch?.[1]?.trim() ?? "";
+    const viewType = rawView.replace(/\bview\b/gi, "").trim() || null;
+
+    const defaultViews = new Set(["AP", "PA", "Lateral"]);
+    let isDefaultInGroup = viewType ? defaultViews.has(viewType) : false;
+
+    if (groupKey === "chest-xray" &amp;&amp; viewType === "AP") {
+      isDefaultInGroup = false;
+    }
+    if (viewType === "Oblique" || viewType === "Mortise" || viewType === "Skyline") {
+      isDefaultInGroup = false;
+    }
+
+    return { groupKey, viewType, isDefaultInGroup };
+  }
+
+  function canonicalizeRadiologyNameForDedup(input: string) {
+    return normalizeName(input)
+      .replace(/x[\s-]?ray/gi, "X-Ray")
+      .replace(/\(\s*(AP|PA|Lateral|Oblique)\s+View\s*\)/gi, " $1")
+      .replace(/\bLateral\b/gi, "LAT")
+      .replace(/\s*\/\s*/g, "/")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase();
+  }
+
   async function syncExistingTestFieldsByName(params: {
     name: string;
     type: TestType;
@@ -1274,30 +1465,18 @@ async function main() {
 
     const enriched = withReferenceMetadata(params.name, params.type, params.fields);
     for (const target of targets) {
-      await prisma.resultTemplateField.deleteMany({ where: { testId: target.id } });
-      await prisma.resultTemplateField.createMany({
-        data: enriched.map((field) =&gt; ({
-          testId: target.id,
-          label: field.label,
-          fieldKey: field.fieldKey,
-          fieldType: field.fieldType,
-          unit: field.unit,
-          normalMin: field.normalMin,
-          normalMax: field.normalMax,
-          normalText: field.normalText,
-          referenceNote: field.referenceNote,
-          options: field.options,
-          isRequired: field.isRequired ?? true,
-          sortOrder: field.sortOrder,
-        })),
-      });
+      await replaceResultTemplateFields(
+        target.id,
+        mapTemplateFields(target.id, enriched),
+        `syncExistingTestFieldsByName:${params.name}`
+      );
     }
     return targets.length;
   }
 
-  // â”€â”€ LAB TESTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- LAB TESTS ----------------------------------------------------------------
 
-  // 1. Full Blood Count â€” added Basophils field
+  // 1. Full Blood Count — added Basophils field
   await seedTest({
     code: "FBC",
     name: "Full Blood Count",
@@ -1364,7 +1543,7 @@ async function main() {
     ],
   });
 
-  // 3. Urinalysis â€” added Ascorbic Acid and WBC/HPF fields
+  // 3. Urinalysis — added Ascorbic Acid and WBC/HPF fields
   await seedTest({
     code: "URA",
     name: "Urinalysis",
@@ -1494,7 +1673,7 @@ async function main() {
     ],
   });
 
-  // 7. Liver Function Test â€” added A/G Ratio
+  // 7. Liver Function Test — added A/G Ratio
   await seedTest({
     code: "LFT",
     name: "Liver Function Test",
@@ -1505,9 +1684,9 @@ async function main() {
     turnaroundMinutes: 180,
     sampleType: "Serum",
     fields: [
-      { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 3, normalMax: 21, sortOrder: 1 },
-      { label: "Direct Bilirubin (Conjugated)", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 0, normalMax: 4.5, sortOrder: 2 },
-      { label: "Indirect Bilirubin", fieldKey: "indirect_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 0, normalMax: 17, sortOrder: 3 },
+      { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 3, normalMax: 21, sortOrder: 1 },
+      { label: "Direct Bilirubin (Conjugated)", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 4.5, sortOrder: 2 },
+      { label: "Indirect Bilirubin", fieldKey: "indirect_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 17, sortOrder: 3 },
       { label: "ALT (SGPT)", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 0, normalMax: 12, sortOrder: 4 },
       { label: "AST (SGOT)", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 0, normalMax: 12, sortOrder: 5 },
       { label: "ALP", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 44, normalMax: 147, sortOrder: 6 },
@@ -1519,7 +1698,7 @@ async function main() {
     ],
   });
 
-  // 8. Kidney Function Test â€” added Calcium and eGFR
+  // 8. Kidney Function Test — added Calcium and eGFR
   await seedTest({
     code: "KFT",
     name: "Kidney Function Test",
@@ -1535,13 +1714,13 @@ async function main() {
         label: "Creatinine",
         fieldKey: "creatinine",
         fieldType: FieldType.NUMBER,
-        unit: "Âµmol/L",
+        unit: "µmol/L",
         normalMin: 63,
         normalMax: 130,
-        referenceNote: "Male: 63-130 Âµmol/L; Female: 53-106 Âµmol/L; Children: 27-88 Âµmol/L.",
+        referenceNote: "Male: 63-130 µmol/L; Female: 53-106 µmol/L; Children: 27-88 µmol/L.",
         sortOrder: 2,
       },
-      { label: "eGFR", fieldKey: "egfr", fieldType: FieldType.NUMBER, unit: "mL/min/1.73mÂ²", normalMin: 90, normalMax: 120, isRequired: false, sortOrder: 3 },
+      { label: "eGFR", fieldKey: "egfr", fieldType: FieldType.NUMBER, unit: "mL/min/1.73m²", normalMin: 90, normalMax: 120, isRequired: false, sortOrder: 3 },
       {
         label: "Uric Acid",
         fieldKey: "uric_acid",
@@ -1596,7 +1775,7 @@ async function main() {
     ],
   });
 
-  // 11. Stool Analysis â€” added Scolex, Yeast Cells, Calcium Oxalate, Occult Blood
+  // 11. Stool Analysis — added Scolex, Yeast Cells, Calcium Oxalate, Occult Blood
   await seedTest({
     code: "STOOL",
     name: "Stool Analysis",
@@ -1624,7 +1803,7 @@ async function main() {
     ],
   });
 
-  // 12. Faecal Occult Blood (FOB) â€” standalone test from docx
+  // 12. Faecal Occult Blood (FOB) — standalone test from docx
   await seedTest({
     code: "FOB",
     name: "Faecal Occult Blood (FOB)",
@@ -1789,69 +1968,249 @@ async function main() {
     ],
   });
 
-  // â”€â”€ RADIOLOGY TESTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-  // 21. Chest X-Ray
-  await seedTest({
-    code: "CXR",
-    name: "Chest X-Ray",
-    type: TestType.RADIOLOGY,
-    department: Department.RADIOLOGY,
-    categoryId: "cat-imaging",
-    price: 5000,
-    turnaroundMinutes: 45,
-    description: "Plain chest radiograph (PA view)",
-    fields: makeRadiologyWorkflowFields(),
+  // -- RADIOLOGY TESTS ----------------------------------------------------------
+  const organizationsForRadiologyReset = await prisma.organization.findMany({
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
   });
+  let deletedRadiologyCount = 0;
+  let deactivatedReferencedRadiologyCount = 0;
 
-  // 22. Abdominal Ultrasound
-  await seedTest({
-    code: "AUS",
-    name: "Abdominal Ultrasound",
-    type: TestType.RADIOLOGY,
-    department: Department.RADIOLOGY,
-    categoryId: "cat-imaging",
-    price: 8000,
-    turnaroundMinutes: 60,
-    description: "Comprehensive abdominal ultrasound scan",
-    fields: makeRadiologyWorkflowFields(),
-  });
+  for (const targetOrg of organizationsForRadiologyReset) {
+    const deactivated = await runWithRetry(`radiology-reset-deactivate:${targetOrg.id}`, () =&gt;
+      prisma.diagnosticTest.updateMany({
+        where: {
+          organizationId: targetOrg.id,
+          categoryId: "cat-imaging",
+          testOrders: { some: {} },
+        },
+        data: { isActive: false },
+      })
+    );
+    deactivatedReferencedRadiologyCount += deactivated.count;
 
-  // 23. Pelvic Ultrasound
-  await seedTest({
-    code: "PUS",
-    name: "Pelvic Ultrasound",
-    type: TestType.RADIOLOGY,
-    department: Department.RADIOLOGY,
-    categoryId: "cat-imaging",
-    price: 7000,
-    turnaroundMinutes: 60,
-    fields: makeRadiologyWorkflowFields(),
-  });
+    while (true) {
+      const deletable = await runWithRetry(`radiology-reset-find-deletable:${targetOrg.id}`, () =&gt;
+        prisma.diagnosticTest.findMany({
+          where: {
+            organizationId: targetOrg.id,
+            categoryId: "cat-imaging",
+            testOrders: { none: {} },
+          },
+          select: { id: true },
+          take: RADIOLOGY_DELETE_CHUNK_SIZE,
+        })
+      );
 
-  // 24. Obstetric Ultrasound
-  await seedTest({
-    code: "OBS",
-    name: "Obstetric Ultrasound",
-    type: TestType.RADIOLOGY,
-    department: Department.RADIOLOGY,
-    categoryId: "cat-imaging",
-    price: 8000,
-    turnaroundMinutes: 60,
-    fields: makeRadiologyWorkflowFields(),
-  });
+      if (deletable.length === 0) break;
 
-  // 25. Skull X-Ray
-  await seedTest({
-    code: "SKX",
-    name: "Skull X-Ray",
-    type: TestType.RADIOLOGY,
-    department: Department.RADIOLOGY,
-    categoryId: "cat-imaging",
-    price: 5000,
-    turnaroundMinutes: 45,
-    fields: makeRadiologyWorkflowFields(),
-  });
+      const ids = deletable.map((row) =&gt; row.id);
+      const deleted = await runWithRetry(`radiology-reset-delete:${targetOrg.id}`, () =&gt;
+        prisma.diagnosticTest.deleteMany({
+          where: { id: { in: ids } },
+        })
+      );
+      deletedRadiologyCount += deleted.count;
+    }
+  }
+
+  console.log(
+    `Radiology reset: deleted ${deletedRadiologyCount} unreferenced tests and deactivated ${deactivatedReferencedRadiologyCount} referenced tests`
+  );
+
+  const radiologyTests: Array&lt;{ code: string; name: string }&gt; = [
+    { code: "CXR-PA", name: "Chest X-Ray (PA)" },
+    { code: "CXR-AP", name: "Chest X-Ray (AP)" },
+    { code: "CXR-DEC", name: "Chest X-Ray (Decubitus)" },
+    { code: "CXR-LORD", name: "Chest X-Ray (Apical Lordotic)" },
+    { code: "SKL-APL", name: "Skull X-Ray (AP &amp; LAT)" },
+    { code: "PNS-WAT", name: "PNS X-Ray (Waters View)" },
+    { code: "PNS-CAL", name: "PNS X-Ray (Caldwell View)" },
+    { code: "SKL-SMV", name: "Skull X-Ray (SMV View)" },
+    { code: "NAS", name: "Nasal Bones X-Ray" },
+    { code: "FAC", name: "Facial Bones X-Ray" },
+    { code: "CSP-APL", name: "Cervical Spine X-Ray (AP &amp; LAT)" },
+    { code: "TSP-APL", name: "Thoracic Spine X-Ray (AP &amp; LAT)" },
+    { code: "LSP-APL", name: "Lumbosacral Spine X-Ray (AP &amp; LAT)" },
+    { code: "SAC", name: "Sacrum &amp; Coccyx X-Ray" },
+    { code: "SHJ-APL", name: "Shoulder X-Ray (AP &amp; LAT)" },
+    { code: "CLA-APL", name: "Clavicle X-Ray (AP &amp; LAT)" },
+    { code: "SCA-APL", name: "Scapula X-Ray (AP &amp; LAT)" },
+    { code: "ACJ", name: "Acromioclavicular Joint X-Ray" },
+    { code: "HUM-APL", name: "Humerus X-Ray (AP &amp; LAT)" },
+    { code: "ELB-APL", name: "Elbow X-Ray (AP &amp; LAT)" },
+    { code: "FAR-APL", name: "Forearm X-Ray (AP &amp; LAT)" },
+    { code: "WRI-APL", name: "Wrist X-Ray (AP &amp; LAT)" },
+    { code: "HAN-APL", name: "Hand X-Ray (AP &amp; LAT)" },
+    { code: "DIG-APL", name: "Fingers X-Ray (AP &amp; LAT)" },
+    { code: "PEL-AP", name: "Pelvis X-Ray (AP)" },
+    { code: "HIP-APL", name: "Hip X-Ray (AP &amp; LAT)" },
+    { code: "FEM-APL", name: "Femur X-Ray (AP &amp; LAT)" },
+    { code: "LEG-APL", name: "Leg X-Ray (AP &amp; LAT)" },
+    { code: "KNE-APL", name: "Knee X-Ray (AP &amp; LAT)" },
+    { code: "TIB-APL", name: "Tibia &amp; Fibula X-Ray (AP &amp; LAT)" },
+    { code: "ANK-APL", name: "Ankle X-Ray (AP &amp; LAT)" },
+    { code: "FOO-APL", name: "Foot X-Ray (AP &amp; LAT)" },
+    { code: "TOE-APL", name: "Toes X-Ray (AP &amp; LAT)" },
+    { code: "CAL", name: "Calcaneus X-Ray" },
+    { code: "ABD-ER", name: "Abdomen X-Ray (Erect)" },
+    { code: "ABD-SU", name: "Abdomen X-Ray (Supine)" },
+    { code: "KUB", name: "KUB X-Ray" },
+    { code: "BAS", name: "Barium Swallow" },
+    { code: "BAM", name: "Barium Meal" },
+    { code: "BAF", name: "Barium Follow-Through" },
+    { code: "BAE", name: "Barium Enema" },
+    { code: "IVU", name: "Intravenous Urography (IVU)" },
+    { code: "HSG", name: "Hysterosalpingography (HSG)" },
+    { code: "MCU", name: "Micturating Cystourethrogram (MCU)" },
+    { code: "SKS", name: "Skeletal Survey" },
+    { code: "BBG", name: "Babygram" },
+    { code: "STN", name: "Soft Tissue Neck X-Ray" },
+    { code: "FBL", name: "Foreign Body Localization" },
+    { code: "BAG", name: "Bone Age X-Ray" },
+    { code: "STR", name: "Stress View X-Ray" },
+    { code: "USS-ABD", name: "Abdominal Ultrasound" },
+    { code: "USS-PEL", name: "Pelvic Ultrasound" },
+    { code: "USS-OBS", name: "Obstetric Ultrasound" },
+    { code: "USS-BRS", name: "Breast Ultrasound" },
+    { code: "USS-THY", name: "Thyroid Ultrasound" },
+    { code: "USS-SC", name: "Scrotal Ultrasound" },
+    { code: "USS-PR", name: "Prostate Ultrasound" },
+    { code: "USS-REN", name: "Renal Ultrasound" },
+    { code: "USS-DOP", name: "Doppler Ultrasound" },
+    { code: "CT-BR", name: "CT Brain" },
+    { code: "CT-CH", name: "CT Chest" },
+    { code: "CT-ABD", name: "CT Abdomen" },
+    { code: "CT-PEL", name: "CT Pelvis" },
+    { code: "CT-SP", name: "CT Spine" },
+    { code: "CT-ANG", name: "CT Angiography" },
+    { code: "MRI-BR", name: "MRI Brain" },
+    { code: "MRI-SP", name: "MRI Spine" },
+    { code: "MRI-ABD", name: "MRI Abdomen" },
+    { code: "MRI-PEL", name: "MRI Pelvis" },
+  ];
+
+  for (const test of radiologyTests) {
+    const grouping = deriveRadiologyGrouping(test.name);
+    await seedTest({
+      code: test.code,
+      name: test.name,
+      type: TestType.RADIOLOGY,
+      department: Department.RADIOLOGY,
+      categoryId: "cat-imaging",
+      price: 7000,
+      turnaroundMinutes: 60,
+      description: "Standardized radiology catalog test",
+      groupKey: grouping.groupKey,
+      viewType: grouping.viewType,
+      isDefaultInGroup: grouping.isDefaultInGroup,
+      fields: makeRadiologyWorkflowFields(),
+    });
+  }
+
+  const missingRadiologyTests: Array&lt;{ code: string; name: string }&gt; = [
+    { code: "CXR-PAL", name: "Chest X-Ray (AP &amp; LAT)" },
+    { code: "CXR-LAT", name: "Chest X-Ray (Lateral)" },
+    { code: "ORB", name: "Orbital X-Ray" },
+    { code: "COB", name: "Scoliosis X-Ray (Full Spine)" },
+    { code: "SHS", name: "Shoulder Stress View X-Ray" },
+    { code: "KNE-SKY", name: "Knee X-Ray (Skyline View)" },
+    { code: "USS-NT", name: "Neck Ultrasound" },
+    { code: "USS-OB-ANOM", name: "Obstetric Ultrasound (Anomaly Scan)" },
+    { code: "CT-SIN", name: "CT Sinuses" },
+    { code: "CT-ORB", name: "CT Orbit" },
+    { code: "MRI-KNE", name: "MRI Knee" },
+    { code: "MRI-SHO", name: "MRI Shoulder" },
+  ];
+
+  for (const test of missingRadiologyTests) {
+    const existingByCode = await prisma.diagnosticTest.findFirst({
+      where: {
+        organizationId: orgId,
+        code: test.code,
+      },
+      select: { id: true },
+    });
+
+    if (existingByCode) {
+      const grouping = deriveRadiologyGrouping(test.name);
+      await seedTest({
+        code: test.code,
+        name: test.name,
+        type: TestType.RADIOLOGY,
+        department: Department.RADIOLOGY,
+        categoryId: "cat-imaging",
+        price: 7000,
+        turnaroundMinutes: 60,
+        description: "Standardized radiology catalog test",
+        groupKey: grouping.groupKey,
+        viewType: grouping.viewType,
+        isDefaultInGroup: grouping.isDefaultInGroup,
+        fields: makeRadiologyWorkflowFields(),
+      });
+      continue;
+    }
+
+    const existingByName = await prisma.diagnosticTest.findFirst({
+      where: {
+        organizationId: orgId,
+        name: test.name,
+      },
+      select: { id: true },
+    });
+
+    if (existingByName) continue;
+
+    const grouping = deriveRadiologyGrouping(test.name);
+    await seedTest({
+      code: test.code,
+      name: test.name,
+      type: TestType.RADIOLOGY,
+      department: Department.RADIOLOGY,
+      categoryId: "cat-imaging",
+      price: 7000,
+      turnaroundMinutes: 60,
+      description: "Standardized radiology catalog test",
+      groupKey: grouping.groupKey,
+      viewType: grouping.viewType,
+      isDefaultInGroup: grouping.isDefaultInGroup,
+      fields: makeRadiologyWorkflowFields(),
+    });
+  }
+
+  const structuredCardiologyTests: Array&lt;{
+    code: string;
+    name: string;
+    price: number;
+    turnaroundMinutes: number;
+    template: "ECG" | "STANDARD";
+  }&gt; = [
+    { code: "ECG-R12", name: "Resting ECG (12-lead)", price: 8000, turnaroundMinutes: 45, template: "ECG" },
+    { code: "ECG-STR", name: "Stress ECG", price: 12000, turnaroundMinutes: 60, template: "ECG" },
+    { code: "ECG-HOL", name: "Ambulatory ECG (Holter)", price: 18000, turnaroundMinutes: 90, template: "ECG" },
+    { code: "ECHO-2D", name: "2D Echocardiography", price: 18000, turnaroundMinutes: 60, template: "STANDARD" },
+    { code: "ECHO-DOP", name: "Doppler Echocardiography", price: 22000, turnaroundMinutes: 60, template: "STANDARD" },
+    { code: "ECHO-STR", name: "Stress Echocardiography", price: 25000, turnaroundMinutes: 75, template: "STANDARD" },
+    { code: "ECHO-TEE", name: "Transesophageal Echo (TEE)", price: 35000, turnaroundMinutes: 90, template: "STANDARD" },
+    { code: "CRD-CAR", name: "Carotid Doppler", price: 18000, turnaroundMinutes: 60, template: "STANDARD" },
+    { code: "CRD-PER", name: "Peripheral Doppler", price: 18000, turnaroundMinutes: 60, template: "STANDARD" },
+    { code: "CRD-VEN", name: "Venous Doppler", price: 18000, turnaroundMinutes: 60, template: "STANDARD" },
+    { code: "CRD-ART", name: "Arterial Doppler", price: 18000, turnaroundMinutes: 60, template: "STANDARD" },
+  ];
+
+  for (const test of structuredCardiologyTests) {
+    await seedTest({
+      code: test.code,
+      name: test.name,
+      type: TestType.RADIOLOGY,
+      department: Department.RADIOLOGY,
+      categoryId: "cat-cardiology",
+      price: test.price,
+      turnaroundMinutes: test.turnaroundMinutes,
+      description: "Structured cardiology catalog test",
+      fields: test.template === "ECG" ? makeEcgWorkflowFields() : makeRadiologyWorkflowFields(),
+    });
+  }
 
   // 25b. Force-sync PSA templates for existing databases (even when test names already exist)
   const psaPanelFields: SeedField[] = [
@@ -1960,23 +2319,11 @@ async function main() {
       : psaPanelFields;
 
     const enriched = withReferenceMetadata(test.name, TestType.LAB, fields);
-    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
-    await prisma.resultTemplateField.createMany({
-      data: enriched.map((field) =&gt; ({
-        testId: test.id,
-        label: field.label,
-        fieldKey: field.fieldKey,
-        fieldType: field.fieldType,
-        unit: field.unit,
-        normalMin: field.normalMin,
-        normalMax: field.normalMax,
-        normalText: field.normalText,
-        referenceNote: field.referenceNote,
-        options: field.options,
-        isRequired: field.isRequired ?? true,
-        sortOrder: field.sortOrder,
-      })),
-    });
+    await replaceResultTemplateFields(
+      test.id,
+      mapTemplateFields(test.id, enriched),
+      `legacyPsaSync:${test.name}`
+    );
   }
 
   // 26. Bulk catalog expansion (Lab + Radiology master list)
@@ -1992,7 +2339,7 @@ async function main() {
       create: { id: "cat-cardiac", name: "Cardiac Markers", description: "Cardiac and heart-related markers" },
     }),
   ]);
-  console.log(`âœ… ${extraCategories.length} additional categories ready`);
+  console.log(`? ${extraCategories.length} additional categories ready`);
 
   const rawLabTests = [
     "ALKALINE PHOSPHATASE (ALP)",
@@ -2196,13 +2543,11 @@ async function main() {
     "TRANSRECTAL/PROSTATE SCAN",
     "FOLLICULOMETRY",
     "SONO-HSG",
-    "ECHOCARDIOGRAM",
     "PROSTATE BIOPSY (ULTRASOUND GUIDED)",
     "LIVER BIOPSY (ULTRASOUND GUIDED)",
     "KIDNEY BIOPSY (ULTRASOUND GUIDED)",
     "BREAST BIOPSY (ULTRASOUND GUIDED)",
     "THYROID BIOPSY (ULTRASOUND GUIDED)",
-    "DOPPLER STUDY",
     "DIGITAL X-RAY SKULL",
     "DIGITAL X-RAY MANDIBLE",
     "DIGITAL X-RAY TMJ",
@@ -2253,9 +2598,6 @@ async function main() {
     "UPPER GI ENDOSCOPY",
     "SIGMOIDOSCOPY/COLONOSCOPY",
     "PROCTOSCOPY",
-    "REST ECG",
-    "STRESS ECG",
-    "AMBULATORY ECG (HOLTER)",
     "CT THORAX ROUTINE",
     "CT THORAX HR",
     "CT LUNG LOW DOSE",
@@ -2405,11 +2747,11 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "TOTAL BILIRUBIN": [
-    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 3, normalMax: 21, sortOrder: 1 },
+    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 3, normalMax: 21, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "DIRECT BILIRUBIN": [
-    { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 0, normalMax: 4.5, sortOrder: 1 },
+    { label: "Direct Bilirubin", fieldKey: "direct_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 0, normalMax: 4.5, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "LDL-C": [
@@ -2444,7 +2786,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "THYROXINE (T4 TOTAL)": [
-    { label: "Total T4", fieldKey: "total_t4", fieldType: FieldType.NUMBER, unit: "Âµg/dL", normalMin: 5.0, normalMax: 12.0, sortOrder: 1 },
+    { label: "Total T4", fieldKey: "total_t4", fieldType: FieldType.NUMBER, unit: "µg/dL", normalMin: 5.0, normalMax: 12.0, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "TRIIODOTHYRONINE (T3 TOTAL)": [
@@ -2487,8 +2829,8 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "CREATININE": [
-    { label: "Creatinine (SI)", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 63, normalMax: 130, referenceNote: "Conventional equivalent range: 0.7-1.5 mg/dL.", sortOrder: 1 },
-    { label: "Creatinine (Conventional)", fieldKey: "creatinine_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 0.7, normalMax: 1.5, isRequired: false, referenceNote: "SI equivalent range: 63-130 Âµmol/L.", sortOrder: 2 },
+    { label: "Creatinine (SI)", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 63, normalMax: 130, referenceNote: "Conventional equivalent range: 0.7-1.5 mg/dL.", sortOrder: 1 },
+    { label: "Creatinine (Conventional)", fieldKey: "creatinine_mg_dl", fieldType: FieldType.NUMBER, unit: "mg/dL", normalMin: 0.7, normalMax: 1.5, isRequired: false, referenceNote: "SI equivalent range: 63-130 µmol/L.", sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "BLOOD GASES": [
@@ -2566,10 +2908,10 @@ async function main() {
     { label: "ALP", fieldKey: "alp", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 40, normalMax: 129, sortOrder: 9 },
     { label: "ALT", fieldKey: "alt", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 0, normalMax: 12, sortOrder: 10 },
     { label: "AST", fieldKey: "ast", fieldType: FieldType.NUMBER, unit: "U/L", normalMin: 0, normalMax: 12, sortOrder: 11 },
-    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 3, normalMax: 21, sortOrder: 12 },
+    { label: "Total Bilirubin", fieldKey: "total_bilirubin", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 3, normalMax: 21, sortOrder: 12 },
     { label: "Urea", fieldKey: "urea", fieldType: FieldType.NUMBER, unit: "mmol/L", normalMin: 1.6, normalMax: 8.3, sortOrder: 13 },
-    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 63, normalMax: 130, sortOrder: 14 },
-    { label: "eGFR", fieldKey: "egfr", fieldType: FieldType.NUMBER, unit: "mL/min/1.73mÂ²", normalMin: 90, normalMax: 120, isRequired: false, sortOrder: 15 },
+    { label: "Creatinine", fieldKey: "creatinine", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 63, normalMax: 130, sortOrder: 14 },
+    { label: "eGFR", fieldKey: "egfr", fieldType: FieldType.NUMBER, unit: "mL/min/1.73m²", normalMin: 90, normalMax: 120, isRequired: false, sortOrder: 15 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 16 },
   ],
   "PROTEIN ELECTROPHORESIS": [
@@ -2608,7 +2950,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CD4 T CELL COUNT": [
-    { label: "CD4 Count", fieldKey: "cd4_count", fieldType: FieldType.NUMBER, unit: "cells/ÂµL", normalMin: 500, normalMax: 1500, sortOrder: 1 },
+    { label: "CD4 Count", fieldKey: "cd4_count", fieldType: FieldType.NUMBER, unit: "cells/µL", normalMin: 500, normalMax: 1500, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CD4 T CELL PERCENTAGE": [
@@ -2616,7 +2958,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "CD8 T CELL COUNT": [
-    { label: "CD8 Count", fieldKey: "cd8_count", fieldType: FieldType.NUMBER, unit: "cells/ÂµL", normalMin: 150, normalMax: 1000, sortOrder: 1 },
+    { label: "CD8 Count", fieldKey: "cd8_count", fieldType: FieldType.NUMBER, unit: "cells/µL", normalMin: 150, normalMax: 1000, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "HIV 1 &amp; II CONFIRMATORY TEST": [
@@ -2686,11 +3028,11 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "SERUM IRON": [
-    { label: "Serum Iron", fieldKey: "serum_iron", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 9, normalMax: 30, sortOrder: 1 },
+    { label: "Serum Iron", fieldKey: "serum_iron", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 9, normalMax: 30, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "TOTAL IRON BINDING CAPACITY (TIBC)": [
-    { label: "TIBC", fieldKey: "tibc", fieldType: FieldType.NUMBER, unit: "Âµmol/L", normalMin: 45, normalMax: 72, sortOrder: 1 },
+    { label: "TIBC", fieldKey: "tibc", fieldType: FieldType.NUMBER, unit: "µmol/L", normalMin: 45, normalMax: 72, sortOrder: 1 },
     { label: "Transferrin Saturation", fieldKey: "transferrin_sat", fieldType: FieldType.NUMBER, unit: "%", normalMin: 20, normalMax: 55, isRequired: false, sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
@@ -2699,7 +3041,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "DEHYDROEPIANDROSTERONE SULFATE (DHEA-S)": [
-    { label: "DHEA-S", fieldKey: "dhea_s", fieldType: FieldType.NUMBER, unit: "Âµg/dL", sortOrder: 1 },
+    { label: "DHEA-S", fieldKey: "dhea_s", fieldType: FieldType.NUMBER, unit: "µg/dL", sortOrder: 1 },
     { label: "Sex / Age Group", fieldKey: "sex_age_group", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
@@ -2750,7 +3092,7 @@ async function main() {
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "TROPONIN T": [
-    { label: "Troponin T", fieldKey: "troponin_t", fieldType: FieldType.NUMBER, unit: "Âµg/L", normalMin: 0, normalMax: 0.1, sortOrder: 1 },
+    { label: "Troponin T", fieldKey: "troponin_t", fieldType: FieldType.NUMBER, unit: "µg/L", normalMin: 0, normalMax: 0.1, sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
   "TROPONIN I": [
@@ -2806,7 +3148,7 @@ async function main() {
     { label: "HBcAb", fieldKey: "hbcab", fieldType: FieldType.DROPDOWN, options: "Reactive,Non-Reactive", sortOrder: 1 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 2 },
   ],
-  // Semen Analysis â€” expanded with all docx fields
+  // Semen Analysis — expanded with all docx fields
   "SEMEN ANALYSIS": [
     { label: "Time Produced", fieldKey: "time_produced", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 1 },
     { label: "Time Examined", fieldKey: "time_examined", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
@@ -2815,7 +3157,7 @@ async function main() {
     { label: "pH", fieldKey: "ph", fieldType: FieldType.NUMBER, unit: "pH", normalMin: 7.2, normalMax: 8.0, sortOrder: 5 },
     { label: "Appearance", fieldKey: "appearance", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 6 },
     { label: "Liquefaction Time", fieldKey: "liquefaction_time", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 7 },
-    { label: "Sperm Count (Total)", fieldKey: "sperm_count", fieldType: FieldType.NUMBER, unit: "Ã—10â¶", normalMin: 39, isRequired: false, sortOrder: 8 },
+    { label: "Sperm Count (Total)", fieldKey: "sperm_count", fieldType: FieldType.NUMBER, unit: "×106", normalMin: 39, isRequired: false, sortOrder: 8 },
     { label: "Sperm Concentration", fieldKey: "sperm_concentration", fieldType: FieldType.NUMBER, unit: "million/mL", normalMin: 15, sortOrder: 9 },
     { label: "Progressively Motile", fieldKey: "progressive_motility", fieldType: FieldType.NUMBER, unit: "%", normalMin: 32, normalMax: 100, sortOrder: 10 },
     { label: "Non-Progressively Motile", fieldKey: "non_progressive_motility", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 11 },
@@ -2885,7 +3227,7 @@ async function main() {
   ],
   "RETICULOCYTE COUNT": [
     { label: "Reticulocyte Count", fieldKey: "reticulocyte", fieldType: FieldType.NUMBER, unit: "%", normalMin: 0.5, normalMax: 2.5, sortOrder: 1 },
-    { label: "Absolute Reticulocyte Count", fieldKey: "abs_reticulocyte", fieldType: FieldType.NUMBER, unit: "Ã—10â¹/L", normalMin: 25, normalMax: 100, isRequired: false, sortOrder: 2 },
+    { label: "Absolute Reticulocyte Count", fieldKey: "abs_reticulocyte", fieldType: FieldType.NUMBER, unit: "×10?/L", normalMin: 25, normalMax: 100, isRequired: false, sortOrder: 2 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
   ],
   "PERIPHERAL BLOOD FILM": [
@@ -3134,7 +3476,7 @@ async function main() {
     { label: "Amphetamines", fieldKey: "amphetamines", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 4 },
     { label: "Benzodiazepines", fieldKey: "benzodiazepines", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 5 },
     { label: "Methamphetamine", fieldKey: "methamphetamine", fieldType: FieldType.DROPDOWN, options: "Positive,Negative", isRequired: false, sortOrder: 6 },
-    { label: "Overall Interpretation", fieldKey: "overall", fieldType: FieldType.DROPDOWN, options: "Negative for all substances,Positive â€” see details", sortOrder: 7 },
+    { label: "Overall Interpretation", fieldKey: "overall", fieldType: FieldType.DROPDOWN, options: "Negative for all substances,Positive — see details", sortOrder: 7 },
     { label: "Comments", fieldKey: "comments", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
   ],
 };
@@ -3330,9 +3672,7 @@ async function main() {
     ];
   }
 
-  function buildRadiologyMainFields(testName: string) {
-    const specific = RADIOLOGY_FIELD_LIBRARY[testName];
-    if (specific) return specific;
+  function buildRadiologyMainFields(_testName: string) {
     return makeRadiologyWorkflowFields();
   }
 
@@ -3350,24 +3690,45 @@ async function main() {
     if (!mapped) continue;
 
     const enriched = withReferenceMetadata(key, TestType.LAB, mapped);
-    await prisma.resultTemplateField.deleteMany({ where: { testId: test.id } });
-    await prisma.resultTemplateField.createMany({
-      data: enriched.map((field) =&gt; ({
-        testId: test.id,
-        label: field.label,
-        fieldKey: field.fieldKey,
-        fieldType: field.fieldType,
-        unit: field.unit,
-        normalMin: field.normalMin,
-        normalMax: field.normalMax,
-        normalText: field.normalText,
-        referenceNote: field.referenceNote,
-        options: field.options,
-        isRequired: field.isRequired ?? true,
-        sortOrder: field.sortOrder,
-      })),
-    });
+    await replaceResultTemplateFields(
+      test.id,
+      mapTemplateFields(test.id, enriched),
+      `existingLabTemplateSync:${test.name}`
+    );
     syncedLabTemplateCount += 1;
+  }
+
+  const legacyCardiologyTemplateLibrary: Record&lt;string, SeedField[]&gt; = {
+    "REST ECG": makeEcgWorkflowFields(),
+    "STRESS ECG": makeEcgWorkflowFields(),
+    "AMBULATORY ECG (HOLTER)": makeEcgWorkflowFields(),
+    ECHOCARDIOGRAM: makeRadiologyWorkflowFields(),
+    "DOPPLER STUDY": makeRadiologyWorkflowFields(),
+  };
+  const legacyCardiologyLookup = new Map(
+    Object.entries(legacyCardiologyTemplateLibrary).map(([name, fields]) =&gt; [normalizeName(name).toUpperCase(), fields])
+  );
+  const existingRadiologyForCardiologySync = await prisma.diagnosticTest.findMany({
+    where: { organizationId: orgId, type: TestType.RADIOLOGY },
+    select: { id: true, name: true },
+  });
+  let migratedLegacyCardiologyCount = 0;
+  for (const test of existingRadiologyForCardiologySync) {
+    const normalized = normalizeName(test.name).toUpperCase();
+    const fields = legacyCardiologyLookup.get(normalized);
+    if (!fields) continue;
+
+    const enriched = withReferenceMetadata(test.name, TestType.RADIOLOGY, fields);
+    await prisma.diagnosticTest.update({
+      where: { id: test.id },
+      data: { categoryId: "cat-cardiology", department: Department.RADIOLOGY, isActive: true },
+    });
+    await replaceResultTemplateFields(
+      test.id,
+      mapTemplateFields(test.id, enriched),
+      `legacyCardiologyMigration:${test.name}`
+    );
+    migratedLegacyCardiologyCount += 1;
   }
 
 
@@ -3393,9 +3754,7 @@ async function main() {
     new Set(rawLabTests.map(normalizeName).filter(Boolean))
   ).filter((name) =&gt; !existingLabNames.has(name.toUpperCase()));
 
-  const dedupedRadiology = Array.from(
-    new Set(rawRadiologyTests.map(normalizeName).filter(Boolean))
-  ).filter((name) =&gt; !existingRadiologyNames.has(name.toUpperCase()));
+  const dedupedRadiology: string[] = [];
 
   for (let i = 0; i &lt; dedupedLab.length; i += 1) {
     const testName = dedupedLab[i];
@@ -3436,13 +3795,110 @@ async function main() {
     existingRadiologyNames.add(normalized);
   }
 
-  console.log(`âœ… Added/updated ${dedupedLab.length} expanded lab tests`);
-  console.log(`âœ… Added/updated ${dedupedRadiology.length} expanded radiology tests`);
-  console.log(`âœ… Synced ${syncedLabTemplateCount} existing lab templates by name`);
+  console.log(`? Added/updated ${dedupedLab.length} expanded lab tests`);
+  console.log(`? Added/updated ${dedupedRadiology.length} expanded radiology tests`);
+  console.log(`? Synced ${syncedLabTemplateCount} existing lab templates by name`);
 
-  const testCount = await prisma.diagnosticTest.count({ where: { organizationId: orgId } });
-  console.log(`\nâœ… Seeding complete!`);
-  console.log(`   Tests in database: ${testCount}`);
+  console.log(`Migrated ${migratedLegacyCardiologyCount} legacy cardiology tests to Cardiology category`);
+
+  const sourceCatalogTests = await runWithRetry("org-sync:sourceCatalogTests", () =&gt;
+    prisma.diagnosticTest.findMany({
+      where: { organizationId: orgId },
+      include: {
+        resultFields: {
+          orderBy: { sortOrder: "asc" },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    })
+  );
+
+  const otherOrganizations = await runWithRetry("org-sync:otherOrganizations", () =&gt;
+    prisma.organization.findMany({
+      where: { id: { not: orgId } },
+      select: { id: true, name: true },
+      orderBy: { createdAt: "asc" },
+    })
+  );
+
+  await runWithRetry("org-sync-keepalive", () =&gt; prisma.$executeRaw`SELECT 1`);
+
+  let syncedOrganizations = 0;
+  for (const targetOrg of otherOrganizations) {
+    for (const test of sourceCatalogTests) {
+      const targetTest = await runWithRetry(
+        `org-sync:upsert:${targetOrg.id}:${test.code}`,
+        () =&gt;
+          prisma.diagnosticTest.upsert({
+            where: {
+              organizationId_code: {
+                organizationId: targetOrg.id,
+                code: test.code,
+              },
+            },
+            update: {
+              categoryId: test.categoryId,
+              name: test.name,
+              type: test.type,
+              department: test.department,
+              price: test.price,
+              costPrice: test.costPrice,
+              turnaroundMinutes: test.turnaroundMinutes,
+              sampleType: test.sampleType,
+              description: test.description,
+              isActive: test.isActive,
+            },
+            create: {
+              organizationId: targetOrg.id,
+              categoryId: test.categoryId,
+              name: test.name,
+              code: test.code,
+              type: test.type,
+              department: test.department,
+              price: test.price,
+              costPrice: test.costPrice,
+              turnaroundMinutes: test.turnaroundMinutes,
+              sampleType: test.sampleType,
+              description: test.description,
+              isActive: test.isActive,
+            },
+            select: { id: true },
+          })
+      );
+
+      await replaceResultTemplateFields(
+        targetTest.id,
+        mapTemplateFields(targetTest.id, test.resultFields),
+        `orgSync:${targetOrg.id}:${test.code}`
+      );
+    }
+
+    await runWithRetry(`org-sync:groupingCopy:${targetOrg.id}`, () =&gt;
+      prisma.$executeRaw`
+        UPDATE "diagnostic_tests" AS target
+        SET "groupKey" = source."groupKey",
+            "viewType" = source."viewType",
+            "isDefaultInGroup" = source."isDefaultInGroup"
+        FROM "diagnostic_tests" AS source
+        WHERE source."organizationId" = ${orgId}
+          AND target."organizationId" = ${targetOrg.id}
+          AND source."code" = target."code"
+      `
+    );
+
+    syncedOrganizations += 1;
+  }
+
+  const sourceOrgTestCount = await runWithRetry("org-sync:sourceOrgTestCount", () =&gt;
+    prisma.diagnosticTest.count({ where: { organizationId: orgId } })
+  );
+  const globalTestCount = await runWithRetry("org-sync:globalTestCount", () =&gt;
+    prisma.diagnosticTest.count()
+  );
+  console.log(`\n? Seeding complete!`);
+  console.log(`   Source organization tests: ${sourceOrgTestCount}`);
+  console.log(`   Synced catalog to organizations: ${syncedOrganizations}`);
+  console.log(`   Tests in database (all organizations): ${globalTestCount}`);
   console.log(`   Categories: ${categories.length}`);
 }
 
@@ -3455,6 +3911,8 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+
+
 </pre></div>
 <div class='file-block'><div class='file-header'>public/sw.js</div><pre>self.addEventListener("install", (event) =&gt; {
   self.skipWaiting();
@@ -6416,6 +6874,7 @@ import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { formatDateTime, formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/index";
+import { formatPatientAge } from "@/lib/patient-age";
 
 export default async function ReceptionistDashboard() {
   const session = await auth();
@@ -6577,7 +7036,7 @@ export default async function ReceptionistDashboard() {
                         &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{patient.fullName}&lt;/td&gt;
                         &lt;td className="px-4 py-2.5 text-slate-400 font-mono"&gt;{patient.patientId}&lt;/td&gt;
                         &lt;td className="px-4 py-2.5 text-slate-500"&gt;
-                          {patient.age}y Â· {patient.sex}
+                          {formatPatientAge({ age: patient.age, dateOfBirth: patient.dateOfBirth })} Â· {patient.sex}
                         &lt;/td&gt;
                         &lt;td className="px-4 py-2.5"&gt;
                           &lt;div className="flex flex-wrap gap-1"&gt;
@@ -6638,7 +7097,7 @@ export default async function ReceptionistDashboard() {
                       &lt;div&gt;
                         &lt;p className="text-xs font-medium text-slate-800"&gt;{patient.fullName}&lt;/p&gt;
                         &lt;p className="text-[11px] font-mono text-slate-400"&gt;
-                          {patient.patientId} Â· {patient.age}y Â· {patient.sex}
+                          {patient.patientId} Â· {formatPatientAge({ age: patient.age, dateOfBirth: patient.dateOfBirth })} Â· {patient.sex}
                         &lt;/p&gt;
                       &lt;/div&gt;
                       &lt;p className="text-[11px] text-slate-400 whitespace-nowrap shrink-0"&gt;
@@ -6692,6 +7151,7 @@ import { UserPlus } from "lucide-react";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { DayRolloverRefresh } from "@/components/receptionist/day-rollover-refresh";
 import { DeletePatientButton } from "@/components/receptionist/delete-patient-button";
+import { formatPatientAge } from "@/lib/patient-age";
 
 type DaySummary = {
   key: string;
@@ -6700,6 +7160,7 @@ type DaySummary = {
     fullName: string;
     patientId: string;
     age: number;
+    dateOfBirth?: Date | null;
     sex: string;
     createdAt: Date;
     registeredById: string;
@@ -6709,6 +7170,7 @@ type DaySummary = {
           id: string;
           priority: string;
           paymentStatus: string;
+          paymentMethod: string | null;
           totalAmount: number;
           amountPaid: number;
           testOrders: Array&lt;{ id: string; test: { name: string } }&gt;;
@@ -6718,6 +7180,7 @@ type DaySummary = {
   totalBilled: number;
   totalPaid: number;
   totalTests: number;
+  collectedByMethod: Record&lt;string, number&gt;;
 };
 
 function pad2(value: number) {
@@ -6757,6 +7220,22 @@ function formatDayLabel(dayKey: string) {
     month: "long",
     year: "numeric",
   });
+}
+
+const PAYMENT_METHOD_LABELS: Record&lt;string, string&gt; = {
+  CASH: "Cash",
+  TRANSFER: "Transfer",
+  POS: "POS / Card",
+  HMO: "HMO / Insurance",
+  OTHER: "Other",
+  UNKNOWN: "Unknown",
+};
+
+const PAYMENT_METHOD_KEYS = ["CASH", "TRANSFER", "POS", "HMO", "OTHER", "UNKNOWN"] as const;
+
+function normalizePaymentMethodKey(value?: string | null) {
+  const key = `${value ?? ""}`.trim().toUpperCase();
+  return PAYMENT_METHOD_KEYS.includes(key as (typeof PAYMENT_METHOD_KEYS)[number]) ? key : "UNKNOWN";
 }
 
 export default async function PatientsListPage({
@@ -6828,7 +7307,14 @@ export default async function PatientsListPage({
   const dayKeys = Array.from({ length: daysWindow }, (_, idx) =&gt; shiftDayKey(selectedDate, -idx));
   const grouped = new Map&lt;string, DaySummary&gt;();
   for (const key of dayKeys) {
-    grouped.set(key, { key, rows: [], totalBilled: 0, totalPaid: 0, totalTests: 0 });
+    grouped.set(key, {
+      key,
+      rows: [],
+      totalBilled: 0,
+      totalPaid: 0,
+      totalTests: 0,
+      collectedByMethod: { CASH: 0, TRANSFER: 0, POS: 0, HMO: 0, OTHER: 0, UNKNOWN: 0 },
+    });
   }
 
   for (const patient of patients) {
@@ -6840,14 +7326,17 @@ export default async function PatientsListPage({
     const billed = Number(visit.totalAmount);
     const paid = Number(visit.amountPaid);
     const testCount = visit?.testOrders.length ?? 0;
+    const paymentMethodKey = normalizePaymentMethodKey(visit.paymentMethod);
     bucket.totalBilled += billed;
     bucket.totalPaid += paid;
     bucket.totalTests += testCount;
+    bucket.collectedByMethod[paymentMethodKey] = (bucket.collectedByMethod[paymentMethodKey] ?? 0) + paid;
     bucket.rows.push({
       id: patient.id,
       fullName: patient.fullName,
       patientId: patient.patientId,
       age: patient.age,
+      dateOfBirth: patient.dateOfBirth,
       sex: patient.sex,
       createdAt: patient.createdAt,
       registeredById: patient.registeredById,
@@ -6856,6 +7345,7 @@ export default async function PatientsListPage({
         id: visit.id,
         priority: visit.priority,
         paymentStatus: visit.paymentStatus,
+        paymentMethod: visit.paymentMethod ?? null,
         totalAmount: Number(visit.totalAmount),
         amountPaid: Number(visit.amountPaid),
         testOrders: visit.testOrders,
@@ -6879,6 +7369,14 @@ export default async function PatientsListPage({
     PARTIAL: "bg-amber-50 text-amber-700",
     PENDING: "bg-red-50 text-red-600",
     WAIVED: "bg-slate-100 text-slate-600",
+  };
+  const paymentMethodStyle: Record&lt;string, string&gt; = {
+    CASH: "bg-emerald-50 text-emerald-700",
+    TRANSFER: "bg-blue-50 text-blue-700",
+    POS: "bg-purple-50 text-purple-700",
+    HMO: "bg-cyan-50 text-cyan-700",
+    OTHER: "bg-slate-100 text-slate-700",
+    UNKNOWN: "bg-slate-100 text-slate-500",
   };
 
   return (
@@ -6964,7 +7462,7 @@ export default async function PatientsListPage({
               &lt;p className="px-4 py-6 text-xs text-slate-400"&gt;No patients registered on this date.&lt;/p&gt;
             ) : (
               &lt;div className="overflow-x-auto"&gt;
-                &lt;table className="w-full min-w-[1240px] text-xs"&gt;
+                &lt;table className="w-full min-w-[1360px] text-xs"&gt;
                   &lt;thead&gt;
                     &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
                       &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Patient&lt;/th&gt;
@@ -6975,6 +7473,7 @@ export default async function PatientsListPage({
                       &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Paid&lt;/th&gt;
                       &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Priority&lt;/th&gt;
                       &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Payment&lt;/th&gt;
+                      &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Method&lt;/th&gt;
                       &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Registered By&lt;/th&gt;
                       &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Registered&lt;/th&gt;
                       {canEditPatient || canDeletePatient ? &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Action&lt;/th&gt; : null}
@@ -6985,7 +7484,9 @@ export default async function PatientsListPage({
                       &lt;tr key={row.id} className="hover:bg-slate-50 transition-colors"&gt;
                         &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;{row.fullName}&lt;/td&gt;
                         &lt;td className="px-4 py-2.5 font-mono text-slate-400"&gt;{row.patientId}&lt;/td&gt;
-                        &lt;td className="px-4 py-2.5 text-slate-500"&gt;{row.age}y - {row.sex}&lt;/td&gt;
+                        &lt;td className="px-4 py-2.5 text-slate-500"&gt;
+                          {formatPatientAge({ age: row.age, dateOfBirth: row.dateOfBirth })} - {row.sex}
+                        &lt;/td&gt;
                         &lt;td className="px-4 py-2.5"&gt;
                           &lt;div className="flex flex-wrap gap-1"&gt;
                             {row.latestVisit?.testOrders.slice(0, 2).map((order) =&gt; (
@@ -7017,6 +7518,17 @@ export default async function PatientsListPage({
                           {row.latestVisit ? (
                             &lt;span className={`rounded px-1.5 py-0.5 font-medium ${paymentStyle[row.latestVisit.paymentStatus] ?? "bg-slate-100 text-slate-500"}`}&gt;
                               {row.latestVisit.paymentStatus}
+                            &lt;/span&gt;
+                          ) : "-"}
+                        &lt;/td&gt;
+                        &lt;td className="px-4 py-2.5"&gt;
+                          {row.latestVisit ? (
+                            &lt;span
+                              className={`rounded px-1.5 py-0.5 font-medium ${
+                                paymentMethodStyle[normalizePaymentMethodKey(row.latestVisit.paymentMethod)] ?? "bg-slate-100 text-slate-500"
+                              }`}
+                            &gt;
+                              {PAYMENT_METHOD_LABELS[normalizePaymentMethodKey(row.latestVisit.paymentMethod)]}
                             &lt;/span&gt;
                           ) : "-"}
                         &lt;/td&gt;
@@ -7059,8 +7571,27 @@ export default async function PatientsListPage({
                       &lt;td colSpan={4} className="px-4 py-2.5 font-semibold text-slate-700"&gt;Daily Summary&lt;/td&gt;
                       &lt;td className="px-4 py-2.5 font-semibold text-slate-700"&gt;{formatCurrency(section.totalBilled)}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5 font-semibold text-slate-700"&gt;{formatCurrency(section.totalPaid)}&lt;/td&gt;
-                      &lt;td colSpan={canEditPatient || canDeletePatient ? 5 : 4} className="px-4 py-2.5 text-slate-500"&gt;
-                        {section.totalTests} test{section.totalTests !== 1 ? "s" : ""} registered
+                      &lt;td colSpan={canEditPatient || canDeletePatient ? 6 : 5} className="px-4 py-2.5 text-slate-500"&gt;
+                        &lt;div className="flex flex-wrap items-center gap-2"&gt;
+                          &lt;span&gt;{section.totalTests} test{section.totalTests !== 1 ? "s" : ""} registered&lt;/span&gt;
+                          {(["CASH", "TRANSFER", "POS", "HMO"] as const).map((method) =&gt;
+                            section.collectedByMethod[method] &gt; 0 ? (
+                              &lt;span key={`${section.key}-${method}`} className="rounded bg-white px-2 py-0.5 text-slate-600 border border-slate-200"&gt;
+                                {PAYMENT_METHOD_LABELS[method]}: {formatCurrency(section.collectedByMethod[method])}
+                              &lt;/span&gt;
+                            ) : null
+                          )}
+                          {section.collectedByMethod.OTHER &gt; 0 ? (
+                            &lt;span className="rounded bg-white px-2 py-0.5 text-slate-600 border border-slate-200"&gt;
+                              Other: {formatCurrency(section.collectedByMethod.OTHER)}
+                            &lt;/span&gt;
+                          ) : null}
+                          {section.collectedByMethod.UNKNOWN &gt; 0 ? (
+                            &lt;span className="rounded bg-white px-2 py-0.5 text-slate-600 border border-slate-200"&gt;
+                              Unknown: {formatCurrency(section.collectedByMethod.UNKNOWN)}
+                            &lt;/span&gt;
+                          ) : null}
+                        &lt;/div&gt;
                       &lt;/td&gt;
                     &lt;/tr&gt;
                   &lt;/tfoot&gt;
@@ -8858,6 +9389,10 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
+function normalizeTestNameForGrouping(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 const fieldSchema = z.object({
   label: z.string().min(1, "Field label is required"),
   fieldKey: z.string().min(1, "Field key is required"),
@@ -8911,6 +9446,18 @@ export async function GET(req: NextRequest) {
       normalizedSearch.includes("mcs") ||
       searchParts.join(" ").includes("m c s");
     const shouldExpandToMcs = hasMcsAlias || (hasMicroscopyWord &amp;&amp; hasCultureWord &amp;&amp; hasSensitivityWord);
+    const trimmedSearch = search.trim();
+    const searchVariants = new Set&lt;string&gt;();
+    if (trimmedSearch) {
+      searchVariants.add(trimmedSearch);
+      searchVariants.add(trimmedSearch.replace(/\bxray\b/gi, "x-ray"));
+      searchVariants.add(trimmedSearch.replace(/\bxray\b/gi, "x ray"));
+      searchVariants.add(trimmedSearch.replace(/\bx-ray\b/gi, "xray"));
+      searchVariants.add(trimmedSearch.replace(/\bx-ray\b/gi, "x ray"));
+      searchVariants.add(trimmedSearch.replace(/\bx\s+ray\b/gi, "xray"));
+      searchVariants.add(trimmedSearch.replace(/\bx\s+ray\b/gi, "x-ray"));
+    }
+    const searchTerms = Array.from(searchVariants).map((value) =&gt; value.trim()).filter(Boolean);
 
     const tests = await prisma.diagnosticTest.findMany({
       where: {
@@ -8918,11 +9465,13 @@ export async function GET(req: NextRequest) {
         isActive: true,
         ...(type ? { type } : {}),
         ...(department ? { department } : {}),
-        ...(search
+        ...(searchTerms.length &gt; 0
           ? {
               OR: [
-                { name: { contains: search, mode: "insensitive" } },
-                { code: { contains: search, mode: "insensitive" } },
+                ...searchTerms.flatMap((term) =&gt; [
+                  { name: { contains: term, mode: "insensitive" as const } },
+                  { code: { contains: term, mode: "insensitive" as const } },
+                ]),
                 ...(shouldExpandToMcs ? [{ name: { contains: "M/C/S", mode: "insensitive" as const } }] : []),
               ],
             }
@@ -8937,7 +9486,46 @@ export async function GET(req: NextRequest) {
       orderBy: [{ type: "asc" }, { name: "asc" }],
     });
 
-    return NextResponse.json({ success: true, data: tests });
+    const scoreTest = (test: (typeof tests)[number]) =&gt; {
+      const fields = test.resultFields ?? [];
+      const numericWithRange = fields.filter(
+        (field) =&gt;
+          field.fieldType === FieldType.NUMBER &amp;&amp;
+          field.normalMin !== null &amp;&amp;
+          field.normalMax !== null
+      ).length;
+      const fieldsWithNormalText = fields.filter(
+        (field) =&gt; (field.normalText ?? "").trim().length &gt; 0
+      ).length;
+      return numericWithRange * 100 + fieldsWithNormalText * 10 + fields.length;
+    };
+
+    const groupedBestByName = new Map&lt;string, (typeof tests)[number]&gt;();
+    for (const test of tests) {
+      const key = normalizeTestNameForGrouping(test.name);
+      const current = groupedBestByName.get(key);
+      if (!current) {
+        groupedBestByName.set(key, test);
+        continue;
+      }
+      const currentScore = scoreTest(current);
+      const nextScore = scoreTest(test);
+      if (nextScore &gt; currentScore) {
+        groupedBestByName.set(key, test);
+        continue;
+      }
+      if (nextScore === currentScore &amp;&amp; test.updatedAt &gt; current.updatedAt) {
+        groupedBestByName.set(key, test);
+      }
+    }
+
+    const dedupedTests = Array.from(groupedBestByName.values()).sort((a, b) =&gt; {
+      const typeCmp = a.type.localeCompare(b.type);
+      if (typeCmp !== 0) return typeCmp;
+      return a.name.localeCompare(b.name);
+    });
+
+    return NextResponse.json({ success: true, data: dedupedTests });
   } catch (error) {
     console.error("[TESTS_GET]", error);
     return NextResponse.json(
@@ -12561,6 +13149,7 @@ import { listOfflineLabDraftItems, removeOfflineLabDraft, upsertOfflineLabDraft 
 import { evaluateReferenceFlag, formatReferenceDisplay } from "@/lib/reference-ranges";
 import { toCustomFieldKey } from "@/lib/custom-fields-core";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY } from "@/lib/report-signoff";
+import { formatPatientAge } from "@/lib/patient-age";
 import {
   SignaturePreset,
   loadSignaturePresets,
@@ -12601,7 +13190,10 @@ type LabTask = {
   priority: Priority;
   createdAt: string;
   updatedAt: string;
-  visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } };
+  visit: {
+    visitNumber: string;
+    patient: { fullName: string; patientId: string; age: number; dateOfBirth?: string | null; sex: string };
+  };
   sample?: { status: SampleStatus } | null;
   staff?: { id: string; fullName: string } | null;
   review?: { rejectionReason?: string | null; editedData?: unknown } | null;
@@ -12634,26 +13226,30 @@ function isCommentLikeField(field: Pick&lt;ResultField, "fieldKey" | "label"&gt;
 const DEFAULT_SENSITIVITY_ANTIBIOTICS = [
   "Lyntriaxone",
   "Gentamycin",
-  "Lynipro (Ciprofloxacin)",
-  "Levosif (Levofloxacin)",
-  "Velcone",
-  "Amoxicillin",
+  "Lyncypro (Ciprofloxacin)",
+  "Levostat (Levofloxacin)",
+  "Velxone",
+  "Amoxicilin",
   "Ornidavid",
   "Excef Tz (Ceftriaxone + Tazobactam)",
-  "Ceftriazidie",
+  "Ceftriazidine",
   "Streptomycin",
   "Ceftriaxone",
   "Cetroxol (Azithromycin)",
   "Cozima",
   "Rifampicin",
   "Erythromycin",
-  "Mesufyl (Cefoperazone)",
+  "Mesutyl (Cefoperazone)",
   "Ciprofloxacin",
 ];
 
 const SENSITIVITY_VALUE_OPTIONS = ["+", "2+", "3+", "4+", "5mm", "10mm", "15mm", "20mm", "25mm", "30mm"];
 const SENSITIVITY_INTERPRETATION_OPTIONS = ["S", "R", "I"];
 const SENSITIVITY_MEMORY_KEY = "diag_sync_sensitivity_memory_v1";
+const LEGACY_CULTURE_RESULT_TEXT =
+  "Staphylococcus aureus &amp; Candida albican isolated after 24hours incubation @ 370C";
+const DEFAULT_CULTURE_RESULT_TEXT =
+  "Staphylococcus aureus &amp; Candida albican isolated after 24hours incubation @ 37Â°C";
 const WIDAL_FIELD_ALIASES = {
   typhiO: ["typhi_o"],
   typhiH: ["typhi_h"],
@@ -13187,7 +13783,12 @@ const OrderResultCard = memo(function OrderResultCard({
   const renderFieldValueControl = useCallback(
     (field: ResultField, highlight: boolean) =&gt; {
       const value = draft.values?.[field.fieldKey];
-      if (field.fieldType === "DROPDOWN") {
+      const isCultureResultField = field.fieldKey.trim().toLowerCase() === "culture_result";
+      const hasCultureValueKey =
+        isCultureResultField &amp;&amp; Object.prototype.hasOwnProperty.call(draft.values ?? {}, field.fieldKey);
+      const effectiveValue =
+        isCultureResultField &amp;&amp; !hasCultureValueKey ? DEFAULT_CULTURE_RESULT_TEXT : value;
+      if (field.fieldType === "DROPDOWN" &amp;&amp; !isCultureResultField) {
         const options = (field.options ?? "").split(",").map((row) =&gt; row.trim()).filter(Boolean);
         return (
           &lt;select
@@ -13224,7 +13825,7 @@ const OrderResultCard = memo(function OrderResultCard({
       return (
         &lt;input
           type={field.fieldType === "NUMBER" ? "number" : "text"}
-          value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
+          value={typeof effectiveValue === "string" || typeof effectiveValue === "number" ? String(effectiveValue) : ""}
           onBlur={() =&gt; void onPersist(task).catch(() =&gt; undefined)}
           onChange={(e) =&gt; onSetFieldValue(order.id, field.fieldKey, e.target.value)}
           className={`w-full rounded border px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 ${highlight ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}
@@ -13854,9 +14455,22 @@ export function LabTaskBoard() {
             const { [SIGNOFF_IMAGE_KEY]: _ignoredSignatureImage, [SIGNOFF_NAME_KEY]: _ignoredSignatureName, ...cleanValues } =
               existingValues;
             const offlineEntry = offlineByOrder.get(order.id);
+            const baseValues =
+              (offlineEntry?.resultData as Record&lt;string, unknown&gt; | undefined) ?? cleanValues;
+            const seededValues: Record&lt;string, unknown&gt; = { ...baseValues };
+            const cultureField = order.test.resultFields.find(
+              (field) =&gt; field.fieldKey.trim().toLowerCase() === "culture_result"
+            );
+            if (cultureField) {
+              const currentCultureValue = seededValues[cultureField.fieldKey];
+              if (typeof currentCultureValue === "string" &amp;&amp; currentCultureValue.trim() === LEGACY_CULTURE_RESULT_TEXT) {
+                seededValues[cultureField.fieldKey] = DEFAULT_CULTURE_RESULT_TEXT;
+              } else if (typeof currentCultureValue !== "string" || currentCultureValue.trim() === "") {
+                seededValues[cultureField.fieldKey] = DEFAULT_CULTURE_RESULT_TEXT;
+              }
+            }
             next[order.id] = {
-              values:
-                (offlineEntry?.resultData as Record&lt;string, unknown&gt; | undefined) ?? cleanValues,
+              values: seededValues,
               notes: offlineEntry?.notes ?? existing?.notes ?? "",
               removedDefaultFieldKeys: [],
             };
@@ -14489,28 +15103,25 @@ export function LabTaskBoard() {
                   const cultureField = findField(order, "culture_result");
                   const disabled = !cultureField || isFieldRemoved(order.id, cultureField.fieldKey);
                   const value = cultureField ? drafts[order.id]?.values?.[cultureField.fieldKey] : "";
-                  const options = (cultureField?.options ?? "")
-                    .split(",")
-                    .map((row) =&gt; row.trim())
-                    .filter(Boolean);
+                  const hasCultureValueKey = Boolean(
+                    cultureField &amp;&amp;
+                      Object.prototype.hasOwnProperty.call(drafts[order.id]?.values ?? {}, cultureField.fieldKey)
+                  );
+                  const effectiveCultureValue =
+                    !hasCultureValueKey &amp;&amp; cultureField ? DEFAULT_CULTURE_RESULT_TEXT : value;
                   return (
                     &lt;td key={`mcs-culture-${order.id}`} className="border border-slate-200 p-1.5"&gt;
                       {disabled || !cultureField ? (
                         &lt;span className="text-[10px] text-slate-400"&gt;-&lt;/span&gt;
                       ) : (
-                        &lt;select
-                          value={typeof value === "string" ? value : ""}
+                        &lt;input
+                          type="text"
+                          value={typeof effectiveCultureValue === "string" ? effectiveCultureValue : ""}
                           onBlur={() =&gt; void persistDraft(task).catch(() =&gt; undefined)}
                           onChange={(e) =&gt; setDraftFieldValue(order.id, cultureField.fieldKey, e.target.value)}
                           className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        &gt;
-                          &lt;option value=""&gt;Select...&lt;/option&gt;
-                          {options.map((option) =&gt; (
-                            &lt;option key={option} value={option}&gt;
-                              {option}
-                            &lt;/option&gt;
-                          ))}
-                        &lt;/select&gt;
+                          placeholder="Type culture result"
+                        /&gt;
                       )}
                     &lt;/td&gt;
                   );
@@ -15011,7 +15622,9 @@ export function LabTaskBoard() {
                     &lt;tr id={`lab-task-row-${task.id}`} key={task.id} className={`hover:bg-slate-50 transition-colors ${expandedTask === task.id ? "bg-blue-50/30" : ""}`}&gt;
                       &lt;td className="px-4 py-2.5"&gt;
                         &lt;p className="font-medium text-slate-800"&gt;{task.visit.patient.fullName}&lt;/p&gt;
-                        &lt;p className="font-mono text-slate-400"&gt;{task.visit.patient.patientId} - {task.visit.patient.age}y - {task.visit.patient.sex}&lt;/p&gt;
+                        &lt;p className="font-mono text-slate-400"&gt;
+                          {task.visit.patient.patientId} - {formatPatientAge({ age: task.visit.patient.age, dateOfBirth: task.visit.patient.dateOfBirth })} - {task.visit.patient.sex}
+                        &lt;/p&gt;
                         {getNewlyAddedOrders(task).length &gt; 0 ? (
                           &lt;p className="text-[11px] text-emerald-700"&gt;
                             New test(s) added: {getNewlyAddedOrders(task).map((order) =&gt; order.test.name).join(", ")}
@@ -15597,21 +16210,38 @@ import { PatientInsights } from "@/components/patients/patient-insights";
 import { analyzePatientInsights, type PatientHistoryRow } from "@/lib/patient-insights";
 import { toCustomFieldKey } from "@/lib/custom-fields-core";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY, isDataImageUrl } from "@/lib/report-signoff";
+import { formatPatientAge } from "@/lib/patient-age";
+import { formatReferenceDisplay } from "@/lib/reference-ranges";
 
 type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 type TaskDepartment = "LABORATORY" | "RADIOLOGY";
+type ResultTemplateFieldMeta = {
+  id: string;
+  label: string;
+  fieldKey: string;
+  fieldType: "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
+  unit?: string | null;
+  normalMin?: number | null;
+  normalMax?: number | null;
+  normalText?: string | null;
+  referenceNote?: string | null;
+  sortOrder: number;
+};
 
 type Item = {
   id: string;
   department: TaskDepartment;
   priority: "ROUTINE" | "URGENT" | "EMERGENCY";
   updatedAt: string;
-  visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } };
+  visit: {
+    visitNumber: string;
+    patient: { fullName: string; patientId: string; age: number; dateOfBirth?: string | null; sex: string };
+  };
   staff: { fullName: string } | null;
   review: { status: ReviewStatus; comments?: string | null; rejectionReason?: string | null; editedData?: unknown } | null;
   results: Array&lt;{
     testOrderId: string;
-    testOrder: { test: { name: string } };
+    testOrder: { test: { name: string; resultFields: ResultTemplateFieldMeta[] } };
     currentVersion: number;
     resultData: Record&lt;string, unknown&gt;;
     notes?: string | null;
@@ -16016,7 +16646,9 @@ export function MdReviewBoard({
                     &lt;tr key={item.id} className={`hover:bg-slate-50 transition-colors ${isExpanded ? "bg-blue-50/20" : ""}`}&gt;
                       &lt;td className="px-4 py-2.5"&gt;
                         &lt;p className="font-medium text-slate-800"&gt;{item.visit.patient.fullName}&lt;/p&gt;
-                        &lt;p className="font-mono text-slate-400"&gt;{item.visit.patient.patientId} Â· {item.visit.patient.age}y Â· {item.visit.patient.sex}&lt;/p&gt;
+                        &lt;p className="font-mono text-slate-400"&gt;
+                          {item.visit.patient.patientId} Â· {formatPatientAge({ age: item.visit.patient.age, dateOfBirth: item.visit.patient.dateOfBirth })} Â· {item.visit.patient.sex}
+                        &lt;/p&gt;
                       &lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-500"&gt;{item.department}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-500"&gt;
@@ -16058,7 +16690,7 @@ export function MdReviewBoard({
                                       {(() =&gt; {
                                         const resultData = result.resultData as Record&lt;string, unknown&gt;;
                                         const sensitivityRows = parseMdSensitivity(resultData?.sensitivity);
-                                        const normalPairs = Object.entries(resultData)
+                                        const resultRows = Object.entries(resultData)
                                           .filter(
                                             ([key, value]) =&gt;
                                               key !== "sensitivity" &amp;&amp;
@@ -16066,13 +16698,49 @@ export function MdReviewBoard({
                                               value !== undefined &amp;&amp;
                                               `${value}`.trim()
                                           )
-                                          .map(([k, v]) =&gt; `${k}: ${v}`);
+                                          .map(([fieldKey, rawValue]) =&gt; {
+                                            const fieldMeta = result.testOrder.test.resultFields.find(
+                                              (field) =&gt; field.fieldKey === fieldKey
+                                            );
+                                            const valueText = String(rawValue);
+                                            const referenceText = fieldMeta ? formatReferenceDisplay(fieldMeta) : "";
+                                            return {
+                                              fieldKey,
+                                              label: fieldMeta?.label ?? fieldKey,
+                                              valueText,
+                                              unitText: fieldMeta?.unit?.trim() ?? "",
+                                              referenceText,
+                                            };
+                                          });
                                         return (
                                           &lt;&gt;
                                       &lt;p className="font-medium text-slate-800"&gt;{result.testOrder.test.name} &lt;span className="font-mono text-slate-400 text-[11px]"&gt;v{result.currentVersion}&lt;/span&gt;&lt;/p&gt;
-                                      &lt;p className="text-slate-500 mt-1"&gt;
-                                        {normalPairs.join(" · ") || "—"}
-                                      &lt;/p&gt;
+                                      {resultRows.length &gt; 0 ? (
+                                        &lt;div className="mt-2 overflow-x-auto rounded border border-slate-200"&gt;
+                                          &lt;table className="w-full min-w-[620px] border-collapse text-[11px]"&gt;
+                                            &lt;thead&gt;
+                                              &lt;tr className="bg-slate-50"&gt;
+                                                &lt;th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500"&gt;Parameter&lt;/th&gt;
+                                                &lt;th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500"&gt;Result&lt;/th&gt;
+                                                &lt;th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500"&gt;Unit (SI)&lt;/th&gt;
+                                                &lt;th className="border border-slate-200 px-1.5 py-1 text-left text-slate-500"&gt;Reference Range&lt;/th&gt;
+                                              &lt;/tr&gt;
+                                            &lt;/thead&gt;
+                                            &lt;tbody&gt;
+                                              {resultRows.map((row) =&gt; (
+                                                &lt;tr key={`${result.testOrderId}-${row.fieldKey}`}&gt;
+                                                  &lt;td className="border border-slate-200 px-1.5 py-1 text-slate-700"&gt;{row.label}&lt;/td&gt;
+                                                  &lt;td className="border border-slate-200 px-1.5 py-1 text-slate-700"&gt;{row.valueText}&lt;/td&gt;
+                                                  &lt;td className="border border-slate-200 px-1.5 py-1 text-slate-700"&gt;{row.unitText || "-"}&lt;/td&gt;
+                                                  &lt;td className="border border-slate-200 px-1.5 py-1 text-slate-700"&gt;{row.referenceText || "-"}&lt;/td&gt;
+                                                &lt;/tr&gt;
+                                              ))}
+                                            &lt;/tbody&gt;
+                                          &lt;/table&gt;
+                                        &lt;/div&gt;
+                                      ) : (
+                                        &lt;p className="text-slate-500 mt-1"&gt;-&lt;/p&gt;
+                                      )}
                                       {sensitivityRows.length &gt; 0 ? (
                                         &lt;div className="mt-2 overflow-x-auto rounded border border-slate-200"&gt;
                                           &lt;table className="w-full min-w-[520px] border-collapse text-[11px]"&gt;
@@ -17227,6 +17895,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatDateTime } from "@/lib/utils";
 import { toCustomFieldKey } from "@/lib/custom-fields-core";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY } from "@/lib/report-signoff";
+import { formatPatientAge } from "@/lib/patient-age";
 import {
   listOfflineRadiologyDraftItems,
   removeOfflineRadiologyDraft,
@@ -17255,7 +17924,10 @@ type Task = {
   priority: Priority;
   createdAt: string;
   updatedAt: string;
-  visit: { visitNumber: string; patient: { fullName: string; patientId: string; age: number; sex: string } };
+  visit: {
+    visitNumber: string;
+    patient: { fullName: string; patientId: string; age: number; dateOfBirth?: string | null; sex: string };
+  };
   radiologyReport: Report | null;
   testOrders: Array&lt;{ id: string; createdAt: string; test: { name: string; code: string } }&gt;;
 };
@@ -17306,6 +17978,7 @@ export function RadiologyTaskBoard() {
   const taskCacheRef = useRef&lt;Map&lt;string, { at: number; tasks: Task[] }&gt;&gt;(new Map());
   const draftsRef = useRef&lt;Record&lt;string, Draft&gt;&gt;({});
   const tasksRef = useRef&lt;Task[]&gt;([]);
+  const dirtyDraftTaskIdsRef = useRef&lt;Set&lt;string&gt;&gt;(new Set());
   function invalidateTaskCache() {
     taskCacheRef.current.clear();
   }
@@ -17328,9 +18001,13 @@ export function RadiologyTaskBoard() {
     tasksRef.current = rows;
     const offlineByTask = new Map(listOfflineRadiologyDraftItems().map((item) =&gt; [item.taskId, item]));
     const nextDrafts: Record&lt;string, Draft&gt; = {};
+    const nextTaskIds = new Set(rows.map((task) =&gt; task.id));
+    dirtyDraftTaskIdsRef.current.forEach((taskId) =&gt; {
+      if (!nextTaskIds.has(taskId)) dirtyDraftTaskIdsRef.current.delete(taskId);
+    });
     for (const task of rows) {
       const offline = offlineByTask.get(task.id)?.draft;
-      nextDrafts[task.id] = {
+      const baselineDraft: Draft = {
         findings: offline?.findings ?? task.radiologyReport?.findings ?? "",
         impression: offline?.impression ?? task.radiologyReport?.impression ?? "",
         notes: offline?.notes ?? task.radiologyReport?.notes ?? "",
@@ -17340,12 +18017,17 @@ export function RadiologyTaskBoard() {
         signatureImage:
           offline?.signatureImage ?? task.radiologyReport?.extraFields?.[SIGNOFF_IMAGE_KEY] ?? "",
       };
+      const shouldPreserveLocalDraft =
+        dirtyDraftTaskIdsRef.current.has(task.id) &amp;&amp; Boolean(draftsRef.current[task.id]);
+      nextDrafts[task.id] = shouldPreserveLocalDraft
+        ? (draftsRef.current[task.id] as Draft)
+        : baselineDraft;
     }
     draftsRef.current = nextDrafts;
     setDrafts(nextDrafts);
   }
 
-  async function loadTasks(opts?: { signal?: AbortSignal; force?: boolean }) {
+  async function loadTasks(opts?: { signal?: AbortSignal; force?: boolean; silent?: boolean }) {
     const cacheKey = `${statusFilter}:${sort}:${searchFilter.trim().toLowerCase()}:${dateFilter}`;
     if (!opts?.force) {
       const cached = taskCacheRef.current.get(cacheKey);
@@ -17358,7 +18040,10 @@ export function RadiologyTaskBoard() {
     }
 
     const requestId = ++loadTasksSeqRef.current;
-    setLoading(true); setError("");
+    if (!opts?.silent) {
+      setLoading(true);
+    }
+    setError("");
     try {
       const query = new URLSearchParams({ status: statusFilter, sort });
       if (searchFilter.trim()) query.set("search", searchFilter.trim());
@@ -17375,7 +18060,9 @@ export function RadiologyTaskBoard() {
       setError("Network error while loading radiology tasks");
     } finally {
       if (requestId !== loadTasksSeqRef.current || opts?.signal?.aborted) return;
-      setLoading(false);
+      if (!opts?.silent) {
+        setLoading(false);
+      }
     }
   }
 
@@ -17388,7 +18075,7 @@ export function RadiologyTaskBoard() {
   useEffect(() =&gt; {
     const refreshNow = () =&gt; {
       if (document.visibilityState !== "visible") return;
-      void loadTasks({ force: true });
+      void loadTasks({ force: true, silent: true });
     };
 
     const poll = window.setInterval(refreshNow, 12_000);
@@ -17407,7 +18094,7 @@ export function RadiologyTaskBoard() {
       document.removeEventListener("visibilitychange", refreshNow);
       stream.close();
     };
-  }, [loadTasks]);
+  }, [statusFilter, sort, searchFilter, dateFilter]);
 
   useEffect(() =&gt; {
     setSignatureLibrary(loadSignaturePresets("reporting"));
@@ -17450,6 +18137,7 @@ export function RadiologyTaskBoard() {
   }
 
   function updateDraft(taskId: string, patch: Partial&lt;Draft&gt;) {
+    dirtyDraftTaskIdsRef.current.add(taskId);
     setDrafts((prev) =&gt; ({
       ...prev,
       [taskId]: {
@@ -17542,6 +18230,7 @@ export function RadiologyTaskBoard() {
       if (!json.success) { setError(json.error ?? "Unable to save report"); return; }
       const pending = listOfflineRadiologyDraftItems().find((item) =&gt; item.taskId === taskId);
       if (pending) removeOfflineRadiologyDraft(pending.id);
+      dirtyDraftTaskIdsRef.current.delete(taskId);
       patchTask(taskId, {
         radiologyReport: {
           findings: d.findings,
@@ -17576,6 +18265,7 @@ export function RadiologyTaskBoard() {
       if (!json.success) { setError(json.error ?? "Unable to submit report"); return; }
       const pending = listOfflineRadiologyDraftItems().find((item) =&gt; item.taskId === taskId);
       if (pending) removeOfflineRadiologyDraft(pending.id);
+      dirtyDraftTaskIdsRef.current.delete(taskId);
       setExpandedTask(null);
       patchTask(taskId, { status: "COMPLETED" });
     } catch (error) {
@@ -17753,7 +18443,9 @@ export function RadiologyTaskBoard() {
                     &lt;tr key={task.id} className={`hover:bg-slate-50 transition-colors ${isExpanded ? "bg-blue-50/20" : ""}`}&gt;
                       &lt;td className="px-4 py-2.5"&gt;
                         &lt;p className="font-medium text-slate-800"&gt;{task.visit.patient.fullName}&lt;/p&gt;
-                        &lt;p className="font-mono text-slate-400"&gt;{task.visit.patient.patientId} Â· {task.visit.patient.age}y Â· {task.visit.patient.sex}&lt;/p&gt;
+                        &lt;p className="font-mono text-slate-400"&gt;
+                          {task.visit.patient.patientId} Â· {formatPatientAge({ age: task.visit.patient.age, dateOfBirth: task.visit.patient.dateOfBirth })} Â· {task.visit.patient.sex}
+                        &lt;/p&gt;
                         {getNewlyAddedOrders(task).length &gt; 0 ? (
                           &lt;p className="text-[11px] text-emerald-700"&gt;
                             New test(s) added: {getNewlyAddedOrders(task).map((order) =&gt; order.test.name).join(", ")}
@@ -18007,7 +18699,8 @@ export function RadiologyTaskBoard() {
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}</pre></div>
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/components/receptionist/day-rollover-refresh.tsx</div><pre>"use client";
 
 import { useEffect } from "react";
@@ -18838,6 +19531,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatCurrency } from "@/lib/utils";
 import { enqueueOfflinePatient, listOfflinePatientItems, removeOfflinePatient, type OfflinePatientPayload } from "@/lib/offline-sync";
 import { buildReferenceNote, splitReferenceNote } from "@/lib/reference-ranges";
+import { estimateDateOfBirthFromEnteredAge } from "@/lib/patient-age";
 
 interface TestResult {
   id: string; name: string; code: string; type: "LAB" | "RADIOLOGY";
@@ -18858,6 +19552,7 @@ interface CartItem extends TestResult { enteredPrice: string }
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
 type PaymentStatus = "PENDING" | "PAID" | "PARTIAL" | "WAIVED";
 type Sex = "MALE" | "FEMALE" | "OTHER";
+type AgeUnit = "YEARS" | "MONTHS" | "DAYS";
 type RangeProfile = "MALE" | "FEMALE" | "CHILD";
 type FieldType = "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
 type TestType = "LAB" | "RADIOLOGY";
@@ -18912,10 +19607,20 @@ function profileKey(profile: RangeProfile): "male" | "female" | "child" {
   return "male";
 }
 
-function defaultRangeProfile(age: string, sex: Sex): RangeProfile {
-  const parsedAge = Number(age);
-  if (Number.isFinite(parsedAge) &amp;&amp; parsedAge &gt; 0 &amp;&amp; parsedAge &lt; 18) return "CHILD";
+function defaultRangeProfile(age: string, sex: Sex, ageUnit: AgeUnit = "YEARS"): RangeProfile {
+  const parsedAge = toAgeYears(age, ageUnit);
+  if (parsedAge !== null &amp;&amp; parsedAge &gt;= 0 &amp;&amp; parsedAge &lt; 18) return "CHILD";
   return sex === "FEMALE" ? "FEMALE" : "MALE";
+}
+
+function toAgeYears(ageInput: string, ageUnit: AgeUnit): number | null {
+  const parsedAge = Number(ageInput);
+  if (!Number.isFinite(parsedAge) || parsedAge &lt; 0) return null;
+  const asYears =
+    ageUnit === "YEARS" ? parsedAge : ageUnit === "MONTHS" ? parsedAge / 12 : parsedAge / 365;
+  const normalized = Math.floor(asYears);
+  if (!Number.isFinite(normalized) || normalized &lt; 0 || normalized &gt; 150) return null;
+  return normalized;
 }
 
 function toNullableNumber(value: unknown): number | null {
@@ -18934,6 +19639,7 @@ export function NewPatientForm() {
   const [patientNumber, setPatientNumber] = useState("");
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState("");
+  const [ageUnit, setAgeUnit] = useState&lt;AgeUnit&gt;("YEARS");
   const [sex, setSex] = useState&lt;Sex&gt;("MALE");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -19036,8 +19742,7 @@ export function NewPatientForm() {
         const { plainText, demographicRanges } = splitReferenceNote(field.referenceNote);
         const fallbackMin = toNullableNumber(field.normalMin);
         const fallbackMax = toNullableNumber(field.normalMax);
-        const current = demographicRanges[key] ??
-          (fallbackMin !== null &amp;&amp; fallbackMax !== null ? { min: fallbackMin, max: fallbackMax } : { min: 0, max: 0 });
+        const current = demographicRanges[key] ?? { min: fallbackMin, max: fallbackMax };
         const nextMin = patch.normalMin === undefined ? current.min : patch.normalMin;
         const nextMax = patch.normalMax === undefined ? current.max : patch.normalMax;
         const nextRanges = {
@@ -19107,7 +19812,7 @@ export function NewPatientForm() {
       [test.id]: (test.resultFields ?? []).map((field) =&gt; ({ ...field })),
     }));
     setExpandedRangeByTest((prev) =&gt; ({ ...prev, [test.id]: true }));
-    setRangeProfileByTest((prev) =&gt; ({ ...prev, [test.id]: defaultRangeProfile(age, sex) }));
+    setRangeProfileByTest((prev) =&gt; ({ ...prev, [test.id]: defaultRangeProfile(age, sex, ageUnit) }));
     setTestSearch("");
     setTestResults([]);
     setShowDropdown(false);
@@ -19310,11 +20015,15 @@ export function NewPatientForm() {
   }
 
   function buildPayload(): OfflinePatientPayload {
+    const ageYears = toAgeYears(age, ageUnit) ?? 0;
+    const resolvedDateOfBirth =
+      dateOfBirth ||
+      (ageUnit !== "YEARS" ? estimateDateOfBirthFromEnteredAge(age, ageUnit) ?? undefined : undefined);
     return {
       patientId: patientNumber.trim(),
-      fullName: fullName.trim(), age: parseInt(age), sex, phone: phone.trim(),
+      fullName: fullName.trim(), age: ageYears, sex, phone: phone.trim(),
       email: email.trim() || undefined, address: address.trim() || undefined,
-      dateOfBirth: dateOfBirth || undefined, referringDoctor: referringDoctor.trim() || undefined,
+      dateOfBirth: resolvedDateOfBirth, referringDoctor: referringDoctor.trim() || undefined,
       clinicalNote: clinicalNote.trim() || undefined, priority, paymentStatus,
       amountPaid: amountPaidNum, discount: discountAmount,
       paymentMethod: paymentMethod || undefined, notes: visitNotes.trim() || undefined,
@@ -19342,9 +20051,10 @@ export function NewPatientForm() {
 
   async function handleSubmit() {
     setError("");
+    const ageYears = toAgeYears(age, ageUnit);
     if (!patientNumber.trim()) return setError("Patient number is required.");
     if (!fullName.trim()) return setError("Patient full name is required.");
-    if (!age || isNaN(parseInt(age))) return setError("Valid age is required.");
+    if (ageYears === null) return setError("Valid age is required.");
     if (!phone.trim()) return setError("Phone number is required.");
     if (cart.length === 0) return setError("Please add at least one test.");
     if (cart.some((item) =&gt; toNumberPrice(item.enteredPrice) &lt;= 0)) return setError("Enter a valid price for each test.");
@@ -19366,7 +20076,7 @@ export function NewPatientForm() {
   }
 
   function resetForm() {
-    setPatientNumber(""); setFullName(""); setAge(""); setPhone(""); setEmail(""); setAddress(""); setDateOfBirth("");
+    setPatientNumber(""); setFullName(""); setAge(""); setAgeUnit("YEARS"); setPhone(""); setEmail(""); setAddress(""); setDateOfBirth("");
     setReferringDoctor(""); setClinicalNote(""); setPriority("ROUTINE"); setPaymentStatus("PENDING");
     setAmountPaid(""); setDiscount(""); setPaymentMethod(""); setVisitNotes(""); setCart([]);
     setRangeDraftByTest({});
@@ -19433,7 +20143,26 @@ export function NewPatientForm() {
               &lt;/div&gt;
               &lt;div&gt;
                 &lt;label className={labelCls}&gt;Age *&lt;/label&gt;
-                &lt;input type="number" min="0" max="150" placeholder="32" value={age} onChange={(e) =&gt; setAge(e.target.value)} className={inputCls} /&gt;
+                &lt;div className="grid grid-cols-[1fr_120px] gap-2"&gt;
+                  &lt;input
+                    type="number"
+                    min="0"
+                    max={ageUnit === "YEARS" ? 150 : ageUnit === "MONTHS" ? 1800 : 55000}
+                    placeholder={ageUnit === "YEARS" ? "32" : ageUnit === "MONTHS" ? "8" : "14"}
+                    value={age}
+                    onChange={(e) =&gt; setAge(e.target.value)}
+                    className={inputCls}
+                  /&gt;
+                  &lt;Select value={ageUnit} onValueChange={(v) =&gt; setAgeUnit(v as AgeUnit)}&gt;
+                    &lt;SelectTrigger className="h-8 text-xs"&gt;&lt;SelectValue /&gt;&lt;/SelectTrigger&gt;
+                    &lt;SelectContent&gt;
+                      &lt;SelectItem value="YEARS"&gt;Years&lt;/SelectItem&gt;
+                      &lt;SelectItem value="MONTHS"&gt;Months&lt;/SelectItem&gt;
+                      &lt;SelectItem value="DAYS"&gt;Days&lt;/SelectItem&gt;
+                    &lt;/SelectContent&gt;
+                  &lt;/Select&gt;
+                &lt;/div&gt;
+                &lt;p className="mt-1 text-[10px] text-slate-400"&gt;For babies, enter months or days.&lt;/p&gt;
               &lt;/div&gt;
               &lt;div&gt;
                 &lt;label className={labelCls}&gt;Sex *&lt;/label&gt;
@@ -19668,7 +20397,7 @@ export function NewPatientForm() {
 
                     const isOpen = expandedRangeByTest[item.id] ?? true;
                     const isSaving = !!rangeSavingByTest[item.id];
-                    const activeProfile = rangeProfileByTest[item.id] ?? defaultRangeProfile(age, sex);
+                    const activeProfile = rangeProfileByTest[item.id] ?? defaultRangeProfile(age, sex, ageUnit);
 
                     return (
                       &lt;div key={`${item.id}-ranges`} className="rounded border border-blue-100 bg-blue-50/40"&gt;
@@ -19959,9 +20688,99 @@ function deepCopy&lt;T&gt;(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function normalizeToken(input: string) {
+  return input.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+const MICROSCOPY_EDITOR_PATTERNS: Array&lt;{ label: string; pattern: RegExp }&gt; = [
+  { label: "WBC/PUS cells/HPF", pattern: /wbc\s*\/?\s*(?:pus|puc)?\s*cells?\s*\/?\s*hpf/gi },
+  { label: "Epithelial cells", pattern: /epithelial\s*cells?/gi },
+  { label: "Bacterial cells", pattern: /bacterial\s*cells?/gi },
+  { label: "Yeast cells", pattern: /yeast\s*cells?/gi },
+];
+
+function parseMicroscopySummaryForEditor(rawValue: string) {
+  const normalized = rawValue.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  const byLabel = new Map&lt;string, string&gt;();
+  if (!normalized) return byLabel;
+
+  const hits: Array&lt;{ label: string; start: number; end: number }&gt; = [];
+  for (const entry of MICROSCOPY_EDITOR_PATTERNS) {
+    const pattern = new RegExp(entry.pattern.source, entry.pattern.flags);
+    let match: RegExpExecArray | null = pattern.exec(normalized);
+    while (match) {
+      if (match.index === undefined) {
+        match = pattern.exec(normalized);
+        continue;
+      }
+      hits.push({
+        label: entry.label,
+        start: match.index,
+        end: match.index + match[0].length,
+      });
+      match = pattern.exec(normalized);
+    }
+  }
+
+  hits.sort((a, b) =&gt; a.start - b.start);
+  for (let i = 0; i &lt; hits.length; i += 1) {
+    const current = hits[i];
+    const next = hits[i + 1];
+    const rawSegment = normalized.slice(current.end, next ? next.start : normalized.length);
+    const cleaned = rawSegment
+      .replace(/^[\s:=,-]+/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!cleaned) continue;
+    if (!byLabel.has(current.label)) byLabel.set(current.label, cleaned);
+  }
+
+  return byLabel;
+}
+
+function formatMicroscopySummaryForEditor(rawValue: string) {
+  const parsed = parseMicroscopySummaryForEditor(rawValue);
+  if (parsed.size === 0) return rawValue;
+  const ordered = MICROSCOPY_EDITOR_PATTERNS.map((entry) =&gt; entry.label)
+    .map((label) =&gt; {
+      const value = parsed.get(label);
+      return value ? `${label}: ${value}` : "";
+    })
+    .filter(Boolean);
+  return ordered.join("\n");
+}
+
+function shouldUseMicroscopyEditor(rowName: string, rowValue: string) {
+  const nameToken = normalizeToken(rowName);
+  if (nameToken.includes("microscopy")) return true;
+  const valueToken = normalizeToken(rowValue);
+  return (
+    valueToken.includes("wbc") &amp;&amp;
+    (valueToken.includes("epithelial") ||
+      valueToken.includes("bacterial") ||
+      valueToken.includes("yeast"))
+  );
+}
+
+function normalizeLabContentForEditor(content: any) {
+  if (!Array.isArray(content?.tests)) return content;
+  const tests = content.tests.map((test: any) =&gt; {
+    if (!Array.isArray(test?.rows)) return test;
+    const rows = test.rows.map((row: any) =&gt; {
+      const rowName = String(row?.name ?? "");
+      const rowValue = String(row?.value ?? "");
+      if (!shouldUseMicroscopyEditor(rowName, rowValue)) return row;
+      return { ...row, value: formatMicroscopySummaryForEditor(rowValue) };
+    });
+    return { ...test, rows };
+  });
+  return { ...content, tests };
+}
+
 const inputCls = "h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500";
 const labelCls = "block text-[11px] font-medium text-slate-500 mb-1";
 const areaCls = "w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500";
+const sectionHeadingCls = "text-[11px] font-semibold uppercase tracking-wide text-slate-400";
 
 export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" | "RECEPTIONIST" }) {
   const REPORT_LIST_CACHE_TTL_MS = 20_000;
@@ -19984,6 +20803,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const [previewLoaded, setPreviewLoaded] = useState(false);
   const [previewNonce, setPreviewNonce] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showEditSection, setShowEditSection] = useState(false);
   const [printLetterheadMode, setPrintLetterheadMode] = useState&lt;"with" | "without"&gt;("with");
   const [addLabTestName, setAddLabTestName] = useState("");
   const [labTestSearch, setLabTestSearch] = useState("");
@@ -20040,20 +20860,15 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     if (!opts?.force) {
       const cached = reportListCacheRef.current.get(cacheKey);
       if (cached &amp;&amp; Date.now() - cached.at &lt; REPORT_LIST_CACHE_TTL_MS) {
-        setError("");
-        setLoading(false);
-        setRows(cached.rows);
-        if (cached.rows.length === 0) {
-          setSelectedId("");
-          setDetails(null);
-        } else {
+        setError(""); setLoading(false); setRows(cached.rows);
+        if (cached.rows.length === 0) { setSelectedId(""); setDetails(null); }
+        else {
           const nextId = selectedId &amp;&amp; cached.rows.some((r) =&gt; r.id === selectedId) ? selectedId : cached.rows[0].id;
           setSelectedId(nextId);
         }
         return;
       }
     }
-
     const requestId = ++loadReportsSeqRef.current;
     setLoading(true); setError("");
     try {
@@ -20084,14 +20899,13 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
         const data = cached.details;
         setDetails(data);
         const cur = data.versions.find((v) =&gt; v.isActive) ?? data.versions[0];
-        setEditableContent(deepCopy(cur?.content ?? {}));
+        setEditableContent(normalizeLabContentForEditor(deepCopy(cur?.content ?? {})));
         setEditComments(cur?.comments ?? data.comments ?? "");
         setEditPrescription(cur?.prescription ?? data.prescription ?? "");
         setReceptionInstruction(data.releaseInstructions ?? "");
         return;
       }
     }
-
     const requestId = ++loadDetailsSeqRef.current;
     setError("");
     try {
@@ -20103,13 +20917,13 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       reportDetailsCacheRef.current.set(reportId, { at: Date.now(), details: data });
       setDetails(data);
       const cur = data.versions.find((v) =&gt; v.isActive) ?? data.versions[0];
-      setEditableContent(deepCopy(cur?.content ?? {}));
+      setEditableContent(normalizeLabContentForEditor(deepCopy(cur?.content ?? {})));
       setEditComments(cur?.comments ?? data.comments ?? "");
       setEditPrescription(cur?.prescription ?? data.prescription ?? "");
       setReceptionInstruction(data.releaseInstructions ?? "");
     } catch (error) {
       if (error instanceof DOMException &amp;&amp; error.name === "AbortError") return;
-      setError("Network error while loading report details");
+      setError("Network error loading details");
     }
   }
 
@@ -20118,35 +20932,30 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     void loadReports({ signal: controller.signal });
     return () =&gt; controller.abort();
   }, [filterStatus, filterType]);
+
   useEffect(() =&gt; {
     if (!selectedId) return;
     setPreviewLoaded(false);
+    setShowEditSection(false);
     const controller = new AbortController();
     void loadDetails(selectedId, { signal: controller.signal });
     return () =&gt; controller.abort();
   }, [selectedId]);
+
   useEffect(() =&gt; { setShowVersionHistory(false); }, [selectedId]);
   useEffect(() =&gt; {
-    const timer = window.setTimeout(() =&gt; {
-      void searchLabCatalog(labTestSearch);
-    }, 250);
+    const timer = window.setTimeout(() =&gt; { void searchLabCatalog(labTestSearch); }, 250);
     return () =&gt; window.clearTimeout(timer);
   }, [labTestSearch]);
 
-  function updateLabField(
-    tIdx: number,
-    rIdx: number,
-    key: "value" | "unit" | "reference",
-    value: string
-  ) {
+  function updateLabField(tIdx: number, rIdx: number, key: "value" | "unit" | "reference", value: string) {
     setEditableContent((prev: any) =&gt; {
       if (!Array.isArray(prev?.tests) || !Array.isArray(prev.tests[tIdx]?.rows)) return prev;
       const tests = [...prev.tests];
       const test = { ...tests[tIdx] };
       const rows = [...test.rows];
       rows[rIdx] = { ...rows[rIdx], [key]: value };
-      test.rows = rows;
-      tests[tIdx] = test;
+      test.rows = rows; tests[tIdx] = test;
       return { ...prev, tests };
     });
   }
@@ -20163,11 +20972,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   function addLabTest(testName?: string) {
     setEditableContent((prev: any) =&gt; {
       const tests = Array.isArray(prev?.tests) ? [...prev.tests] : [];
-      tests.push({
-        name: (testName ?? "").trim() || `Laboratory Test ${tests.length + 1}`,
-        forceShow: true,
-        rows: [{ name: "Result Field", value: "", unit: "", reference: "" }],
-      });
+      tests.push({ name: (testName ?? "").trim() || `Laboratory Test ${tests.length + 1}`, forceShow: true, rows: [{ name: "Result Field", value: "", unit: "", reference: "" }] });
       return { ...(prev ?? {}), tests };
     });
     setAddLabTestName("");
@@ -20186,8 +20991,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const tests = [...prev.tests];
       const test = { ...tests[tIdx] };
       const rows = [...test.rows, { name: "Result Field", value: "", unit: "", reference: "" }];
-      test.rows = rows;
-      tests[tIdx] = test;
+      test.rows = rows; tests[tIdx] = test;
       return { ...prev, tests };
     });
   }
@@ -20211,8 +21015,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const test = { ...tests[tIdx] };
       const rows = [...test.rows];
       rows[rIdx] = { ...rows[rIdx], name: value };
-      test.rows = rows;
-      tests[tIdx] = test;
+      test.rows = rows; tests[tIdx] = test;
       return { ...prev, tests };
     });
   }
@@ -20231,42 +21034,25 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     setEditableContent((prev: any) =&gt; {
       const tests = Array.isArray(prev?.tests) ? [...prev.tests] : [];
       const rows = (Array.isArray(test.resultFields) ? test.resultFields : []).map((field) =&gt; ({
-        name: field.label,
-        value: "",
-        unit: field.unit ?? "",
-        reference: buildReferenceFromTemplate(field),
+        name: field.label, value: "", unit: field.unit ?? "", reference: buildReferenceFromTemplate(field),
       }));
-      tests.push({
-        name: test.name,
-        forceShow: true,
-        rows: rows.length &gt; 0 ? rows : [{ name: "Result Field", value: "", unit: "", reference: "" }],
-      });
+      tests.push({ name: test.name, forceShow: true, rows: rows.length &gt; 0 ? rows : [{ name: "Result Field", value: "", unit: "", reference: "" }] });
       return { ...(prev ?? {}), tests };
     });
-    setLabTestSearch("");
-    setLabTestSearchResults([]);
+    setLabTestSearch(""); setLabTestSearchResults([]);
   }
 
   async function searchLabCatalog(query: string) {
     const trimmed = query.trim();
-    if (!trimmed) {
-      setLabTestSearchResults([]);
-      return;
-    }
+    if (!trimmed) { setLabTestSearchResults([]); return; }
     setLabTestSearchBusy(true);
     try {
       const res = await fetch(`/api/tests?search=${encodeURIComponent(trimmed)}&amp;type=LAB&amp;department=LABORATORY`);
       const json = await res.json();
-      if (!json.success) {
-        setLabTestSearchResults([]);
-        return;
-      }
+      if (!json.success) { setLabTestSearchResults([]); return; }
       setLabTestSearchResults((json.data as LabCatalogTest[]).slice(0, 8));
-    } catch {
-      setLabTestSearchResults([]);
-    } finally {
-      setLabTestSearchBusy(false);
-    }
+    } catch { setLabTestSearchResults([]); }
+    finally { setLabTestSearchBusy(false); }
   }
 
   function updateRadField(tIdx: number, key: "findings" | "impression" | "notes", value: string) {
@@ -20281,15 +21067,14 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   async function saveMdEdits() {
     if (!details) return;
     const resolvedReason = editReason.trim() || (details.isReleased ? "Dispatch correction" : "");
-    if (!resolvedReason) { setError("Edit reason is required."); return; }
+    if (!resolvedReason) { setError("Please enter an edit reason."); return; }
     setBusy(true); setError(""); setMessage("");
     try {
       const json = await (await fetch(`/api/reports/${details.id}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportContent: editableContent, comments: editComments || null, prescription: editPrescription || null, reason: resolvedReason }) })).json();
       if (!json.success) { setError(json.error ?? "Unable to save edits"); return; }
       invalidateReportCache(details.id);
-      setMessage(details.isReleased ? "Report updated." : "Draft updated."); setEditReason("");
-      setPreviewLoaded(false);
-      setPreviewNonce((value) =&gt; value + 1);
+      setMessage(details.isReleased ? "Report updated." : "Draft saved.");
+      setEditReason(""); setPreviewLoaded(false); setPreviewNonce((v) =&gt; v + 1);
       await loadDetails(details.id, { force: true }); await loadReports({ force: true });
     } finally { setBusy(false); }
   }
@@ -20300,10 +21085,8 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     try {
       const json = await (await fetch(`/api/reports/${details.id}/release`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: releaseMethod, instructions: receptionInstruction || undefined }) })).json();
       if (!json.success) { setError(json.error ?? "Release failed"); return; }
-      invalidateReportCache(details.id);
-      setMessage("Report released.");
-      setPreviewLoaded(false);
-      setPreviewNonce((value) =&gt; value + 1);
+      invalidateReportCache(details.id); setMessage("Report released.");
+      setPreviewLoaded(false); setPreviewNonce((v) =&gt; v + 1);
       await loadDetails(details.id, { force: true }); await loadReports({ force: true });
     } finally { setBusy(false); }
   }
@@ -20311,42 +21094,23 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   async function printReport() {
     if (!details) return;
     await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "PRINT" }) });
-    window.open(
-      previewUrl(details.id, printLetterheadMode, { showPrintButton: true }),
-      "_blank",
-      "noopener,noreferrer"
-    );
+    window.open(previewUrl(details.id, printLetterheadMode, { showPrintButton: true }), "_blank", "noopener,noreferrer");
   }
 
   async function printNow() {
     if (!details) return;
-    await fetch(`/api/reports/${details.id}/action`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "PRINT" }),
-    });
-    window.open(
-      previewUrl(details.id, printLetterheadMode, { showPrintButton: true, autoPrint: true }),
-      "_blank",
-      "noopener,noreferrer"
-    );
+    await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "PRINT" }) });
+    window.open(previewUrl(details.id, printLetterheadMode, { showPrintButton: true, autoPrint: true }), "_blank", "noopener,noreferrer");
   }
 
   async function downloadReport() {
     if (!details) return;
-    setError("");
-    setMessage("");
-    await fetch(`/api/reports/${details.id}/action`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "DOWNLOAD" }),
-    });
+    setError(""); setMessage("");
+    await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "DOWNLOAD" }) });
     const link = document.createElement("a");
     link.href = pdfUrl(details.id, printLetterheadMode);
     link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    document.body.appendChild(link); link.click(); link.remove();
     setMessage("PDF download started.");
   }
 
@@ -20359,29 +21123,19 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       const res = await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "SEND_WHATSAPP" }) });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "WhatsApp handoff failed"); return; }
-
       if (json.data?.waUrl) {
-        if (whatsappWindow) {
-          whatsappWindow.location.href = json.data.waUrl;
-        } else {
-          try {
-            window.location.href = json.data.waUrl;
-          } catch {
-            // Keep downloaded PDF as fallback when app link cannot open.
-          }
-        }
+        if (whatsappWindow) { whatsappWindow.location.href = json.data.waUrl; }
+        else { try { window.location.href = json.data.waUrl; } catch { } }
         shouldCloseWindow = false;
-        setMessage("WhatsApp opened with report link text ready to send.");
-      } else {
-        setError("WhatsApp destination unavailable.");
-      }
+        setMessage("WhatsApp opened. Send the report link to the patient.");
+      } else { setError("WhatsApp destination unavailable."); }
     } finally {
-      if (shouldCloseWindow &amp;&amp; whatsappWindow &amp;&amp; whatsappWindow.location.href === "about:blank") {
-        whatsappWindow.close();
-      }
+      if (shouldCloseWindow &amp;&amp; whatsappWindow &amp;&amp; whatsappWindow.location.href === "about:blank") whatsappWindow.close();
       setBusy(false);
     }
   }
+
+  const canEdit = canMdEdit || ((canHrmRelease || canReceptionDispatch) &amp;&amp; details?.isReleased);
 
   return (
     &lt;div className="space-y-4"&gt;
@@ -20459,185 +21213,6 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                   onLoad={() =&gt; setPreviewLoaded(true)} className="h-96 w-full rounded border border-slate-200" /&gt;
               &lt;/div&gt;
 
-              {/* Edit section */}
-              {(canMdEdit || ((canHrmRelease || canReceptionDispatch) &amp;&amp; details.isReleased)) &amp;&amp; (
-                &lt;div className="p-4 space-y-3"&gt;
-                  &lt;p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400"&gt;Report Edits&lt;/p&gt;
-                  {details.department === "LABORATORY" ? (
-                    &lt;div className="space-y-2"&gt;
-                      &lt;div className="rounded border border-slate-200 bg-slate-50 p-2.5 space-y-2"&gt;
-                        &lt;p className="text-[11px] font-medium text-slate-600"&gt;Add Missing Test&lt;/p&gt;
-                        &lt;div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]"&gt;
-                          &lt;input
-                            value={labTestSearch}
-                            onChange={(e) =&gt; setLabTestSearch(e.target.value)}
-                            className={inputCls}
-                            placeholder="Search lab test (e.g. urine m/c/s, fbc, genotype)"
-                          /&gt;
-                          &lt;button
-                            type="button"
-                            disabled={busy || labTestSearchBusy}
-                            onClick={() =&gt; void searchLabCatalog(labTestSearch)}
-                            className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                          &gt;
-                            {labTestSearchBusy ? "Searching..." : "Search"}
-                          &lt;/button&gt;
-                        &lt;/div&gt;
-                        {labTestSearchResults.length &gt; 0 ? (
-                          &lt;div className="space-y-1 rounded border border-slate-200 bg-white p-2"&gt;
-                            {labTestSearchResults.map((test) =&gt; (
-                              &lt;div key={test.id} className="flex items-center justify-between gap-2 rounded border border-slate-100 px-2 py-1.5"&gt;
-                                &lt;div&gt;
-                                  &lt;p className="text-xs font-medium text-slate-700"&gt;{test.name}&lt;/p&gt;
-                                  &lt;p className="text-[11px] text-slate-400"&gt;{test.code}&lt;/p&gt;
-                                &lt;/div&gt;
-                                &lt;button
-                                  type="button"
-                                  disabled={busy}
-                                  onClick={() =&gt; addLabTestFromCatalog(test)}
-                                  className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                                &gt;
-                                  Add Test
-                                &lt;/button&gt;
-                              &lt;/div&gt;
-                            ))}
-                          &lt;/div&gt;
-                        ) : null}
-                        &lt;div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]"&gt;
-                          &lt;input
-                            value={addLabTestName}
-                            onChange={(e) =&gt; setAddLabTestName(e.target.value)}
-                            className={inputCls}
-                            placeholder="Or add custom test name manually"
-                          /&gt;
-                          &lt;button
-                            type="button"
-                            disabled={busy}
-                            onClick={() =&gt; addLabTest(addLabTestName)}
-                            className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                          &gt;
-                            Add Custom Test
-                          &lt;/button&gt;
-                        &lt;/div&gt;
-                      &lt;/div&gt;
-
-                      {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) =&gt; (
-                        &lt;div key={tIdx} className="rounded border border-slate-100 p-2"&gt;
-                          &lt;div className="mb-2 flex items-center gap-2"&gt;
-                            &lt;input
-                              value={test?.name ?? ""}
-                              onChange={(e) =&gt; updateLabTestName(tIdx, e.target.value)}
-                              className={`${inputCls} font-medium`}
-                              placeholder={`Test ${tIdx + 1}`}
-                            /&gt;
-                            &lt;button
-                              type="button"
-                              disabled={busy}
-                              onClick={() =&gt; removeLabTest(tIdx)}
-                              className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
-                            &gt;
-                              Remove Test
-                            &lt;/button&gt;
-                          &lt;/div&gt;
-                          &lt;div className="grid grid-cols-1 gap-2"&gt;
-                            {(Array.isArray(test?.rows) ? test.rows : []).map((row: any, rIdx: number) =&gt; (
-                              &lt;div key={rIdx} className="rounded border border-slate-100 p-2"&gt;
-                                &lt;div className="mb-2 flex items-center gap-2"&gt;
-                                  &lt;input
-                                    value={row?.name ?? ""}
-                                    onChange={(e) =&gt; updateLabFieldName(tIdx, rIdx, e.target.value)}
-                                    className={inputCls}
-                                    placeholder={`Field ${rIdx + 1}`}
-                                  /&gt;
-                                  &lt;button
-                                    type="button"
-                                    disabled={busy}
-                                    onClick={() =&gt; removeLabField(tIdx, rIdx)}
-                                    className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
-                                  &gt;
-                                    Remove Field
-                                  &lt;/button&gt;
-                                &lt;/div&gt;
-                                &lt;div className="grid grid-cols-1 md:grid-cols-3 gap-1.5"&gt;
-                                  &lt;label&gt;
-                                    &lt;span className="block text-[11px] text-slate-400"&gt;Result&lt;/span&gt;
-                                    &lt;input
-                                      value={row?.value ?? ""}
-                                      onChange={(e) =&gt; updateLabField(tIdx, rIdx, "value", e.target.value)}
-                                      className={inputCls}
-                                    /&gt;
-                                  &lt;/label&gt;
-                                  &lt;label&gt;
-                                    &lt;span className="block text-[11px] text-slate-400"&gt;Unit&lt;/span&gt;
-                                    &lt;input
-                                      value={row?.unit ?? ""}
-                                      onChange={(e) =&gt; updateLabField(tIdx, rIdx, "unit", e.target.value)}
-                                      className={inputCls}
-                                    /&gt;
-                                  &lt;/label&gt;
-                                  &lt;label&gt;
-                                    &lt;span className="block text-[11px] text-slate-400"&gt;Reference/Range&lt;/span&gt;
-                                    &lt;input
-                                      value={row?.reference ?? ""}
-                                      onChange={(e) =&gt; updateLabField(tIdx, rIdx, "reference", e.target.value)}
-                                      className={inputCls}
-                                    /&gt;
-                                  &lt;/label&gt;
-                                &lt;/div&gt;
-                              &lt;/div&gt;
-                            ))}
-                          &lt;/div&gt;
-                          &lt;button
-                            type="button"
-                            disabled={busy}
-                            onClick={() =&gt; addLabField(tIdx)}
-                            className="mt-2 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                          &gt;
-                            Add Field
-                          &lt;/button&gt;
-                        &lt;/div&gt;
-                      ))}
-                    &lt;/div&gt;
-                  ) : (
-                    &lt;div className="space-y-2"&gt;
-                      {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) =&gt; (
-                        &lt;div key={tIdx} className="rounded border border-slate-100 p-2 space-y-1.5"&gt;
-                          &lt;p className="text-xs font-medium text-slate-700"&gt;{test?.name ?? `Report ${tIdx + 1}`}&lt;/p&gt;
-                          {(["findings", "impression", "notes"] as const).map((key) =&gt; (
-                            &lt;label key={key}&gt;
-                              &lt;span className={labelCls}&gt;{key.charAt(0).toUpperCase() + key.slice(1)}&lt;/span&gt;
-                              &lt;textarea rows={2} value={test?.[key] ?? ""} onChange={(e) =&gt; updateRadField(tIdx, key, e.target.value)} className={areaCls} /&gt;
-                            &lt;/label&gt;
-                          ))}
-                        &lt;/div&gt;
-                      ))}
-                    &lt;/div&gt;
-                  )}
-                  &lt;div&gt;
-                    &lt;label className={labelCls}&gt;Comments (optional)&lt;/label&gt;
-                    &lt;textarea rows={2} value={editComments} onChange={(e) =&gt; setEditComments(e.target.value)} className={areaCls} /&gt;
-                  &lt;/div&gt;
-                  &lt;div&gt;
-                    &lt;label className={labelCls}&gt;Prescription (optional)&lt;/label&gt;
-                    &lt;textarea rows={2} value={editPrescription} onChange={(e) =&gt; setEditPrescription(e.target.value)} className={areaCls} /&gt;
-                  &lt;/div&gt;
-                  &lt;div&gt;
-                    &lt;label className={labelCls}&gt;{details.isReleased ? "Edit reason (optional)" : "Edit reason *"}&lt;/label&gt;
-                    &lt;textarea
-                      rows={1}
-                      value={editReason}
-                      onChange={(e) =&gt; setEditReason(e.target.value)}
-                      placeholder={details.isReleased ? "Optional for released report corrections" : ""}
-                      className={areaCls}
-                    /&gt;
-                  &lt;/div&gt;
-                  &lt;button disabled={busy} onClick={saveMdEdits}
-                    className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"&gt;
-                    {busy ? "Saving..." : "Save Edits"}
-                  &lt;/button&gt;
-                &lt;/div&gt;
-              )}
-
               {/* Release / Dispatch controls */}
               {(canHrmRelease || canReceptionDispatch) &amp;&amp; (
                 &lt;div className="p-4 space-y-3"&gt;
@@ -20651,10 +21226,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                     &lt;label className={labelCls}&gt;Print format&lt;/label&gt;
                     &lt;select
                       value={printLetterheadMode}
-                      onChange={(e) =&gt; {
-                        setPreviewLoaded(false);
-                        setPrintLetterheadMode(e.target.value as "with" | "without");
-                      }}
+                      onChange={(e) =&gt; { setPreviewLoaded(false); setPrintLetterheadMode(e.target.value as "with" | "without"); }}
                       className="h-7 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"
                     &gt;
                       &lt;option value="with"&gt;With letterhead&lt;/option&gt;
@@ -20693,6 +21265,204 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                 &lt;/div&gt;
               )}
 
+              {/* Edit section â€” collapsible */}
+              {canEdit &amp;&amp; (
+                &lt;div className="p-4 space-y-3"&gt;
+                  &lt;button
+                    onClick={() =&gt; setShowEditSection((v) =&gt; !v)}
+                    className="flex w-full items-center justify-between"
+                  &gt;
+                    &lt;p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400"&gt;Report Edits&lt;/p&gt;
+                    &lt;span className="rounded border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50 transition-colors"&gt;
+                      {showEditSection ? "Hide" : "Show"}
+                    &lt;/span&gt;
+                  &lt;/button&gt;
+
+                  {showEditSection &amp;&amp; (
+                    &lt;div className="space-y-3"&gt;
+                      {details.department === "LABORATORY" ? (
+                        &lt;div className="space-y-2"&gt;
+                          &lt;div className="rounded border border-slate-200 bg-slate-50 p-2.5 space-y-2"&gt;
+                            &lt;p className="text-[11px] font-medium text-slate-600"&gt;Add Missing Test&lt;/p&gt;
+                            &lt;div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]"&gt;
+                              &lt;input
+                                value={labTestSearch}
+                                onChange={(e) =&gt; setLabTestSearch(e.target.value)}
+                                className={inputCls}
+                                placeholder="Search lab test (e.g. urine m/c/s, fbc, genotype)"
+                              /&gt;
+                              &lt;button
+                                type="button"
+                                disabled={busy || labTestSearchBusy}
+                                onClick={() =&gt; void searchLabCatalog(labTestSearch)}
+                                className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              &gt;
+                                {labTestSearchBusy ? "Searching..." : "Search"}
+                              &lt;/button&gt;
+                            &lt;/div&gt;
+                            {labTestSearchResults.length &gt; 0 ? (
+                              &lt;div className="space-y-1 rounded border border-slate-200 bg-white p-2"&gt;
+                                {labTestSearchResults.map((test) =&gt; (
+                                  &lt;div key={test.id} className="flex items-center justify-between gap-2 rounded border border-slate-100 px-2 py-1.5"&gt;
+                                    &lt;div&gt;
+                                      &lt;p className="text-xs font-medium text-slate-700"&gt;{test.name}&lt;/p&gt;
+                                      &lt;p className="text-[11px] text-slate-400"&gt;{test.code}&lt;/p&gt;
+                                    &lt;/div&gt;
+                                    &lt;button
+                                      type="button"
+                                      disabled={busy}
+                                      onClick={() =&gt; addLabTestFromCatalog(test)}
+                                      className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                                    &gt;
+                                      Add Test
+                                    &lt;/button&gt;
+                                  &lt;/div&gt;
+                                ))}
+                              &lt;/div&gt;
+                            ) : null}
+                            &lt;div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]"&gt;
+                              &lt;input
+                                value={addLabTestName}
+                                onChange={(e) =&gt; setAddLabTestName(e.target.value)}
+                                className={inputCls}
+                                placeholder="Or add custom test name manually"
+                              /&gt;
+                              &lt;button
+                                type="button"
+                                disabled={busy}
+                                onClick={() =&gt; addLabTest(addLabTestName)}
+                                className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              &gt;
+                                Add Custom Test
+                              &lt;/button&gt;
+                            &lt;/div&gt;
+                          &lt;/div&gt;
+
+                          {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) =&gt; (
+                            &lt;div key={tIdx} className="rounded border border-slate-100 p-2"&gt;
+                              &lt;div className="mb-2 flex items-center gap-2"&gt;
+                                &lt;input
+                                  value={test?.name ?? ""}
+                                  onChange={(e) =&gt; updateLabTestName(tIdx, e.target.value)}
+                                  className={`${inputCls} font-medium`}
+                                  placeholder={`Test ${tIdx + 1}`}
+                                /&gt;
+                                &lt;button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() =&gt; removeLabTest(tIdx)}
+                                  className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
+                                &gt;
+                                  Remove Test
+                                &lt;/button&gt;
+                              &lt;/div&gt;
+                              &lt;div className="grid grid-cols-1 gap-2"&gt;
+                                {(Array.isArray(test?.rows) ? test.rows : []).map((row: any, rIdx: number) =&gt; (
+                                  &lt;div key={rIdx} className="rounded border border-slate-100 p-2"&gt;
+                                    &lt;div className="mb-2 flex items-center gap-2"&gt;
+                                      &lt;input
+                                        value={row?.name ?? ""}
+                                        onChange={(e) =&gt; updateLabFieldName(tIdx, rIdx, e.target.value)}
+                                        className={inputCls}
+                                        placeholder={`Field ${rIdx + 1}`}
+                                      /&gt;
+                                      &lt;button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() =&gt; removeLabField(tIdx, rIdx)}
+                                        className="rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-100 disabled:opacity-50"
+                                      &gt;
+                                        âœ•
+                                      &lt;/button&gt;
+                                    &lt;/div&gt;
+                                    &lt;div className="grid grid-cols-1 md:grid-cols-3 gap-1.5"&gt;
+                                      &lt;label&gt;
+                                        &lt;span className="block text-[11px] text-slate-400"&gt;
+                                          Result
+                                          {(shouldUseMicroscopyEditor(String(row?.name ?? ""), String(row?.value ?? "")) || String(row?.value ?? "").includes("\n"))
+                                            ? " (one item per line)"
+                                            : ""}
+                                        &lt;/span&gt;
+                                        {(shouldUseMicroscopyEditor(String(row?.name ?? ""), String(row?.value ?? "")) || String(row?.value ?? "").includes("\n")) ? (
+                                          &lt;textarea
+                                            rows={4}
+                                            value={row?.value ?? ""}
+                                            onChange={(e) =&gt; updateLabField(tIdx, rIdx, "value", e.target.value)}
+                                            className={areaCls}
+                                          /&gt;
+                                        ) : (
+                                          &lt;input
+                                            value={row?.value ?? ""}
+                                            onChange={(e) =&gt; updateLabField(tIdx, rIdx, "value", e.target.value)}
+                                            className={inputCls}
+                                          /&gt;
+                                        )}
+                                      &lt;/label&gt;
+                                      &lt;label&gt;
+                                        &lt;span className="block text-[11px] text-slate-400"&gt;Unit&lt;/span&gt;
+                                        &lt;input value={row?.unit ?? ""} onChange={(e) =&gt; updateLabField(tIdx, rIdx, "unit", e.target.value)} className={inputCls} /&gt;
+                                      &lt;/label&gt;
+                                      &lt;label&gt;
+                                        &lt;span className="block text-[11px] text-slate-400"&gt;Reference/Range&lt;/span&gt;
+                                        &lt;input value={row?.reference ?? ""} onChange={(e) =&gt; updateLabField(tIdx, rIdx, "reference", e.target.value)} className={inputCls} /&gt;
+                                      &lt;/label&gt;
+                                    &lt;/div&gt;
+                                  &lt;/div&gt;
+                                ))}
+                              &lt;/div&gt;
+                              &lt;button
+                                type="button"
+                                disabled={busy}
+                                onClick={() =&gt; addLabField(tIdx)}
+                                className="mt-2 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              &gt;
+                                Add Field
+                              &lt;/button&gt;
+                            &lt;/div&gt;
+                          ))}
+                        &lt;/div&gt;
+                      ) : (
+                        &lt;div className="space-y-2"&gt;
+                          {(Array.isArray(editableContent?.tests) ? editableContent.tests : []).map((test: any, tIdx: number) =&gt; (
+                            &lt;div key={tIdx} className="rounded border border-slate-100 p-2 space-y-1.5"&gt;
+                              &lt;p className="text-xs font-medium text-slate-700"&gt;{test?.name ?? `Report ${tIdx + 1}`}&lt;/p&gt;
+                              {(["findings", "impression", "notes"] as const).map((key) =&gt; (
+                                &lt;label key={key}&gt;
+                                  &lt;span className={labelCls}&gt;{key.charAt(0).toUpperCase() + key.slice(1)}&lt;/span&gt;
+                                  &lt;textarea rows={2} value={test?.[key] ?? ""} onChange={(e) =&gt; updateRadField(tIdx, key, e.target.value)} className={areaCls} /&gt;
+                                &lt;/label&gt;
+                              ))}
+                            &lt;/div&gt;
+                          ))}
+                        &lt;/div&gt;
+                      )}
+                      &lt;div&gt;
+                        &lt;label className={labelCls}&gt;Comments (optional)&lt;/label&gt;
+                        &lt;textarea rows={2} value={editComments} onChange={(e) =&gt; setEditComments(e.target.value)} className={areaCls} /&gt;
+                      &lt;/div&gt;
+                      &lt;div&gt;
+                        &lt;label className={labelCls}&gt;Prescription (optional)&lt;/label&gt;
+                        &lt;textarea rows={2} value={editPrescription} onChange={(e) =&gt; setEditPrescription(e.target.value)} className={areaCls} /&gt;
+                      &lt;/div&gt;
+                      &lt;div&gt;
+                        &lt;label className={labelCls}&gt;{details.isReleased ? "Edit reason (optional)" : "Edit reason *"}&lt;/label&gt;
+                        &lt;textarea
+                          rows={1}
+                          value={editReason}
+                          onChange={(e) =&gt; setEditReason(e.target.value)}
+                          placeholder={details.isReleased ? "Optional for released report corrections" : ""}
+                          className={areaCls}
+                        /&gt;
+                      &lt;/div&gt;
+                      &lt;button disabled={busy} onClick={saveMdEdits}
+                        className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"&gt;
+                        {busy ? "Saving..." : "Save Edits"}
+                      &lt;/button&gt;
+                    &lt;/div&gt;
+                  )}
+                &lt;/div&gt;
+              )}
+
               {/* Version history */}
               &lt;div className="p-4"&gt;
                 &lt;div className="flex items-center justify-between mb-2"&gt;
@@ -20706,26 +21476,26 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                 &lt;/div&gt;
                 {showVersionHistory ? (
                   &lt;div className="overflow-x-auto"&gt;
-                  &lt;table className="w-full min-w-[640px] text-xs"&gt;
-                    &lt;thead&gt;
-                      &lt;tr className="border-b border-slate-100"&gt;
-                        &lt;th className="pb-1.5 text-left font-medium text-slate-400"&gt;Version&lt;/th&gt;
-                        &lt;th className="pb-1.5 text-left font-medium text-slate-400"&gt;By&lt;/th&gt;
-                        &lt;th className="pb-1.5 text-left font-medium text-slate-400"&gt;Reason&lt;/th&gt;
-                        &lt;th className="pb-1.5 text-right font-medium text-slate-400"&gt;Time&lt;/th&gt;
-                      &lt;/tr&gt;
-                    &lt;/thead&gt;
-                    &lt;tbody className="divide-y divide-slate-100"&gt;
-                      {details.versions.map((v) =&gt; (
-                        &lt;tr key={v.id}&gt;
-                          &lt;td className="py-1.5 font-mono text-slate-700"&gt;v{v.version} {v.isActive &amp;&amp; &lt;span className="text-blue-600"&gt;(active)&lt;/span&gt;}&lt;/td&gt;
-                          &lt;td className="py-1.5 text-slate-600"&gt;{v.editedBy.fullName}&lt;/td&gt;
-                          &lt;td className="py-1.5 text-slate-400"&gt;{v.editReason}&lt;/td&gt;
-                          &lt;td className="py-1.5 text-right text-slate-400 whitespace-nowrap"&gt;{formatDateTime(v.createdAt)}&lt;/td&gt;
+                    &lt;table className="w-full min-w-[640px] text-xs"&gt;
+                      &lt;thead&gt;
+                        &lt;tr className="border-b border-slate-100"&gt;
+                          &lt;th className="pb-1.5 text-left font-medium text-slate-400"&gt;Version&lt;/th&gt;
+                          &lt;th className="pb-1.5 text-left font-medium text-slate-400"&gt;By&lt;/th&gt;
+                          &lt;th className="pb-1.5 text-left font-medium text-slate-400"&gt;Reason&lt;/th&gt;
+                          &lt;th className="pb-1.5 text-right font-medium text-slate-400"&gt;Time&lt;/th&gt;
                         &lt;/tr&gt;
-                      ))}
-                    &lt;/tbody&gt;
-                  &lt;/table&gt;
+                      &lt;/thead&gt;
+                      &lt;tbody className="divide-y divide-slate-100"&gt;
+                        {details.versions.map((v) =&gt; (
+                          &lt;tr key={v.id}&gt;
+                            &lt;td className="py-1.5 font-mono text-slate-700"&gt;v{v.version} {v.isActive &amp;&amp; &lt;span className="text-blue-600"&gt;(active)&lt;/span&gt;}&lt;/td&gt;
+                            &lt;td className="py-1.5 text-slate-600"&gt;{v.editedBy.fullName}&lt;/td&gt;
+                            &lt;td className="py-1.5 text-slate-400"&gt;{v.editReason}&lt;/td&gt;
+                            &lt;td className="py-1.5 text-right text-slate-400 whitespace-nowrap"&gt;{formatDateTime(v.createdAt)}&lt;/td&gt;
+                          &lt;/tr&gt;
+                        ))}
+                      &lt;/tbody&gt;
+                    &lt;/table&gt;
                   &lt;/div&gt;
                 ) : (
                   &lt;p className="text-[11px] text-slate-400"&gt;Version history is collapsed to keep this view fast.&lt;/p&gt;
@@ -20737,7 +21507,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
       &lt;/div&gt;
     &lt;/div&gt;
   );
-}
+} 
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/results/result-insight-box.tsx</div><pre>type Props = {
   messages: string[];
@@ -24500,7 +25270,29 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
       },
       results: {
         include: {
-          testOrder: { include: { test: true } },
+          testOrder: {
+            include: {
+              test: {
+                include: {
+                  resultFields: {
+                    orderBy: { sortOrder: "asc" },
+                    select: {
+                      id: true,
+                      label: true,
+                      fieldKey: true,
+                      fieldType: true,
+                      unit: true,
+                      normalMin: true,
+                      normalMax: true,
+                      normalText: true,
+                      referenceNote: true,
+                      sortOrder: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
           versions: {
             include: { editedBy: { select: { id: true, fullName: true } } },
             orderBy: { version: "desc" },
@@ -26030,6 +26822,140 @@ export function getOfflinePendingCount() {
   );
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/lib/patient-age.ts</div><pre>type AgeDisplayStyle = "compact" | "long";
+
+type PatientAgeInput = {
+  age?: number | null;
+  dateOfBirth?: string | Date | null;
+};
+
+function parseDateOnlyInput(value: string | Date | null | undefined) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const utc = new Date(Date.UTC(year, month, day));
+    if (
+      utc.getUTCFullYear() === year &amp;&amp;
+      utc.getUTCMonth() === month &amp;&amp;
+      utc.getUTCDate() === day
+    ) {
+      return utc;
+    }
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
+}
+
+function daysInUtcMonth(year: number, month: number) {
+  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+}
+
+function addMonthsUtcClamped(base: Date, months: number) {
+  const year = base.getUTCFullYear();
+  const month = base.getUTCMonth();
+  const day = base.getUTCDate();
+
+  const targetMonthIndex = month + months;
+  const targetYear = year + Math.floor(targetMonthIndex / 12);
+  const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
+  const targetDay = Math.min(day, daysInUtcMonth(targetYear, normalizedMonth));
+  return new Date(Date.UTC(targetYear, normalizedMonth, targetDay));
+}
+
+function diffWholeDaysUtc(start: Date, end: Date) {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.floor((end.getTime() - start.getTime()) / msPerDay));
+}
+
+function computeAgeParts(dateOfBirth: Date, now: Date) {
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  if (dateOfBirth.getTime() &gt; end.getTime()) return null;
+
+  let totalMonths =
+    (end.getUTCFullYear() - dateOfBirth.getUTCFullYear()) * 12 +
+    (end.getUTCMonth() - dateOfBirth.getUTCMonth());
+  if (end.getUTCDate() &lt; dateOfBirth.getUTCDate()) totalMonths -= 1;
+  if (totalMonths &lt; 0) totalMonths = 0;
+
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  const anchor = addMonthsUtcClamped(dateOfBirth, totalMonths);
+  const days = diffWholeDaysUtc(anchor, end);
+
+  return { years, months, days };
+}
+
+function compactAgeLabel(parts: { years: number; months: number; days: number }) {
+  if (parts.years &gt;= 1) return `${parts.years}y`;
+  if (parts.months &gt;= 1) return `${parts.months}m`;
+  return `${parts.days}d`;
+}
+
+function longAgeLabel(parts: { years: number; months: number; days: number }) {
+  if (parts.years &gt;= 1) return `${parts.years} year${parts.years === 1 ? "" : "s"}`;
+  if (parts.months &gt;= 1) return `${parts.months} month${parts.months === 1 ? "" : "s"}`;
+  return `${parts.days} day${parts.days === 1 ? "" : "s"}`;
+}
+
+export function formatPatientAge(input: PatientAgeInput, style: AgeDisplayStyle = "compact") {
+  const dob = parseDateOnlyInput(input.dateOfBirth);
+  if (dob) {
+    const parts = computeAgeParts(dob, new Date());
+    if (parts) {
+      return style === "long" ? longAgeLabel(parts) : compactAgeLabel(parts);
+    }
+  }
+
+  const years = Number(input.age);
+  if (Number.isFinite(years) &amp;&amp; years &gt;= 0) return `${Math.trunc(years)}y`;
+  return "-";
+}
+
+export function formatPatientAgeSex(
+  input: PatientAgeInput &amp; { sex?: string | null },
+  opts?: { ageStyle?: AgeDisplayStyle; separator?: string }
+) {
+  const ageText = formatPatientAge(input, opts?.ageStyle ?? "compact");
+  const sexText = String(input.sex ?? "-").trim() || "-";
+  return `${ageText}${opts?.separator ?? " / "}${sexText}`;
+}
+
+export function estimateDateOfBirthFromEnteredAge(
+  value: string,
+  unit: "YEARS" | "MONTHS" | "DAYS"
+) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount &lt; 0) return null;
+
+  const now = new Date();
+  const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  if (unit === "YEARS") {
+    base.setUTCFullYear(base.getUTCFullYear() - Math.trunc(amount));
+  } else if (unit === "MONTHS") {
+    const estimated = addMonthsUtcClamped(base, -Math.trunc(amount));
+    base.setTime(estimated.getTime());
+  } else {
+    base.setUTCDate(base.getUTCDate() - Math.trunc(amount));
+  }
+
+  const y = base.getUTCFullYear();
+  const m = String(base.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(base.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/lib/patient-insights.ts</div><pre>export type PatientHistoryRow = {
   testName: string;
   recordedAt: string;
@@ -26464,6 +27390,42 @@ export async function dispatchPushForNotification(
     }
     console.error("[PUSH_DISPATCH_FAILED]", error);
   }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/radiology-groups.ts</div><pre>import { prisma } from "@/lib/prisma";
+
+export async function getGroupedRadiologyTests(params: {
+  organizationId: string;
+  groupKey: string;
+}) {
+  return prisma.$queryRaw&lt;
+    Array&lt;{
+      id: string;
+      organizationId: string;
+      categoryId: string | null;
+      name: string;
+      code: string;
+      type: string;
+      department: string;
+      price: unknown;
+      costPrice: unknown;
+      turnaroundMinutes: number;
+      sampleType: string | null;
+      description: string | null;
+      groupKey: string | null;
+      viewType: string | null;
+      isDefaultInGroup: boolean;
+      isActive: boolean;
+    }&gt;
+  &gt;`
+    SELECT *
+    FROM "diagnostic_tests"
+    WHERE "organizationId" = ${params.organizationId}
+      AND "type" = 'RADIOLOGY'
+      AND "groupKey" = ${params.groupKey}
+      AND "isActive" = true
+    ORDER BY "isDefaultInGroup" DESC, "name" ASC
+  `;
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/radiology-workflow.ts</div><pre>import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
@@ -27008,6 +27970,30 @@ type DemographicRangeMap = Partial&lt;Record&lt;DemographicRangeKey, ParsedRange
 
 const DEMOGRAPHIC_META_PREFIX = "[[DIAGSYNC_DEMO:";
 const DEMOGRAPHIC_META_SUFFIX = "]]";
+const NUMERIC_REFERENCE_FALLBACKS: Record&lt;string, { min: number; max: number; unit?: string }&gt; = {
+  urea: { min: 1.6, max: 8.3, unit: "mmol/L" },
+  creatinine: { min: 63, max: 130, unit: "Âµmol/L" },
+};
+
+function withNumericFallback(field: ReferenceField): ReferenceField {
+  if (field.fieldType !== "NUMBER") return field;
+  const key = field.fieldKey.trim().toLowerCase();
+  const fallback = NUMERIC_REFERENCE_FALLBACKS[key];
+  if (!fallback) return field;
+
+  const currentMin = toDecimalCompatibleNumber(field.normalMin);
+  const currentMax = toDecimalCompatibleNumber(field.normalMax);
+  if (currentMin !== null || currentMax !== null || (field.normalText?.trim() ?? "").length &gt; 0) {
+    return field;
+  }
+
+  return {
+    ...field,
+    normalMin: fallback.min,
+    normalMax: fallback.max,
+    unit: field.unit?.trim() ? field.unit : fallback.unit ?? field.unit,
+  };
+}
 
 function parseRangeFromText(text: string): ParsedRange | null {
   const match = text.match(/(-?\d+(?:\.\d+)?)\s*[-â€“â€”]\s*(-?\d+(?:\.\d+)?)/);
@@ -27141,13 +28127,14 @@ function normalizeText(value: unknown) {
 }
 
 export function evaluateReferenceFlag(field: ReferenceField, value: unknown, context?: ReferenceContext): ReferenceFlag | null {
+  const effectiveField = withNumericFallback(field);
   if (value === null || value === undefined || `${value}`.trim() === "") return null;
 
-  if (field.fieldType === "NUMBER") {
+  if (effectiveField.fieldType === "NUMBER") {
     const numericValue = toNumber(value);
-    const contextual = chooseRangeForContext(field, context);
-    const min = contextual?.min ?? toDecimalCompatibleNumber(field.normalMin);
-    const max = contextual?.max ?? toDecimalCompatibleNumber(field.normalMax);
+    const contextual = chooseRangeForContext(effectiveField, context);
+    const min = contextual?.min ?? toDecimalCompatibleNumber(effectiveField.normalMin);
+    const max = contextual?.max ?? toDecimalCompatibleNumber(effectiveField.normalMax);
     if (numericValue === null) return null;
     if (min !== null &amp;&amp; max !== null) {
       if (numericValue &lt; min) return "LOW";
@@ -27165,9 +28152,9 @@ export function evaluateReferenceFlag(field: ReferenceField, value: unknown, con
     return null;
   }
 
-  if (field.fieldType === "DROPDOWN" || field.fieldType === "TEXT" || field.fieldType === "TEXTAREA") {
-    if (!field.normalText?.trim()) return null;
-    return normalizeText(value) === normalizeText(field.normalText) ? "NORMAL" : "ABNORMAL";
+  if (effectiveField.fieldType === "DROPDOWN" || effectiveField.fieldType === "TEXT" || effectiveField.fieldType === "TEXTAREA") {
+    if (!effectiveField.normalText?.trim()) return null;
+    return normalizeText(value) === normalizeText(effectiveField.normalText) ? "NORMAL" : "ABNORMAL";
   }
 
   return null;
@@ -27183,18 +28170,19 @@ export function computeAbnormalFlags(fields: ReferenceField[], resultData: Recor
 }
 
 export function formatReferenceDisplay(field: ReferenceField, context?: ReferenceContext) {
-  const contextual = chooseRangeForContext(field, context);
-  const min = contextual?.min ?? toDecimalCompatibleNumber(field.normalMin);
-  const max = contextual?.max ?? toDecimalCompatibleNumber(field.normalMax);
-  const unit = field.unit?.trim() ? ` ${field.unit.trim()}` : "";
+  const effectiveField = withNumericFallback(field);
+  const contextual = chooseRangeForContext(effectiveField, context);
+  const min = contextual?.min ?? toDecimalCompatibleNumber(effectiveField.normalMin);
+  const max = contextual?.max ?? toDecimalCompatibleNumber(effectiveField.normalMax);
+  const unit = effectiveField.unit?.trim() ? ` ${effectiveField.unit.trim()}` : "";
   const prefix = contextual?.label ? `Normal (${contextual.label})` : "Normal";
   if (min !== null &amp;&amp; max !== null) {
     return `${prefix}: ${min} - ${max}${unit}`;
   }
-  if (field.normalText?.trim()) return `Normal: ${field.normalText.trim()}`;
+  if (effectiveField.normalText?.trim()) return `Normal: ${effectiveField.normalText.trim()}`;
   if (min !== null) return `${prefix}: &gt;= ${min}${unit}`;
   if (max !== null) return `${prefix}: &lt;= ${max}${unit}`;
-  const { plainText } = splitReferenceNote(field.referenceNote);
+  const { plainText } = splitReferenceNote(effectiveField.referenceNote);
   if (plainText) return `Reference: ${plainText}`;
   return "";
 }
@@ -27306,6 +28294,7 @@ run();
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/report-rendering.ts</div><pre>import { Department } from "@prisma/client";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY } from "./report-signoff";
+import { formatPatientAge } from "./patient-age";
 
 function escapeHtml(input: string) {
   return input
@@ -27855,7 +28844,7 @@ function splitRadiologyNarrative(raw: string) {
   const normalized = trimmed
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
-    .replace(/[â€¢â—â–ª]/g, "\n")
+    .replace(/[â€¢â—â–ªï¬]/g, "\n")
     .replace(/\t+/g, " ")
     .replace(/[ ]{2,}/g, " ")
     .trim();
@@ -27865,6 +28854,9 @@ function splitRadiologyNarrative(raw: string) {
   const labelMatches = Array.from(normalized.matchAll(labelRegex));
   if (labelMatches.length &gt; 1) {
     const points: string[] = [];
+    const firstLabelStart = labelMatches[0]?.index ?? 0;
+    const intro = normalized.slice(0, firstLabelStart).trim().replace(/\s+/g, " ");
+    if (intro) points.push(intro);
     for (let i = 0; i &lt; labelMatches.length; i += 1) {
       const start = labelMatches[i].index ?? 0;
       const end = i + 1 &lt; labelMatches.length ? labelMatches[i + 1].index ?? normalized.length : normalized.length;
@@ -27948,6 +28940,10 @@ export function renderReportHtml(args: RenderArgs) {
   const printMarginBottomPx = hasLetterhead ? 156 : 96;
   const printMarginSidePx = 44;
   const patient = args.content.patient ?? {};
+  const ageLabel = formatPatientAge(
+    { age: patient.age, dateOfBirth: patient.dateOfBirth },
+    "long"
+  );
   const meta = args.content.meta ?? {};
   const referringDoctor = String(meta.referringDoctor ?? "").trim();
   const tests = Array.isArray(args.content.tests) ? args.content.tests : [];
@@ -28050,6 +29046,7 @@ export function renderReportHtml(args: RenderArgs) {
 &lt;html&gt;
 &lt;head&gt;
   &lt;meta charset="utf-8" /&gt;
+  &lt;meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /&gt;
   ${
     args.baseUrl
       ? `&lt;base href="${escapeHtml(
@@ -28066,6 +29063,7 @@ export function renderReportHtml(args: RenderArgs) {
       color: #111827;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+      background: #f3f4f6;
     }
     .page {
       position: relative;
@@ -28255,6 +29253,38 @@ export function renderReportHtml(args: RenderArgs) {
     .preview-print-btn:active {
       transform: translateY(1px);
     }
+    @media screen and (max-width: 860px) {
+      .page {
+        width: 100%;
+        max-width: 100%;
+        min-height: auto;
+        padding: ${hasLetterhead ? "160px" : "96px"} 10px 76px;
+        margin: 0;
+      }
+      .content-shell {
+        max-width: 100%;
+        border-radius: 6px;
+        padding: 12px;
+      }
+      .meta-grid {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+      h2 { font-size: 15px; }
+      h3 { font-size: 13px; }
+      p { font-size: 12px; }
+      table { font-size: 11px; }
+      th, td { padding: 4px; }
+      .preview-actions {
+        top: 8px;
+        right: 8px;
+      }
+      .preview-print-btn {
+        font-size: 12px;
+        padding: 8px 11px;
+        border-radius: 7px;
+      }
+    }
     @media print {
       .preview-actions { display: none !important; }
       .letterhead-layer {
@@ -28336,7 +29366,8 @@ export function renderReportHtml(args: RenderArgs) {
       &lt;div class="meta-grid"&gt;
         &lt;p&gt;&lt;strong&gt;Patient:&lt;/strong&gt; ${escapeHtml(String(patient.fullName ?? "-"))}&lt;/p&gt;
         &lt;p&gt;&lt;strong&gt;Patient ID:&lt;/strong&gt; ${escapeHtml(String(patient.patientId ?? "-"))}&lt;/p&gt;
-        &lt;p&gt;&lt;strong&gt;Age/Sex:&lt;/strong&gt; ${escapeHtml(String(patient.age ?? "-"))} / ${escapeHtml(String(patient.sex ?? "-"))}&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;Age:&lt;/strong&gt; ${escapeHtml(ageLabel)}&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;Sex:&lt;/strong&gt; ${escapeHtml(String(patient.sex ?? "-"))}&lt;/p&gt;
         &lt;p&gt;&lt;strong&gt;Visit Date:&lt;/strong&gt; ${escapeHtml(String(meta.visitDate ?? "-"))}&lt;/p&gt;
         &lt;p&gt;&lt;strong&gt;Report Date:&lt;/strong&gt; ${escapeHtml(String(meta.reportDate ?? "-"))}&lt;/p&gt;
         ${referringDoctor ? `&lt;p&gt;&lt;strong&gt;Referring Doctor:&lt;/strong&gt; ${escapeHtml(referringDoctor)}&lt;/p&gt;` : ""}
@@ -28534,6 +29565,7 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
       fullName: task.visit.patient.fullName,
       patientId: task.visit.patient.patientId,
       age: task.visit.patient.age,
+      dateOfBirth: task.visit.patient.dateOfBirth?.toISOString() ?? null,
       sex: task.visit.patient.sex,
     },
     meta: {
@@ -29083,6 +30115,22 @@ export async function renderReportForPreview(
   const activeVersion = report.versions.find((version) =&gt; version.isActive) ?? report.versions[0] ?? null;
   if (!activeVersion) throw new Error("INVALID_VERSION_CHAIN");
   assertContentMatchesDepartment(activeVersion.content, report.department);
+  const versionContent = (activeVersion.content ?? {}) as Record&lt;string, unknown&gt;;
+  const existingPatient =
+    versionContent.patient &amp;&amp; typeof versionContent.patient === "object"
+      ? (versionContent.patient as Record&lt;string, unknown&gt;)
+      : {};
+  const renderContent = {
+    ...versionContent,
+    patient: {
+      ...existingPatient,
+      fullName: report.visit.patient.fullName,
+      patientId: report.visit.patient.patientId,
+      age: report.visit.patient.age,
+      dateOfBirth: report.visit.patient.dateOfBirth?.toISOString() ?? null,
+      sex: report.visit.patient.sex,
+    },
+  };
 
   const html = renderReportHtml({
     organization: {
@@ -29094,7 +30142,7 @@ export async function renderReportForPreview(
       letterheadUrl: report.organization.letterheadUrl,
     },
     department: report.department,
-    content: activeVersion.content as any,
+    content: renderContent as any,
     comments: activeVersion.comments ?? report.comments,
     prescription: activeVersion.prescription ?? report.prescription,
     mdName: null,
@@ -30352,6 +31400,7 @@ export default async function middleware(req: NextRequest) {
 
   const isPublicRoute =
     publicRoutes.has(pathname) ||
+    pathname.startsWith("/public/reports/") ||
     pathname.startsWith("/api/auth") ||
     pathname === "/api/uploads/branding" ||
     pathname === "/api/organizations/register";
