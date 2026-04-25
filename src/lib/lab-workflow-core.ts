@@ -11,9 +11,8 @@ export function canModifyAssignedTask(params: {
   userId: string;
   assignedStaffId: string | null;
 }) {
-  if (params.userRole !== "LAB_SCIENTIST") return false;
-  if (!params.assignedStaffId) return false;
-  return params.userId === params.assignedStaffId;
+  // Allow any lab scientist in the same organization to continue/update active lab tasks.
+  return params.userRole === "LAB_SCIENTIST";
 }
 
 export function canStartTask(status: RoutingTaskStatus) {

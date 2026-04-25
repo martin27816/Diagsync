@@ -16,7 +16,11 @@ function testPermissionEnforcement() {
   );
   assert.equal(
     canModifyAssignedTask({ userRole: "LAB_SCIENTIST", userId: "u2", assignedStaffId: "u1" }),
-    false
+    true
+  );
+  assert.equal(
+    canModifyAssignedTask({ userRole: "LAB_SCIENTIST", userId: "u2", assignedStaffId: null }),
+    true
   );
   assert.equal(
     canModifyAssignedTask({ userRole: "HRM", userId: "u1", assignedStaffId: "u1" }),

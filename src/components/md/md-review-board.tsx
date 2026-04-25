@@ -37,6 +37,8 @@ type Item = {
     patient: { fullName: string; patientId: string; age: number; dateOfBirth?: string | null; sex: string };
   };
   staff: { fullName: string } | null;
+  startedByName?: string;
+  submittedByName?: string;
   review: { status: ReviewStatus; comments?: string | null; rejectionReason?: string | null; editedData?: unknown } | null;
   results: Array<{
     testOrderId: string;
@@ -415,7 +417,7 @@ export function MdReviewBoard({
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Tests / Report</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Priority</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Status</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">By</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Audit Trail</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap">Updated</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"></th>
               </tr>
@@ -461,7 +463,10 @@ export function MdReviewBoard({
                       <td className="px-4 py-2.5">
                         <span className={`rounded px-1.5 py-0.5 font-medium ${reviewStyle[reviewStatus]}`}>{reviewStatus}</span>
                       </td>
-                      <td className="px-4 py-2.5 text-slate-500">{item.staff?.fullName ?? "â€”"}</td>
+                      <td className="px-4 py-2.5 text-slate-500">
+                        <p>Started: {item.startedByName?.trim() ? item.startedByName : "—"}</p>
+                        <p>Submitted: {item.submittedByName?.trim() ? item.submittedByName : item.staff?.fullName ?? "—"}</p>
+                      </td>
                       <td className="px-4 py-2.5 text-slate-400">{minutesAgoLabel(item.updatedAt)}</td>
                       <td className="px-4 py-2.5">
                         <button
@@ -481,6 +486,10 @@ export function MdReviewBoard({
                             {/* Left: submitted output */}
                             <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
                               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Submitted Output</p>
+                              <div className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600">
+                                <p>Started by: <span className="font-medium text-slate-700">{item.startedByName?.trim() ? item.startedByName : "—"}</span></p>
+                                <p>Submitted by: <span className="font-medium text-slate-700">{item.submittedByName?.trim() ? item.submittedByName : item.staff?.fullName ?? "—"}</span></p>
+                              </div>
                               {insights ? <PatientInsights insights={insights} /> : null}
                               {item.department === "LABORATORY" ? (
                                 <div className="space-y-2">

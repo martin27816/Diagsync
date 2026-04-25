@@ -140,8 +140,15 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
       },
       results: {
         include: {
+          staff: { select: { id: true, fullName: true } },
           testOrder: {
             include: {
+              assignedTo: {
+                select: {
+                  id: true,
+                  fullName: true,
+                },
+              },
               test: {
                 include: {
                   resultFields: {
@@ -259,6 +266,23 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
   }
 
   const items = tasks.map((task) => {
+    const startedByNames = Array.from(
+      new Set(
+        task.results
+          .map((result) => result.testOrder.assignedTo?.fullName?.trim() ?? "")
+          .filter((name) => name.length > 0)
+      )
+    );
+    const submittedByNames = Array.from(
+      new Set(
+        [
+          task.staff?.fullName?.trim() ?? "",
+          ...task.results
+            .map((result) => result.staff?.fullName?.trim() ?? "")
+            .filter((name) => name.length > 0),
+        ].filter((name) => name.length > 0)
+      )
+    );
     const results = task.results.map((result) => {
       const activeVersion = pickActiveVersion(result.versions) ?? result.versions[0] ?? null;
       return {
@@ -313,6 +337,8 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
       radiologyReport,
       patientHistory: historyMap.get(task.visit.patient.id) ?? [],
       patientVisitCount: visitCountMap.get(task.visit.patient.id) ?? 1,
+      startedByName: startedByNames.join(", "),
+      submittedByName: submittedByNames.join(", "),
     };
   });
 

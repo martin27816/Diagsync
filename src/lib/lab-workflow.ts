@@ -49,6 +49,7 @@ async function assertTaskOwnership(taskId: string, actor: LabActor) {
     },
     include: {
       visit: { include: { patient: true } },
+      staff: { select: { id: true, fullName: true } },
     },
   });
 
@@ -76,6 +77,33 @@ async function assertTaskOwnership(taskId: string, actor: LabActor) {
       },
       include: {
         visit: { include: { patient: true } },
+        staff: { select: { id: true, fullName: true } },
+      },
+    });
+    if (!task) throw new Error("TASK_NOT_FOUND");
+  }
+  if (
+    task.staffId !== actor.id &&
+    (task.status === RoutingTaskStatus.PENDING || task.status === RoutingTaskStatus.IN_PROGRESS)
+  ) {
+    await prisma.routingTask.updateMany({
+      where: {
+        id: task.id,
+        organizationId: actor.organizationId,
+        department: Department.LABORATORY,
+        status: { in: [RoutingTaskStatus.PENDING, RoutingTaskStatus.IN_PROGRESS] },
+      },
+      data: { staffId: actor.id },
+    });
+    task = await prisma.routingTask.findFirst({
+      where: {
+        id: taskId,
+        organizationId: actor.organizationId,
+        department: Department.LABORATORY,
+      },
+      include: {
+        visit: { include: { patient: true } },
+        staff: { select: { id: true, fullName: true } },
       },
     });
     if (!task) throw new Error("TASK_NOT_FOUND");
@@ -558,7 +586,7 @@ export async function submitLabTask(taskId: string, actor: LabActor) {
   await prisma.$transaction(async (tx) => {
     await tx.labResult.updateMany({
       where: { taskId: task.id, organizationId: actor.organizationId },
-      data: { isSubmitted: true, submittedAt: now },
+      data: { staffId: actor.id, isSubmitted: true, submittedAt: now },
     });
 
     await tx.routingTask.update({
@@ -599,6 +627,7 @@ export async function submitLabTask(taskId: string, actor: LabActor) {
       taskId: task.id,
       patientName: task.visit.patient.fullName,
       department: task.department,
+      submittedByName: task.staff?.fullName ?? null,
     });
   } catch (error) {
     // Result submission is already committed; notification failures should not roll back user-facing workflow.
