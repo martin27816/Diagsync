@@ -4,7 +4,7 @@ import { getToken } from "next-auth/jwt";
 import { getDashboardPath } from "@/lib/utils";
 import { Role } from "@prisma/client";
 
-const publicRoutes = new Set(["/", "/login", "/register"]);
+const publicRoutes = new Set(["/", "/login", "/register", "/offline"]);
 const AUTH_SECRET =
   process.env.AUTH_SECRET ||
   process.env.NEXTAUTH_SECRET ||
@@ -33,6 +33,9 @@ export default async function middleware(req: NextRequest) {
 
   const isPublicRoute =
     publicRoutes.has(pathname) ||
+    pathname === "/manifest.json" ||
+    pathname === "/sw.js" ||
+    pathname.startsWith("/workbox-") ||
     pathname.startsWith("/public/reports/") ||
     pathname.startsWith("/api/auth") ||
     pathname === "/api/uploads/branding" ||
@@ -75,6 +78,6 @@ export default async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.svg|.*\\.ico|.*\\.webp).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|workbox-.*\\.js|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.svg|.*\\.ico|.*\\.webp).*)",
   ],
 };
