@@ -34,22 +34,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const organization = await syncOrganizationBillingState(staff.organizationId);
   const access = getOrganizationAccess(organization);
+  const canManageBilling = staff.role === "SUPER_ADMIN";
 
   const operationalRoles: Role[] = ["LAB_SCIENTIST", "RADIOGRAPHER", "MD", "RECEPTIONIST"];
   const showAvailability = operationalRoles.includes(staff.role);
-  const paymentRequests = await prisma.subscriptionPaymentRequest.findMany({
-    where: { organizationId: staff.organizationId },
-    orderBy: { createdAt: "desc" },
-    take: 10,
-    select: {
-      id: true,
-      requestedPlan: true,
-      amount: true,
-      status: true,
-      transactionReference: true,
-      createdAt: true,
-    },
-  });
+  const paymentRequests = canManageBilling
+    ? await prisma.subscriptionPaymentRequest.findMany({
+        where: { organizationId: staff.organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          requestedPlan: true,
+          amount: true,
+          status: true,
+          transactionReference: true,
+          createdAt: true,
+        },
+      })
+    : [];
 
   const trialBanner =
     access.status === "TRIAL_ACTIVE" && access.trialDaysLeft !== null
@@ -75,28 +78,34 @@ export default async function DashboardLayout({ children }: { children: React.Re
       trialBanner={trialBanner}
     >
       {access.billingLocked ? (
-        <BillingOnboarding
-          organization={{
-            plan: organization.plan,
-            status: organization.status,
-            trialStartedAt: organization.trialStartedAt?.toISOString() ?? null,
-            trialEndsAt: organization.trialEndsAt?.toISOString() ?? null,
-            subscriptionEndsAt: organization.subscriptionEndsAt?.toISOString() ?? null,
-          }}
-          access={{
-            trialDaysLeft: access.trialDaysLeft,
-            isTrialWarning: access.isTrialWarning,
-            billingLocked: access.billingLocked,
-          }}
-          paymentRequests={paymentRequests.map((item) => ({
-            id: item.id,
-            requestedPlan: item.requestedPlan,
-            amount: Number(item.amount),
-            status: item.status,
-            transactionReference: item.transactionReference,
-            createdAt: item.createdAt.toISOString(),
-          }))}
-        />
+        canManageBilling ? (
+          <BillingOnboarding
+            organization={{
+              plan: organization.plan,
+              status: organization.status,
+              trialStartedAt: organization.trialStartedAt?.toISOString() ?? null,
+              trialEndsAt: organization.trialEndsAt?.toISOString() ?? null,
+              subscriptionEndsAt: organization.subscriptionEndsAt?.toISOString() ?? null,
+            }}
+            access={{
+              trialDaysLeft: access.trialDaysLeft,
+              isTrialWarning: access.isTrialWarning,
+              billingLocked: access.billingLocked,
+            }}
+            paymentRequests={paymentRequests.map((item) => ({
+              id: item.id,
+              requestedPlan: item.requestedPlan,
+              amount: Number(item.amount),
+              status: item.status,
+              transactionReference: item.transactionReference,
+              createdAt: item.createdAt.toISOString(),
+            }))}
+          />
+        ) : (
+          <div className="mx-auto w-full max-w-3xl rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+            Your free trial has ended. Choose a plan from the Super Admin to continue.
+          </div>
+        )
       ) : (
         children
       )}

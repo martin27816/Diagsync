@@ -44,9 +44,10 @@ type PlanCardProps = {
   note: string;
   buttonText: string;
   onClick: () => void;
+  disabled?: boolean;
 };
 
-function PlanCard({ name, subtitle, price, note, buttonText, onClick }: PlanCardProps) {
+function PlanCard({ name, subtitle, price, note, buttonText, onClick, disabled = false }: PlanCardProps) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{name}</p>
@@ -55,8 +56,9 @@ function PlanCard({ name, subtitle, price, note, buttonText, onClick }: PlanCard
       <p className="mt-2 text-xs text-slate-500">{note}</p>
       <button
         type="button"
+        disabled={disabled}
         onClick={onClick}
-        className="mt-4 inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+        className="mt-4 inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
       >
         {buttonText}
       </button>
@@ -70,7 +72,10 @@ export function BillingOnboarding({ organization, access, paymentRequests }: Bil
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<"trial" | "payment" | null>(null);
 
-  const canStartTrial = useMemo(() => !organization.trialStartedAt, [organization.trialStartedAt]);
+  const canStartTrial = useMemo(() => {
+    if (organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") return false;
+    return !organization.trialStartedAt;
+  }, [organization.status, organization.trialStartedAt]);
   const activePending = useMemo(
     () => paymentRequests.find((item) => item.status === "PENDING"),
     [paymentRequests]
@@ -162,7 +167,8 @@ export function BillingOnboarding({ organization, access, paymentRequests }: Bil
           subtitle="Free 2-week trial — full access, no payment needed"
           price="Free"
           note="Everything unlocked from day one. The only catch: all printed reports carry a DiagSync watermark."
-          buttonText={canStartTrial ? (busy === "trial" ? "Starting..." : "Start Free Trial") : "Trial Used"}
+          buttonText={canStartTrial ? (busy === "trial" ? "Starting..." : "Start Free Trial") : "Trial Ended"}
+          disabled={!canStartTrial || busy !== null}
           onClick={() => {
             if (!canStartTrial || busy) return;
             void handleStartTrial();

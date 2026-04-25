@@ -31,6 +31,13 @@ export async function POST() {
       );
     }
 
+    if (organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") {
+      return NextResponse.json(
+        { success: false, error: "Free trial is no longer available for this organization." },
+        { status: 409 }
+      );
+    }
+
     const now = new Date();
     const trialEndsAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
