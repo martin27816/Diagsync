@@ -1016,7 +1016,7 @@ export function renderReportHtml(args: RenderArgs) {
         min-height: 0 !important;
         height: auto !important;
         margin: 0 !important;
-        padding: ${contentTopPx}px ${printMarginSidePx}px ${contentBottomPx}px !important;
+        padding: ${printMarginTopPx}px ${printMarginSidePx}px ${printMarginBottomPx}px !important;
         overflow: visible !important;
       }
       .content-shell {
