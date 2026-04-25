@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 function isStandaloneMode() {
@@ -11,29 +11,39 @@ function isStandaloneMode() {
 
 export function AppLaunchSplash() {
   const pathname = usePathname();
+  const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(true);
   const [closing, setClosing] = useState(false);
 
-  const shouldRender = useMemo(() => {
-    if (!pathname) return false;
-    return pathname.startsWith("/dashboard") || isStandaloneMode();
-  }, [pathname]);
-
   useEffect(() => {
-    if (!shouldRender) {
+    if (!pathname) {
       setVisible(false);
+      setReady(true);
       return;
     }
 
+    const shouldShow =
+      isStandaloneMode() &&
+      pathname.startsWith("/dashboard") &&
+      window.sessionStorage.getItem("diagsync_launch_splash_seen") !== "1";
+
+    if (!shouldShow) {
+      setVisible(false);
+      setReady(true);
+      return;
+    }
+
+    setReady(true);
+    window.sessionStorage.setItem("diagsync_launch_splash_seen", "1");
     const startClose = window.setTimeout(() => setClosing(true), 900);
     const remove = window.setTimeout(() => setVisible(false), 1300);
     return () => {
       window.clearTimeout(startClose);
       window.clearTimeout(remove);
     };
-  }, [shouldRender]);
+  }, [pathname]);
 
-  if (!visible || !shouldRender) return null;
+  if (!ready || !visible) return null;
 
   return (
     <div
@@ -50,4 +60,3 @@ export function AppLaunchSplash() {
     </div>
   );
 }
-
