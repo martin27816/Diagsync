@@ -60,7 +60,9 @@ export function DashboardShell({
             {trialBanner.text}
           </div>
         ) : null}
-        <main className="flex-1 overflow-y-auto px-3 py-3 pb-24 sm:px-4 md:p-6 md:pb-6">{children}</main>
+        <main className="flex-1 overflow-y-auto px-3 py-3 pb-[calc(env(safe-area-inset-bottom,0px)+108px)] sm:px-4 md:p-6 md:pb-6">
+          {children}
+        </main>
       </div>
       <MobileBottomNav role={role} />
     </div>
