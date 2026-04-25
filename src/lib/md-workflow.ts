@@ -1,5 +1,6 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 import { notifyResultEdited, notifyTaskReviewOutcome } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
@@ -40,6 +41,10 @@ function assertMd(actor: MdActor) {
   if (!canUseMdWorkflow(actor.role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+}
+
+async function assertMdCoreAccess(actor: MdActor) {
+  await requireOrganizationCoreAccess(actor.organizationId);
 }
 
 function normalizeJsonForInput(value: Prisma.JsonValue | null | undefined) {
@@ -85,6 +90,7 @@ async function getTaskForReview(taskId: string, actor: MdActor) {
 
 export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pending") {
   assertMd(actor);
+  await assertMdCoreAccess(actor);
 
   const baseWhere: Prisma.RoutingTaskWhereInput = {
     organizationId: actor.organizationId,
@@ -347,6 +353,7 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
 
 export async function approveMdReview(taskId: string, actor: MdActor, comments?: string) {
   assertMd(actor);
+  await assertMdCoreAccess(actor);
   const task = await getTaskForReview(taskId, actor);
 
   if (task.department === Department.LABORATORY) {
@@ -463,6 +470,7 @@ export async function approveMdReview(taskId: string, actor: MdActor, comments?:
 
 export async function rejectMdReview(taskId: string, actor: MdActor, reason: string, highlightFields: string[] = []) {
   assertMd(actor);
+  await assertMdCoreAccess(actor);
   const task = await getTaskForReview(taskId, actor);
 
   const currentStatus = task.review?.status ?? null;
@@ -538,6 +546,7 @@ export async function rejectMdReview(taskId: string, actor: MdActor, reason: str
 
 export async function unapproveMdReview(taskId: string, actor: MdActor, reason?: string) {
   assertMd(actor);
+  await assertMdCoreAccess(actor);
   const task = await getTaskForReview(taskId, actor);
   const currentStatus = task.review?.status ?? null;
   if (!canUnapprove(currentStatus)) throw new Error("NOT_APPROVED");
@@ -601,6 +610,7 @@ export async function editMdReview(
   }
 ) {
   if (!canUseControlledEdit(actor.role)) throw new Error("FORBIDDEN_ROLE");
+  await assertMdCoreAccess(actor);
   if (!requireEditReason(payload.reason)) throw new Error("REASON_REQUIRED");
 
   const task = await getTaskForReview(taskId, actor);

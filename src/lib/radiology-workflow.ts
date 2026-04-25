@@ -1,5 +1,6 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
+import { requireOrganizationCoreAccess, requireOrganizationFeature } from "@/lib/billing-service";
 import { notifyMdResultSubmitted } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
@@ -34,6 +35,11 @@ export type ImagingUploadInput = {
 
 function assertRadiographer(actor: RadiologyActor) {
   if (actor.role !== "RADIOGRAPHER") throw new Error("FORBIDDEN_ROLE");
+}
+
+async function assertRadiologyAccess(actor: RadiologyActor) {
+  await requireOrganizationCoreAccess(actor.organizationId);
+  await requireOrganizationFeature(actor.organizationId, "radiology");
 }
 
 async function assertOwnership(taskId: string, actor: RadiologyActor) {
@@ -82,6 +88,7 @@ export async function getRadiologyTasks(
   }
 ) {
   assertRadiographer(actor);
+  await assertRadiologyAccess(actor);
   const search = opts?.search?.trim() ?? "";
   const hasDateFilter = Boolean(opts?.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date));
   const dateRange = hasDateFilter
@@ -161,6 +168,7 @@ export async function getRadiologyTasks(
 
 export async function startRadiologyTask(taskId: string, actor: RadiologyActor) {
   assertRadiographer(actor);
+  await assertRadiologyAccess(actor);
   const task = await prisma.routingTask.findFirst({
     where: {
       id: taskId,
@@ -250,6 +258,8 @@ export async function startRadiologyTask(taskId: string, actor: RadiologyActor) 
 
 export async function addImagingFile(taskId: string, actor: RadiologyActor, input: ImagingUploadInput) {
   assertRadiographer(actor);
+  await assertRadiologyAccess(actor);
+  await requireOrganizationFeature(actor.organizationId, "imaging");
   const task = await assertOwnership(taskId, actor);
 
   if (!isValidImagingFile({ mimeType: input.fileType, sizeBytes: input.fileSizeBytes })) {
@@ -293,6 +303,7 @@ export async function saveRadiologyReport(
   }
 ) {
   assertRadiographer(actor);
+  await assertRadiologyAccess(actor);
   const task = await assertOwnership(taskId, actor);
 
   const report = await prisma.radiologyReport.upsert({
@@ -337,6 +348,7 @@ export async function submitRadiologyTask(
   actor: RadiologyActor
 ) {
   assertRadiographer(actor);
+  await assertRadiologyAccess(actor);
   const task = await assertOwnership(taskId, actor);
 
   if (task.status === RoutingTaskStatus.COMPLETED && task.radiologyReport?.isSubmitted) return;

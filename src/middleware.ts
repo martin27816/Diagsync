@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { getDashboardPath } from "@/lib/utils";
-import { OrganizationStatus, Role } from "@prisma/client";
+import { Role } from "@prisma/client";
 
 const publicRoutes = new Set(["/", "/login", "/register"]);
 const AUTH_SECRET =
@@ -52,18 +52,6 @@ export default async function middleware(req: NextRequest) {
   }
 
   const userRole = token.role as Role;
-  const organizationStatus = token.organizationStatus as OrganizationStatus | undefined;
-
-  if (
-    userRole !== "MEGA_ADMIN" &&
-    organizationStatus === "SUSPENDED" &&
-    !pathname.startsWith("/admin")
-  ) {
-    const loginUrl = new URL("/login", nextUrl.origin);
-    loginUrl.searchParams.set("suspended", "1");
-    return NextResponse.redirect(loginUrl);
-  }
-
   if (pathname === "/dashboard") {
     return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
   }

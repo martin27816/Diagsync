@@ -5,6 +5,8 @@ import { getAuditMetaFromRequest } from "@/lib/audit-core";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import { z } from "zod";
+import { canUseCustomLetterhead } from "@/lib/billing-access";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,7 @@ export async function GET() {
     if (!session?.user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     const user = session.user as any;
     assertAdmin(user.role);
+    await requireOrganizationCoreAccess(user.organizationId);
 
     const organization = await prisma.organization.findUnique({
       where: { id: user.organizationId },
@@ -41,6 +44,12 @@ export async function GET() {
     if (error instanceof Error && error.message === "FORBIDDEN_ROLE") {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[ORG_SETTINGS_GET]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
@@ -52,10 +61,21 @@ export async function PATCH(req: NextRequest) {
     if (!session?.user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     const user = session.user as any;
     assertAdmin(user.role);
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
 
     const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) {
       return NextResponse.json({ success: false, error: parsed.error.errors[0].message }, { status: 400 });
+    }
+
+    if (
+      !canUseCustomLetterhead(organization) &&
+      (parsed.data.letterheadUrl !== undefined || parsed.data.logo !== undefined)
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Custom branding is available on Trial or Advanced plan." },
+        { status: 403 }
+      );
     }
 
     const oldOrg = await prisma.organization.findUnique({
@@ -103,6 +123,12 @@ export async function PATCH(req: NextRequest) {
   } catch (error) {
     if (error instanceof Error && error.message === "FORBIDDEN_ROLE") {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
     }
     console.error("[ORG_SETTINGS_PATCH]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });

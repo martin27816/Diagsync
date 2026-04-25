@@ -19,6 +19,7 @@ type DashboardShellProps = {
   role: Role;
   initialAvailability: boolean;
   showAvailabilityToggle?: boolean;
+  trialBanner?: { text: string; warning?: boolean } | null;
   children: React.ReactNode;
 };
 
@@ -29,6 +30,7 @@ export function DashboardShell({
   role,
   initialAvailability,
   showAvailabilityToggle = true,
+  trialBanner = null,
   children,
 }: DashboardShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -63,6 +65,17 @@ export function DashboardShell({
           onOpenSidebar={() => setMobileSidebarOpen(true)}
         />
         <OfflineStatusBar />
+        {trialBanner ? (
+          <div
+            className={`mx-3 mt-3 rounded-md border px-3 py-2 text-xs sm:mx-4 md:mx-6 ${
+              trialBanner.warning
+                ? "border-amber-200 bg-amber-50 text-amber-700"
+                : "border-blue-200 bg-blue-50 text-blue-700"
+            }`}
+          >
+            {trialBanner.text}
+          </div>
+        ) : null}
         <main className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 md:p-6">{children}</main>
       </div>
     </div>

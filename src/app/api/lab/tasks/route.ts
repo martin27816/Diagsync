@@ -79,6 +79,13 @@ export async function GET(req: NextRequest) {
     endApiMetric(metric, { ok: true, status: 200 });
     return NextResponse.json({ success: true, data: { tasks, counts } });
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      endApiMetric(metric, { ok: false, status: 403, note: "billing_locked" });
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[LAB_TASKS_GET]", error);
     endApiMetric(metric, { ok: false, status: 500, note: "internal_error" });
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });

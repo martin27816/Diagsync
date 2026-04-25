@@ -83,6 +83,14 @@ export async function POST(
         endApiMetric(metric, { ok: false, status: 403, note: "forbidden" });
         return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
       }
+      if (error.message === "BILLING_LOCKED") {
+        endApiMetric(metric, { ok: false, status: 403, note: "billing_locked" });
+        return NextResponse.json({ success: false, error: "Billing access required. Please choose or renew a plan." }, { status: 403 });
+      }
+      if (error.message === "FEATURE_NOT_AVAILABLE") {
+        endApiMetric(metric, { ok: false, status: 403, note: "feature_not_available" });
+        return NextResponse.json({ success: false, error: "Radiology is available on Trial or Advanced plan." }, { status: 403 });
+      }
       if (error.message === "TASK_NOT_FOUND") {
         endApiMetric(metric, { ok: false, status: 404, note: "task_not_found" });
         return NextResponse.json({ success: false, error: "Task not found" }, { status: 404 });

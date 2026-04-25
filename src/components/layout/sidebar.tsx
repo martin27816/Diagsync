@@ -18,6 +18,7 @@ import {
   Activity,
   TestTube2,
   Settings2,
+  CreditCard,
 } from "lucide-react";
 import { cn, ROLE_LABELS } from "@/lib/utils";
 import { Role } from "@prisma/client";
@@ -161,6 +162,14 @@ export function Sidebar({ user, className, onNavigate }: SidebarProps) {
 
       {/* Notifications */}
       <div className="border-t border-slate-200 px-2 py-1">
+        <Link
+          href="/dashboard/billing"
+          onClick={onNavigate}
+          className="flex items-center gap-2.5 rounded px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+        >
+          <CreditCard className="h-4 w-4" />
+          Billing
+        </Link>
         <Link
           href={notificationPathForRole(user.role)}
           onClick={onNavigate}

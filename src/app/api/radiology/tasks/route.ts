@@ -44,6 +44,18 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: { tasks, counts } });
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
+    if (error instanceof Error && error.message === "FEATURE_NOT_AVAILABLE") {
+      return NextResponse.json(
+        { success: false, error: "Radiology is available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
     console.error("[RAD_TASKS_GET]", error);
     const detail = error instanceof Error ? error.message : String(error);
     return NextResponse.json(

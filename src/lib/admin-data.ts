@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { OrganizationStatus, Prisma } from "@prisma/client";
 
 type ListOrganizationsParams = {
   page: number;
@@ -36,12 +36,25 @@ export async function listOrganizations(params: ListOrganizationsParams) {
         email: true,
         plan: true,
         status: true,
+        trialEndsAt: true,
+        subscriptionEndsAt: true,
         createdAt: true,
         _count: {
           select: {
             staff: true,
             patients: true,
           },
+        },
+        subscriptionPaymentRequests: {
+          select: {
+            id: true,
+            requestedPlan: true,
+            amount: true,
+            status: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 1,
         },
       },
       orderBy: { createdAt: "desc" },
@@ -66,6 +79,19 @@ export async function listOrganizations(params: ListOrganizationsParams) {
       .map((item) => [item.organizationId as string, item._max.lastSeen])
   );
 
+  const pendingByOrg = new Set(
+    (
+      await prisma.subscriptionPaymentRequest.groupBy({
+        by: ["organizationId"],
+        where: {
+          organizationId: { in: items.map((item) => item.id) },
+          status: "PENDING",
+        },
+        _count: { _all: true },
+      })
+    ).map((item) => item.organizationId)
+  );
+
   return {
     items: items.map((item) => ({
       id: item.id,
@@ -73,10 +99,22 @@ export async function listOrganizations(params: ListOrganizationsParams) {
       email: item.email,
       plan: item.plan,
       status: item.status,
+      trialEndsAt: item.trialEndsAt,
+      subscriptionEndsAt: item.subscriptionEndsAt,
       createdAt: item.createdAt,
       totalUsers: item._count.staff,
       totalPatients: item._count.patients,
       lastActivity: activityByOrg.get(item.id) ?? null,
+      hasPendingPayment: pendingByOrg.has(item.id),
+      lastPaymentRequest: item.subscriptionPaymentRequests[0]
+        ? {
+            id: item.subscriptionPaymentRequests[0].id,
+            requestedPlan: item.subscriptionPaymentRequests[0].requestedPlan,
+            amount: item.subscriptionPaymentRequests[0].amount,
+            status: item.subscriptionPaymentRequests[0].status,
+            createdAt: item.subscriptionPaymentRequests[0].createdAt,
+          }
+        : null,
     })),
     total,
     page,
@@ -96,6 +134,15 @@ export async function getOrganizationDetail(organizationId: string) {
       status: true,
       phone: true,
       address: true,
+      trialStartedAt: true,
+      trialEndsAt: true,
+      subscriptionStartedAt: true,
+      subscriptionEndsAt: true,
+      lastPaymentAt: true,
+      staffLimit: true,
+      watermarkEnabled: true,
+      billingLockedAt: true,
+      billingLockReason: true,
       createdAt: true,
       _count: {
         select: {
@@ -110,7 +157,7 @@ export async function getOrganizationDetail(organizationId: string) {
     return null;
   }
 
-  const [users, totalTestRequests, lastActivityResult] = await Promise.all([
+  const [users, totalTestRequests, lastActivityResult, paymentRequests] = await Promise.all([
     prisma.staff.findMany({
       where: { organizationId },
       select: {
@@ -129,11 +176,26 @@ export async function getOrganizationDetail(organizationId: string) {
       where: { organizationId, lastSeen: { not: null } },
       _max: { lastSeen: true },
     }),
+    prisma.subscriptionPaymentRequest.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      include: {
+        reviewedBy: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+      },
+    }),
   ]);
 
   return {
     organization,
     users,
+    paymentRequests,
     stats: {
       totalUsers: organization._count.staff,
       totalPatients: organization._count.patients,
@@ -216,7 +278,7 @@ export async function listPlatformUsers(params: ListPlatformUsersParams) {
   };
 }
 
-export async function setOrganizationStatus(organizationId: string, status: "ACTIVE" | "SUSPENDED") {
+export async function setOrganizationStatus(organizationId: string, status: OrganizationStatus) {
   return prisma.organization.update({
     where: { id: organizationId },
     data: { status },

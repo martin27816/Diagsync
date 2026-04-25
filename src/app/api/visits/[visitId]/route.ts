@@ -5,6 +5,8 @@ import { z } from "zod";
 import { OrderStatus, PaymentEntryType, PaymentStatus, Priority, Role, Sex } from "@prisma/client";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { assignTasksForVisit } from "@/lib/routing-engine";
+import { canUseCardiology, canUseRadiology } from "@/lib/billing-access";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +54,10 @@ function computePaymentStatus(totalAmount: number, amountPaid: number): PaymentS
   return PaymentStatus.PENDING;
 }
 
+function isCardiologyToken(value: string) {
+  return /(cardio|ecg|ekg|echo|echocardi|troponin|ck-mb)/i.test(value);
+}
+
 // GET /api/visits/[visitId]
 export async function GET(
   req: NextRequest,
@@ -88,6 +94,12 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: visit });
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[VISIT_GET]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
@@ -104,6 +116,8 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
     const user = session.user as any;
+    await requireOrganizationCoreAccess(user.organizationId);
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
     if (!["RECEPTIONIST", "SUPER_ADMIN", "HRM"].includes(user.role)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
@@ -137,7 +151,7 @@ export async function PATCH(
           organizationId: user.organizationId,
           isActive: true,
         },
-        select: { id: true, name: true, price: true },
+        select: { id: true, name: true, code: true, description: true, department: true, price: true },
       }),
     ]);
 
@@ -146,6 +160,21 @@ export async function PATCH(
     }
     if (tests.length !== uniqueTestIds.size) {
       return NextResponse.json({ success: false, error: "One or more selected tests were not found" }, { status: 400 });
+    }
+    if (!canUseRadiology(organization) && tests.some((test) => test.department === "RADIOLOGY")) {
+      return NextResponse.json(
+        { success: false, error: "Radiology tests are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
+    if (
+      !canUseCardiology(organization) &&
+      tests.some((test) => isCardiologyToken(`${test.name} ${test.code} ${test.description ?? ""}`))
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Cardiology tests are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
     }
 
     const testMap = new Map(tests.map((row) => [row.id, row]));
@@ -353,6 +382,12 @@ export async function PATCH(
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[VISIT_PATCH]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
@@ -369,6 +404,7 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
     const user = session.user as any;
+    await requireOrganizationCoreAccess(user.organizationId);
     if (!["RECEPTIONIST", "SUPER_ADMIN", "HRM"].includes(user.role)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
@@ -458,6 +494,12 @@ export async function DELETE(
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[VISIT_DELETE]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }

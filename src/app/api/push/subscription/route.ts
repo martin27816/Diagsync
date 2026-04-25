@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireOrganizationFeature } from "@/lib/billing-service";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,23 @@ export async function POST(req: NextRequest) {
   }
 
   const user = session.user as any;
+  try {
+    await requireOrganizationFeature(user.organizationId, "web_push");
+  } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
+    if (error instanceof Error && error.message === "FEATURE_NOT_AVAILABLE") {
+      return NextResponse.json(
+        { success: false, error: "Web push notifications are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
+    throw error;
+  }
   const body = await req.json().catch(() => null);
   const parsed = parseSubscription(body);
   if (!parsed) {
@@ -76,6 +94,23 @@ export async function DELETE(req: NextRequest) {
   }
 
   const user = session.user as any;
+  try {
+    await requireOrganizationFeature(user.organizationId, "web_push");
+  } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
+    if (error instanceof Error && error.message === "FEATURE_NOT_AVAILABLE") {
+      return NextResponse.json(
+        { success: false, error: "Web push notifications are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
+    throw error;
+  }
   const body = await req.json().catch(() => null);
   const endpoint = typeof body?.endpoint === "string" ? body.endpoint : "";
   if (!endpoint) {

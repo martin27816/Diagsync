@@ -12,8 +12,17 @@ model Organization {
   id                         String              @id @default(cuid())
   name                       String
   email                      String              @unique
-  plan                       OrganizationPlan    @default(STARTER)
-  status                     OrganizationStatus  @default(ACTIVE)
+  plan                       OrganizationPlan    @default(TRIAL)
+  status                     OrganizationStatus  @default(EXPIRED)
+  trialStartedAt             DateTime?
+  trialEndsAt                DateTime?
+  subscriptionStartedAt      DateTime?
+  subscriptionEndsAt         DateTime?
+  lastPaymentAt              DateTime?
+  watermarkEnabled           Boolean             @default(true)
+  staffLimit                 Int?
+  billingLockedAt            DateTime?
+  billingLockReason          String?
   phone                      String
   address                    String
   logo                       String?
@@ -24,6 +33,7 @@ model Organization {
   updatedAt                  DateTime            @updatedAt
   consultationQueueEntries   ConsultationQueue[]
   reports                    DiagnosticReport[]
+  subscriptionPaymentRequests SubscriptionPaymentRequest[]
   tests                      DiagnosticTest[]
   patients                   Patient[]
   staff                      Staff[]
@@ -61,6 +71,7 @@ model Staff {
   generatedReports                     DiagnosticReport[]        @relation("ReportGeneratedBy")
   releasedReports                      DiagnosticReport[]        @relation("ReportReleasedBy")
   imagingFiles                         ImagingFile[]
+  reviewedSubscriptionPaymentRequests  SubscriptionPaymentRequest[] @relation("SubscriptionPaymentRequestReviewer")
   editedLabResultVersions              LabResultVersion[]        @relation("LabResultVersionEditedBy")
   labResults                           LabResult[]
   labSamples                           LabSample[]
@@ -613,13 +624,48 @@ enum Role {
 }
 
 enum OrganizationPlan {
+  TRIAL
   STARTER
-  ENTERPRISE
+  ADVANCED
 }
 
 enum OrganizationStatus {
   ACTIVE
   SUSPENDED
+  TRIAL_ACTIVE
+  TRIAL_EXPIRED
+  PAYMENT_PENDING
+  EXPIRED
+}
+
+model SubscriptionPaymentRequest {
+  id                   String               @id @default(cuid())
+  organizationId       String
+  requestedPlan        OrganizationPlan
+  amount               Decimal              @db.Decimal(10, 2)
+  status               PaymentRequestStatus @default(PENDING)
+  bankName             String
+  accountNumber        String
+  accountName          String
+  transactionReference String?
+  proofUrl             String?
+  notes                String?
+  reviewedById         String?
+  reviewedAt           DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewedBy           Staff?               @relation("SubscriptionPaymentRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([reviewedById])
+  @@map("subscription_payment_requests")
+}
+
+enum PaymentRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum Department {

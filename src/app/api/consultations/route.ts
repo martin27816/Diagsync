@@ -32,6 +32,12 @@ export async function GET(req: NextRequest) {
     }, { search, date, days });
     return NextResponse.json({ success: true, data });
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     if (error instanceof Error && error.message === "FORBIDDEN_ROLE") {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
@@ -58,6 +64,12 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json({ success: true, data: created }, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     if (error instanceof Error && error.message === "FORBIDDEN_ROLE") {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }

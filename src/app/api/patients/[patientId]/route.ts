@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { Role } from "@prisma/client";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
     const user = session.user as any;
+    await requireOrganizationCoreAccess(user.organizationId);
     if (!["RECEPTIONIST", "SUPER_ADMIN", "HRM"].includes(user.role)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
@@ -119,6 +121,12 @@ export async function DELETE(
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[PATIENT_DELETE]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }

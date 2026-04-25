@@ -20,6 +20,12 @@ export async function GET(
     return NextResponse.json({ success: true, data });
   } catch (error) {
     if (error instanceof Error) {
+      if (error.message === "BILLING_LOCKED") {
+        return NextResponse.json(
+          { success: false, error: "Billing access required. Please choose or renew a plan." },
+          { status: 403 }
+        );
+      }
       if (error.message === "FORBIDDEN_ROLE") {
         return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
       }

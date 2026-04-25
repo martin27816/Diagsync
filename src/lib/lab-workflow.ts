@@ -1,5 +1,6 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 import { notifyMdResultSubmitted } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import {
@@ -38,6 +39,10 @@ function assertLabScientist(actor: LabActor) {
   if (actor.role !== "LAB_SCIENTIST") {
     throw new Error("FORBIDDEN_ROLE");
   }
+}
+
+async function assertLabCoreAccess(actor: LabActor) {
+  await requireOrganizationCoreAccess(actor.organizationId);
 }
 
 async function assertTaskOwnership(taskId: string, actor: LabActor) {
@@ -129,6 +134,7 @@ export async function getLabTasks(actor: LabActor, opts?: {
   date?: string;
 }) {
   assertLabScientist(actor);
+  await assertLabCoreAccess(actor);
   const search = opts?.search?.trim() ?? "";
   const hasDateFilter = Boolean(opts?.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date));
   const dateRange = hasDateFilter
@@ -226,6 +232,7 @@ export async function getLabTasks(actor: LabActor, opts?: {
 
 export async function startLabTask(taskId: string, actor: LabActor) {
   assertLabScientist(actor);
+  await assertLabCoreAccess(actor);
   const task = await prisma.routingTask.findFirst({
     where: {
       id: taskId,
@@ -323,6 +330,7 @@ export async function updateSampleForLabTask(
   notes?: string
 ) {
   assertLabScientist(actor);
+  await assertLabCoreAccess(actor);
   const task = await assertTaskOwnership(taskId, actor);
   const now = new Date();
 
@@ -404,6 +412,7 @@ export async function updateSampleForLabTask(
 
 export async function saveLabResults(taskId: string, actor: LabActor, inputs: SaveResultInput[]) {
   assertLabScientist(actor);
+  await assertLabCoreAccess(actor);
   const task = await assertTaskOwnership(taskId, actor);
   if (task.status === RoutingTaskStatus.COMPLETED || task.status === RoutingTaskStatus.CANCELLED) {
     throw new Error("TASK_ALREADY_COMPLETED");
@@ -553,6 +562,7 @@ export async function saveLabResults(taskId: string, actor: LabActor, inputs: Sa
 
 export async function submitLabTask(taskId: string, actor: LabActor) {
   assertLabScientist(actor);
+  await assertLabCoreAccess(actor);
   const task = await assertTaskOwnership(taskId, actor);
 
   if (task.status === RoutingTaskStatus.COMPLETED) {

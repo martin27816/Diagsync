@@ -27,7 +27,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.role = (user as any).role;
         token.organizationId = (user as any).organizationId;
+        token.organizationPlan = (user as any).organizationPlan;
         token.organizationStatus = (user as any).organizationStatus;
+        token.trialEndsAt = (user as any).trialEndsAt;
         token.fullName = (user as any).fullName;
         token.department = (user as any).department;
       }
@@ -38,7 +40,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string;
         (session.user as any).role = token.role;
         (session.user as any).organizationId = token.organizationId;
+        (session.user as any).organizationPlan = token.organizationPlan;
         (session.user as any).organizationStatus = token.organizationStatus;
+        (session.user as any).trialEndsAt = token.trialEndsAt;
         (session.user as any).fullName = token.fullName;
         (session.user as any).department = token.department;
       }
@@ -58,9 +62,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const { email, password } = parsed.data;
 
-        // OPTIMISED: select only required fields — removed `include: { organization: true }`
-        // which was doing an unnecessary JOIN on every login. We only need organizationId (the FK),
-        // not the full org record. The JWT stores the ID, not org details.
         const staff = await prisma.staff.findUnique({
           where: { email },
           select: {
@@ -74,7 +75,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             status: true,
             organization: {
               select: {
+                plan: true,
                 status: true,
+                trialEndsAt: true,
               },
             },
           },
@@ -84,7 +87,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (staff.status !== "ACTIVE") return null;
         if (staff.role !== "MEGA_ADMIN") {
           if (!staff.organizationId) return null;
-          if (!staff.organization || staff.organization.status !== "ACTIVE") return null;
+          if (!staff.organization) return null;
         }
 
         const passwordMatch = await bcrypt.compare(password, staff.passwordHash);
@@ -101,7 +104,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: staff.fullName,
           role: staff.role,
           organizationId: staff.organizationId,
+          organizationPlan: staff.organization?.plan ?? null,
           organizationStatus: staff.organization?.status ?? null,
+          trialEndsAt: staff.organization?.trialEndsAt?.toISOString() ?? null,
           fullName: staff.fullName,
           department: staff.department,
         };

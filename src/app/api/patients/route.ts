@@ -5,8 +5,14 @@ import { z } from "zod";
 import { Role, Sex, Priority, PaymentStatus, PaymentEntryType } from "@prisma/client";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { assignTasksForVisit } from "@/lib/routing-engine";
+import { canUseCardiology, canUseRadiology } from "@/lib/billing-access";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export const dynamic = "force-dynamic";
+
+function isCardiologyToken(value: string) {
+  return /(cardio|ecg|ekg|echo|echocardi|troponin|ck-mb)/i.test(value);
+}
 
 const registerPatientSchema = z.object({
   // Patient details
@@ -49,6 +55,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
     const user = session.user as any;
+    await requireOrganizationCoreAccess(user.organizationId);
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") ?? "";
@@ -106,6 +113,12 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[PATIENTS_GET]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
@@ -119,6 +132,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
     const user = session.user as any;
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
 
     if (!["RECEPTIONIST", "SUPER_ADMIN", "HRM"].includes(user.role)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
@@ -158,12 +172,36 @@ export async function POST(req: NextRequest) {
         organizationId: user.organizationId,
         isActive: true,
       },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        description: true,
+        department: true,
+        price: true,
+      },
     });
 
     if (tests.length !== data.testIds.length) {
       return NextResponse.json(
         { success: false, error: "One or more tests not found or inactive" },
         { status: 400 }
+      );
+    }
+
+    if (!canUseRadiology(organization) && tests.some((test) => test.department === "RADIOLOGY")) {
+      return NextResponse.json(
+        { success: false, error: "Radiology tests are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
+    if (
+      !canUseCardiology(organization) &&
+      tests.some((test) => isCardiologyToken(`${test.name} ${test.code} ${test.description ?? ""}`))
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Cardiology tests are available on Trial or Advanced plan." },
+        { status: 403 }
       );
     }
 
@@ -314,6 +352,12 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[PATIENTS_POST]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }

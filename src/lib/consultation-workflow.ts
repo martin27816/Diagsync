@@ -1,6 +1,7 @@
 import { NotificationType, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendNotification, sendNotificationToRoles } from "@/lib/notifications";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export type ConsultationActor = {
   id: string;
@@ -35,6 +36,10 @@ function assertReceptionOrMd(role: string) {
   if (!["RECEPTIONIST", "MD", "HRM", "SUPER_ADMIN"].includes(role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+}
+
+async function assertConsultationCoreAccess(actor: ConsultationActor) {
+  await requireOrganizationCoreAccess(actor.organizationId);
 }
 
 function dayRange(date = new Date()) {
@@ -113,6 +118,7 @@ export async function listConsultationQueue(
   opts?: { search?: string; date?: string; days?: number }
 ) {
   assertReceptionOrMd(actor.role);
+  await assertConsultationCoreAccess(actor);
   const { timeoutMinutes } = await autoExpireCalledConsultations(actor.organizationId);
   const search = opts?.search?.trim() ?? "";
   const selectedDate =
@@ -195,6 +201,7 @@ export async function addConsultationPatient(
   if (!["RECEPTIONIST", "SUPER_ADMIN"].includes(actor.role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+  await assertConsultationCoreAccess(actor);
 
   const created = await prisma.consultationQueue.create({
     data: {
@@ -225,6 +232,7 @@ export async function callConsultationPatient(actor: ConsultationActor, queueId:
   if (!["MD", "SUPER_ADMIN"].includes(actor.role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+  await assertConsultationCoreAccess(actor);
 
   const existing = await prisma.consultationQueue.findFirst({
     where: { id: queueId, organizationId: actor.organizationId },
@@ -260,6 +268,7 @@ export async function markConsultationAsConsulted(actor: ConsultationActor, queu
   if (!["MD", "SUPER_ADMIN"].includes(actor.role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+  await assertConsultationCoreAccess(actor);
 
   const existing = await prisma.consultationQueue.findFirst({
     where: { id: queueId, organizationId: actor.organizationId },
@@ -306,6 +315,7 @@ export async function markConsultationPatientIn(actor: ConsultationActor, queueI
   if (!["RECEPTIONIST", "SUPER_ADMIN"].includes(actor.role)) {
     throw new Error("FORBIDDEN_ROLE");
   }
+  await assertConsultationCoreAccess(actor);
 
   const existing = await prisma.consultationQueue.findFirst({
     where: { id: queueId, organizationId: actor.organizationId },

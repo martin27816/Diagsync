@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { renderReportHtml } from "@/lib/report-rendering";
 import { assertReportTypeMatchesDepartment } from "@/lib/report-workflow-core";
+import { canUseCustomLetterhead, shouldShowWatermark } from "@/lib/billing-access";
 import { notFound } from "next/navigation";
 
 export default async function PublicReportPage({ params }: { params: { token: string } }) {
@@ -35,7 +36,8 @@ export default async function PublicReportPage({ params }: { params: { token: st
     content: active.content as any,
     comments: active.comments ?? report.comments,
     prescription: active.prescription ?? report.prescription,
-    watermarkUrl: "/diagsync-watermark.png",
+    watermarkUrl: shouldShowWatermark(report.organization) ? "/diagsync-watermark.png" : undefined,
+    includeLetterhead: canUseCustomLetterhead(report.organization),
   });
 
   return <iframe title="Public Report" srcDoc={html} className="h-[100dvh] w-full border-0" />;

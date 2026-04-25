@@ -12,6 +12,13 @@ export async function suspendLabAction(formData: FormData) {
   if (!id) return;
 
   await setOrganizationStatus(id, "SUSPENDED");
+  await prisma.organization.update({
+    where: { id },
+    data: {
+      billingLockedAt: new Date(),
+      billingLockReason: "Suspended by platform admin",
+    },
+  });
   revalidatePath("/admin/labs");
   revalidatePath(`/admin/labs/${id}`);
   revalidatePath("/admin/dashboard");
@@ -24,6 +31,13 @@ export async function activateLabAction(formData: FormData) {
   if (!id) return;
 
   await setOrganizationStatus(id, "ACTIVE");
+  await prisma.organization.update({
+    where: { id },
+    data: {
+      billingLockedAt: null,
+      billingLockReason: null,
+    },
+  });
   revalidatePath("/admin/labs");
   revalidatePath(`/admin/labs/${id}`);
   revalidatePath("/admin/dashboard");
@@ -38,4 +52,101 @@ export async function syncLabCatalogAction(formData: FormData) {
   await syncFullTestCatalogToOrganization(prisma, id);
   revalidatePath("/admin/labs");
   revalidatePath(`/admin/labs/${id}`);
+}
+
+export async function approvePaymentRequestAction(formData: FormData) {
+  const admin = await requireMegaAdmin();
+  const organizationId = String(formData.get("organizationId") ?? "");
+  const paymentRequestId = String(formData.get("paymentRequestId") ?? "");
+  if (!organizationId || !paymentRequestId) return;
+
+  const now = new Date();
+  const subscriptionEndsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  await prisma.$transaction(async (tx) => {
+    const request = await tx.subscriptionPaymentRequest.findFirst({
+      where: {
+        id: paymentRequestId,
+        organizationId,
+      },
+      select: {
+        id: true,
+        requestedPlan: true,
+        status: true,
+      },
+    });
+
+    if (!request || request.status !== "PENDING") {
+      throw new Error("PAYMENT_REQUEST_NOT_PENDING");
+    }
+
+    await tx.subscriptionPaymentRequest.update({
+      where: { id: request.id },
+      data: {
+        status: "APPROVED",
+        reviewedById: admin.id,
+        reviewedAt: now,
+      },
+    });
+
+    await tx.organization.update({
+      where: { id: organizationId },
+      data: {
+        plan: request.requestedPlan,
+        status: "ACTIVE",
+        subscriptionStartedAt: now,
+        subscriptionEndsAt,
+        lastPaymentAt: now,
+        watermarkEnabled: request.requestedPlan === "STARTER",
+        staffLimit: request.requestedPlan === "STARTER" ? 15 : null,
+        billingLockedAt: null,
+        billingLockReason: null,
+      },
+    });
+  });
+
+  revalidatePath("/admin/labs");
+  revalidatePath(`/admin/labs/${organizationId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/analytics");
+}
+
+export async function rejectPaymentRequestAction(formData: FormData) {
+  const admin = await requireMegaAdmin();
+  const organizationId = String(formData.get("organizationId") ?? "");
+  const paymentRequestId = String(formData.get("paymentRequestId") ?? "");
+  const rejectionNote = String(formData.get("rejectionNote") ?? "").trim();
+  if (!organizationId || !paymentRequestId) return;
+
+  await prisma.$transaction(async (tx) => {
+    const request = await tx.subscriptionPaymentRequest.findFirst({
+      where: {
+        id: paymentRequestId,
+        organizationId,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!request || request.status !== "PENDING") {
+      throw new Error("PAYMENT_REQUEST_NOT_PENDING");
+    }
+
+    await tx.subscriptionPaymentRequest.update({
+      where: { id: request.id },
+      data: {
+        status: "REJECTED",
+        reviewedById: admin.id,
+        reviewedAt: new Date(),
+        notes: rejectionNote || "Payment request rejected after review",
+      },
+    });
+  });
+
+  revalidatePath("/admin/labs");
+  revalidatePath(`/admin/labs/${organizationId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/analytics");
 }

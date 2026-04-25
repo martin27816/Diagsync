@@ -75,8 +75,11 @@ export async function POST(req: NextRequest) {
         data: {
           name: data.orgName,
           email: data.orgEmail,
-          plan: "STARTER",
-          status: "ACTIVE",
+          plan: "TRIAL",
+          status: "EXPIRED",
+          watermarkEnabled: true,
+          billingLockedAt: new Date(),
+          billingLockReason: "No active subscription",
           phone: data.orgPhone,
           address: data.orgAddress,
           contactInfo: data.orgContactInfo ?? null,

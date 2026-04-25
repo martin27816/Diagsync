@@ -16,9 +16,11 @@ import {
 import { notifyResultEdited, sendNotificationToRoles, sendNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { renderReportHtml } from "@/lib/report-rendering";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 import { Department, NotificationType, OrderStatus, ReportStatus, Role, ReviewStatus, ReportType, VisitStatus } from "@prisma/client";
 import { formatReferenceDisplay } from "./reference-ranges";
 import { extractSignOffFromMap, stripSignOffKeys } from "./report-signoff";
+import { canUseCustomLetterhead, shouldShowWatermark } from "./billing-access";
 
 export type ReportActor = {
   id: string;
@@ -35,6 +37,10 @@ function assertDepartment(department: Department) {
 
 function ensurePreviewAccess(actor: ReportActor) {
   if (!canPreviewReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
+}
+
+async function assertReportCoreAccess(actor: ReportActor) {
+  await requireOrganizationCoreAccess(actor.organizationId);
 }
 
 function pickExtraFields(value: unknown): Record<string, unknown> | null {
@@ -269,6 +275,7 @@ export async function listReports(
   }
 ) {
   ensurePreviewAccess(actor);
+  await assertReportCoreAccess(actor);
   const search = String(opts?.search ?? "").trim();
   const hasDate = /^\d{4}-\d{2}-\d{2}$/.test(String(opts?.date ?? ""));
   const dateRange = hasDate
@@ -307,6 +314,7 @@ export async function listReports(
 
 export async function getReportDetails(actor: ReportActor, reportId: string) {
   ensurePreviewAccess(actor);
+  await assertReportCoreAccess(actor);
   const report = await prisma.diagnosticReport.findFirst({
     where: { id: reportId, organizationId: actor.organizationId },
     include: {
@@ -346,6 +354,7 @@ export async function updateReportDraft(
   }
 ) {
   if (!input.reason?.trim()) throw new Error("REASON_REQUIRED");
+  await assertReportCoreAccess(actor);
   const canMdEdit = canMdEditReport(actor.role);
   const canDispatchEdit = canDispatchReleasedReport(actor.role);
   if (!canMdEdit && !canDispatchEdit) throw new Error("FORBIDDEN_ROLE");
@@ -487,6 +496,7 @@ export async function releaseReport(
   }
 ) {
   if (!canHrmReleaseReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
+  await assertReportCoreAccess(actor);
 
   const report = await getReportDetails(actor, input.reportId);
   if (!canRelease(report.status, report.isReleased)) throw new Error("REPORT_ALREADY_RELEASED");
@@ -606,6 +616,7 @@ export async function trackReportAction(
   }
 ) {
   if (!canDispatchReleasedReport(actor.role)) throw new Error("FORBIDDEN_ROLE");
+  await assertReportCoreAccess(actor);
   const report = await getReportDetails(actor, input.reportId);
   if (!report.isReleased && input.action !== "PRINT") {
     throw new Error("REPORT_NOT_RELEASED");
@@ -672,6 +683,7 @@ export async function renderReportForPreview(
     baseUrl?: string;
   }
 ) {
+  await assertReportCoreAccess(actor);
   const report = await getReportDetails(actor, reportId);
   const activeVersion = report.versions.find((version) => version.isActive) ?? report.versions[0] ?? null;
   if (!activeVersion) throw new Error("INVALID_VERSION_CHAIN");
@@ -693,6 +705,9 @@ export async function renderReportForPreview(
     },
   };
 
+  const allowLetterhead = canUseCustomLetterhead(report.organization);
+  const showWatermark = shouldShowWatermark(report.organization);
+
   const html = renderReportHtml({
     organization: {
       name: report.organization.name,
@@ -707,8 +722,8 @@ export async function renderReportForPreview(
     comments: activeVersion.comments ?? report.comments,
     prescription: activeVersion.prescription ?? report.prescription,
     mdName: null,
-    watermarkUrl: "/diagsync-watermark.png",
-    includeLetterhead: options?.includeLetterhead ?? true,
+    watermarkUrl: showWatermark ? "/diagsync-watermark.png" : undefined,
+    includeLetterhead: (options?.includeLetterhead ?? true) && allowLetterhead,
     showPrintButton: options?.showPrintButton === true,
     autoPrint: options?.autoPrint === true,
     baseUrl: options?.baseUrl,

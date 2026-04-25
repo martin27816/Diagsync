@@ -62,6 +62,12 @@ export async function POST(
       if (error.message === "FORBIDDEN_ROLE" || error.message === "FORBIDDEN_TASK") {
         return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
       }
+      if (error.message === "FEATURE_NOT_AVAILABLE") {
+        return NextResponse.json({ success: false, error: "Imaging uploads are available on Trial or Advanced plan." }, { status: 403 });
+      }
+      if (error.message === "BILLING_LOCKED") {
+        return NextResponse.json({ success: false, error: "Billing access required. Please choose or renew a plan." }, { status: 403 });
+      }
       if (error.message === "TASK_NOT_FOUND") {
         return NextResponse.json({ success: false, error: "Task not found" }, { status: 404 });
       }

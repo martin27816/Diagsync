@@ -31,6 +31,12 @@ export async function PATCH(
     return NextResponse.json({ success: true, message: "Report released" });
   } catch (error) {
     if (error instanceof Error) {
+      if (error.message === "BILLING_LOCKED") {
+        return NextResponse.json(
+          { success: false, error: "Billing access required. Please choose or renew a plan." },
+          { status: 403 }
+        );
+      }
       if (error.message === "FORBIDDEN_ROLE") return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
       if (error.message === "REPORT_NOT_FOUND") return NextResponse.json({ success: false, error: "Report not found" }, { status: 404 });
       if (error.message === "REPORT_ALREADY_RELEASED") return NextResponse.json({ success: false, error: "Report already released" }, { status: 409 });

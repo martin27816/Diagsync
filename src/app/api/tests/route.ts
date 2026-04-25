@@ -3,11 +3,18 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TestType, Department, FieldType } from "@prisma/client";
 import { z } from "zod";
+import { canUseCardiology, canUseRadiology } from "@/lib/billing-access";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export const dynamic = "force-dynamic";
 
 function normalizeTestNameForGrouping(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function isCardiologyTest(payload: { name: string; code: string; description?: string | null; categoryName?: string | null }) {
+  const token = `${payload.name} ${payload.code} ${payload.description ?? ""} ${payload.categoryName ?? ""}`.toLowerCase();
+  return /(cardio|ecg|ekg|echo|echocardi|troponin|ck-mb)/.test(token);
 }
 
 const fieldSchema = z.object({
@@ -47,6 +54,7 @@ export async function GET(req: NextRequest) {
     }
 
     const user = session.user as any;
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
     const { searchParams } = new URL(req.url);
 
     const search = searchParams.get("search") ?? "";
@@ -80,6 +88,7 @@ export async function GET(req: NextRequest) {
       where: {
         organizationId: user.organizationId,
         isActive: true,
+        ...(canUseRadiology(organization) ? {} : { department: { not: Department.RADIOLOGY } }),
         ...(type ? { type } : {}),
         ...(department ? { department } : {}),
         ...(searchTerms.length > 0
@@ -144,6 +153,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: dedupedTests });
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[TESTS_GET]", error);
     return NextResponse.json(
       { success: false, error: "Internal server error" },
@@ -160,6 +175,7 @@ export async function POST(req: NextRequest) {
     }
 
     const user = session.user as { id: string; role: string; organizationId: string };
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
     if (!["RECEPTIONIST", "HRM", "SUPER_ADMIN"].includes(user.role)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
@@ -179,6 +195,12 @@ export async function POST(req: NextRequest) {
     if (payload.type === "RADIOLOGY" && payload.department !== "RADIOLOGY") {
       return NextResponse.json({ success: false, error: "RADIOLOGY tests must use RADIOLOGY department" }, { status: 400 });
     }
+    if (payload.department === "RADIOLOGY" && !canUseRadiology(organization)) {
+      return NextResponse.json(
+        { success: false, error: "Radiology tests are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
+    }
 
     const uniqueFieldKeys = new Set(payload.fields.map((field) => field.fieldKey.trim().toLowerCase()));
     if (uniqueFieldKeys.size !== payload.fields.length) {
@@ -196,10 +218,24 @@ export async function POST(req: NextRequest) {
     }
 
     const category = payload.categoryId
-      ? await prisma.testCategory.findUnique({ where: { id: payload.categoryId }, select: { id: true } })
+      ? await prisma.testCategory.findUnique({ where: { id: payload.categoryId }, select: { id: true, name: true } })
       : null;
     if (payload.categoryId && !category) {
       return NextResponse.json({ success: false, error: "Selected category not found" }, { status: 400 });
+    }
+    if (
+      !canUseCardiology(organization) &&
+      isCardiologyTest({
+        name: payload.name,
+        code: payload.code,
+        description: payload.description,
+        categoryName: category?.name ?? null,
+      })
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Cardiology tests are available on Trial or Advanced plan." },
+        { status: 403 }
+      );
     }
 
     const test = await prisma.$transaction(async (tx) => {
@@ -241,6 +277,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: { id: test.id }, message: "Test added successfully" }, { status: 201 });
   } catch (error: unknown) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     if (
       typeof error === "object" &&
       error !== null &&

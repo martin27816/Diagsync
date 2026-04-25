@@ -5,6 +5,8 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { Role, Department, Shift } from "@prisma/client";
+import { canAddStaff } from "@/lib/billing-access";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,7 @@ export async function GET(req: NextRequest) {
     }
 
     const user = session.user as any;
+    await requireOrganizationCoreAccess(user.organizationId);
 
     // Only SUPER_ADMIN and HRM can list all staff
     if (!["SUPER_ADMIN", "HRM"].includes(user.role)) {
@@ -93,6 +96,12 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[STAFF_GET]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
@@ -107,6 +116,7 @@ export async function POST(req: NextRequest) {
     }
 
     const user = session.user as any;
+    const { organization } = await requireOrganizationCoreAccess(user.organizationId);
 
     if (!["SUPER_ADMIN", "HRM"].includes(user.role)) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
@@ -130,12 +140,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (organization.plan === "STARTER" && data.role === "RADIOGRAPHER") {
+      return NextResponse.json(
+        { success: false, error: "Radiographer role is available on Advanced plan only." },
+        { status: 403 }
+      );
+    }
+
     // Check email uniqueness
     const existing = await prisma.staff.findUnique({ where: { email: data.email } });
     if (existing) {
       return NextResponse.json(
         { success: false, error: "A staff member with this email already exists" },
         { status: 409 }
+      );
+    }
+
+    const currentStaffCount = await prisma.staff.count({ where: { organizationId: user.organizationId } });
+    if (!canAddStaff(organization, currentStaffCount)) {
+      return NextResponse.json(
+        { success: false, error: "Staff limit reached for your current plan. Upgrade to add more staff." },
+        { status: 403 }
       );
     }
 
@@ -182,6 +207,12 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    if (error instanceof Error && error.message === "BILLING_LOCKED") {
+      return NextResponse.json(
+        { success: false, error: "Billing access required. Please choose or renew a plan." },
+        { status: 403 }
+      );
+    }
     console.error("[STAFF_POST]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }

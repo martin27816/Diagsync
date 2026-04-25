@@ -1,4 +1,4 @@
-import { Role, Department, OrganizationStatus } from "@prisma/client";
+import { Role, Department, OrganizationPlan, OrganizationStatus } from "@prisma/client";
 import "next-auth";
 
 declare module "next-auth" {
@@ -9,7 +9,9 @@ declare module "next-auth" {
       name: string;
       role: Role;
       organizationId: string | null;
+      organizationPlan?: OrganizationPlan | null;
       organizationStatus?: OrganizationStatus | null;
+      trialEndsAt?: string | null;
       fullName: string;
       department: Department;
     };
@@ -21,7 +23,9 @@ declare module "next-auth" {
     name: string;
     role: Role;
     organizationId: string | null;
+    organizationPlan?: OrganizationPlan | null;
     organizationStatus?: OrganizationStatus | null;
+    trialEndsAt?: string | null;
     fullName: string;
     department: Department;
   }
@@ -32,7 +36,9 @@ declare module "next-auth/jwt" {
     id: string;
     role: Role;
     organizationId: string | null;
+    organizationPlan?: OrganizationPlan | null;
     organizationStatus?: OrganizationStatus | null;
+    trialEndsAt?: string | null;
     fullName: string;
     department: Department;
   }

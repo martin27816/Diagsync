@@ -925,13 +925,12 @@ function tuneSeedDatabaseUrl(raw?: string | null) {
   if (!raw) return raw;
   try {
     const parsed = new URL(raw);
-    // Keep seed lightweight against shared Supabase pooler limits.
     if (parsed.hostname.includes("pooler.supabase.com")) {
-      if (!parsed.searchParams.get("connection_limit")) {
-        parsed.searchParams.set("connection_limit", "1");
-      }
-      if (!parsed.searchParams.get("pool_timeout")) {
-        parsed.searchParams.set("pool_timeout", "60");
+      parsed.searchParams.set("connection_limit", "1");
+      parsed.searchParams.set("pool_timeout", "120");
+      // Remove pgbouncer flag for session pooler (port 5432)
+      if (parsed.port === "5432") {
+        parsed.searchParams.delete("pgbouncer");
       }
     }
     return parsed.toString();
@@ -6380,28 +6379,44 @@ export default async function LabQueuePage({
   );
 }
 </pre></div>
-<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/lab-scientist/results/page.tsx</div><pre>// â”€â”€ src/app/(dashboard)/dashboard/lab-scientist/results/page.tsx â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-import { auth } from "@/lib/auth";
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/lab-scientist/results/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDateTime } from "@/lib/utils";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 function formatResultData(data: unknown): string {
-  if (data === null || data === undefined) return "â€”";
+  if (data === null || data === undefined) return "-";
   if (typeof data !== "object") return String(data);
   const record = data as Record&lt;string, unknown&gt;;
   const pairs = Object.entries(record)
     .filter(([, v]) =&gt; v !== null &amp;&amp; v !== undefined &amp;&amp; `${v}`.trim() !== "")
     .map(([key, value]) =&gt; `${key}: ${String(value)}`);
-  return pairs.length === 0 ? "â€”" : pairs.join(" Â· ");
+  return pairs.length === 0 ? "-" : pairs.join(" Â· ");
 }
 
-export default async function LabResultsPage() {
+function dayKeyToRange(dayKey: string) {
+  const [y, m, d] = dayKey.split("-").map((v) =&gt; Number(v));
+  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+  return { start, end };
+}
+
+export default async function LabResultsPage({
+  searchParams,
+}: {
+  searchParams?: { search?: string; date?: string };
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
   if (!["LAB_SCIENTIST", "SUPER_ADMIN"].includes(user.role)) redirect("/dashboard");
+
+  const search = (searchParams?.search ?? "").trim();
+  const selectedDate = /^\d{4}-\d{2}-\d{2}$/.test(searchParams?.date ?? "")
+    ? String(searchParams?.date)
+    : "";
+  const dateRange = selectedDate ? dayKeyToRange(selectedDate) : null;
 
   const ROW_LIMIT = 700;
   const labResults = await prisma.labResult.findMany({
@@ -6409,6 +6424,28 @@ export default async function LabResultsPage() {
       organizationId: user.organizationId,
       isSubmitted: true,
       ...(user.role === "LAB_SCIENTIST" ? { staffId: user.id } : {}),
+      ...(search
+        ? {
+            task: {
+              visit: {
+                patient: {
+                  OR: [
+                    { fullName: { contains: search, mode: "insensitive" } },
+                    { patientId: { contains: search, mode: "insensitive" } },
+                  ],
+                },
+              },
+            },
+          }
+        : {}),
+      ...(dateRange
+        ? {
+            submittedAt: {
+              gte: dateRange.start,
+              lte: dateRange.end,
+            },
+          }
+        : {}),
     },
     take: ROW_LIMIT,
     select: {
@@ -6416,6 +6453,7 @@ export default async function LabResultsPage() {
       submittedAt: true,
       task: {
         select: {
+          staff: { select: { fullName: true } },
           visit: {
             select: {
               id: true,
@@ -6431,82 +6469,157 @@ export default async function LabResultsPage() {
           },
         },
       },
-      testOrder: { select: { test: { select: { name: true } } } },
+      testOrder: {
+        select: {
+          assignedTo: { select: { fullName: true } },
+          test: { select: { name: true } },
+        },
+      },
     },
     orderBy: { submittedAt: "desc" },
   });
 
-  // Group by visit
-  const groupedMap = new Map&lt;string, {
-    patientName: string; age: number; patientId: string;
-    visitNumber: string; submittedAt: Date | null;
-    tests: Array&lt;{ testName: string; resultText: string }&gt;;
-  }&gt;();
+  const groupedMap = new Map&lt;
+    string,
+    {
+      patientName: string;
+      age: number;
+      patientId: string;
+      visitNumber: string;
+      submittedAt: Date | null;
+      tests: Array&lt;{ testName: string; resultText: string }&gt;;
+      startedBy: Set&lt;string&gt;;
+      submittedBy: Set&lt;string&gt;;
+    }
+  &gt;();
 
   for (const result of labResults) {
     const visit = result.task.visit;
     const patient = visit.patient;
     const key = visit.id;
-    const testItem = { testName: result.testOrder.test.name, resultText: formatResultData(result.resultData) };
+    const testItem = {
+      testName: result.testOrder.test.name,
+      resultText: formatResultData(result.resultData),
+    };
+    const startedByName = result.testOrder.assignedTo?.fullName?.trim() ?? "";
+    const submittedByName = result.task.staff?.fullName?.trim() ?? "";
     const existing = groupedMap.get(key);
     if (existing) {
       existing.tests.push(testItem);
-      if (result.submittedAt &amp;&amp; (!existing.submittedAt || result.submittedAt &gt; existing.submittedAt)) existing.submittedAt = result.submittedAt;
+      if (startedByName) existing.startedBy.add(startedByName);
+      if (submittedByName) existing.submittedBy.add(submittedByName);
+      if (result.submittedAt &amp;&amp; (!existing.submittedAt || result.submittedAt &gt; existing.submittedAt)) {
+        existing.submittedAt = result.submittedAt;
+      }
     } else {
-      groupedMap.set(key, { patientName: patient.fullName, age: patient.age, patientId: patient.patientId, visitNumber: visit.visitNumber, submittedAt: result.submittedAt, tests: [testItem] });
+      groupedMap.set(key, {
+        patientName: patient.fullName,
+        age: patient.age,
+        patientId: patient.patientId,
+        visitNumber: visit.visitNumber,
+        submittedAt: result.submittedAt,
+        tests: [testItem],
+        startedBy: new Set(startedByName ? [startedByName] : []),
+        submittedBy: new Set(submittedByName ? [submittedByName] : []),
+      });
     }
   }
 
-  const rows = Array.from(groupedMap.values());
+  const rows = Array.from(groupedMap.values()).map((row) =&gt; ({
+    ...row,
+    startedByText: row.startedBy.size &gt; 0 ? Array.from(row.startedBy).join(", ") : "-",
+    submittedByText: row.submittedBy.size &gt; 0 ? Array.from(row.submittedBy).join(", ") : "-",
+  }));
 
   return (
     &lt;div className="space-y-4"&gt;
       &lt;div&gt;
         &lt;h1 className="text-base font-semibold text-slate-800"&gt;Submitted Results&lt;/h1&gt;
         &lt;p className="text-xs text-slate-400 mt-0.5"&gt;
-          {rows.length} visit{rows.length !== 1 ? "s" : ""} with submitted lab results (latest {ROW_LIMIT} result entries)
+          {rows.length} visit{rows.length !== 1 ? "s" : ""} with submitted lab results (latest {ROW_LIMIT} result
+          entries)
         &lt;/p&gt;
       &lt;/div&gt;
+
+      &lt;form method="GET" className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3"&gt;
+        &lt;div className="w-full sm:w-auto"&gt;
+          &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Search patient&lt;/label&gt;
+          &lt;input
+            name="search"
+            defaultValue={search}
+            placeholder="Name or patient ID..."
+            className="h-8 w-full sm:w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          /&gt;
+        &lt;/div&gt;
+        &lt;div&gt;
+          &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Go to date&lt;/label&gt;
+          &lt;input
+            type="date"
+            name="date"
+            defaultValue={selectedDate}
+            className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          /&gt;
+        &lt;/div&gt;
+        &lt;button
+          type="submit"
+          className="rounded bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors"
+        &gt;
+          Apply
+        &lt;/button&gt;
+        &lt;Link href="/dashboard/lab-scientist/results" className="text-xs text-slate-400 hover:text-slate-600 pb-1"&gt;
+          Reset
+        &lt;/Link&gt;
+        &lt;span className="w-full text-left text-xs text-slate-400 pb-1 sm:ml-auto sm:w-auto sm:text-right"&gt;
+          {rows.length} visit row{rows.length !== 1 ? "s" : ""} in view
+        &lt;/span&gt;
+      &lt;/form&gt;
 
       &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
         {rows.length === 0 ? (
           &lt;p className="px-4 py-10 text-center text-xs text-slate-400"&gt;No submitted lab results yet.&lt;/p&gt;
         ) : (
           &lt;div className="overflow-x-auto"&gt;
-          &lt;table className="w-full min-w-[960px] text-xs"&gt;
-            &lt;thead&gt;
-              &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Patient&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Visit&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Tests &amp; Results&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Submitted&lt;/th&gt;
-              &lt;/tr&gt;
-            &lt;/thead&gt;
-            &lt;tbody className="divide-y divide-slate-100"&gt;
-              {rows.map((row) =&gt; (
-                &lt;tr key={row.visitNumber} className="hover:bg-slate-50 transition-colors align-top"&gt;
-                  &lt;td className="px-4 py-2.5"&gt;
-                    &lt;p className="font-medium text-slate-800"&gt;{row.patientName}&lt;/p&gt;
-                    &lt;p className="font-mono text-slate-400"&gt;{row.patientId} Â· {row.age}y&lt;/p&gt;
-                  &lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 font-mono text-slate-400"&gt;{row.visitNumber}&lt;/td&gt;
-                  &lt;td className="px-4 py-2.5"&gt;
-                    &lt;div className="space-y-1"&gt;
-                      {row.tests.map((t, idx) =&gt; (
-                        &lt;p key={`${t.testName}-${idx}`} className="text-slate-600"&gt;
-                          &lt;span className="font-medium text-slate-800"&gt;{t.testName}:&lt;/span&gt;{" "}
-                          &lt;span className="text-slate-500"&gt;{t.resultText}&lt;/span&gt;
-                        &lt;/p&gt;
-                      ))}
-                    &lt;/div&gt;
-                  &lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
-                    {row.submittedAt ? formatDateTime(row.submittedAt) : "â€”"}
-                  &lt;/td&gt;
+            &lt;table className="w-full min-w-[1080px] text-xs"&gt;
+              &lt;thead&gt;
+                &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Patient&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Visit&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Tests &amp; Results&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Audit Trail&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Submitted&lt;/th&gt;
                 &lt;/tr&gt;
-              ))}
-            &lt;/tbody&gt;
-          &lt;/table&gt;
+              &lt;/thead&gt;
+              &lt;tbody className="divide-y divide-slate-100"&gt;
+                {rows.map((row) =&gt; (
+                  &lt;tr key={row.visitNumber} className="hover:bg-slate-50 transition-colors align-top"&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      &lt;p className="font-medium text-slate-800"&gt;{row.patientName}&lt;/p&gt;
+                      &lt;p className="font-mono text-slate-400"&gt;
+                        {row.patientId} Â· {row.age}y
+                      &lt;/p&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 font-mono text-slate-400"&gt;{row.visitNumber}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      &lt;div className="space-y-1"&gt;
+                        {row.tests.map((t, idx) =&gt; (
+                          &lt;p key={`${t.testName}-${idx}`} className="text-slate-600"&gt;
+                            &lt;span className="font-medium text-slate-800"&gt;{t.testName}:&lt;/span&gt;{" "}
+                            &lt;span className="text-slate-500"&gt;{t.resultText}&lt;/span&gt;
+                          &lt;/p&gt;
+                        ))}
+                      &lt;/div&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500"&gt;
+                      &lt;p&gt;Started: {row.startedByText}&lt;/p&gt;
+                      &lt;p&gt;Submitted: {row.submittedByText}&lt;/p&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
+                      {row.submittedAt ? formatDateTime(row.submittedAt) : "-"}
+                    &lt;/td&gt;
+                  &lt;/tr&gt;
+                ))}
+              &lt;/tbody&gt;
+            &lt;/table&gt;
           &lt;/div&gt;
         )}
       &lt;/div&gt;
@@ -6719,19 +6832,59 @@ export default async function RadiologyQueuePage() {
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/radiographer/reports/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDateTime } from "@/lib/utils";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
-export default async function RadiologyReportsPage() {
+function dayKeyToRange(dayKey: string) {
+  const [y, m, d] = dayKey.split("-").map((v) =&gt; Number(v));
+  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+  return { start, end };
+}
+
+export default async function RadiologyReportsPage({
+  searchParams,
+}: {
+  searchParams?: { search?: string; date?: string };
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
   if (!["RADIOGRAPHER", "SUPER_ADMIN"].includes(user.role)) redirect("/dashboard");
+
+  const search = (searchParams?.search ?? "").trim();
+  const selectedDate = /^\d{4}-\d{2}-\d{2}$/.test(searchParams?.date ?? "")
+    ? String(searchParams?.date)
+    : "";
+  const dateRange = selectedDate ? dayKeyToRange(selectedDate) : null;
 
   const reports = await prisma.radiologyReport.findMany({
     where: {
       organizationId: user.organizationId,
       isSubmitted: true,
       ...(user.role === "RADIOGRAPHER" ? { staffId: user.id } : {}),
+      ...(search
+        ? {
+            task: {
+              visit: {
+                patient: {
+                  OR: [
+                    { fullName: { contains: search, mode: "insensitive" } },
+                    { patientId: { contains: search, mode: "insensitive" } },
+                  ],
+                },
+              },
+            },
+          }
+        : {}),
+      ...(dateRange
+        ? {
+            submittedAt: {
+              gte: dateRange.start,
+              lte: dateRange.end,
+            },
+          }
+        : {}),
     },
     include: {
       task: { include: { visit: { include: { patient: true } }, imagingFiles: true } },
@@ -6748,53 +6901,91 @@ export default async function RadiologyReportsPage() {
         &lt;/p&gt;
       &lt;/div&gt;
 
+      &lt;form method="GET" className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3"&gt;
+        &lt;div className="w-full sm:w-auto"&gt;
+          &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Search patient&lt;/label&gt;
+          &lt;input
+            name="search"
+            defaultValue={search}
+            placeholder="Name or patient ID..."
+            className="h-8 w-full sm:w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          /&gt;
+        &lt;/div&gt;
+        &lt;div&gt;
+          &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Go to date&lt;/label&gt;
+          &lt;input
+            type="date"
+            name="date"
+            defaultValue={selectedDate}
+            className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          /&gt;
+        &lt;/div&gt;
+        &lt;button
+          type="submit"
+          className="rounded bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors"
+        &gt;
+          Apply
+        &lt;/button&gt;
+        &lt;Link href="/dashboard/radiographer/reports" className="text-xs text-slate-400 hover:text-slate-600 pb-1"&gt;
+          Reset
+        &lt;/Link&gt;
+        &lt;span className="w-full text-left text-xs text-slate-400 pb-1 sm:ml-auto sm:w-auto sm:text-right"&gt;
+          {reports.length} report row{reports.length !== 1 ? "s" : ""} in view
+        &lt;/span&gt;
+      &lt;/form&gt;
+
       &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
         {reports.length === 0 ? (
           &lt;p className="px-4 py-10 text-center text-xs text-slate-400"&gt;No submitted radiology reports yet.&lt;/p&gt;
         ) : (
           &lt;div className="overflow-x-auto"&gt;
-          &lt;table className="w-full min-w-[980px] text-xs"&gt;
-            &lt;thead&gt;
-              &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Patient&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Findings&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Impression&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Images&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Submitted&lt;/th&gt;
-              &lt;/tr&gt;
-            &lt;/thead&gt;
-            &lt;tbody className="divide-y divide-slate-100"&gt;
-              {reports.map((report) =&gt; (
-                &lt;tr key={report.id} className="hover:bg-slate-50 transition-colors align-top"&gt;
-                  &lt;td className="px-4 py-2.5"&gt;
-                    &lt;p className="font-medium text-slate-800"&gt;{report.task.visit.patient.fullName}&lt;/p&gt;
-                    &lt;p className="font-mono text-slate-400"&gt;
-                      {report.task.visit.patient.patientId} Â· {report.task.visit.visitNumber}
-                    &lt;/p&gt;
-                  &lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-500 max-w-[200px]"&gt;{report.findings}&lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-500 max-w-[200px]"&gt;{report.impression}&lt;/td&gt;
-                  &lt;td className="px-4 py-2.5"&gt;
-                    {report.task.imagingFiles.length === 0 ? (
-                      &lt;span className="text-slate-300"&gt;None&lt;/span&gt;
-                    ) : (
-                      &lt;div className="space-y-0.5"&gt;
-                        {report.task.imagingFiles.map((img) =&gt; (
-                          &lt;a key={img.id} href={img.fileUrl} target="_blank" rel="noreferrer"
-                            className="block text-blue-600 hover:underline truncate max-w-[140px]"&gt;
-                            {img.fileName}
-                          &lt;/a&gt;
-                        ))}
-                      &lt;/div&gt;
-                    )}
-                  &lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
-                    {report.submittedAt ? formatDateTime(report.submittedAt) : "â€”"}
-                  &lt;/td&gt;
+            &lt;table className="w-full min-w-[980px] text-xs"&gt;
+              &lt;thead&gt;
+                &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Patient&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Findings&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Impression&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Images&lt;/th&gt;
+                  &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Submitted&lt;/th&gt;
                 &lt;/tr&gt;
-              ))}
-            &lt;/tbody&gt;
-          &lt;/table&gt;
+              &lt;/thead&gt;
+              &lt;tbody className="divide-y divide-slate-100"&gt;
+                {reports.map((report) =&gt; (
+                  &lt;tr key={report.id} className="hover:bg-slate-50 transition-colors align-top"&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      &lt;p className="font-medium text-slate-800"&gt;{report.task.visit.patient.fullName}&lt;/p&gt;
+                      &lt;p className="font-mono text-slate-400"&gt;
+                        {report.task.visit.patient.patientId} Â· {report.task.visit.visitNumber}
+                      &lt;/p&gt;
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500 max-w-[200px]"&gt;{report.findings}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-500 max-w-[200px]"&gt;{report.impression}&lt;/td&gt;
+                    &lt;td className="px-4 py-2.5"&gt;
+                      {report.task.imagingFiles.length === 0 ? (
+                        &lt;span className="text-slate-300"&gt;None&lt;/span&gt;
+                      ) : (
+                        &lt;div className="space-y-0.5"&gt;
+                          {report.task.imagingFiles.map((img) =&gt; (
+                            &lt;a
+                              key={img.id}
+                              href={img.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block text-blue-600 hover:underline truncate max-w-[140px]"
+                            &gt;
+                              {img.fileName}
+                            &lt;/a&gt;
+                          ))}
+                        &lt;/div&gt;
+                      )}
+                    &lt;/td&gt;
+                    &lt;td className="px-4 py-2.5 text-slate-400 whitespace-nowrap"&gt;
+                      {report.submittedAt ? formatDateTime(report.submittedAt) : "-"}
+                    &lt;/td&gt;
+                  &lt;/tr&gt;
+                ))}
+              &lt;/tbody&gt;
+            &lt;/table&gt;
           &lt;/div&gt;
         )}
       &lt;/div&gt;
@@ -9169,10 +9360,12 @@ export async function GET(req: NextRequest) {
     const department = (searchParams.get("department") ?? "ALL") as Department | "ALL";
     const status = (searchParams.get("status") ?? "ALL") as ReportStatus | "ALL";
     const reportType = (searchParams.get("reportType") ?? "ALL") as ReportType | "ALL";
+    const search = (searchParams.get("search") ?? "").trim();
+    const date = (searchParams.get("date") ?? "").trim();
 
     const data = await listReports(
       { id: user.id, role: user.role, organizationId: user.organizationId },
-      { department, status, reportType }
+      { department, status, reportType, search, date }
     );
     return NextResponse.json({ success: true, data });
   } catch (error) {
@@ -15476,7 +15669,6 @@ export function LabTaskBoard() {
         return;
       }
 
-      setTasks((prev) =&gt; prev.filter((row) =&gt; row.id !== task.id));
       const res = await fetch(`/api/lab/tasks/${task.id}/results`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -15488,6 +15680,7 @@ export function LabTaskBoard() {
         await loadTasks();
         return;
       }
+      await loadTasks({ force: true, silent: true });
       const pending = listOfflineLabDraftItems().find((item) =&gt; item.taskId === task.id);
       if (pending) removeOfflineLabDraft(pending.id);
       setExpandedTask(null);
@@ -16238,6 +16431,8 @@ type Item = {
     patient: { fullName: string; patientId: string; age: number; dateOfBirth?: string | null; sex: string };
   };
   staff: { fullName: string } | null;
+  startedByName?: string;
+  submittedByName?: string;
   review: { status: ReviewStatus; comments?: string | null; rejectionReason?: string | null; editedData?: unknown } | null;
   results: Array&lt;{
     testOrderId: string;
@@ -16266,8 +16461,25 @@ const reviewStyle: Record&lt;string, string&gt; = {
 };
 
 function minutesAgoLabel(dateText: string) {
-  const mins = Math.max(1, Math.floor((Date.now() - new Date(dateText).getTime()) / 60000));
-  return `${mins}m ago`;
+  const deltaMs = Math.max(0, Date.now() - new Date(dateText).getTime());
+  const mins = Math.max(1, Math.floor(deltaMs / 60000));
+  if (mins &lt; 60) return `${mins}min ago`;
+
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  if (hours &lt; 24) {
+    if (remMins === 0) return `${hours}hr${hours &gt; 1 ? "s" : ""} ago`;
+    return `${hours}hr${hours &gt; 1 ? "s" : ""} ${remMins}min ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  if (days &lt; 30) return `${days} day${days &gt; 1 ? "s" : ""} ago`;
+
+  const months = Math.floor(days / 30);
+  if (months &lt; 12) return `${months} month${months &gt; 1 ? "s" : ""} ago`;
+
+  const years = Math.floor(days / 365);
+  return `${years} yr${years &gt; 1 ? "s" : ""} ago`;
 }
 
 function normalizeResultData(value: Record&lt;string, unknown&gt;) {
@@ -16616,7 +16828,7 @@ export function MdReviewBoard({
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Tests / Report&lt;/th&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Priority&lt;/th&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Status&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;By&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Audit Trail&lt;/th&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;Updated&lt;/th&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400 whitespace-nowrap"&gt;&lt;/th&gt;
               &lt;/tr&gt;
@@ -16662,7 +16874,10 @@ export function MdReviewBoard({
                       &lt;td className="px-4 py-2.5"&gt;
                         &lt;span className={`rounded px-1.5 py-0.5 font-medium ${reviewStyle[reviewStatus]}`}&gt;{reviewStatus}&lt;/span&gt;
                       &lt;/td&gt;
-                      &lt;td className="px-4 py-2.5 text-slate-500"&gt;{item.staff?.fullName ?? "â€”"}&lt;/td&gt;
+                      &lt;td className="px-4 py-2.5 text-slate-500"&gt;
+                        &lt;p&gt;Started: {item.startedByName?.trim() ? item.startedByName : "—"}&lt;/p&gt;
+                        &lt;p&gt;Submitted: {item.submittedByName?.trim() ? item.submittedByName : item.staff?.fullName ?? "—"}&lt;/p&gt;
+                      &lt;/td&gt;
                       &lt;td className="px-4 py-2.5 text-slate-400"&gt;{minutesAgoLabel(item.updatedAt)}&lt;/td&gt;
                       &lt;td className="px-4 py-2.5"&gt;
                         &lt;button
@@ -16682,6 +16897,10 @@ export function MdReviewBoard({
                             {/* Left: submitted output */}
                             &lt;div className="rounded-lg border border-slate-200 bg-white p-3 space-y-3"&gt;
                               &lt;p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400"&gt;Submitted Output&lt;/p&gt;
+                              &lt;div className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600"&gt;
+                                &lt;p&gt;Started by: &lt;span className="font-medium text-slate-700"&gt;{item.startedByName?.trim() ? item.startedByName : "—"}&lt;/span&gt;&lt;/p&gt;
+                                &lt;p&gt;Submitted by: &lt;span className="font-medium text-slate-700"&gt;{item.submittedByName?.trim() ? item.submittedByName : item.staff?.fullName ?? "—"}&lt;/span&gt;&lt;/p&gt;
+                              &lt;/div&gt;
                               {insights ? &lt;PatientInsights insights={insights} /&gt; : null}
                               {item.department === "LABORATORY" ? (
                                 &lt;div className="space-y-2"&gt;
@@ -20794,6 +21013,10 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const [busy, setBusy] = useState(false);
   const [filterStatus, setFilterStatus] = useState&lt;"ALL" | ReportStatus&gt;("ALL");
   const [filterType, setFilterType] = useState&lt;"ALL" | ReportType&gt;("ALL");
+  const [filterSearch, setFilterSearch] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [appliedDate, setAppliedDate] = useState("");
   const [editReason, setEditReason] = useState("");
   const [editComments, setEditComments] = useState("");
   const [editPrescription, setEditPrescription] = useState("");
@@ -20856,7 +21079,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   }
 
   async function loadReports(opts?: { signal?: AbortSignal; force?: boolean }) {
-    const cacheKey = `${filterStatus}:${filterType}`;
+    const cacheKey = `${filterStatus}:${filterType}:${appliedSearch}:${appliedDate}`;
     if (!opts?.force) {
       const cached = reportListCacheRef.current.get(cacheKey);
       if (cached &amp;&amp; Date.now() - cached.at &lt; REPORT_LIST_CACHE_TTL_MS) {
@@ -20872,7 +21095,13 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     const requestId = ++loadReportsSeqRef.current;
     setLoading(true); setError("");
     try {
-      const res = await fetch(`/api/reports?${new URLSearchParams({ status: filterStatus, reportType: filterType })}`, { signal: opts?.signal });
+      const query = new URLSearchParams({
+        status: filterStatus,
+        reportType: filterType,
+      });
+      if (appliedSearch.trim()) query.set("search", appliedSearch.trim());
+      if (appliedDate.trim()) query.set("date", appliedDate.trim());
+      const res = await fetch(`/api/reports?${query.toString()}`, { signal: opts?.signal });
       const json = await res.json();
       if (requestId !== loadReportsSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success) { setError(json.error ?? "Failed to load reports"); return; }
@@ -20931,7 +21160,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     const controller = new AbortController();
     void loadReports({ signal: controller.signal });
     return () =&gt; controller.abort();
-  }, [filterStatus, filterType]);
+  }, [filterStatus, filterType, appliedSearch, appliedDate]);
 
   useEffect(() =&gt; {
     if (!selectedId) return;
@@ -21137,20 +21366,73 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
 
   const canEdit = canMdEdit || ((canHrmRelease || canReceptionDispatch) &amp;&amp; details?.isReleased);
 
+  function applyListFilters() {
+    setAppliedSearch(filterSearch.trim());
+    setAppliedDate(filterDate.trim());
+  }
+
+  function resetListFilters() {
+    setFilterSearch("");
+    setFilterDate("");
+    setAppliedSearch("");
+    setAppliedDate("");
+  }
+
   return (
     &lt;div className="space-y-4"&gt;
       {/* Filters */}
-      &lt;div className="flex gap-2"&gt;
-        &lt;select value={filterType} onChange={(e) =&gt; setFilterType(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"&gt;
-          &lt;option value="ALL"&gt;All types&lt;/option&gt;
-          &lt;option value="lab"&gt;Lab reports&lt;/option&gt;
-          &lt;option value="radiology"&gt;Radiology reports&lt;/option&gt;
-        &lt;/select&gt;
-        &lt;select value={filterStatus} onChange={(e) =&gt; setFilterStatus(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"&gt;
-          &lt;option value="ALL"&gt;All statuses&lt;/option&gt;
-          &lt;option value="DRAFT"&gt;Draft&lt;/option&gt;
-          &lt;option value="RELEASED"&gt;Released&lt;/option&gt;
-        &lt;/select&gt;
+      &lt;div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3"&gt;
+        &lt;div className="w-full sm:w-auto"&gt;
+          &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Search patient&lt;/label&gt;
+          &lt;input
+            value={filterSearch}
+            onChange={(e) =&gt; setFilterSearch(e.target.value)}
+            placeholder="Name, patient ID, visit no..."
+            className="h-8 w-full sm:w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          /&gt;
+        &lt;/div&gt;
+        &lt;div&gt;
+          &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Go to date&lt;/label&gt;
+          &lt;input
+            type="date"
+            value={filterDate}
+            onChange={(e) =&gt; setFilterDate(e.target.value)}
+            className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          /&gt;
+        &lt;/div&gt;
+        &lt;div&gt;
+          &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Type&lt;/label&gt;
+          &lt;select value={filterType} onChange={(e) =&gt; setFilterType(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"&gt;
+            &lt;option value="ALL"&gt;All types&lt;/option&gt;
+            &lt;option value="lab"&gt;Lab reports&lt;/option&gt;
+            &lt;option value="radiology"&gt;Radiology reports&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;div&gt;
+          &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Status&lt;/label&gt;
+          &lt;select value={filterStatus} onChange={(e) =&gt; setFilterStatus(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700"&gt;
+            &lt;option value="ALL"&gt;All statuses&lt;/option&gt;
+            &lt;option value="DRAFT"&gt;Draft&lt;/option&gt;
+            &lt;option value="RELEASED"&gt;Released&lt;/option&gt;
+          &lt;/select&gt;
+        &lt;/div&gt;
+        &lt;button
+          type="button"
+          onClick={applyListFilters}
+          className="rounded bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors"
+        &gt;
+          Apply
+        &lt;/button&gt;
+        &lt;button
+          type="button"
+          onClick={resetListFilters}
+          className="text-xs text-slate-400 hover:text-slate-600 pb-1"
+        &gt;
+          Reset
+        &lt;/button&gt;
+        &lt;span className="w-full text-left text-xs text-slate-400 pb-1 sm:ml-auto sm:w-auto sm:text-right"&gt;
+          {rows.length} report row{rows.length !== 1 ? "s" : ""} in view
+        &lt;/span&gt;
       &lt;/div&gt;
 
       {error &amp;&amp; &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt;}
@@ -24412,6 +24694,7 @@ async function assertTaskOwnership(taskId: string, actor: LabActor) {
     },
     include: {
       visit: { include: { patient: true } },
+      staff: { select: { id: true, fullName: true } },
     },
   });
 
@@ -24439,6 +24722,33 @@ async function assertTaskOwnership(taskId: string, actor: LabActor) {
       },
       include: {
         visit: { include: { patient: true } },
+        staff: { select: { id: true, fullName: true } },
+      },
+    });
+    if (!task) throw new Error("TASK_NOT_FOUND");
+  }
+  if (
+    task.staffId !== actor.id &amp;&amp;
+    (task.status === RoutingTaskStatus.PENDING || task.status === RoutingTaskStatus.IN_PROGRESS)
+  ) {
+    await prisma.routingTask.updateMany({
+      where: {
+        id: task.id,
+        organizationId: actor.organizationId,
+        department: Department.LABORATORY,
+        status: { in: [RoutingTaskStatus.PENDING, RoutingTaskStatus.IN_PROGRESS] },
+      },
+      data: { staffId: actor.id },
+    });
+    task = await prisma.routingTask.findFirst({
+      where: {
+        id: taskId,
+        organizationId: actor.organizationId,
+        department: Department.LABORATORY,
+      },
+      include: {
+        visit: { include: { patient: true } },
+        staff: { select: { id: true, fullName: true } },
       },
     });
     if (!task) throw new Error("TASK_NOT_FOUND");
@@ -24921,7 +25231,7 @@ export async function submitLabTask(taskId: string, actor: LabActor) {
   await prisma.$transaction(async (tx) =&gt; {
     await tx.labResult.updateMany({
       where: { taskId: task.id, organizationId: actor.organizationId },
-      data: { isSubmitted: true, submittedAt: now },
+      data: { staffId: actor.id, isSubmitted: true, submittedAt: now },
     });
 
     await tx.routingTask.update({
@@ -24956,12 +25266,22 @@ export async function submitLabTask(taskId: string, actor: LabActor) {
     ...actor.auditMeta,
   });
 
-  await notifyMdResultSubmitted({
-    organizationId: actor.organizationId,
-    taskId: task.id,
-    patientName: task.visit.patient.fullName,
-    department: task.department,
-  });
+  try {
+    await notifyMdResultSubmitted({
+      organizationId: actor.organizationId,
+      taskId: task.id,
+      patientName: task.visit.patient.fullName,
+      department: task.department,
+      submittedByName: task.staff?.fullName ?? null,
+    });
+  } catch (error) {
+    // Result submission is already committed; notification failures should not roll back user-facing workflow.
+    console.error("[LAB_SUBMIT_NOTIFY_FAILED]", {
+      taskId: task.id,
+      organizationId: actor.organizationId,
+      error,
+    });
+  }
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/lab-workflow-core.test.ts</div><pre>import assert from "node:assert/strict";
@@ -24982,7 +25302,11 @@ function testPermissionEnforcement() {
   );
   assert.equal(
     canModifyAssignedTask({ userRole: "LAB_SCIENTIST", userId: "u2", assignedStaffId: "u1" }),
-    false
+    true
+  );
+  assert.equal(
+    canModifyAssignedTask({ userRole: "LAB_SCIENTIST", userId: "u2", assignedStaffId: null }),
+    true
   );
   assert.equal(
     canModifyAssignedTask({ userRole: "HRM", userId: "u1", assignedStaffId: "u1" }),
@@ -25061,9 +25385,8 @@ export function canModifyAssignedTask(params: {
   userId: string;
   assignedStaffId: string | null;
 }) {
-  if (params.userRole !== "LAB_SCIENTIST") return false;
-  if (!params.assignedStaffId) return false;
-  return params.userId === params.assignedStaffId;
+  // Allow any lab scientist in the same organization to continue/update active lab tasks.
+  return params.userRole === "LAB_SCIENTIST";
 }
 
 export function canStartTask(status: RoutingTaskStatus) {
@@ -25270,8 +25593,15 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
       },
       results: {
         include: {
+          staff: { select: { id: true, fullName: true } },
           testOrder: {
             include: {
+              assignedTo: {
+                select: {
+                  id: true,
+                  fullName: true,
+                },
+              },
               test: {
                 include: {
                   resultFields: {
@@ -25389,6 +25719,23 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
   }
 
   const items = tasks.map((task) =&gt; {
+    const startedByNames = Array.from(
+      new Set(
+        task.results
+          .map((result) =&gt; result.testOrder.assignedTo?.fullName?.trim() ?? "")
+          .filter((name) =&gt; name.length &gt; 0)
+      )
+    );
+    const submittedByNames = Array.from(
+      new Set(
+        [
+          task.staff?.fullName?.trim() ?? "",
+          ...task.results
+            .map((result) =&gt; result.staff?.fullName?.trim() ?? "")
+            .filter((name) =&gt; name.length &gt; 0),
+        ].filter((name) =&gt; name.length &gt; 0)
+      )
+    );
     const results = task.results.map((result) =&gt; {
       const activeVersion = pickActiveVersion(result.versions) ?? result.versions[0] ?? null;
       return {
@@ -25443,6 +25790,8 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
       radiologyReport,
       patientHistory: historyMap.get(task.visit.patient.id) ?? [],
       patientVisitCount: visitCountMap.get(task.visit.patient.id) ?? 1,
+      startedByName: startedByNames.join(", "),
+      submittedByName: submittedByNames.join(", "),
     };
   });
 
@@ -25532,25 +25881,37 @@ export async function approveMdReview(taskId: string, actor: MdActor, comments?:
     }
   });
 
-  await createAuditLog({
-    actorId: actor.id,
-    actorRole: actor.role as Role,
-    action: AUDIT_ACTIONS.RESULT_APPROVED,
-    entityType: "Review",
-    entityId: task.id,
-    newValue: { status: "APPROVED", comments },
-    ...actor.auditMeta,
-  });
+  try {
+    await createAuditLog({
+      actorId: actor.id,
+      actorRole: actor.role as Role,
+      action: AUDIT_ACTIONS.RESULT_APPROVED,
+      entityType: "Review",
+      entityId: task.id,
+      newValue: { status: "APPROVED", comments },
+      ...actor.auditMeta,
+    });
+  } catch (error) {
+    console.error("[MD_APPROVE_AUDIT_FAILED]", { taskId: task.id, organizationId: actor.organizationId, error });
+  }
 
-  await notifyTaskReviewOutcome({
-    organizationId: actor.organizationId,
-    taskId: task.id,
-    performerId: task.staffId,
-    patientName: task.visit.patient.fullName,
-    approved: true,
-  });
+  try {
+    await notifyTaskReviewOutcome({
+      organizationId: actor.organizationId,
+      taskId: task.id,
+      performerId: task.staffId,
+      patientName: task.visit.patient.fullName,
+      approved: true,
+    });
+  } catch (error) {
+    console.error("[MD_APPROVE_NOTIFY_FAILED]", { taskId: task.id, organizationId: actor.organizationId, error });
+  }
 
-  await ensureDraftReportForTask(task.id, actor);
+  try {
+    await ensureDraftReportForTask(task.id, actor);
+  } catch (error) {
+    console.error("[MD_APPROVE_REPORT_DRAFT_FAILED]", { taskId: task.id, organizationId: actor.organizationId, error });
+  }
 }
 
 export async function rejectMdReview(taskId: string, actor: MdActor, reason: string, highlightFields: string[] = []) {
@@ -28311,6 +28672,22 @@ function hasRenderableValue(value: unknown) {
   return String(value).trim().length &gt; 0;
 }
 
+function formatReportDateTime(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "-";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return new Intl.DateTimeFormat("en-NG", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Africa/Lagos",
+  }).format(parsed);
+}
+
 type LabRenderRow = {
   name: string;
   value: string;
@@ -28945,6 +29322,8 @@ export function renderReportHtml(args: RenderArgs) {
     "long"
   );
   const meta = args.content.meta ?? {};
+  const visitDateLabel = formatReportDateTime(meta.visitDate);
+  const reportDateLabel = formatReportDateTime(meta.reportDate);
   const referringDoctor = String(meta.referringDoctor ?? "").trim();
   const tests = Array.isArray(args.content.tests) ? args.content.tests : [];
   const safeLabTests = tests.filter((test: any) =&gt; Array.isArray(test?.rows));
@@ -29130,7 +29509,7 @@ export function renderReportHtml(args: RenderArgs) {
     h3 { margin: 8px 0; font-size: 14px; }
     p { margin: 4px 0; font-size: 13px; }
     .meta-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-    .block { margin-bottom: 10px; break-inside: avoid; }
+    .block { margin-bottom: 10px; break-inside: auto; }
     .rad-field { margin: 8px 0 10px; }
     .rad-label {
       margin: 0 0 4px;
@@ -29155,7 +29534,10 @@ export function renderReportHtml(args: RenderArgs) {
       line-height: 1.45;
       color: #1f2937;
     }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; break-inside: auto; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    tr { break-inside: avoid; page-break-inside: avoid; }
     th, td { border: 1px solid #d1d5db; padding: 5px; text-align: left; vertical-align: top; }
     th { background: #f3f4f6; }
     .mcs-table th, .mcs-table td { text-align: left; }
@@ -29307,7 +29689,7 @@ export function renderReportHtml(args: RenderArgs) {
         min-height: 0 !important;
         height: auto !important;
         margin: 0 !important;
-        padding: ${contentTopPx}px ${printMarginSidePx}px ${contentBottomPx}px !important;
+        padding: ${printMarginTopPx}px ${printMarginSidePx}px ${printMarginBottomPx}px !important;
         overflow: visible !important;
       }
       .content-shell {
@@ -29319,7 +29701,15 @@ export function renderReportHtml(args: RenderArgs) {
         overflow: visible !important;
       }
       .block,
-      table,
+      .imaging-card,
+      .signature-block {
+        page-break-inside: auto;
+        break-inside: auto;
+      }
+      h3 {
+        page-break-after: avoid;
+        break-after: avoid-page;
+      }
       .imaging-card,
       .signature-block {
         page-break-inside: avoid;
@@ -29368,8 +29758,8 @@ export function renderReportHtml(args: RenderArgs) {
         &lt;p&gt;&lt;strong&gt;Patient ID:&lt;/strong&gt; ${escapeHtml(String(patient.patientId ?? "-"))}&lt;/p&gt;
         &lt;p&gt;&lt;strong&gt;Age:&lt;/strong&gt; ${escapeHtml(ageLabel)}&lt;/p&gt;
         &lt;p&gt;&lt;strong&gt;Sex:&lt;/strong&gt; ${escapeHtml(String(patient.sex ?? "-"))}&lt;/p&gt;
-        &lt;p&gt;&lt;strong&gt;Visit Date:&lt;/strong&gt; ${escapeHtml(String(meta.visitDate ?? "-"))}&lt;/p&gt;
-        &lt;p&gt;&lt;strong&gt;Report Date:&lt;/strong&gt; ${escapeHtml(String(meta.reportDate ?? "-"))}&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;Visit Date:&lt;/strong&gt; ${escapeHtml(visitDateLabel)}&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;Report Date:&lt;/strong&gt; ${escapeHtml(reportDateLabel)}&lt;/p&gt;
         ${referringDoctor ? `&lt;p&gt;&lt;strong&gt;Referring Doctor:&lt;/strong&gt; ${escapeHtml(referringDoctor)}&lt;/p&gt;` : ""}
       &lt;/div&gt;
       ${
@@ -29727,9 +30117,27 @@ export async function ensureDraftReportForTask(taskId: string, actor: ReportActo
 
 export async function listReports(
   actor: ReportActor,
-  opts?: { department?: Department | "ALL"; status?: ReportStatus | "ALL"; reportType?: ReportType | "ALL" }
+  opts?: {
+    department?: Department | "ALL";
+    status?: ReportStatus | "ALL";
+    reportType?: ReportType | "ALL";
+    search?: string;
+    date?: string;
+  }
 ) {
   ensurePreviewAccess(actor);
+  const search = String(opts?.search ?? "").trim();
+  const hasDate = /^\d{4}-\d{2}-\d{2}$/.test(String(opts?.date ?? ""));
+  const dateRange = hasDate
+    ? (() =&gt; {
+        const [y, m, d] = String(opts?.date).split("-").map((v) =&gt; Number(v));
+        return {
+          gte: new Date(y, m - 1, d, 0, 0, 0, 0),
+          lte: new Date(y, m - 1, d, 23, 59, 59, 999),
+        };
+      })()
+    : null;
+
   const reports = await prisma.diagnosticReport.findMany({
     where: {
       organizationId: actor.organizationId,
@@ -29737,6 +30145,16 @@ export async function listReports(
       ...(opts?.department &amp;&amp; opts.department !== "ALL" ? { department: opts.department } : {}),
       ...(opts?.status &amp;&amp; opts.status !== "ALL" ? { status: opts.status } : {}),
       ...(opts?.reportType &amp;&amp; opts.reportType !== "ALL" ? { reportType: opts.reportType } : {}),
+      ...(search
+        ? {
+            OR: [
+              { visit: { patient: { fullName: { contains: search, mode: "insensitive" } } } },
+              { visit: { patient: { patientId: { contains: search, mode: "insensitive" } } } },
+              { visit: { visitNumber: { contains: search, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
+      ...(dateRange ? { updatedAt: dateRange } : {}),
     },
     include: { visit: { include: { patient: true } } },
     orderBy: { updatedAt: "desc" },

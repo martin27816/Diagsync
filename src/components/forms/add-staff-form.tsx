@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -40,9 +40,23 @@ export function AddStaffForm() {
   const [serverError, setServerError] = useState("");
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [radiologyAllowed, setRadiologyAllowed] = useState(true);
 
   const { register, handleSubmit, setValue, reset, formState: { errors, isSubmitting } } =
     useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { defaultShift: Shift.MORNING } });
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/billing/overview");
+        const json = await res.json();
+        if (!json.success) return;
+        setRadiologyAllowed(Boolean(json.data?.access?.canUseRadiology ?? true));
+      } catch {
+        // no-op
+      }
+    })();
+  }, []);
 
   async function onSubmit(data: FormData) {
     setServerError("");
@@ -114,9 +128,14 @@ export function AddStaffForm() {
             <Select onValueChange={(v) => setValue("role", v as Role)}>
               <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select role" /></SelectTrigger>
               <SelectContent>
-                {ROLES_FOR_FORM.map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
+                {ROLES_FOR_FORM.map(([value, label]) => {
+                  if (value === "RADIOGRAPHER" && !radiologyAllowed) return null;
+                  return (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             {errors.role && <p className={errCls}>{errors.role.message}</p>}
