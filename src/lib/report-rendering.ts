@@ -836,7 +836,7 @@ export function renderReportHtml(args: RenderArgs) {
     h3 { margin: 8px 0; font-size: 14px; }
     p { margin: 4px 0; font-size: 13px; }
     .meta-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-    .block { margin-bottom: 10px; break-inside: avoid; }
+    .block { margin-bottom: 10px; break-inside: auto; }
     .rad-field { margin: 8px 0 10px; }
     .rad-label {
       margin: 0 0 4px;
@@ -861,7 +861,10 @@ export function renderReportHtml(args: RenderArgs) {
       line-height: 1.45;
       color: #1f2937;
     }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; break-inside: auto; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    tr { break-inside: avoid; page-break-inside: avoid; }
     th, td { border: 1px solid #d1d5db; padding: 5px; text-align: left; vertical-align: top; }
     th { background: #f3f4f6; }
     .mcs-table th, .mcs-table td { text-align: left; }
@@ -1025,7 +1028,15 @@ export function renderReportHtml(args: RenderArgs) {
         overflow: visible !important;
       }
       .block,
-      table,
+      .imaging-card,
+      .signature-block {
+        page-break-inside: auto;
+        break-inside: auto;
+      }
+      h3 {
+        page-break-after: avoid;
+        break-after: avoid-page;
+      }
       .imaging-card,
       .signature-block {
         page-break-inside: avoid;

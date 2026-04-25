@@ -428,25 +428,37 @@ export async function approveMdReview(taskId: string, actor: MdActor, comments?:
     }
   });
 
-  await createAuditLog({
-    actorId: actor.id,
-    actorRole: actor.role as Role,
-    action: AUDIT_ACTIONS.RESULT_APPROVED,
-    entityType: "Review",
-    entityId: task.id,
-    newValue: { status: "APPROVED", comments },
-    ...actor.auditMeta,
-  });
+  try {
+    await createAuditLog({
+      actorId: actor.id,
+      actorRole: actor.role as Role,
+      action: AUDIT_ACTIONS.RESULT_APPROVED,
+      entityType: "Review",
+      entityId: task.id,
+      newValue: { status: "APPROVED", comments },
+      ...actor.auditMeta,
+    });
+  } catch (error) {
+    console.error("[MD_APPROVE_AUDIT_FAILED]", { taskId: task.id, organizationId: actor.organizationId, error });
+  }
 
-  await notifyTaskReviewOutcome({
-    organizationId: actor.organizationId,
-    taskId: task.id,
-    performerId: task.staffId,
-    patientName: task.visit.patient.fullName,
-    approved: true,
-  });
+  try {
+    await notifyTaskReviewOutcome({
+      organizationId: actor.organizationId,
+      taskId: task.id,
+      performerId: task.staffId,
+      patientName: task.visit.patient.fullName,
+      approved: true,
+    });
+  } catch (error) {
+    console.error("[MD_APPROVE_NOTIFY_FAILED]", { taskId: task.id, organizationId: actor.organizationId, error });
+  }
 
-  await ensureDraftReportForTask(task.id, actor);
+  try {
+    await ensureDraftReportForTask(task.id, actor);
+  } catch (error) {
+    console.error("[MD_APPROVE_REPORT_DRAFT_FAILED]", { taskId: task.id, organizationId: actor.organizationId, error });
+  }
 }
 
 export async function rejectMdReview(taskId: string, actor: MdActor, reason: string, highlightFields: string[] = []) {

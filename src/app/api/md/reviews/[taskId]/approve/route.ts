@@ -46,7 +46,7 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "Task not found" }, { status: 404 });
       }
       if (error.message === "ALREADY_APPROVED") {
-        return NextResponse.json({ success: false, error: "Already approved" }, { status: 409 });
+        return NextResponse.json({ success: true, message: "Already approved" });
       }
       if (error.message === "TASK_NOT_REVIEWABLE") {
         return NextResponse.json({ success: false, error: "Task is not reviewable" }, { status: 400 });
