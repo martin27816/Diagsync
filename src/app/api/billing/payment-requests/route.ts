@@ -90,6 +90,32 @@ export async function POST(req: NextRequest) {
     const amount = PLAN_MONTHLY_AMOUNT_NGN[requestedPlan];
 
     const result = await prisma.$transaction(async (tx) => {
+      const organization = await tx.organization.findUnique({
+        where: { id: user.organizationId },
+        select: {
+          id: true,
+          plan: true,
+          status: true,
+          subscriptionEndsAt: true,
+        },
+      });
+
+      if (!organization) {
+        throw new Error("ORGANIZATION_NOT_FOUND");
+      }
+
+      const pending = await tx.subscriptionPaymentRequest.findFirst({
+        where: {
+          organizationId: user.organizationId,
+          status: "PENDING",
+        },
+        select: { id: true },
+      });
+
+      if (pending) {
+        throw new Error("PENDING_REQUEST_EXISTS");
+      }
+
       const request = await tx.subscriptionPaymentRequest.create({
         data: {
           organizationId: user.organizationId,
@@ -112,12 +138,27 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      const now = new Date();
+      const hasActivePaidWindow =
+        organization.status === "ACTIVE" &&
+        organization.plan !== "TRIAL" &&
+        organization.subscriptionEndsAt !== null &&
+        organization.subscriptionEndsAt > now;
+
       await tx.organization.update({
         where: { id: user.organizationId },
         data: {
-          status: "PAYMENT_PENDING",
-          billingLockedAt: new Date(),
-          billingLockReason: `Awaiting payment verification for ${requestedPlan}`,
+          ...(hasActivePaidWindow
+            ? {
+                status: "ACTIVE",
+                billingLockedAt: null,
+                billingLockReason: `Pending ${requestedPlan} ${requestedPlan === organization.plan ? "renewal" : "upgrade"} verification`,
+              }
+            : {
+                status: "PAYMENT_PENDING",
+                billingLockedAt: now,
+                billingLockReason: `Awaiting payment verification for ${requestedPlan}`,
+              }),
         },
       });
 
@@ -130,6 +171,15 @@ export async function POST(req: NextRequest) {
       data: result,
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "PENDING_REQUEST_EXISTS") {
+      return NextResponse.json(
+        { success: false, error: "You already have a pending payment request under review." },
+        { status: 409 }
+      );
+    }
+    if (error instanceof Error && error.message === "ORGANIZATION_NOT_FOUND") {
+      return NextResponse.json({ success: false, error: "Organization not found." }, { status: 404 });
+    }
     if (error instanceof Error && error.message === "CLOUDINARY_SIGNED_ENV_MISSING") {
       return NextResponse.json(
         { success: false, error: "Payment proof storage is not configured." },

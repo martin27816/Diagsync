@@ -16,6 +16,7 @@ type BillingProps = {
   };
   access: {
     trialDaysLeft: number | null;
+    subscriptionDaysLeft: number | null;
     isTrialWarning: boolean;
     billingLocked: boolean;
   };
@@ -203,15 +204,34 @@ export function BillingOnboarding({ organization, access, paymentRequests }: Bil
   const [busy, setBusy] = useState<"trial" | "payment" | null>(null);
   const planPriceMap = PLAN_MONTHLY_AMOUNT_NGN as unknown as Record<string, number>;
 
-  const canStartTrial = useMemo(() => {
-    if (organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") return false;
-    return !organization.trialStartedAt;
-  }, [organization.status, organization.trialStartedAt]);
-
   const activePending = useMemo(
     () => paymentRequests.find((item) => item.status === "PENDING"),
     [paymentRequests]
   );
+  const hasPendingRequest = Boolean(activePending);
+  const isActiveSubscription = organization.status === "ACTIVE" && access.subscriptionDaysLeft !== null;
+  const isStarterActive = isActiveSubscription && organization.plan === "STARTER";
+  const isAdvancedActive = isActiveSubscription && organization.plan === "ADVANCED";
+
+  const canStartTrial = useMemo(() => {
+    if (organization.status === "ACTIVE" || organization.plan !== "TRIAL") return false;
+    if (organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") return false;
+    return !organization.trialStartedAt;
+  }, [organization.status, organization.trialStartedAt, organization.plan]);
+
+  const starterButtonText = useMemo(() => {
+    if (isStarterActive) return "Renew Starter";
+    if (isAdvancedActive) return "Current plan is Advanced";
+    return "Get Starter";
+  }, [isStarterActive, isAdvancedActive]);
+
+  const starterDisabled = isAdvancedActive || busy !== null || hasPendingRequest;
+
+  const advancedButtonText = useMemo(() => {
+    if (isAdvancedActive) return "Renew Advanced";
+    if (isStarterActive) return "Upgrade to Advanced";
+    return "Get Advanced";
+  }, [isAdvancedActive, isStarterActive]);
 
   async function handleStartTrial() {
     setError("");
@@ -307,6 +327,15 @@ export function BillingOnboarding({ organization, access, paymentRequests }: Bil
             </span>
           </div>
         )}
+        {access.subscriptionDaysLeft !== null && organization.status === "ACTIVE" && organization.plan !== "TRIAL" && (
+          <div className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700">
+            <span>⏳</span>
+            <span>
+              Subscription ends in{" "}
+              <strong>{access.subscriptionDaysLeft} day{access.subscriptionDaysLeft === 1 ? "" : "s"}</strong>.
+            </span>
+          </div>
+        )}
 
         {/* Expired alert */}
         {(organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") && (
@@ -352,9 +381,9 @@ export function BillingOnboarding({ organization, access, paymentRequests }: Bil
           price="Free"
           desc="Full access from day one — every feature unlocked. The only catch: a DiagSync watermark appears on all printed reports."
           features={TRIAL_FEATURES}
-          buttonText={canStartTrial ? (busy === "trial" ? "Starting..." : "Start Free Trial") : "Trial Ended"}
+          buttonText={canStartTrial ? (busy === "trial" ? "Starting..." : "Start Free Trial") : "Trial Unavailable"}
           buttonClass="bg-amber-500 text-white hover:bg-amber-600"
-          disabled={!canStartTrial || busy !== null}
+          disabled={!canStartTrial || busy !== null || hasPendingRequest}
           onClick={() => {
             if (!canStartTrial || busy) return;
             void handleStartTrial();
@@ -368,8 +397,9 @@ export function BillingOnboarding({ organization, access, paymentRequests }: Bil
           priceNote="/ month"
           desc="For labs focused on laboratory work. Full lab workflow and team tools — DiagSync watermark remains on prints."
           features={STARTER_FEATURES}
-          buttonText="Get Starter"
+          buttonText={starterButtonText}
           buttonClass="border border-blue-600 text-blue-600 hover:bg-blue-50"
+          disabled={starterDisabled}
           onClick={() => setSelectedPlan("STARTER")}
         />
         <PlanCard
@@ -380,8 +410,9 @@ export function BillingOnboarding({ organization, access, paymentRequests }: Bil
           priceNote="/ month"
           desc="Full-service labs. Lab + Radiology + Cardiology, custom branding, imaging uploads, push notifications — clean reports, no watermark."
           features={ADVANCED_FEATURES}
-          buttonText="Get Advanced"
+          buttonText={advancedButtonText}
           buttonClass="bg-blue-600 text-white hover:bg-blue-700"
+          disabled={busy !== null || hasPendingRequest}
           highlight
           tag="Most Popular"
           onClick={() => setSelectedPlan("ADVANCED")}
@@ -412,6 +443,13 @@ export function BillingOnboarding({ organization, access, paymentRequests }: Bil
               <p className="text-xs font-semibold uppercase tracking-wide text-blue-500">Selected Plan</p>
               <p className="mt-1 text-lg font-bold text-slate-800">
                 {selectedPlan === "STARTER" ? "Starter Pack" : "Advanced Pack"}
+              </p>
+              <p className="text-xs text-slate-500">
+                {selectedPlan === organization.plan && isActiveSubscription
+                  ? "Renewal request"
+                  : organization.plan === "STARTER" && selectedPlan === "ADVANCED" && isActiveSubscription
+                  ? "Upgrade request"
+                  : "New subscription request"}
               </p>
               <p className="text-sm font-semibold text-blue-700">
                 {formatCurrency(planPriceMap[selectedPlan])} / month

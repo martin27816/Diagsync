@@ -61,7 +61,6 @@ export async function approvePaymentRequestAction(formData: FormData) {
   if (!organizationId || !paymentRequestId) return;
 
   const now = new Date();
-  const subscriptionEndsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   await prisma.$transaction(async (tx) => {
     const request = await tx.subscriptionPaymentRequest.findFirst({
@@ -80,6 +79,24 @@ export async function approvePaymentRequestAction(formData: FormData) {
       throw new Error("PAYMENT_REQUEST_NOT_PENDING");
     }
 
+    const organization = await tx.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        id: true,
+        subscriptionEndsAt: true,
+      },
+    });
+
+    if (!organization) {
+      throw new Error("ORGANIZATION_NOT_FOUND");
+    }
+
+    const baseDate =
+      organization.subscriptionEndsAt && organization.subscriptionEndsAt > now
+        ? organization.subscriptionEndsAt
+        : now;
+    const subscriptionEndsAt = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
     await tx.subscriptionPaymentRequest.update({
       where: { id: request.id },
       data: {
@@ -94,7 +111,7 @@ export async function approvePaymentRequestAction(formData: FormData) {
       data: {
         plan: request.requestedPlan,
         status: "ACTIVE",
-        subscriptionStartedAt: now,
+        subscriptionStartedAt: organization.subscriptionEndsAt && organization.subscriptionEndsAt > now ? organization.subscriptionEndsAt : now,
         subscriptionEndsAt,
         lastPaymentAt: now,
         watermarkEnabled: request.requestedPlan === "STARTER",

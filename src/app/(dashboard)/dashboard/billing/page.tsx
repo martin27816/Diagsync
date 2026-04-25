@@ -72,6 +72,7 @@ export default async function BillingPage() {
       }}
       access={{
         trialDaysLeft: access.trialDaysLeft,
+        subscriptionDaysLeft: access.subscriptionDaysLeft,
         isTrialWarning: access.isTrialWarning,
         billingLocked: access.billingLocked,
       }}

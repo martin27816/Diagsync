@@ -98,6 +98,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             }}
             access={{
               trialDaysLeft: access.trialDaysLeft,
+              subscriptionDaysLeft: access.subscriptionDaysLeft,
               isTrialWarning: access.isTrialWarning,
               billingLocked: access.billingLocked,
             }}
