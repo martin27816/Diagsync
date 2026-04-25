@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -63,10 +64,18 @@ export function InstallPrompt() {
       <p className="text-sm font-semibold text-slate-800">Install DiagSync for faster access</p>
       <p className="mt-1 text-xs text-slate-500">
         {showIosHint
-          ? "Tap Share then Add to Home Screen."
+          ? "Open Dashboard first, then tap Share and Add to Home Screen."
           : "Get quick launch and app-like full-screen experience."}
       </p>
       <div className="mt-3 flex items-center gap-2">
+        {showIosHint ? (
+          <Link
+            href="/dashboard"
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+          >
+            Open Dashboard
+          </Link>
+        ) : null}
         {!showIosHint ? (
           <button
             type="button"
@@ -88,4 +97,3 @@ export function InstallPrompt() {
     </div>
   );
 }
-
