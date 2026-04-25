@@ -260,9 +260,27 @@ export async function ensureDraftReportForTask(taskId: string, actor: ReportActo
 
 export async function listReports(
   actor: ReportActor,
-  opts?: { department?: Department | "ALL"; status?: ReportStatus | "ALL"; reportType?: ReportType | "ALL" }
+  opts?: {
+    department?: Department | "ALL";
+    status?: ReportStatus | "ALL";
+    reportType?: ReportType | "ALL";
+    search?: string;
+    date?: string;
+  }
 ) {
   ensurePreviewAccess(actor);
+  const search = String(opts?.search ?? "").trim();
+  const hasDate = /^\d{4}-\d{2}-\d{2}$/.test(String(opts?.date ?? ""));
+  const dateRange = hasDate
+    ? (() => {
+        const [y, m, d] = String(opts?.date).split("-").map((v) => Number(v));
+        return {
+          gte: new Date(y, m - 1, d, 0, 0, 0, 0),
+          lte: new Date(y, m - 1, d, 23, 59, 59, 999),
+        };
+      })()
+    : null;
+
   const reports = await prisma.diagnosticReport.findMany({
     where: {
       organizationId: actor.organizationId,
@@ -270,6 +288,16 @@ export async function listReports(
       ...(opts?.department && opts.department !== "ALL" ? { department: opts.department } : {}),
       ...(opts?.status && opts.status !== "ALL" ? { status: opts.status } : {}),
       ...(opts?.reportType && opts.reportType !== "ALL" ? { reportType: opts.reportType } : {}),
+      ...(search
+        ? {
+            OR: [
+              { visit: { patient: { fullName: { contains: search, mode: "insensitive" } } } },
+              { visit: { patient: { patientId: { contains: search, mode: "insensitive" } } } },
+              { visit: { visitNumber: { contains: search, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
+      ...(dateRange ? { updatedAt: dateRange } : {}),
     },
     include: { visit: { include: { patient: true } } },
     orderBy: { updatedAt: "desc" },

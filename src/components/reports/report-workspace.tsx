@@ -142,6 +142,10 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const [busy, setBusy] = useState(false);
   const [filterStatus, setFilterStatus] = useState<"ALL" | ReportStatus>("ALL");
   const [filterType, setFilterType] = useState<"ALL" | ReportType>("ALL");
+  const [filterSearch, setFilterSearch] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [appliedDate, setAppliedDate] = useState("");
   const [editReason, setEditReason] = useState("");
   const [editComments, setEditComments] = useState("");
   const [editPrescription, setEditPrescription] = useState("");
@@ -204,7 +208,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   }
 
   async function loadReports(opts?: { signal?: AbortSignal; force?: boolean }) {
-    const cacheKey = `${filterStatus}:${filterType}`;
+    const cacheKey = `${filterStatus}:${filterType}:${appliedSearch}:${appliedDate}`;
     if (!opts?.force) {
       const cached = reportListCacheRef.current.get(cacheKey);
       if (cached && Date.now() - cached.at < REPORT_LIST_CACHE_TTL_MS) {
@@ -220,7 +224,13 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     const requestId = ++loadReportsSeqRef.current;
     setLoading(true); setError("");
     try {
-      const res = await fetch(`/api/reports?${new URLSearchParams({ status: filterStatus, reportType: filterType })}`, { signal: opts?.signal });
+      const query = new URLSearchParams({
+        status: filterStatus,
+        reportType: filterType,
+      });
+      if (appliedSearch.trim()) query.set("search", appliedSearch.trim());
+      if (appliedDate.trim()) query.set("date", appliedDate.trim());
+      const res = await fetch(`/api/reports?${query.toString()}`, { signal: opts?.signal });
       const json = await res.json();
       if (requestId !== loadReportsSeqRef.current || opts?.signal?.aborted) return;
       if (!json.success) { setError(json.error ?? "Failed to load reports"); return; }
@@ -279,7 +289,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     const controller = new AbortController();
     void loadReports({ signal: controller.signal });
     return () => controller.abort();
-  }, [filterStatus, filterType]);
+  }, [filterStatus, filterType, appliedSearch, appliedDate]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -485,20 +495,73 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
 
   const canEdit = canMdEdit || ((canHrmRelease || canReceptionDispatch) && details?.isReleased);
 
+  function applyListFilters() {
+    setAppliedSearch(filterSearch.trim());
+    setAppliedDate(filterDate.trim());
+  }
+
+  function resetListFilters() {
+    setFilterSearch("");
+    setFilterDate("");
+    setAppliedSearch("");
+    setAppliedDate("");
+  }
+
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex gap-2">
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700">
-          <option value="ALL">All types</option>
-          <option value="lab">Lab reports</option>
-          <option value="radiology">Radiology reports</option>
-        </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700">
-          <option value="ALL">All statuses</option>
-          <option value="DRAFT">Draft</option>
-          <option value="RELEASED">Released</option>
-        </select>
+      <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3">
+        <div className="w-full sm:w-auto">
+          <label className="block text-[11px] font-medium text-slate-500 mb-1">Search patient</label>
+          <input
+            value={filterSearch}
+            onChange={(e) => setFilterSearch(e.target.value)}
+            placeholder="Name, patient ID, visit no..."
+            className="h-8 w-full sm:w-56 rounded border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-slate-500 mb-1">Go to date</label>
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+            className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-slate-500 mb-1">Type</label>
+          <select value={filterType} onChange={(e) => setFilterType(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700">
+            <option value="ALL">All types</option>
+            <option value="lab">Lab reports</option>
+            <option value="radiology">Radiology reports</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-slate-500 mb-1">Status</label>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700">
+            <option value="ALL">All statuses</option>
+            <option value="DRAFT">Draft</option>
+            <option value="RELEASED">Released</option>
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={applyListFilters}
+          className="rounded bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors"
+        >
+          Apply
+        </button>
+        <button
+          type="button"
+          onClick={resetListFilters}
+          className="text-xs text-slate-400 hover:text-slate-600 pb-1"
+        >
+          Reset
+        </button>
+        <span className="w-full text-left text-xs text-slate-400 pb-1 sm:ml-auto sm:w-auto sm:text-right">
+          {rows.length} report row{rows.length !== 1 ? "s" : ""} in view
+        </span>
       </div>
 
       {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}

@@ -15,10 +15,12 @@ export async function GET(req: NextRequest) {
     const department = (searchParams.get("department") ?? "ALL") as Department | "ALL";
     const status = (searchParams.get("status") ?? "ALL") as ReportStatus | "ALL";
     const reportType = (searchParams.get("reportType") ?? "ALL") as ReportType | "ALL";
+    const search = (searchParams.get("search") ?? "").trim();
+    const date = (searchParams.get("date") ?? "").trim();
 
     const data = await listReports(
       { id: user.id, role: user.role, organizationId: user.organizationId },
-      { department, status, reportType }
+      { department, status, reportType, search, date }
     );
     return NextResponse.json({ success: true, data });
   } catch (error) {
