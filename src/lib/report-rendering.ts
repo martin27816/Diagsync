@@ -17,6 +17,22 @@ function hasRenderableValue(value: unknown) {
   return String(value).trim().length > 0;
 }
 
+function formatReportDateTime(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "-";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return new Intl.DateTimeFormat("en-NG", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Africa/Lagos",
+  }).format(parsed);
+}
+
 type LabRenderRow = {
   name: string;
   value: string;
@@ -651,6 +667,8 @@ export function renderReportHtml(args: RenderArgs) {
     "long"
   );
   const meta = args.content.meta ?? {};
+  const visitDateLabel = formatReportDateTime(meta.visitDate);
+  const reportDateLabel = formatReportDateTime(meta.reportDate);
   const referringDoctor = String(meta.referringDoctor ?? "").trim();
   const tests = Array.isArray(args.content.tests) ? args.content.tests : [];
   const safeLabTests = tests.filter((test: any) => Array.isArray(test?.rows));
@@ -1085,8 +1103,8 @@ export function renderReportHtml(args: RenderArgs) {
         <p><strong>Patient ID:</strong> ${escapeHtml(String(patient.patientId ?? "-"))}</p>
         <p><strong>Age:</strong> ${escapeHtml(ageLabel)}</p>
         <p><strong>Sex:</strong> ${escapeHtml(String(patient.sex ?? "-"))}</p>
-        <p><strong>Visit Date:</strong> ${escapeHtml(String(meta.visitDate ?? "-"))}</p>
-        <p><strong>Report Date:</strong> ${escapeHtml(String(meta.reportDate ?? "-"))}</p>
+        <p><strong>Visit Date:</strong> ${escapeHtml(visitDateLabel)}</p>
+        <p><strong>Report Date:</strong> ${escapeHtml(reportDateLabel)}</p>
         ${referringDoctor ? `<p><strong>Referring Doctor:</strong> ${escapeHtml(referringDoctor)}</p>` : ""}
       </div>
       ${
