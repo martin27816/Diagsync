@@ -1,28 +1,30 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 function isStandaloneMode() {
   if (typeof window === "undefined") return false;
-  return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as any).standalone === true
+  );
 }
 
 export function StandaloneDashboardRedirect() {
-  const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
-    if (!pathname) return;
     if (!isStandaloneMode()) return;
-    if (pathname.startsWith("/dashboard")) return;
-    if (pathname.startsWith("/login") || pathname.startsWith("/register") || pathname.startsWith("/admin")) return;
+    if (window.location.pathname.startsWith("/dashboard")) return;
+    if (["/login", "/register"].some((p) => window.location.pathname.startsWith(p))) return;
 
-    const bootedKey = "diagsync_standalone_booted";
-    if (window.sessionStorage.getItem(bootedKey) === "1") return;
-    window.sessionStorage.setItem(bootedKey, "1");
-    window.location.replace("/dashboard");
-  }, [pathname]);
+    const booted = window.sessionStorage.getItem("diagsync_standalone_booted");
+    if (booted === "1") return;
+
+    window.sessionStorage.setItem("diagsync_standalone_booted", "1");
+    router.replace("/dashboard");
+  }, [router]);
 
   return null;
 }
-

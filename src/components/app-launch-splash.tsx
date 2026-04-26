@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
 function isStandaloneMode() {
@@ -12,36 +12,40 @@ function isStandaloneMode() {
   );
 }
 
+const SPLASH_KEY = "diagsync_launch_splash_seen";
+
 export function AppLaunchSplash() {
   const pathname = usePathname();
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [initialized, setInitialized] = useState(false);
+  const shownRef = useRef(false);
+  const firstPathnameRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Only run once after first mount with a valid pathname
-    if (!pathname || initialized) return;
-    setInitialized(true);
+    if (!pathname) return;
+    if (typeof window === "undefined") return;
+    if (!isStandaloneMode()) return;
 
-    const alreadySeen =
-      window.sessionStorage.getItem("diagsync_launch_splash_seen") === "1";
+    if (firstPathnameRef.current === null) {
+      firstPathnameRef.current = pathname;
+    }
 
-    const shouldShow = isStandaloneMode() && !alreadySeen;
+    const alreadySeen = window.sessionStorage.getItem(SPLASH_KEY) === "1";
+    if (alreadySeen) return;
 
-    if (!shouldShow) return; // stays invisible
+    if (!shownRef.current) {
+      shownRef.current = true;
+      window.sessionStorage.setItem(SPLASH_KEY, "1");
+      setVisible(true);
+      return;
+    }
 
-    // Mark seen immediately so remounts don't re-show it
-    window.sessionStorage.setItem("diagsync_launch_splash_seen", "1");
-    setVisible(true);
-
-    const startClose = window.setTimeout(() => setClosing(true), 1200);
-    const remove = window.setTimeout(() => setVisible(false), 1700);
-
-    return () => {
-      window.clearTimeout(startClose);
-      window.clearTimeout(remove);
-    };
-  }, [pathname, initialized]);
+    if (pathname !== firstPathnameRef.current && visible) {
+      setClosing(true);
+      const t = window.setTimeout(() => setVisible(false), 500);
+      return () => window.clearTimeout(t);
+    }
+  }, [pathname, visible]);
 
   if (!visible) return null;
 

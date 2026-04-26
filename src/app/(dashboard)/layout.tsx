@@ -32,27 +32,30 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
-  const organization = await syncOrganizationBillingState(staff.organizationId);
-  const access = getOrganizationAccess(organization);
   const canManageBilling = staff.role === "SUPER_ADMIN";
+  const [organization, paymentRequests] = await Promise.all([
+    syncOrganizationBillingState(staff.organizationId),
+    canManageBilling
+      ? prisma.subscriptionPaymentRequest.findMany({
+          where: { organizationId: staff.organizationId },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: {
+            id: true,
+            requestedPlan: true,
+            amount: true,
+            status: true,
+            transactionReference: true,
+            createdAt: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const access = getOrganizationAccess(organization);
 
   const operationalRoles: Role[] = ["LAB_SCIENTIST", "RADIOGRAPHER", "MD", "RECEPTIONIST"];
   const showAvailability = operationalRoles.includes(staff.role);
-  const paymentRequests = canManageBilling
-    ? await prisma.subscriptionPaymentRequest.findMany({
-        where: { organizationId: staff.organizationId },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-        select: {
-          id: true,
-          requestedPlan: true,
-          amount: true,
-          status: true,
-          transactionReference: true,
-          createdAt: true,
-        },
-      })
-    : [];
 
   const trialBanner =
     access.status === "TRIAL_ACTIVE" && access.trialDaysLeft !== null
