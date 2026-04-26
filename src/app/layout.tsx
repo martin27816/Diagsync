@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AppLaunchSplash } from "@/components/app-launch-splash";
 import { StandaloneDashboardRedirect } from "@/components/standalone-dashboard-redirect";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={inter.className}>
         <StandaloneDashboardRedirect />
+        <AppLaunchSplash />
         {children}
       </body>
     </html>
