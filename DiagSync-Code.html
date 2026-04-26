@@ -122,6 +122,7 @@ declare module '*.module.sass';
     "lucide-react": "^0.383.0",
     "next": "^14.2.35",
     "next-auth": "^5.0.0-beta.19",
+    "next-pwa": "^5.6.0",
     "puppeteer-core": "^22.13.1",
     "react": "^18",
     "react-dom": "^18",
@@ -3959,53 +3960,33 @@ main()
 
 
 </pre></div>
-<div class='file-block'><div class='file-header'>public/sw.js</div><pre>self.addEventListener("install", (event) =&gt; {
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", (event) =&gt; {
-  event.waitUntil(self.clients.claim());
-});
-
-self.addEventListener("push", (event) =&gt; {
-  let payload = {};
-  try {
-    payload = event.data ? event.data.json() : {};
-  } catch {
-    payload = {};
-  }
-
-  const title = payload.title || "New Notification";
-  const options = {
-    body: payload.body || "",
-    tag: payload.tag || "diagsync-notification",
-    data: payload.data || { url: "/dashboard" },
-    icon: "/diagsync-logo.png",
-    badge: "/diagsync-logo.png",
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
-});
-
-self.addEventListener("notificationclick", (event) =&gt; {
-  event.notification.close();
-  const targetUrl = event.notification?.data?.url || "/dashboard";
-
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) =&gt; {
-      for (const client of clients) {
-        if (client.url.includes(self.location.origin) &amp;&amp; "focus" in client) {
-          client.navigate(targetUrl);
-          return client.focus();
-        }
-      }
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
-      }
-      return undefined;
-    })
-  );
-});
+<div class='file-block'><div class='file-header'>public/fallback-pIcB52wUFRAAFwQrJbVGD.js</div><pre>(()=&gt;{"use strict";self.fallback=async e=&gt;"document"===e.destination?caches.match("/offline",{ignoreSearch:!0}):Response.error()})();</pre></div>
+<div class='file-block'><div class='file-header'>public/manifest.json</div><pre>{
+  "name": "DiagSync",
+  "short_name": "DiagSync",
+  "description": "Laboratory Management System",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>public/sw.js</div><pre>if(!self.define){let a,e={};const s=(s,r)=&gt;(s=new URL(s+".js",r).href,e[s]||new Promise(e=&gt;{if("document"in self){const a=document.createElement("script");a.src=s,a.onload=e,document.head.appendChild(a)}else a=s,importScripts(s),e()}).then(()=&gt;{let a=e[s];if(!a)throw new Error(`Module ${s} didnâ€™t register its module`);return a}));self.define=(r,c)=&gt;{const i=a||("document"in self?document.currentScript.src:"")||location.href;if(e[i])return;let n={};const t=a=&gt;s(a,i),d={module:{uri:i},exports:n,require:t};e[i]=Promise.all(r.map(a=&gt;d[a]||t(a))).then(a=&gt;(c(...a),n))}}define(["./workbox-5268f9bb"],function(a){"use strict";importScripts("fallback-pIcB52wUFRAAFwQrJbVGD.js"),self.skipWaiting(),a.clientsClaim(),a.precacheAndRoute([{url:"/_next/app-build-manifest.json",revision:"66d4b4553b029b6057398c36c201bc07"},{url:"/_next/static/chunks/1114-02d7a6cf5b898211.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/1718-cdea0b2ef0657e8b.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/2117-6248ab8a803926e9.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/2736-b854e4d0eb1cc744.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/2972-d7f9b35a010ac3d8.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/5878-51910f4ce925886c.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/5898-64cb067901f4071a.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/5945-780c5f10685ba6bd.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/6137-de267f975f27b52e.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/7526-2941b8a7b9d63709.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/8778-2df859ca51eebdac.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/8989-261cee64e802debc.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/932-8a254be1e395d5ba.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/analytics/page-62bcc79e5d719b6d.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/dashboard/page-ee84b87a0b0093f3.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/labs/%5Bid%5D/page-25fd06e96d520ce6.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/labs/page-73129bf29d8fecc3.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/layout-a643ade4d834e2cd.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/loading-dd81057faffb916f.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/page-c6646a202f9c5fa0.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/users/page-f0fb1baaeee94daf.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(auth)/layout-f13773e16ab51359.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(auth)/login/page-78efb85392b16af4.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(auth)/register/page-57691950ac11fe7f.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/billing/page-9193ba2b6b87b806.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/analytics/page-1cbfad64f6c4540a.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/audit/page-cfd1510a47d30e76.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/consultation/page-17612f8f0cadd6f7.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/notifications/page-aca02e1373dafeed.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/operations/page-87d52a234ed39557.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/page-0c9e185501c8b078.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/release/page-f2eba5be2a550206.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/settings/page-be847f3c2a5ddb08.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/%5Bid%5D/page-002c92bc805dce04.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/new/page-aaed7383083618fb.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/page-d05324d13cfedac2.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/tests/page-0f7b2dd0a00defd8.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/notifications/page-c745781ea410bb04.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/page-4b520c59e13bdd8b.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/queue/page-81ed58841ddbf45e.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/results/page-012ab9f1432a3f4d.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/approved/page-28aaaea069a5adb6.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/consultation/page-0babefc40c1a5ddb.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/notifications/page-94369fba75256fc8.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/page-8f9a8759c24329bf.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/reports/page-d31204fd31df7871.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/review/page-5c6219eeaca5d9b0.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/notifications/page-c224b13f76fe7fa9.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/page-dd866c7786fa9375.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/queue/page-6bf7a7ba7e7f795a.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/reports/page-e339cae048811e0d.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/consultation/page-f94d9e4034a6ae66.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/new-patient/page-0e6f7837df913028.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/notifications/page-4915db60cceacd5f.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/page-73e692c7cd0a7e12.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/%5BpatientId%5D/edit/page-c56764da54b127ff.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/page-73fee85b7e12f993.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/release/page-695479a4947850fb.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/error-75e2a57f15a66f59.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/layout-1a945e27760cd273.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/loading-bee72116b26cdb65.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/_not-found/page-4c0a0e18fd9a95e3.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/dashboard/page-f599eda5209bdf25.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/error-c77673c4d9bf4c49.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/global-error-0e83b7331b1f188c.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/layout-862f9a34d486f2ab.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/not-found-9fdecb90e2a9e21f.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/offline/page-051a51daf2a8b659.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/page-b7e27963907821d4.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/public/reports/%5Btoken%5D/page-d46784d455178628.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/fd9d1056-8d69396482e34025.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/framework-a63c59c368572696.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/main-5532213164ed73bf.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/main-app-2877bb5658641a8d.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/pages/_app-78ddf957b9a9b996.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/pages/_error-7ce03bcf1df914ce.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/polyfills-42372ed130431b0a.js",revision:"846118c33b2c0e922d7b3a7676f81f6f"},{url:"/_next/static/chunks/webpack-e96e1091b6e3d5e0.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/css/57d4bf8df65b23b4.css",revision:"57d4bf8df65b23b4"},{url:"/_next/static/media/19cfc7226ec3afaa-s.woff2",revision:"9dda5cfc9a46f256d0e131bb535e46f8"},{url:"/_next/static/media/21350d82a1f187e9-s.woff2",revision:"4e2553027f1d60eff32898367dd4d541"},{url:"/_next/static/media/8e9860b6e62d6359-s.woff2",revision:"01ba6c2a184b8cba08b0d57167664d75"},{url:"/_next/static/media/ba9851c3c22cd980-s.woff2",revision:"9e494903d6b0ffec1a1e14d34427d44d"},{url:"/_next/static/media/c5fe6dc8356a8c31-s.woff2",revision:"027a89e9ab733a145db70f09b8a18b42"},{url:"/_next/static/media/df0a9ae256c0569c-s.woff2",revision:"d54db44de5ccb18886ece2fda72bdfe0"},{url:"/_next/static/media/e4af272ccee01ff0-s.p.woff2",revision:"65850a373e258f1c897a2b3d75eb74de"},{url:"/_next/static/pIcB52wUFRAAFwQrJbVGD/_buildManifest.js",revision:"0ea7e7088aabf697ba3d8aa8c7b54a89"},{url:"/_next/static/pIcB52wUFRAAFwQrJbVGD/_ssgManifest.js",revision:"b6652df95db52feb4daf4eca35380933"},{url:"/diagsync-logo.png",revision:"77e9c567b2a574379952fca17baf6e35"},{url:"/diagsync-watermark.png",revision:"aeff36c86804a6d13167bef4500ec421"},{url:"/icons/icon-192.png",revision:"cde0b3a52915e1aff301981f4779e52b"},{url:"/icons/icon-512.png",revision:"49194c78838f3f11eb491c3253dbfdbc"},{url:"/manifest.json",revision:"b6b303d4ac1bebfec1ed6952b808d1c2"},{url:"/offline",revision:"pIcB52wUFRAAFwQrJbVGD"}],{ignoreURLParametersMatching:[]}),a.cleanupOutdatedCaches(),a.registerRoute("/",new a.NetworkFirst({cacheName:"start-url",plugins:[{cacheWillUpdate:async({request:a,response:e,event:s,state:r})=&gt;e&amp;&amp;"opaqueredirect"===e.type?new Response(e.body,{status:200,statusText:"OK",headers:e.headers}):e},{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET"),a.registerRoute(({request:a})=&gt;"document"===a.destination,new a.NetworkFirst({cacheName:"pages-cache",networkTimeoutSeconds:5,plugins:[new a.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400}),{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET"),a.registerRoute(({url:a})=&gt;a.pathname.startsWith("/_next/static/"),new a.StaleWhileRevalidate({cacheName:"next-static-cache",plugins:[new a.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET"),a.registerRoute(({request:a})=&gt;"image"===a.destination,new a.CacheFirst({cacheName:"image-cache",plugins:[new a.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET"),a.registerRoute(({request:a})=&gt;"style"===a.destination||"script"===a.destination,new a.StaleWhileRevalidate({cacheName:"asset-cache",plugins:[new a.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET"),a.registerRoute(({url:a})=&gt;a.pathname.startsWith("/api/"),new a.NetworkOnly({cacheName:"api-no-cache",plugins:[{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET")});
+</pre></div>
+<div class='file-block'><div class='file-header'>public/workbox-5268f9bb.js</div><pre>define(["exports"],function(t){"use strict";try{self["workbox:core:6.5.4"]&amp;&amp;_()}catch(t){}const e=(t,...e)=&gt;{let s=t;return e.length&gt;0&amp;&amp;(s+=` :: ${JSON.stringify(e)}`),s};class s extends Error{constructor(t,s){super(e(t,s)),this.name=t,this.details=s}}try{self["workbox:routing:6.5.4"]&amp;&amp;_()}catch(t){}const n=t=&gt;t&amp;&amp;"object"==typeof t?t:{handle:t};class r{constructor(t,e,s="GET"){this.handler=n(e),this.match=t,this.method=s}setCatchHandler(t){this.catchHandler=n(t)}}class i extends r{constructor(t,e,s){super(({url:e})=&gt;{const s=t.exec(e.href);if(s&amp;&amp;(e.origin===location.origin||0===s.index))return s.slice(1)},e,s)}}class a{constructor(){this.t=new Map,this.i=new Map}get routes(){return this.t}addFetchListener(){self.addEventListener("fetch",t=&gt;{const{request:e}=t,s=this.handleRequest({request:e,event:t});s&amp;&amp;t.respondWith(s)})}addCacheListener(){self.addEventListener("message",t=&gt;{if(t.data&amp;&amp;"CACHE_URLS"===t.data.type){const{payload:e}=t.data,s=Promise.all(e.urlsToCache.map(e=&gt;{"string"==typeof e&amp;&amp;(e=[e]);const s=new Request(...e);return this.handleRequest({request:s,event:t})}));t.waitUntil(s),t.ports&amp;&amp;t.ports[0]&amp;&amp;s.then(()=&gt;t.ports[0].postMessage(!0))}})}handleRequest({request:t,event:e}){const s=new URL(t.url,location.href);if(!s.protocol.startsWith("http"))return;const n=s.origin===location.origin,{params:r,route:i}=this.findMatchingRoute({event:e,request:t,sameOrigin:n,url:s});let a=i&amp;&amp;i.handler;const o=t.method;if(!a&amp;&amp;this.i.has(o)&amp;&amp;(a=this.i.get(o)),!a)return;let c;try{c=a.handle({url:s,request:t,event:e,params:r})}catch(t){c=Promise.reject(t)}const h=i&amp;&amp;i.catchHandler;return c instanceof Promise&amp;&amp;(this.o||h)&amp;&amp;(c=c.catch(async n=&gt;{if(h)try{return await h.handle({url:s,request:t,event:e,params:r})}catch(t){t instanceof Error&amp;&amp;(n=t)}if(this.o)return this.o.handle({url:s,request:t,event:e});throw n})),c}findMatchingRoute({url:t,sameOrigin:e,request:s,event:n}){const r=this.t.get(s.method)||[];for(const i of r){let r;const a=i.match({url:t,sameOrigin:e,request:s,event:n});if(a)return r=a,(Array.isArray(r)&amp;&amp;0===r.length||a.constructor===Object&amp;&amp;0===Object.keys(a).length||"boolean"==typeof a)&amp;&amp;(r=void 0),{route:i,params:r}}return{}}setDefaultHandler(t,e="GET"){this.i.set(e,n(t))}setCatchHandler(t){this.o=n(t)}registerRoute(t){this.t.has(t.method)||this.t.set(t.method,[]),this.t.get(t.method).push(t)}unregisterRoute(t){if(!this.t.has(t.method))throw new s("unregister-route-but-not-found-with-method",{method:t.method});const e=this.t.get(t.method).indexOf(t);if(!(e&gt;-1))throw new s("unregister-route-route-not-registered");this.t.get(t.method).splice(e,1)}}let o;const c=()=&gt;(o||(o=new a,o.addFetchListener(),o.addCacheListener()),o);function h(t,e,n){let a;if("string"==typeof t){const s=new URL(t,location.href);a=new r(({url:t})=&gt;t.href===s.href,e,n)}else if(t instanceof RegExp)a=new i(t,e,n);else if("function"==typeof t)a=new r(t,e,n);else{if(!(t instanceof r))throw new s("unsupported-route-type",{moduleName:"workbox-routing",funcName:"registerRoute",paramName:"capture"});a=t}return c().registerRoute(a),a}try{self["workbox:strategies:6.5.4"]&amp;&amp;_()}catch(t){}const u={cacheWillUpdate:async({response:t})=&gt;200===t.status||0===t.status?t:null},l={googleAnalytics:"googleAnalytics",precache:"precache-v2",prefix:"workbox",runtime:"runtime",suffix:"undefined"!=typeof registration?registration.scope:""},f=t=&gt;[l.prefix,t,l.suffix].filter(t=&gt;t&amp;&amp;t.length&gt;0).join("-"),w=t=&gt;t||f(l.precache),d=t=&gt;t||f(l.runtime);function p(t,e){const s=new URL(t);for(const t of e)s.searchParams.delete(t);return s.href}class y{constructor(){this.promise=new Promise((t,e)=&gt;{this.resolve=t,this.reject=e})}}const m=new Set;function g(t){return new Promise(e=&gt;setTimeout(e,t))}function R(t){return"string"==typeof t?new Request(t):t}class v{constructor(t,e){this.h={},Object.assign(this,e),this.event=e.event,this.u=t,this.l=new y,this.p=[],this.m=[...t.plugins],this.R=new Map;for(const t of this.m)this.R.set(t,{});this.event.waitUntil(this.l.promise)}async fetch(t){const{event:e}=this;let n=R(t);if("navigate"===n.mode&amp;&amp;e instanceof FetchEvent&amp;&amp;e.preloadResponse){const t=await e.preloadResponse;if(t)return t}const r=this.hasCallback("fetchDidFail")?n.clone():null;try{for(const t of this.iterateCallbacks("requestWillFetch"))n=await t({request:n.clone(),event:e})}catch(t){if(t instanceof Error)throw new s("plugin-error-request-will-fetch",{thrownErrorMessage:t.message})}const i=n.clone();try{let t;t=await fetch(n,"navigate"===n.mode?void 0:this.u.fetchOptions);for(const s of this.iterateCallbacks("fetchDidSucceed"))t=await s({event:e,request:i,response:t});return t}catch(t){throw r&amp;&amp;await this.runCallbacks("fetchDidFail",{error:t,event:e,originalRequest:r.clone(),request:i.clone()}),t}}async fetchAndCachePut(t){const e=await this.fetch(t),s=e.clone();return this.waitUntil(this.cachePut(t,s)),e}async cacheMatch(t){const e=R(t);let s;const{cacheName:n,matchOptions:r}=this.u,i=await this.getCacheKey(e,"read"),a=Object.assign(Object.assign({},r),{cacheName:n});s=await caches.match(i,a);for(const t of this.iterateCallbacks("cachedResponseWillBeUsed"))s=await t({cacheName:n,matchOptions:r,cachedResponse:s,request:i,event:this.event})||void 0;return s}async cachePut(t,e){const n=R(t);await g(0);const r=await this.getCacheKey(n,"write");if(!e)throw new s("cache-put-with-no-response",{url:(i=r.url,new URL(String(i),location.href).href.replace(new RegExp(`^${location.origin}`),""))});var i;const a=await this.v(e);if(!a)return!1;const{cacheName:o,matchOptions:c}=this.u,h=await self.caches.open(o),u=this.hasCallback("cacheDidUpdate"),l=u?await async function(t,e,s,n){const r=p(e.url,s);if(e.url===r)return t.match(e,n);const i=Object.assign(Object.assign({},n),{ignoreSearch:!0}),a=await t.keys(e,i);for(const e of a)if(r===p(e.url,s))return t.match(e,n)}(h,r.clone(),["__WB_REVISION__"],c):null;try{await h.put(r,u?a.clone():a)}catch(t){if(t instanceof Error)throw"QuotaExceededError"===t.name&amp;&amp;await async function(){for(const t of m)await t()}(),t}for(const t of this.iterateCallbacks("cacheDidUpdate"))await t({cacheName:o,oldResponse:l,newResponse:a.clone(),request:r,event:this.event});return!0}async getCacheKey(t,e){const s=`${t.url} | ${e}`;if(!this.h[s]){let n=t;for(const t of this.iterateCallbacks("cacheKeyWillBeUsed"))n=R(await t({mode:e,request:n,event:this.event,params:this.params}));this.h[s]=n}return this.h[s]}hasCallback(t){for(const e of this.u.plugins)if(t in e)return!0;return!1}async runCallbacks(t,e){for(const s of this.iterateCallbacks(t))await s(e)}*iterateCallbacks(t){for(const e of this.u.plugins)if("function"==typeof e[t]){const s=this.R.get(e),n=n=&gt;{const r=Object.assign(Object.assign({},n),{state:s});return e[t](r)};yield n}}waitUntil(t){return this.p.push(t),t}async doneWaiting(){let t;for(;t=this.p.shift();)await t}destroy(){this.l.resolve(null)}async v(t){let e=t,s=!1;for(const t of this.iterateCallbacks("cacheWillUpdate"))if(e=await t({request:this.request,response:e,event:this.event})||void 0,s=!0,!e)break;return s||e&amp;&amp;200!==e.status&amp;&amp;(e=void 0),e}}class b{constructor(t={}){this.cacheName=d(t.cacheName),this.plugins=t.plugins||[],this.fetchOptions=t.fetchOptions,this.matchOptions=t.matchOptions}handle(t){const[e]=this.handleAll(t);return e}handleAll(t){t instanceof FetchEvent&amp;&amp;(t={event:t,request:t.request});const e=t.event,s="string"==typeof t.request?new Request(t.request):t.request,n="params"in t?t.params:void 0,r=new v(this,{event:e,request:s,params:n}),i=this.q(r,s,e);return[i,this.D(i,r,s,e)]}async q(t,e,n){let r;await t.runCallbacks("handlerWillStart",{event:n,request:e});try{if(r=await this.U(e,t),!r||"error"===r.type)throw new s("no-response",{url:e.url})}catch(s){if(s instanceof Error)for(const i of t.iterateCallbacks("handlerDidError"))if(r=await i({error:s,event:n,request:e}),r)break;if(!r)throw s}for(const s of t.iterateCallbacks("handlerWillRespond"))r=await s({event:n,request:e,response:r});return r}async D(t,e,s,n){let r,i;try{r=await t}catch(i){}try{await e.runCallbacks("handlerDidRespond",{event:n,request:s,response:r}),await e.doneWaiting()}catch(t){t instanceof Error&amp;&amp;(i=t)}if(await e.runCallbacks("handlerDidComplete",{event:n,request:s,response:r,error:i}),e.destroy(),i)throw i}}function q(t){t.then(()=&gt;{})}function D(){return D=Object.assign?Object.assign.bind():function(t){for(var e=1;e&lt;arguments.length;e++){var s=arguments[e];for(var n in s)({}).hasOwnProperty.call(s,n)&amp;&amp;(t[n]=s[n])}return t},D.apply(null,arguments)}let U,x;const E=new WeakMap,I=new WeakMap,L=new WeakMap,C=new WeakMap,N=new WeakMap;let k={get(t,e,s){if(t instanceof IDBTransaction){if("done"===e)return I.get(t);if("objectStoreNames"===e)return t.objectStoreNames||L.get(t);if("store"===e)return s.objectStoreNames[1]?void 0:s.objectStore(s.objectStoreNames[0])}return T(t[e])},set:(t,e,s)=&gt;(t[e]=s,!0),has:(t,e)=&gt;t instanceof IDBTransaction&amp;&amp;("done"===e||"store"===e)||e in t};function O(t){return t!==IDBDatabase.prototype.transaction||"objectStoreNames"in IDBTransaction.prototype?(x||(x=[IDBCursor.prototype.advance,IDBCursor.prototype.continue,IDBCursor.prototype.continuePrimaryKey])).includes(t)?function(...e){return t.apply(P(this),e),T(E.get(this))}:function(...e){return T(t.apply(P(this),e))}:function(e,...s){const n=t.call(P(this),e,...s);return L.set(n,e.sort?e.sort():[e]),T(n)}}function B(t){return"function"==typeof t?O(t):(t instanceof IDBTransaction&amp;&amp;function(t){if(I.has(t))return;const e=new Promise((e,s)=&gt;{const n=()=&gt;{t.removeEventListener("complete",r),t.removeEventListener("error",i),t.removeEventListener("abort",i)},r=()=&gt;{e(),n()},i=()=&gt;{s(t.error||new DOMException("AbortError","AbortError")),n()};t.addEventListener("complete",r),t.addEventListener("error",i),t.addEventListener("abort",i)});I.set(t,e)}(t),e=t,(U||(U=[IDBDatabase,IDBObjectStore,IDBIndex,IDBCursor,IDBTransaction])).some(t=&gt;e instanceof t)?new Proxy(t,k):t);var e}function T(t){if(t instanceof IDBRequest)return function(t){const e=new Promise((e,s)=&gt;{const n=()=&gt;{t.removeEventListener("success",r),t.removeEventListener("error",i)},r=()=&gt;{e(T(t.result)),n()},i=()=&gt;{s(t.error),n()};t.addEventListener("success",r),t.addEventListener("error",i)});return e.then(e=&gt;{e instanceof IDBCursor&amp;&amp;E.set(e,t)}).catch(()=&gt;{}),N.set(e,t),e}(t);if(C.has(t))return C.get(t);const e=B(t);return e!==t&amp;&amp;(C.set(t,e),N.set(e,t)),e}const P=t=&gt;N.get(t);const M=["get","getKey","getAll","getAllKeys","count"],W=["put","add","delete","clear"],j=new Map;function S(t,e){if(!(t instanceof IDBDatabase)||e in t||"string"!=typeof e)return;if(j.get(e))return j.get(e);const s=e.replace(/FromIndex$/,""),n=e!==s,r=W.includes(s);if(!(s in(n?IDBIndex:IDBObjectStore).prototype)||!r&amp;&amp;!M.includes(s))return;const i=async function(t,...e){const i=this.transaction(t,r?"readwrite":"readonly");let a=i.store;return n&amp;&amp;(a=a.index(e.shift())),(await Promise.all([a[s](...e),r&amp;&amp;i.done]))[0]};return j.set(e,i),i}k=(t=&gt;D({},t,{get:(e,s,n)=&gt;S(e,s)||t.get(e,s,n),has:(e,s)=&gt;!!S(e,s)||t.has(e,s)}))(k);try{self["workbox:expiration:6.5.4"]&amp;&amp;_()}catch(t){}const K="cache-entries",A=t=&gt;{const e=new URL(t,location.href);return e.hash="",e.href};class F{constructor(t){this._=null,this.I=t}L(t){const e=t.createObjectStore(K,{keyPath:"id"});e.createIndex("cacheName","cacheName",{unique:!1}),e.createIndex("timestamp","timestamp",{unique:!1})}C(t){this.L(t),this.I&amp;&amp;function(t,{blocked:e}={}){const s=indexedDB.deleteDatabase(t);e&amp;&amp;s.addEventListener("blocked",t=&gt;e(t.oldVersion,t)),T(s).then(()=&gt;{})}(this.I)}async setTimestamp(t,e){const s={url:t=A(t),timestamp:e,cacheName:this.I,id:this.N(t)},n=(await this.getDb()).transaction(K,"readwrite",{durability:"relaxed"});await n.store.put(s),await n.done}async getTimestamp(t){const e=await this.getDb(),s=await e.get(K,this.N(t));return null==s?void 0:s.timestamp}async expireEntries(t,e){const s=await this.getDb();let n=await s.transaction(K).store.index("timestamp").openCursor(null,"prev");const r=[];let i=0;for(;n;){const s=n.value;s.cacheName===this.I&amp;&amp;(t&amp;&amp;s.timestamp&lt;t||e&amp;&amp;i&gt;=e?r.push(n.value):i++),n=await n.continue()}const a=[];for(const t of r)await s.delete(K,t.id),a.push(t.url);return a}N(t){return this.I+"|"+A(t)}async getDb(){return this._||(this._=await function(t,e,{blocked:s,upgrade:n,blocking:r,terminated:i}={}){const a=indexedDB.open(t,e),o=T(a);return n&amp;&amp;a.addEventListener("upgradeneeded",t=&gt;{n(T(a.result),t.oldVersion,t.newVersion,T(a.transaction),t)}),s&amp;&amp;a.addEventListener("blocked",t=&gt;s(t.oldVersion,t.newVersion,t)),o.then(t=&gt;{i&amp;&amp;t.addEventListener("close",()=&gt;i()),r&amp;&amp;t.addEventListener("versionchange",t=&gt;r(t.oldVersion,t.newVersion,t))}).catch(()=&gt;{}),o}("workbox-expiration",1,{upgrade:this.C.bind(this)})),this._}}class ${constructor(t,e={}){this.k=!1,this.O=!1,this.B=e.maxEntries,this.T=e.maxAgeSeconds,this.P=e.matchOptions,this.I=t,this.M=new F(t)}async expireEntries(){if(this.k)return void(this.O=!0);this.k=!0;const t=this.T?Date.now()-1e3*this.T:0,e=await this.M.expireEntries(t,this.B),s=await self.caches.open(this.I);for(const t of e)await s.delete(t,this.P);this.k=!1,this.O&amp;&amp;(this.O=!1,q(this.expireEntries()))}async updateTimestamp(t){await this.M.setTimestamp(t,Date.now())}async isURLExpired(t){if(this.T){const e=await this.M.getTimestamp(t),s=Date.now()-1e3*this.T;return void 0===e||e&lt;s}return!1}async delete(){this.O=!1,await this.M.expireEntries(1/0)}}function H(t,e){const s=e();return t.waitUntil(s),s}try{self["workbox:precaching:6.5.4"]&amp;&amp;_()}catch(t){}function G(t){if(!t)throw new s("add-to-cache-list-unexpected-type",{entry:t});if("string"==typeof t){const e=new URL(t,location.href);return{cacheKey:e.href,url:e.href}}const{revision:e,url:n}=t;if(!n)throw new s("add-to-cache-list-unexpected-type",{entry:t});if(!e){const t=new URL(n,location.href);return{cacheKey:t.href,url:t.href}}const r=new URL(n,location.href),i=new URL(n,location.href);return r.searchParams.set("__WB_REVISION__",e),{cacheKey:r.href,url:i.href}}class V{constructor(){this.updatedURLs=[],this.notUpdatedURLs=[],this.handlerWillStart=async({request:t,state:e})=&gt;{e&amp;&amp;(e.originalRequest=t)},this.cachedResponseWillBeUsed=async({event:t,state:e,cachedResponse:s})=&gt;{if("install"===t.type&amp;&amp;e&amp;&amp;e.originalRequest&amp;&amp;e.originalRequest instanceof Request){const t=e.originalRequest.url;s?this.notUpdatedURLs.push(t):this.updatedURLs.push(t)}return s}}}class J{constructor({precacheController:t}){this.cacheKeyWillBeUsed=async({request:t,params:e})=&gt;{const s=(null==e?void 0:e.cacheKey)||this.W.getCacheKeyForURL(t.url);return s?new Request(s,{headers:t.headers}):t},this.W=t}}let Q,z;async function X(t,e){let n=null;if(t.url){n=new URL(t.url).origin}if(n!==self.location.origin)throw new s("cross-origin-copy-response",{origin:n});const r=t.clone(),i={headers:new Headers(r.headers),status:r.status,statusText:r.statusText},a=e?e(i):i,o=function(){if(void 0===Q){const t=new Response("");if("body"in t)try{new Response(t.body),Q=!0}catch(t){Q=!1}Q=!1}return Q}()?r.body:await r.blob();return new Response(o,a)}class Y extends b{constructor(t={}){t.cacheName=w(t.cacheName),super(t),this.j=!1!==t.fallbackToNetwork,this.plugins.push(Y.copyRedirectedCacheableResponsesPlugin)}async U(t,e){const s=await e.cacheMatch(t);return s||(e.event&amp;&amp;"install"===e.event.type?await this.S(t,e):await this.K(t,e))}async K(t,e){let n;const r=e.params||{};if(!this.j)throw new s("missing-precache-entry",{cacheName:this.cacheName,url:t.url});{const s=r.integrity,i=t.integrity,a=!i||i===s;n=await e.fetch(new Request(t,{integrity:"no-cors"!==t.mode?i||s:void 0})),s&amp;&amp;a&amp;&amp;"no-cors"!==t.mode&amp;&amp;(this.A(),await e.cachePut(t,n.clone()))}return n}async S(t,e){this.A();const n=await e.fetch(t);if(!await e.cachePut(t,n.clone()))throw new s("bad-precaching-response",{url:t.url,status:n.status});return n}A(){let t=null,e=0;for(const[s,n]of this.plugins.entries())n!==Y.copyRedirectedCacheableResponsesPlugin&amp;&amp;(n===Y.defaultPrecacheCacheabilityPlugin&amp;&amp;(t=s),n.cacheWillUpdate&amp;&amp;e++);0===e?this.plugins.push(Y.defaultPrecacheCacheabilityPlugin):e&gt;1&amp;&amp;null!==t&amp;&amp;this.plugins.splice(t,1)}}Y.defaultPrecacheCacheabilityPlugin={cacheWillUpdate:async({response:t})=&gt;!t||t.status&gt;=400?null:t},Y.copyRedirectedCacheableResponsesPlugin={cacheWillUpdate:async({response:t})=&gt;t.redirected?await X(t):t};class Z{constructor({cacheName:t,plugins:e=[],fallbackToNetwork:s=!0}={}){this.F=new Map,this.$=new Map,this.H=new Map,this.u=new Y({cacheName:w(t),plugins:[...e,new J({precacheController:this})],fallbackToNetwork:s}),this.install=this.install.bind(this),this.activate=this.activate.bind(this)}get strategy(){return this.u}precache(t){this.addToCacheList(t),this.G||(self.addEventListener("install",this.install),self.addEventListener("activate",this.activate),this.G=!0)}addToCacheList(t){const e=[];for(const n of t){"string"==typeof n?e.push(n):n&amp;&amp;void 0===n.revision&amp;&amp;e.push(n.url);const{cacheKey:t,url:r}=G(n),i="string"!=typeof n&amp;&amp;n.revision?"reload":"default";if(this.F.has(r)&amp;&amp;this.F.get(r)!==t)throw new s("add-to-cache-list-conflicting-entries",{firstEntry:this.F.get(r),secondEntry:t});if("string"!=typeof n&amp;&amp;n.integrity){if(this.H.has(t)&amp;&amp;this.H.get(t)!==n.integrity)throw new s("add-to-cache-list-conflicting-integrities",{url:r});this.H.set(t,n.integrity)}if(this.F.set(r,t),this.$.set(r,i),e.length&gt;0){const t=`Workbox is precaching URLs without revision info: ${e.join(", ")}\nThis is generally NOT safe. Learn more at https://bit.ly/wb-precache`;console.warn(t)}}}install(t){return H(t,async()=&gt;{const e=new V;this.strategy.plugins.push(e);for(const[e,s]of this.F){const n=this.H.get(s),r=this.$.get(e),i=new Request(e,{integrity:n,cache:r,credentials:"same-origin"});await Promise.all(this.strategy.handleAll({params:{cacheKey:s},request:i,event:t}))}const{updatedURLs:s,notUpdatedURLs:n}=e;return{updatedURLs:s,notUpdatedURLs:n}})}activate(t){return H(t,async()=&gt;{const t=await self.caches.open(this.strategy.cacheName),e=await t.keys(),s=new Set(this.F.values()),n=[];for(const r of e)s.has(r.url)||(await t.delete(r),n.push(r.url));return{deletedURLs:n}})}getURLsToCacheKeys(){return this.F}getCachedURLs(){return[...this.F.keys()]}getCacheKeyForURL(t){const e=new URL(t,location.href);return this.F.get(e.href)}getIntegrityForCacheKey(t){return this.H.get(t)}async matchPrecache(t){const e=t instanceof Request?t.url:t,s=this.getCacheKeyForURL(e);if(s){return(await self.caches.open(this.strategy.cacheName)).match(s)}}createHandlerBoundToURL(t){const e=this.getCacheKeyForURL(t);if(!e)throw new s("non-precached-url",{url:t});return s=&gt;(s.request=new Request(t),s.params=Object.assign({cacheKey:e},s.params),this.strategy.handle(s))}}const tt=()=&gt;(z||(z=new Z),z);class et extends r{constructor(t,e){super(({request:s})=&gt;{const n=t.getURLsToCacheKeys();for(const r of function*(t,{ignoreURLParametersMatching:e=[/^utm_/,/^fbclid$/],directoryIndex:s="index.html",cleanURLs:n=!0,urlManipulation:r}={}){const i=new URL(t,location.href);i.hash="",yield i.href;const a=function(t,e=[]){for(const s of[...t.searchParams.keys()])e.some(t=&gt;t.test(s))&amp;&amp;t.searchParams.delete(s);return t}(i,e);if(yield a.href,s&amp;&amp;a.pathname.endsWith("/")){const t=new URL(a.href);t.pathname+=s,yield t.href}if(n){const t=new URL(a.href);t.pathname+=".html",yield t.href}if(r){const t=r({url:i});for(const e of t)yield e.href}}(s.url,e)){const e=n.get(r);if(e){return{cacheKey:e,integrity:t.getIntegrityForCacheKey(e)}}}},t.strategy)}}t.CacheFirst=class extends b{async U(t,e){let n,r=await e.cacheMatch(t);if(!r)try{r=await e.fetchAndCachePut(t)}catch(t){t instanceof Error&amp;&amp;(n=t)}if(!r)throw new s("no-response",{url:t.url,error:n});return r}},t.ExpirationPlugin=class{constructor(t={}){this.cachedResponseWillBeUsed=async({event:t,request:e,cacheName:s,cachedResponse:n})=&gt;{if(!n)return null;const r=this.V(n),i=this.J(s);q(i.expireEntries());const a=i.updateTimestamp(e.url);if(t)try{t.waitUntil(a)}catch(t){}return r?n:null},this.cacheDidUpdate=async({cacheName:t,request:e})=&gt;{const s=this.J(t);await s.updateTimestamp(e.url),await s.expireEntries()},this.X=t,this.T=t.maxAgeSeconds,this.Y=new Map,t.purgeOnQuotaError&amp;&amp;function(t){m.add(t)}(()=&gt;this.deleteCacheAndMetadata())}J(t){if(t===d())throw new s("expire-custom-caches-only");let e=this.Y.get(t);return e||(e=new $(t,this.X),this.Y.set(t,e)),e}V(t){if(!this.T)return!0;const e=this.Z(t);if(null===e)return!0;return e&gt;=Date.now()-1e3*this.T}Z(t){if(!t.headers.has("date"))return null;const e=t.headers.get("date"),s=new Date(e).getTime();return isNaN(s)?null:s}async deleteCacheAndMetadata(){for(const[t,e]of this.Y)await self.caches.delete(t),await e.delete();this.Y=new Map}},t.NetworkFirst=class extends b{constructor(t={}){super(t),this.plugins.some(t=&gt;"cacheWillUpdate"in t)||this.plugins.unshift(u),this.tt=t.networkTimeoutSeconds||0}async U(t,e){const n=[],r=[];let i;if(this.tt){const{id:s,promise:a}=this.et({request:t,logs:n,handler:e});i=s,r.push(a)}const a=this.st({timeoutId:i,request:t,logs:n,handler:e});r.push(a);const o=await e.waitUntil((async()=&gt;await e.waitUntil(Promise.race(r))||await a)());if(!o)throw new s("no-response",{url:t.url});return o}et({request:t,logs:e,handler:s}){let n;return{promise:new Promise(e=&gt;{n=setTimeout(async()=&gt;{e(await s.cacheMatch(t))},1e3*this.tt)}),id:n}}async st({timeoutId:t,request:e,logs:s,handler:n}){let r,i;try{i=await n.fetchAndCachePut(e)}catch(t){t instanceof Error&amp;&amp;(r=t)}return t&amp;&amp;clearTimeout(t),!r&amp;&amp;i||(i=await n.cacheMatch(e)),i}},t.NetworkOnly=class extends b{constructor(t={}){super(t),this.tt=t.networkTimeoutSeconds||0}async U(t,e){let n,r;try{const s=[e.fetch(t)];if(this.tt){const t=g(1e3*this.tt);s.push(t)}if(r=await Promise.race(s),!r)throw new Error(`Timed out the network response after ${this.tt} seconds.`)}catch(t){t instanceof Error&amp;&amp;(n=t)}if(!r)throw new s("no-response",{url:t.url,error:n});return r}},t.StaleWhileRevalidate=class extends b{constructor(t={}){super(t),this.plugins.some(t=&gt;"cacheWillUpdate"in t)||this.plugins.unshift(u)}async U(t,e){const n=e.fetchAndCachePut(t).catch(()=&gt;{});e.waitUntil(n);let r,i=await e.cacheMatch(t);if(i);else try{i=await n}catch(t){t instanceof Error&amp;&amp;(r=t)}if(!i)throw new s("no-response",{url:t.url,error:r});return i}},t.cleanupOutdatedCaches=function(){self.addEventListener("activate",t=&gt;{const e=w();t.waitUntil((async(t,e="-precache-")=&gt;{const s=(await self.caches.keys()).filter(s=&gt;s.includes(e)&amp;&amp;s.includes(self.registration.scope)&amp;&amp;s!==t);return await Promise.all(s.map(t=&gt;self.caches.delete(t))),s})(e).then(t=&gt;{}))})},t.clientsClaim=function(){self.addEventListener("activate",()=&gt;self.clients.claim())},t.precacheAndRoute=function(t,e){!function(t){tt().precache(t)}(t),function(t){const e=tt();h(new et(e,t))}(e)},t.registerRoute=h});
 </pre></div>
 <div class='file-block'><div class='file-header'>README.md</div><pre># Diagsync â€” Medical Diagnostic Operations System
 
@@ -4356,7 +4337,6 @@ export async function approvePaymentRequestAction(formData: FormData) {
   if (!organizationId || !paymentRequestId) return;
 
   const now = new Date();
-  const subscriptionEndsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   await prisma.$transaction(async (tx) =&gt; {
     const request = await tx.subscriptionPaymentRequest.findFirst({
@@ -4375,6 +4355,24 @@ export async function approvePaymentRequestAction(formData: FormData) {
       throw new Error("PAYMENT_REQUEST_NOT_PENDING");
     }
 
+    const organization = await tx.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        id: true,
+        subscriptionEndsAt: true,
+      },
+    });
+
+    if (!organization) {
+      throw new Error("ORGANIZATION_NOT_FOUND");
+    }
+
+    const baseDate =
+      organization.subscriptionEndsAt &amp;&amp; organization.subscriptionEndsAt &gt; now
+        ? organization.subscriptionEndsAt
+        : now;
+    const subscriptionEndsAt = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
     await tx.subscriptionPaymentRequest.update({
       where: { id: request.id },
       data: {
@@ -4389,7 +4387,7 @@ export async function approvePaymentRequestAction(formData: FormData) {
       data: {
         plan: request.requestedPlan,
         status: "ACTIVE",
-        subscriptionStartedAt: now,
+        subscriptionStartedAt: organization.subscriptionEndsAt &amp;&amp; organization.subscriptionEndsAt &gt; now ? organization.subscriptionEndsAt : now,
         subscriptionEndsAt,
         lastPaymentAt: now,
         watermarkEnabled: request.requestedPlan === "STARTER",
@@ -5298,6 +5296,10 @@ export default function RegisterPage() {
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/billing/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { syncOrganizationBillingState } from "@/lib/billing-service";
+import { getOrganizationAccess } from "@/lib/billing-access";
+import { BillingOnboarding } from "@/components/billing/billing-onboarding";
 
 export default async function BillingPage() {
   const session = await auth();
@@ -5305,7 +5307,81 @@ export default async function BillingPage() {
     redirect("/login");
   }
 
-  return null;
+  const user = session.user as any;
+  const staff = await prisma.staff.findUnique({
+    where: { id: user.id },
+    select: {
+      id: true,
+      role: true,
+      status: true,
+      organizationId: true,
+    },
+  });
+
+  if (!staff || staff.status !== "ACTIVE") {
+    redirect("/login");
+  }
+
+  if (!staff.organizationId) {
+    redirect("/dashboard");
+  }
+
+  if (staff.role === "MEGA_ADMIN") {
+    redirect("/admin/dashboard");
+  }
+
+  if (staff.role !== "SUPER_ADMIN") {
+    return (
+      &lt;div className="mx-auto w-full max-w-3xl rounded-xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-blue-700"&gt;
+        Billing management is available to your Super Admin only.
+      &lt;/div&gt;
+    );
+  }
+
+  const [organization, paymentRequests] = await Promise.all([
+    syncOrganizationBillingState(staff.organizationId),
+    prisma.subscriptionPaymentRequest.findMany({
+      where: { organizationId: staff.organizationId },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        requestedPlan: true,
+        amount: true,
+        status: true,
+        transactionReference: true,
+        createdAt: true,
+      },
+    }),
+  ]);
+
+  const access = getOrganizationAccess(organization);
+
+  return (
+    &lt;BillingOnboarding
+      organization={{
+        plan: organization.plan,
+        status: organization.status,
+        trialStartedAt: organization.trialStartedAt?.toISOString() ?? null,
+        trialEndsAt: organization.trialEndsAt?.toISOString() ?? null,
+        subscriptionEndsAt: organization.subscriptionEndsAt?.toISOString() ?? null,
+      }}
+      access={{
+        trialDaysLeft: access.trialDaysLeft,
+        subscriptionDaysLeft: access.subscriptionDaysLeft,
+        isTrialWarning: access.isTrialWarning,
+        billingLocked: access.billingLocked,
+      }}
+      paymentRequests={paymentRequests.map((item) =&gt; ({
+        id: item.id,
+        requestedPlan: item.requestedPlan,
+        amount: Number(item.amount),
+        status: item.status,
+        transactionReference: item.transactionReference,
+        createdAt: item.createdAt.toISOString(),
+      }))}
+    /&gt;
+  );
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/hrm/analytics/page.tsx</div><pre>import { auth } from "@/lib/auth";
@@ -8125,6 +8201,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
           text: `Trial ends in ${access.trialDaysLeft} day${access.trialDaysLeft === 1 ? "" : "s"}.`,
           warning: access.isTrialWarning,
         }
+      : access.status === "ACTIVE" &amp;&amp;
+        organization.plan !== "TRIAL" &amp;&amp;
+        access.subscriptionDaysLeft !== null
+      ? {
+          text: `Subscription ends in ${access.subscriptionDaysLeft} day${
+            access.subscriptionDaysLeft === 1 ? "" : "s"
+          }.`,
+          warning: access.subscriptionDaysLeft &lt; 3,
+        }
       : null;
 
   return (
@@ -8154,6 +8239,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             }}
             access={{
               trialDaysLeft: access.trialDaysLeft,
+              subscriptionDaysLeft: access.subscriptionDaysLeft,
               isTrialWarning: access.isTrialWarning,
               billingLocked: access.billingLocked,
             }}
@@ -8411,6 +8497,32 @@ export async function POST(req: NextRequest) {
     const amount = PLAN_MONTHLY_AMOUNT_NGN[requestedPlan];
 
     const result = await prisma.$transaction(async (tx) =&gt; {
+      const organization = await tx.organization.findUnique({
+        where: { id: user.organizationId },
+        select: {
+          id: true,
+          plan: true,
+          status: true,
+          subscriptionEndsAt: true,
+        },
+      });
+
+      if (!organization) {
+        throw new Error("ORGANIZATION_NOT_FOUND");
+      }
+
+      const pending = await tx.subscriptionPaymentRequest.findFirst({
+        where: {
+          organizationId: user.organizationId,
+          status: "PENDING",
+        },
+        select: { id: true },
+      });
+
+      if (pending) {
+        throw new Error("PENDING_REQUEST_EXISTS");
+      }
+
       const request = await tx.subscriptionPaymentRequest.create({
         data: {
           organizationId: user.organizationId,
@@ -8433,12 +8545,27 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      const now = new Date();
+      const hasActivePaidWindow =
+        organization.status === "ACTIVE" &amp;&amp;
+        organization.plan !== "TRIAL" &amp;&amp;
+        organization.subscriptionEndsAt !== null &amp;&amp;
+        organization.subscriptionEndsAt &gt; now;
+
       await tx.organization.update({
         where: { id: user.organizationId },
         data: {
-          status: "PAYMENT_PENDING",
-          billingLockedAt: new Date(),
-          billingLockReason: `Awaiting payment verification for ${requestedPlan}`,
+          ...(hasActivePaidWindow
+            ? {
+                status: "ACTIVE",
+                billingLockedAt: null,
+                billingLockReason: `Pending ${requestedPlan} ${requestedPlan === organization.plan ? "renewal" : "upgrade"} verification`,
+              }
+            : {
+                status: "PAYMENT_PENDING",
+                billingLockedAt: now,
+                billingLockReason: `Awaiting payment verification for ${requestedPlan}`,
+              }),
         },
       });
 
@@ -8451,6 +8578,15 @@ export async function POST(req: NextRequest) {
       data: result,
     });
   } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "PENDING_REQUEST_EXISTS") {
+      return NextResponse.json(
+        { success: false, error: "You already have a pending payment request under review." },
+        { status: 409 }
+      );
+    }
+    if (error instanceof Error &amp;&amp; error.message === "ORGANIZATION_NOT_FOUND") {
+      return NextResponse.json({ success: false, error: "Organization not found." }, { status: 404 });
+    }
     if (error instanceof Error &amp;&amp; error.message === "CLOUDINARY_SIGNED_ENV_MISSING") {
       return NextResponse.json(
         { success: false, error: "Payment proof storage is not configured." },
@@ -10907,27 +11043,88 @@ export default function GlobalError({
     }
   }
 }
+
+@keyframes splashFloat {
+  0% {
+    transform: translateY(8px) scale(0.96);
+    opacity: 0.6;
+  }
+  60% {
+    transform: translateY(-2px) scale(1.02);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes splashPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.16);
+  }
+  100% {
+    box-shadow: 0 0 0 20px rgba(37, 99, 235, 0);
+  }
+}
+
+.splash-logo-wrap {
+  border-radius: 9999px;
+  background: radial-gradient(circle at 30% 20%, #ffffff 0%, #f8fbff 58%, #eef5ff 100%);
+  padding: 0.75rem;
+  animation: splashFloat 700ms ease-out, splashPulse 1.4s ease-out 1;
+}
 </pre></div>
-<div class='file-block'><div class='file-header'>src/app/layout.tsx</div><pre>import type { Metadata } from "next";
+<div class='file-block'><div class='file-header'>src/app/layout.tsx</div><pre>import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AppLaunchSplash } from "@/components/app-launch-splash";
+import { StandaloneDashboardRedirect } from "@/components/standalone-dashboard-redirect";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Diagsync - Medical Diagnostic Operations",
   description: "Multi-role diagnostic operations system for medical labs",
-  icons: {
-    icon: "/diagsync-logo.png",
-    shortcut: "/diagsync-logo.png",
-    apple: "/diagsync-logo.png",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "DiagSync",
   },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/diagsync-logo.png",
+    apple: "/icons/icon-192.png",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     &lt;html lang="en" suppressHydrationWarning&gt;
-      &lt;body className={inter.className}&gt;{children}&lt;/body&gt;
+      &lt;head&gt;
+        &lt;link rel="manifest" href="/manifest.json" /&gt;
+        &lt;meta name="theme-color" content="#000000" /&gt;
+        &lt;meta name="apple-mobile-web-app-capable" content="yes" /&gt;
+        &lt;meta name="apple-mobile-web-app-status-bar-style" content="default" /&gt;
+        &lt;meta name="apple-mobile-web-app-title" content="DiagSync" /&gt;
+        &lt;link rel="apple-touch-icon" href="/icons/icon-192.png" /&gt;
+      &lt;/head&gt;
+      &lt;body className={inter.className}&gt;
+        &lt;StandaloneDashboardRedirect /&gt;
+        &lt;AppLaunchSplash /&gt;
+        {children}
+      &lt;/body&gt;
     &lt;/html&gt;
   );
 }
@@ -10953,6 +11150,19 @@ export default function NotFound() {
   );
 }
 
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/offline/page.tsx</div><pre>export default function OfflinePage() {
+  return (
+    &lt;main className="flex min-h-screen items-center justify-center bg-slate-50 px-4"&gt;
+      &lt;div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 text-center shadow-sm"&gt;
+        &lt;h1 className="text-lg font-semibold text-slate-900"&gt;You are offline&lt;/h1&gt;
+        &lt;p className="mt-2 text-sm text-slate-600"&gt;
+          You are offline. Changes will sync when connection returns.
+        &lt;/p&gt;
+      &lt;/div&gt;
+    &lt;/main&gt;
+  );
+}
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/page.tsx</div><pre>import Link from "next/link";
 import Image from "next/image";
@@ -11951,35 +12161,110 @@ export function AdminSignOutButton({ className }: AdminSignOutButtonProps) {
   );
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/components/app-launch-splash.tsx</div><pre>"use client";
+
+import Image from "next/image";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+
+function isStandaloneMode() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+}
+
+export function AppLaunchSplash() {
+  const pathname = usePathname();
+  const [ready, setReady] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() =&gt; {
+    if (!pathname) {
+      setVisible(false);
+      setReady(true);
+      return;
+    }
+
+    const shouldShow =
+      isStandaloneMode() &amp;&amp;
+      pathname.startsWith("/dashboard") &amp;&amp;
+      window.sessionStorage.getItem("diagsync_launch_splash_seen") !== "1";
+
+    if (!shouldShow) {
+      setVisible(false);
+      setReady(true);
+      return;
+    }
+
+    setReady(true);
+    window.sessionStorage.setItem("diagsync_launch_splash_seen", "1");
+    const startClose = window.setTimeout(() =&gt; setClosing(true), 900);
+    const remove = window.setTimeout(() =&gt; setVisible(false), 1300);
+    return () =&gt; {
+      window.clearTimeout(startClose);
+      window.clearTimeout(remove);
+    };
+  }, [pathname]);
+
+  if (!ready || !visible) return null;
+
+  return (
+    &lt;div
+      className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-100 transition-opacity duration-500 ${
+        closing ? "opacity-0" : "opacity-100"
+      }`}
+    &gt;
+      &lt;div className="flex flex-col items-center"&gt;
+        &lt;div className="splash-logo-wrap"&gt;
+          &lt;Image src="/diagsync-logo.png" alt="DiagSync" width={260} height={260} priority className="h-auto w-[180px] sm:w-[220px]" /&gt;
+        &lt;/div&gt;
+        &lt;p className="mt-3 text-sm font-semibold tracking-wide text-slate-600"&gt;Loading workspace...&lt;/p&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/components/billing/billing-onboarding.tsx</div><pre>"use client";
 
 import { useMemo, useState } from "react";
-import { OrganizationPlan, OrganizationStatus, PaymentRequestStatus } from "@prisma/client";
 import { BILLING_BANK_DETAILS, PLAN_MONTHLY_AMOUNT_NGN } from "@/lib/billing-access";
 import { formatCurrency } from "@/lib/utils";
 
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
 type BillingProps = {
   organization: {
-    plan: OrganizationPlan;
-    status: OrganizationStatus;
+    plan: BillingPlan;
+    status: BillingStatus;
     trialStartedAt: string | null;
     trialEndsAt: string | null;
     subscriptionEndsAt: string | null;
   };
   access: {
     trialDaysLeft: number | null;
+    subscriptionDaysLeft: number | null;
     isTrialWarning: boolean;
     billingLocked: boolean;
   };
   paymentRequests: Array&lt;{
     id: string;
-    requestedPlan: OrganizationPlan;
+    requestedPlan: BillingPlan;
     amount: number;
-    status: PaymentRequestStatus;
+    status: PaymentRequestStatusValue;
     transactionReference: string | null;
     createdAt: string;
   }&gt;;
 };
+
+type BillingPlan = "TRIAL" | "STARTER" | "ADVANCED";
+type BillingStatus =
+  | "ACTIVE"
+  | "SUSPENDED"
+  | "TRIAL_ACTIVE"
+  | "TRIAL_EXPIRED"
+  | "PAYMENT_PENDING"
+  | "EXPIRED";
+type PaymentRequestStatusValue = "PENDING" | "APPROVED" | "REJECTED";
 
 function formatShortDate(value: string | null) {
   if (!value) return "-";
@@ -11990,49 +12275,189 @@ function formatShortDate(value: string | null) {
   });
 }
 
-type PlanCardProps = {
-  name: string;
-  subtitle: string;
-  price: string;
-  note: string;
-  buttonText: string;
-  onClick: () =&gt; void;
-  disabled?: boolean;
-};
+// â”€â”€â”€ Feature lists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function PlanCard({ name, subtitle, price, note, buttonText, onClick, disabled = false }: PlanCardProps) {
+const TRIAL_FEATURES = [
+  { text: "All departments &amp; roles unlocked", included: true },
+  { text: "Radiology &amp; Cardiology access", included: true },
+  { text: "Unlimited patients &amp; visits", included: true },
+  { text: "Imaging file uploads (Cloudinary)", included: true },
+  { text: "Web push notifications", included: true },
+  { text: "Shareable report links", included: true },
+  { text: "DiagSync watermark on all reports", included: false, warn: true },
+];
+
+const STARTER_FEATURES = [
+  { text: "Up to 15 staff accounts", included: true },
+  { text: "Roles: Receptionist, Lab Scientist, MD, HRM", included: true },
+  { text: "Laboratory â€” full access (all lab tests)", included: true },
+  { text: "Reception, Medical Review &amp; HR Operations", included: true },
+  { text: "Unlimited patients &amp; visits", included: true },
+  { text: "Audit logs &amp; result versioning", included: true },
+  { text: "In-app notifications &amp; shareable links", included: true },
+  { text: "WhatsApp support", included: true },
+  { text: "Radiology / Cardiology department", included: false },
+  { text: "Imaging uploads &amp; custom letterhead", included: false },
+  { text: "Web push notifications", included: false },
+  { text: "DiagSync watermark on all reports", included: false, warn: true },
+];
+
+const ADVANCED_FEATURES = [
+  { text: "Unlimited staff accounts", included: true },
+  { text: "All roles including Radiographer", included: true },
+  { text: "Laboratory â€” full access (all lab tests)", included: true },
+  { text: "Radiology department &amp; tests", included: true },
+  { text: "Cardiology tests", included: true },
+  { text: "Unlimited patients &amp; visits", included: true },
+  { text: "Imaging file uploads (Cloudinary)", included: true },
+  { text: "Custom letterhead on reports", included: true },
+  { text: "In-app + web push notifications", included: true },
+  { text: "Shareable report links", included: true },
+  { text: "Priority WhatsApp support", included: true },
+  { text: "No DiagSync watermark â€” clean reports", included: true },
+];
+
+// â”€â”€â”€ Feature Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function FeatureRow({ text, included, warn }: { text: string; included: boolean; warn?: boolean }) {
   return (
-    &lt;div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"&gt;
-      &lt;p className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;{name}&lt;/p&gt;
-      &lt;p className="mt-1 text-sm text-slate-600"&gt;{subtitle}&lt;/p&gt;
-      &lt;p className="mt-3 text-2xl font-bold text-slate-900"&gt;{price}&lt;/p&gt;
-      &lt;p className="mt-2 text-xs text-slate-500"&gt;{note}&lt;/p&gt;
-      &lt;button
-        type="button"
-        disabled={disabled}
-        onClick={onClick}
-        className="mt-4 inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+    &lt;div className="flex items-start gap-2.5 py-1.5"&gt;
+      &lt;span
+        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold
+          ${warn ? "bg-amber-100 text-amber-600" : included ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"}`}
       &gt;
-        {buttonText}
-      &lt;/button&gt;
+        {warn ? "!" : included ? "âœ“" : "â€“"}
+      &lt;/span&gt;
+      &lt;span
+        className={`text-xs leading-relaxed ${
+          warn ? "text-amber-700" : included ? "text-slate-700" : "text-slate-400"
+        }`}
+      &gt;
+        {text}
+      &lt;/span&gt;
     &lt;/div&gt;
   );
 }
 
+// â”€â”€â”€ Plan Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+type PlanCardProps = {
+  badge: string;
+  badgeColor: string;
+  name: string;
+  price: string;
+  priceNote?: string;
+  desc: string;
+  features: { text: string; included: boolean; warn?: boolean }[];
+  buttonText: string;
+  buttonClass: string;
+  onClick: () =&gt; void;
+  disabled?: boolean;
+  highlight?: boolean;
+  tag?: string;
+};
+
+function PlanCard({
+  badge,
+  badgeColor,
+  name,
+  price,
+  priceNote,
+  desc,
+  features,
+  buttonText,
+  buttonClass,
+  onClick,
+  disabled = false,
+  highlight = false,
+  tag,
+}: PlanCardProps) {
+  return (
+    &lt;div
+      className={`relative flex flex-col rounded-2xl border bg-white shadow-sm transition-shadow hover:shadow-md
+        ${highlight ? "border-blue-500 ring-1 ring-blue-500" : "border-slate-200"}`}
+    &gt;
+      {tag &amp;&amp; (
+        &lt;div className="absolute -top-3 left-1/2 -translate-x-1/2"&gt;
+          &lt;span className="rounded-full bg-blue-600 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow"&gt;
+            {tag}
+          &lt;/span&gt;
+        &lt;/div&gt;
+      )}
+
+      &lt;div className="p-5 pb-4"&gt;
+        &lt;span
+          className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${badgeColor}`}
+        &gt;
+          {badge}
+        &lt;/span&gt;
+        &lt;h3 className="mt-3 text-base font-bold text-slate-900"&gt;{name}&lt;/h3&gt;
+        &lt;div className="mt-1 flex items-baseline gap-1"&gt;
+          &lt;span className="text-2xl font-extrabold text-slate-900"&gt;{price}&lt;/span&gt;
+          {priceNote &amp;&amp; &lt;span className="text-xs text-slate-500"&gt;{priceNote}&lt;/span&gt;}
+        &lt;/div&gt;
+        &lt;p className="mt-2 text-xs leading-relaxed text-slate-500"&gt;{desc}&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;div className="mx-5 border-t border-slate-100" /&gt;
+
+      &lt;div className="flex-1 px-5 py-3"&gt;
+        {features.map((f, i) =&gt; (
+          &lt;FeatureRow key={i} {...f} /&gt;
+        ))}
+      &lt;/div&gt;
+
+      &lt;div className="p-5 pt-3"&gt;
+        &lt;button
+          type="button"
+          disabled={disabled}
+          onClick={onClick}
+          className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${buttonClass}`}
+        &gt;
+          {buttonText}
+        &lt;/button&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+
+// â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
 export function BillingOnboarding({ organization, access, paymentRequests }: BillingProps) {
-  const [selectedPlan, setSelectedPlan] = useState&lt;OrganizationPlan | null&gt;(null);
+  const [selectedPlan, setSelectedPlan] = useState&lt;Extract&lt;BillingPlan, "STARTER" | "ADVANCED"&gt; | null&gt;(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState&lt;"trial" | "payment" | null&gt;(null);
+  const planPriceMap = PLAN_MONTHLY_AMOUNT_NGN as unknown as Record&lt;string, number&gt;;
 
-  const canStartTrial = useMemo(() =&gt; {
-    if (organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") return false;
-    return !organization.trialStartedAt;
-  }, [organization.status, organization.trialStartedAt]);
   const activePending = useMemo(
     () =&gt; paymentRequests.find((item) =&gt; item.status === "PENDING"),
     [paymentRequests]
   );
+  const hasPendingRequest = Boolean(activePending);
+  const isActiveSubscription = organization.status === "ACTIVE" &amp;&amp; access.subscriptionDaysLeft !== null;
+  const isStarterActive = isActiveSubscription &amp;&amp; organization.plan === "STARTER";
+  const isAdvancedActive = isActiveSubscription &amp;&amp; organization.plan === "ADVANCED";
+
+  const canStartTrial = useMemo(() =&gt; {
+    if (organization.status === "ACTIVE" || organization.plan !== "TRIAL") return false;
+    if (organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") return false;
+    return !organization.trialStartedAt;
+  }, [organization.status, organization.trialStartedAt, organization.plan]);
+
+  const starterButtonText = useMemo(() =&gt; {
+    if (isStarterActive) return "Renew Starter";
+    if (isAdvancedActive) return "Current plan is Advanced";
+    return "Get Starter";
+  }, [isStarterActive, isAdvancedActive]);
+
+  const starterDisabled = isAdvancedActive || busy !== null || hasPendingRequest;
+
+  const advancedButtonText = useMemo(() =&gt; {
+    if (isAdvancedActive) return "Renew Advanced";
+    if (isStarterActive) return "Upgrade to Advanced";
+    return "Get Advanced";
+  }, [isAdvancedActive, isStarterActive]);
 
   async function handleStartTrial() {
     setError("");
@@ -12079,193 +12504,334 @@ export function BillingOnboarding({ organization, access, paymentRequests }: Bil
   }
 
   return (
-    &lt;div className="mx-auto w-full max-w-5xl space-y-4"&gt;
-      &lt;div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"&gt;
-        &lt;h1 className="text-lg font-semibold text-slate-900"&gt;Choose Your DiagSync Plan&lt;/h1&gt;
-        &lt;p className="mt-1 text-sm text-slate-600"&gt;
-          Pick a plan to continue using your lab workspace. Your data remains safe even when billing is locked.
-        &lt;/p&gt;
-        &lt;div className="mt-3 flex flex-wrap gap-2 text-xs"&gt;
-          &lt;span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600"&gt;Current plan: {organization.plan}&lt;/span&gt;
-          &lt;span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600"&gt;Status: {organization.status}&lt;/span&gt;
-          {organization.trialEndsAt ? (
-            &lt;span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600"&gt;
-              Trial ends: {formatShortDate(organization.trialEndsAt)}
+    &lt;div className="mx-auto w-full max-w-5xl space-y-5"&gt;
+
+      {/* â”€â”€ Header card â”€â”€ */}
+      &lt;div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"&gt;
+        &lt;div className="flex flex-wrap items-start justify-between gap-3"&gt;
+          &lt;div&gt;
+            &lt;h1 className="text-xl font-bold text-slate-900"&gt;Choose Your DiagSync Plan&lt;/h1&gt;
+            &lt;p className="mt-1 text-sm text-slate-500"&gt;
+              Pick a plan to continue using your lab workspace. Your data remains safe even when billing is locked.
+            &lt;/p&gt;
+          &lt;/div&gt;
+          &lt;div className="flex flex-wrap gap-2"&gt;
+            &lt;span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600"&gt;
+              Current plan: &lt;strong&gt;{organization.plan}&lt;/strong&gt;
             &lt;/span&gt;
-          ) : null}
+            &lt;span
+              className={`rounded-full border px-3 py-1 text-xs font-medium
+                ${organization.status === "TRIAL_ACTIVE"
+                  ? "border-blue-200 bg-blue-50 text-blue-700"
+                  : organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED"
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : organization.status === "ACTIVE"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"}`}
+            &gt;
+              Status: &lt;strong&gt;{organization.status}&lt;/strong&gt;
+            &lt;/span&gt;
+            {organization.trialEndsAt &amp;&amp; (
+              &lt;span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600"&gt;
+                Trial ends: &lt;strong&gt;{formatShortDate(organization.trialEndsAt)}&lt;/strong&gt;
+              &lt;/span&gt;
+            )}
+          &lt;/div&gt;
         &lt;/div&gt;
-        {access.trialDaysLeft !== null ? (
-          &lt;p className={`mt-3 text-sm font-medium ${access.isTrialWarning ? "text-amber-600" : "text-slate-700"}`}&gt;
-            Trial ends in {access.trialDaysLeft} day{access.trialDaysLeft === 1 ? "" : "s"}.
-          &lt;/p&gt;
-        ) : null}
-        {organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED" ? (
-          &lt;p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"&gt;
-            Your free trial has ended. Choose a plan to continue.
-          &lt;/p&gt;
-        ) : null}
-        {organization.status === "PAYMENT_PENDING" ? (
-          &lt;p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700"&gt;
-            Payment submitted. Your account will be activated after verification.
-          &lt;/p&gt;
-        ) : null}
+
+        {/* Trial countdown */}
+        {access.trialDaysLeft !== null &amp;&amp; (
+          &lt;div
+            className={`mt-4 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium
+              ${access.isTrialWarning ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"}`}
+          &gt;
+            &lt;span&gt;{access.isTrialWarning ? "âš ï¸" : "â³"}&lt;/span&gt;
+            &lt;span&gt;
+              Your free trial ends in{" "}
+              &lt;strong&gt;{access.trialDaysLeft} day{access.trialDaysLeft === 1 ? "" : "s"}&lt;/strong&gt;.
+              Upgrade anytime to remove the watermark and unlock more features.
+            &lt;/span&gt;
+          &lt;/div&gt;
+        )}
+        {access.subscriptionDaysLeft !== null &amp;&amp; organization.status === "ACTIVE" &amp;&amp; organization.plan !== "TRIAL" &amp;&amp; (
+          &lt;div className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700"&gt;
+            &lt;span&gt;â³&lt;/span&gt;
+            &lt;span&gt;
+              Subscription ends in{" "}
+              &lt;strong&gt;{access.subscriptionDaysLeft} day{access.subscriptionDaysLeft === 1 ? "" : "s"}&lt;/strong&gt;.
+            &lt;/span&gt;
+          &lt;/div&gt;
+        )}
+
+        {/* Expired alert */}
+        {(organization.status === "TRIAL_EXPIRED" || organization.status === "EXPIRED") &amp;&amp; (
+          &lt;div className="mt-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3"&gt;
+            &lt;span className="mt-0.5 text-red-500"&gt;ðŸ”’&lt;/span&gt;
+            &lt;div&gt;
+              &lt;p className="text-sm font-semibold text-red-800"&gt;Your free trial has ended&lt;/p&gt;
+              &lt;p className="text-xs text-red-600"&gt;
+                Choose a plan below to unlock your workspace. All your data is safe.
+              &lt;/p&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        )}
+
+        {/* Payment pending alert */}
+        {organization.status === "PAYMENT_PENDING" &amp;&amp; (
+          &lt;div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3"&gt;
+            &lt;span className="mt-0.5 text-amber-500"&gt;â³&lt;/span&gt;
+            &lt;div&gt;
+              &lt;p className="text-sm font-semibold text-amber-800"&gt;Payment submitted â€” awaiting verification&lt;/p&gt;
+              &lt;p className="text-xs text-amber-600"&gt;
+                We'll activate your account as soon as we confirm your payment.
+              &lt;/p&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        )}
       &lt;/div&gt;
 
-      {error ? &lt;div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"&gt;{error}&lt;/div&gt; : null}
-      {message ? &lt;div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700"&gt;{message}&lt;/div&gt; : null}
+      {/* â”€â”€ Alerts â”€â”€ */}
+      {error &amp;&amp; (
+        &lt;div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"&gt;{error}&lt;/div&gt;
+      )}
+      {message &amp;&amp; (
+        &lt;div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"&gt;{message}&lt;/div&gt;
+      )}
 
-      &lt;div className="grid grid-cols-1 gap-4 md:grid-cols-3"&gt;
+      {/* â”€â”€ Plan cards â”€â”€ */}
+      &lt;div className="grid grid-cols-1 gap-5 md:grid-cols-3"&gt;
         &lt;PlanCard
-          name="Free 2-week trial"
-          subtitle="Free 2-week trial â€” full access, no payment needed"
+          badge="Free Trial"
+          badgeColor="bg-amber-100 text-amber-700"
+          name="2-Week Free Trial"
           price="Free"
-          note="Everything unlocked from day one. The only catch: all printed reports carry a DiagSync watermark."
-          buttonText={canStartTrial ? (busy === "trial" ? "Starting..." : "Start Free Trial") : "Trial Ended"}
-          disabled={!canStartTrial || busy !== null}
+          desc="Full access from day one â€” every feature unlocked. The only catch: a DiagSync watermark appears on all printed reports."
+          features={TRIAL_FEATURES}
+          buttonText={canStartTrial ? (busy === "trial" ? "Starting..." : "Start Free Trial") : "Trial Unavailable"}
+          buttonClass="bg-amber-500 text-white hover:bg-amber-600"
+          disabled={!canStartTrial || busy !== null || hasPendingRequest}
           onClick={() =&gt; {
             if (!canStartTrial || busy) return;
             void handleStartTrial();
           }}
         /&gt;
         &lt;PlanCard
+          badge="Starter"
+          badgeColor="bg-blue-100 text-blue-700"
           name="Starter Pack"
-          subtitle="Laboratory-focused plan"
-          price={`${formatCurrency(PLAN_MONTHLY_AMOUNT_NGN.STARTER)} / month`}
-          note="Up to 15 staff. No radiology, imaging uploads, custom letterhead, or web push."
-          buttonText="Get Starter"
+          price={formatCurrency(planPriceMap.STARTER)}
+          priceNote="/ month"
+          desc="For labs focused on laboratory work. Full lab workflow and team tools â€” DiagSync watermark remains on prints."
+          features={STARTER_FEATURES}
+          buttonText={starterButtonText}
+          buttonClass="border border-blue-600 text-blue-600 hover:bg-blue-50"
+          disabled={starterDisabled}
           onClick={() =&gt; setSelectedPlan("STARTER")}
         /&gt;
         &lt;PlanCard
+          badge="Advanced"
+          badgeColor="bg-emerald-100 text-emerald-700"
           name="Advanced Pack"
-          subtitle="Full multi-department access"
-          price={`${formatCurrency(PLAN_MONTHLY_AMOUNT_NGN.ADVANCED)} / month`}
-          note="Unlimited staff. Includes radiology, cardiology, imaging uploads, branding, and web push."
-          buttonText="Get Advanced"
+          price={formatCurrency(planPriceMap.ADVANCED)}
+          priceNote="/ month"
+          desc="Full-service labs. Lab + Radiology + Cardiology, custom branding, imaging uploads, push notifications â€” clean reports, no watermark."
+          features={ADVANCED_FEATURES}
+          buttonText={advancedButtonText}
+          buttonClass="bg-blue-600 text-white hover:bg-blue-700"
+          disabled={busy !== null || hasPendingRequest}
+          highlight
+          tag="Most Popular"
           onClick={() =&gt; setSelectedPlan("ADVANCED")}
         /&gt;
       &lt;/div&gt;
 
-      {selectedPlan ? (
-        &lt;div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"&gt;
-          &lt;h2 className="text-base font-semibold text-slate-900"&gt;Manual Payment Instructions&lt;/h2&gt;
-          &lt;div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2"&gt;
-            &lt;div className="rounded-md border border-slate-200 bg-slate-50 p-3"&gt;
-              &lt;p className="font-medium text-slate-800"&gt;Selected Plan&lt;/p&gt;
-              &lt;p className="mt-1 text-slate-700"&gt;{selectedPlan}&lt;/p&gt;
-              &lt;p className="text-slate-700"&gt;{formatCurrency(PLAN_MONTHLY_AMOUNT_NGN[selectedPlan])} / month&lt;/p&gt;
+      {/* â”€â”€ Payment form â”€â”€ */}
+      {selectedPlan &amp;&amp; (
+        &lt;div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"&gt;
+          &lt;div className="mb-4 flex items-center justify-between"&gt;
+            &lt;div&gt;
+              &lt;h2 className="text-base font-bold text-slate-900"&gt;Manual Payment Instructions&lt;/h2&gt;
+              &lt;p className="mt-0.5 text-xs text-slate-500"&gt;
+                Transfer the exact amount and submit your reference below.
+              &lt;/p&gt;
             &lt;/div&gt;
-            &lt;div className="rounded-md border border-slate-200 bg-slate-50 p-3"&gt;
-              &lt;p className="font-medium text-slate-800"&gt;Bank Details&lt;/p&gt;
-              &lt;p className="mt-1 text-slate-700"&gt;Bank: {BILLING_BANK_DETAILS.bankName}&lt;/p&gt;
-              &lt;p className="text-slate-700"&gt;Account Number: {BILLING_BANK_DETAILS.accountNumber}&lt;/p&gt;
-              &lt;p className="text-slate-700"&gt;Account Name: {BILLING_BANK_DETAILS.accountName}&lt;/p&gt;
+            &lt;button
+              type="button"
+              onClick={() =&gt; setSelectedPlan(null)}
+              className="rounded-md px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-100"
+            &gt;
+              âœ• Cancel
+            &lt;/button&gt;
+          &lt;/div&gt;
+
+          &lt;div className="grid grid-cols-1 gap-3 sm:grid-cols-2"&gt;
+            &lt;div className="rounded-xl border border-blue-100 bg-blue-50 p-4"&gt;
+              &lt;p className="text-xs font-semibold uppercase tracking-wide text-blue-500"&gt;Selected Plan&lt;/p&gt;
+              &lt;p className="mt-1 text-lg font-bold text-slate-800"&gt;
+                {selectedPlan === "STARTER" ? "Starter Pack" : "Advanced Pack"}
+              &lt;/p&gt;
+              &lt;p className="text-xs text-slate-500"&gt;
+                {selectedPlan === organization.plan &amp;&amp; isActiveSubscription
+                  ? "Renewal request"
+                  : organization.plan === "STARTER" &amp;&amp; selectedPlan === "ADVANCED" &amp;&amp; isActiveSubscription
+                  ? "Upgrade request"
+                  : "New subscription request"}
+              &lt;/p&gt;
+              &lt;p className="text-sm font-semibold text-blue-700"&gt;
+                {formatCurrency(planPriceMap[selectedPlan])} / month
+              &lt;/p&gt;
+            &lt;/div&gt;
+            &lt;div className="rounded-xl border border-slate-100 bg-slate-50 p-4"&gt;
+              &lt;p className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Bank Details&lt;/p&gt;
+              &lt;p className="mt-1 text-sm font-semibold text-slate-800"&gt;{BILLING_BANK_DETAILS.bankName}&lt;/p&gt;
+              &lt;p className="mt-0.5 text-xs text-slate-600"&gt;Account: {BILLING_BANK_DETAILS.accountNumber}&lt;/p&gt;
+              &lt;p className="text-xs text-slate-600"&gt;Name: {BILLING_BANK_DETAILS.accountName}&lt;/p&gt;
             &lt;/div&gt;
           &lt;/div&gt;
 
           &lt;form
             className="mt-4 space-y-3"
-            onSubmit={(event) =&gt; {
-              event.preventDefault();
-              const form = event.currentTarget;
-              const data = new FormData(form);
+            onSubmit={(e) =&gt; {
+              e.preventDefault();
+              const data = new FormData(e.currentTarget);
               data.set("requestedPlan", selectedPlan);
               void handlePaymentSubmit(data);
             }}
           &gt;
             &lt;input type="hidden" name="requestedPlan" value={selectedPlan} /&gt;
             &lt;div&gt;
-              &lt;label className="mb-1 block text-xs font-medium text-slate-600"&gt;Transaction Reference&lt;/label&gt;
+              &lt;label className="mb-1 block text-xs font-medium text-slate-600"&gt;
+                Transaction Reference &lt;span className="text-red-500"&gt;*&lt;/span&gt;
+              &lt;/label&gt;
               &lt;input
                 name="transactionReference"
                 required
-                className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm text-slate-800"
-                placeholder="Enter bank transfer reference"
+                className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="e.g. TRF20250401XYZ"
               /&gt;
             &lt;/div&gt;
             &lt;div&gt;
-              &lt;label className="mb-1 block text-xs font-medium text-slate-600"&gt;Payment Proof (Optional)&lt;/label&gt;
-              &lt;input name="proof" type="file" className="block w-full text-xs text-slate-600" /&gt;
+              &lt;label className="mb-1 block text-xs font-medium text-slate-600"&gt;
+                Payment Proof &lt;span className="text-slate-400"&gt;(Optional)&lt;/span&gt;
+              &lt;/label&gt;
+              &lt;input
+                name="proof"
+                type="file"
+                className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-xs file:text-blue-600"
+              /&gt;
             &lt;/div&gt;
             &lt;div&gt;
-              &lt;label className="mb-1 block text-xs font-medium text-slate-600"&gt;Message (Optional)&lt;/label&gt;
+              &lt;label className="mb-1 block text-xs font-medium text-slate-600"&gt;
+                Note &lt;span className="text-slate-400"&gt;(Optional)&lt;/span&gt;
+              &lt;/label&gt;
               &lt;textarea
                 name="notes"
-                rows={3}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800"
-                placeholder="Any note for verification"
+                rows={2}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                placeholder="Any extra info for verification..."
               /&gt;
             &lt;/div&gt;
-            &lt;div className="flex flex-wrap gap-2"&gt;
+            &lt;div className="flex flex-wrap gap-2 pt-1"&gt;
               &lt;button
                 type="submit"
                 disabled={busy === "payment"}
-                className="rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
               &gt;
                 {busy === "payment" ? "Submitting..." : "I have made payment"}
               &lt;/button&gt;
               &lt;button
                 type="button"
                 onClick={() =&gt; setSelectedPlan(null)}
-                className="rounded-md border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               &gt;
                 Cancel
               &lt;/button&gt;
             &lt;/div&gt;
           &lt;/form&gt;
         &lt;/div&gt;
-      ) : null}
+      )}
 
-      &lt;div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"&gt;
-        &lt;h3 className="text-sm font-semibold text-slate-800"&gt;Recent Payment Requests&lt;/h3&gt;
+      {/* â”€â”€ Recent payment requests â”€â”€ */}
+      &lt;div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"&gt;
+        &lt;h3 className="text-sm font-bold text-slate-800"&gt;Recent Payment Requests&lt;/h3&gt;
         {paymentRequests.length === 0 ? (
-          &lt;p className="mt-2 text-xs text-slate-500"&gt;No payment requests submitted yet.&lt;/p&gt;
+          &lt;p className="mt-3 text-xs text-slate-400"&gt;No payment requests submitted yet.&lt;/p&gt;
         ) : (
-          &lt;div className="mt-2 overflow-x-auto"&gt;
+          &lt;div className="mt-3 overflow-x-auto"&gt;
             &lt;table className="w-full min-w-[620px] text-xs"&gt;
               &lt;thead&gt;
-                &lt;tr className="border-b border-slate-100 text-left text-slate-500"&gt;
-                  &lt;th className="px-2 py-2"&gt;Plan&lt;/th&gt;
-                  &lt;th className="px-2 py-2"&gt;Amount&lt;/th&gt;
-                  &lt;th className="px-2 py-2"&gt;Reference&lt;/th&gt;
-                  &lt;th className="px-2 py-2"&gt;Status&lt;/th&gt;
-                  &lt;th className="px-2 py-2"&gt;Submitted&lt;/th&gt;
+                &lt;tr className="border-b border-slate-100 text-left text-slate-400"&gt;
+                  &lt;th className="pb-2 pr-4 font-medium"&gt;Plan&lt;/th&gt;
+                  &lt;th className="pb-2 pr-4 font-medium"&gt;Amount&lt;/th&gt;
+                  &lt;th className="pb-2 pr-4 font-medium"&gt;Reference&lt;/th&gt;
+                  &lt;th className="pb-2 pr-4 font-medium"&gt;Status&lt;/th&gt;
+                  &lt;th className="pb-2 font-medium"&gt;Submitted&lt;/th&gt;
                 &lt;/tr&gt;
               &lt;/thead&gt;
-              &lt;tbody className="divide-y divide-slate-100"&gt;
+              &lt;tbody className="divide-y divide-slate-50"&gt;
                 {paymentRequests.map((item) =&gt; (
-                  &lt;tr key={item.id}&gt;
-                    &lt;td className="px-2 py-2 text-slate-700"&gt;{item.requestedPlan}&lt;/td&gt;
-                    &lt;td className="px-2 py-2 text-slate-700"&gt;{formatCurrency(item.amount)}&lt;/td&gt;
-                    &lt;td className="px-2 py-2 text-slate-600"&gt;{item.transactionReference ?? "-"}&lt;/td&gt;
-                    &lt;td className="px-2 py-2"&gt;
+                  &lt;tr key={item.id} className="text-slate-700"&gt;
+                    &lt;td className="py-2.5 pr-4"&gt;{item.requestedPlan}&lt;/td&gt;
+                    &lt;td className="py-2.5 pr-4"&gt;{formatCurrency(item.amount)}&lt;/td&gt;
+                    &lt;td className="py-2.5 pr-4 text-slate-500"&gt;{item.transactionReference ?? "â€“"}&lt;/td&gt;
+                    &lt;td className="py-2.5 pr-4"&gt;
                       &lt;span
-                        className={`rounded-full px-2 py-0.5 ${
-                          item.status === "APPROVED"
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold
+                          ${item.status === "APPROVED"
                             ? "bg-emerald-50 text-emerald-700"
                             : item.status === "REJECTED"
                             ? "bg-red-50 text-red-600"
-                            : "bg-amber-50 text-amber-700"
-                        }`}
+                            : "bg-amber-50 text-amber-700"}`}
                       &gt;
                         {item.status}
                       &lt;/span&gt;
                     &lt;/td&gt;
-                    &lt;td className="px-2 py-2 text-slate-500"&gt;{formatShortDate(item.createdAt)}&lt;/td&gt;
+                    &lt;td className="py-2.5 text-slate-400"&gt;{formatShortDate(item.createdAt)}&lt;/td&gt;
                   &lt;/tr&gt;
                 ))}
               &lt;/tbody&gt;
             &lt;/table&gt;
           &lt;/div&gt;
         )}
-        {activePending ? (
-          &lt;p className="mt-3 text-xs text-amber-700"&gt;
-            Latest pending request: {activePending.requestedPlan} ({formatCurrency(activePending.amount)}).
+        {activePending &amp;&amp; (
+          &lt;p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700"&gt;
+            â³ Pending request: &lt;strong&gt;{activePending.requestedPlan}&lt;/strong&gt; (
+            {formatCurrency(activePending.amount)}) â€” awaiting verification.
           &lt;/p&gt;
-        ) : null}
+        )}
       &lt;/div&gt;
+
     &lt;/div&gt;
   );
 }
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/billing/upgrade-hint.tsx</div><pre>"use client";
+
+import Link from "next/link";
+
+type UpgradeHintProps = {
+  message: string;
+  href?: string;
+  ctaLabel?: string;
+  className?: string;
+};
+
+export function UpgradeHint({
+  message,
+  href = "/dashboard/billing",
+  ctaLabel = "Upgrade plan",
+  className = "",
+}: UpgradeHintProps) {
+  return (
+    &lt;div className={`rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 ${className}`}&gt;
+      &lt;p&gt;{message}&lt;/p&gt;
+      &lt;Link href={href} className="mt-1 inline-flex font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-900"&gt;
+        {ctaLabel}
+      &lt;/Link&gt;
+    &lt;/div&gt;
+  );
+}
+
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/consultation/consultation-board.tsx</div><pre>"use client";
 
@@ -12773,6 +13339,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ROLE_LABELS, DEPARTMENT_LABELS } from "@/lib/utils";
 import { Role, Department, Shift } from "@prisma/client";
 import { Eye, EyeOff } from "lucide-react";
+import { UpgradeHint } from "@/components/billing/upgrade-hint";
 
 const schema = z.object({
   fullName: z.string().min(2, "Full name is required"),
@@ -12903,6 +13470,14 @@ export function AddStaffForm() {
               &lt;/SelectContent&gt;
             &lt;/Select&gt;
             {errors.role &amp;&amp; &lt;p className={errCls}&gt;{errors.role.message}&lt;/p&gt;}
+            {!radiologyAllowed ? (
+              &lt;div className="mt-1.5"&gt;
+                &lt;UpgradeHint
+                  message="Radiographer role is not available on this plan. Upgrade to Advanced to add Radiology staff."
+                  ctaLabel="Open Billing"
+                /&gt;
+              &lt;/div&gt;
+            ) : null}
           &lt;/div&gt;
 
           &lt;div&gt;
@@ -14311,6 +14886,106 @@ export function TestCatalogForm({ categories }: { categories: CategoryOption[] }
         &lt;/Button&gt;
       &lt;/div&gt;
     &lt;/section&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/install-prompt.tsx</div><pre>"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+type BeforeInstallPromptEvent = Event &amp; {
+  prompt: () =&gt; Promise&lt;void&gt;;
+  userChoice: Promise&lt;{ outcome: "accepted" | "dismissed"; platform: string }&gt;;
+};
+
+const DISMISS_KEY = "diagsync_install_prompt_dismissed";
+
+function isIosDevice() {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+function isStandaloneMode() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+}
+
+export function InstallPrompt() {
+  const [deferredPrompt, setDeferredPrompt] = useState&lt;BeforeInstallPromptEvent | null&gt;(null);
+  const [dismissed, setDismissed] = useState(true);
+  const [installing, setInstalling] = useState(false);
+
+  useEffect(() =&gt; {
+    const dismissedState = window.localStorage.getItem(DISMISS_KEY) === "1";
+    setDismissed(dismissedState);
+
+    const handler = (event: Event) =&gt; {
+      event.preventDefault();
+      setDeferredPrompt(event as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () =&gt; window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const showIosHint = useMemo(() =&gt; isIosDevice() &amp;&amp; !isStandaloneMode(), []);
+  const canShowPrompt = !dismissed &amp;&amp; !isStandaloneMode() &amp;&amp; (Boolean(deferredPrompt) || showIosHint);
+
+  async function handleInstall() {
+    if (!deferredPrompt) return;
+    setInstalling(true);
+    try {
+      await deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      setDeferredPrompt(null);
+    } finally {
+      setInstalling(false);
+    }
+  }
+
+  function handleDismiss() {
+    setDismissed(true);
+    window.localStorage.setItem(DISMISS_KEY, "1");
+  }
+
+  if (!canShowPrompt) return null;
+
+  return (
+    &lt;div className="fixed inset-x-3 bottom-[5.25rem] z-40 rounded-xl border border-slate-200 bg-white p-3 shadow-lg md:bottom-4 md:right-4 md:left-auto md:w-[340px]"&gt;
+      &lt;p className="text-sm font-semibold text-slate-800"&gt;Install DiagSync for faster access&lt;/p&gt;
+      &lt;p className="mt-1 text-xs text-slate-500"&gt;
+        {showIosHint
+          ? "Open Dashboard first, then tap Share and Add to Home Screen."
+          : "Get quick launch and app-like full-screen experience."}
+      &lt;/p&gt;
+      &lt;div className="mt-3 flex items-center gap-2"&gt;
+        {showIosHint ? (
+          &lt;Link
+            href="/dashboard"
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+          &gt;
+            Open Dashboard
+          &lt;/Link&gt;
+        ) : null}
+        {!showIosHint ? (
+          &lt;button
+            type="button"
+            onClick={() =&gt; void handleInstall()}
+            disabled={!deferredPrompt || installing}
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          &gt;
+            {installing ? "Installing..." : "Install"}
+          &lt;/button&gt;
+        ) : null}
+        &lt;button
+          type="button"
+          onClick={handleDismiss}
+          className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+        &gt;
+          Dismiss
+        &lt;/button&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
   );
 }
 </pre></div>
@@ -17191,12 +17866,13 @@ export function LabTaskBoard() {
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/layout/dashboard-shell.tsx</div><pre>"use client";
 
-import { useState } from "react";
 import { Role } from "@prisma/client";
 import { Sidebar } from "@/components/layout/sidebar";
 import { HeaderBar } from "@/components/layout/header-bar";
 import { OfflineStatusBar } from "@/components/shared/offline-status-bar";
 import { AppWarmup } from "@/components/shared/app-warmup";
+import { MobileBottomNav } from "@/components/mobile-bottom-nav";
+import { InstallPrompt } from "@/components/install-prompt";
 
 type DashboardShellProps = {
   user: {
@@ -17224,26 +17900,9 @@ export function DashboardShell({
   trialBanner = null,
   children,
 }: DashboardShellProps) {
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-
   return (
     &lt;div className="flex h-[100dvh] overflow-hidden bg-background"&gt;
       &lt;Sidebar user={user} className="hidden md:flex" /&gt;
-
-      {mobileSidebarOpen ? (
-        &lt;div className="fixed inset-0 z-50 md:hidden"&gt;
-          &lt;button
-            aria-label="Close navigation"
-            onClick={() =&gt; setMobileSidebarOpen(false)}
-            className="absolute inset-0 bg-black/35"
-          /&gt;
-          &lt;Sidebar
-            user={user}
-            className="relative z-10 flex h-[100dvh] w-[86vw] max-w-[320px] border-r border-slate-200 bg-white"
-            onNavigate={() =&gt; setMobileSidebarOpen(false)}
-          /&gt;
-        &lt;/div&gt;
-      ) : null}
 
       &lt;div className="flex min-w-0 flex-1 flex-col overflow-hidden"&gt;
         &lt;AppWarmup /&gt;
@@ -17253,9 +17912,9 @@ export function DashboardShell({
           role={role}
           initialAvailability={initialAvailability}
           showAvailabilityToggle={showAvailabilityToggle}
-          onOpenSidebar={() =&gt; setMobileSidebarOpen(true)}
         /&gt;
         &lt;OfflineStatusBar /&gt;
+        &lt;InstallPrompt /&gt;
         {trialBanner ? (
           &lt;div
             className={`mx-3 mt-3 rounded-md border px-3 py-2 text-xs sm:mx-4 md:mx-6 ${
@@ -17267,8 +17926,11 @@ export function DashboardShell({
             {trialBanner.text}
           &lt;/div&gt;
         ) : null}
-        &lt;main className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 md:p-6"&gt;{children}&lt;/main&gt;
+        &lt;main className="flex-1 overflow-y-auto px-3 py-3 pb-[calc(env(safe-area-inset-bottom,0px)+108px)] sm:px-4 md:p-6 md:pb-6"&gt;
+          {children}
+        &lt;/main&gt;
       &lt;/div&gt;
+      &lt;MobileBottomNav role={role} /&gt;
     &lt;/div&gt;
   );
 }
@@ -18480,6 +19142,238 @@ export function MdStaffCallPanel({ callerRole = "MD" }: { callerRole?: CallerRol
     &lt;/div&gt;
   );
 }
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/mobile-bottom-nav.tsx</div><pre>"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
+import {
+  Activity,
+  BarChart3,
+  Bell,
+  ClipboardList,
+  CreditCard,
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  MoreHorizontal,
+  Scan,
+  Settings2,
+  Stethoscope,
+  TestTube2,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { Role } from "@prisma/client";
+
+type NavItem = {
+  label: string;
+  href: string;
+  icon: React.ComponentType&lt;{ className?: string }&gt;;
+};
+
+type NavConfig = {
+  primary: NavItem[];
+  more: NavItem[];
+};
+
+const navByRole: Record&lt;Role, NavConfig&gt; = {
+  SUPER_ADMIN: {
+    primary: [
+      { label: "Dashboard", href: "/dashboard/hrm", icon: LayoutDashboard },
+      { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
+      { label: "Tasks", href: "/dashboard/hrm/operations", icon: Activity },
+      { label: "Reports", href: "/dashboard/hrm/release", icon: FileText },
+    ],
+    more: [
+      { label: "Lab Settings", href: "/dashboard/hrm/settings", icon: Settings2 },
+      { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
+      { label: "Review Queue", href: "/dashboard/md/review", icon: ClipboardList },
+      { label: "Staff Management", href: "/dashboard/hrm/staff", icon: Users },
+      { label: "Add Staff", href: "/dashboard/hrm/staff/new", icon: UserPlus },
+      { label: "Test Catalog", href: "/dashboard/hrm/tests", icon: TestTube2 },
+      { label: "Audit Log", href: "/dashboard/hrm/audit", icon: ClipboardList },
+      { label: "Analytics", href: "/dashboard/hrm/analytics", icon: BarChart3 },
+      { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
+      { label: "Notifications", href: "/dashboard/hrm/notifications", icon: Bell },
+    ],
+  },
+  HRM: {
+    primary: [
+      { label: "Dashboard", href: "/dashboard/hrm", icon: LayoutDashboard },
+      { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
+      { label: "Tasks", href: "/dashboard/hrm/operations", icon: Activity },
+      { label: "Reports", href: "/dashboard/hrm/release", icon: FileText },
+    ],
+    more: [
+      { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
+      { label: "Review Queue", href: "/dashboard/md/review", icon: ClipboardList },
+      { label: "Staff Management", href: "/dashboard/hrm/staff", icon: Users },
+      { label: "Add Staff", href: "/dashboard/hrm/staff/new", icon: UserPlus },
+      { label: "Test Catalog", href: "/dashboard/hrm/tests", icon: TestTube2 },
+      { label: "Audit Log", href: "/dashboard/hrm/audit", icon: ClipboardList },
+      { label: "Analytics", href: "/dashboard/hrm/analytics", icon: BarChart3 },
+      { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
+      { label: "Notifications", href: "/dashboard/hrm/notifications", icon: Bell },
+    ],
+  },
+  RECEPTIONIST: {
+    primary: [
+      { label: "Dashboard", href: "/dashboard/receptionist", icon: LayoutDashboard },
+      { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
+      { label: "Tasks", href: "/dashboard/receptionist/consultation", icon: ClipboardList },
+      { label: "Reports", href: "/dashboard/receptionist/release", icon: FileText },
+    ],
+    more: [
+      { label: "New Patient", href: "/dashboard/receptionist/new-patient", icon: UserPlus },
+      { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
+      { label: "Notifications", href: "/dashboard/receptionist/notifications", icon: Bell },
+    ],
+  },
+  LAB_SCIENTIST: {
+    primary: [
+      { label: "Dashboard", href: "/dashboard/lab-scientist", icon: LayoutDashboard },
+      { label: "Patients", href: "/dashboard/lab-scientist/results", icon: Users },
+      { label: "Tasks", href: "/dashboard/lab-scientist/queue", icon: ClipboardList },
+      { label: "Reports", href: "/dashboard/lab-scientist/results", icon: FileText },
+    ],
+    more: [
+      { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
+      { label: "Notifications", href: "/dashboard/lab-scientist/notifications", icon: Bell },
+    ],
+  },
+  RADIOGRAPHER: {
+    primary: [
+      { label: "Dashboard", href: "/dashboard/radiographer", icon: LayoutDashboard },
+      { label: "Patients", href: "/dashboard/radiographer/reports", icon: Users },
+      { label: "Tasks", href: "/dashboard/radiographer/queue", icon: Scan },
+      { label: "Reports", href: "/dashboard/radiographer/reports", icon: FileText },
+    ],
+    more: [
+      { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
+      { label: "Notifications", href: "/dashboard/radiographer/notifications", icon: Bell },
+    ],
+  },
+  MD: {
+    primary: [
+      { label: "Dashboard", href: "/dashboard/md", icon: LayoutDashboard },
+      { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
+      { label: "Tasks", href: "/dashboard/md/review", icon: ClipboardList },
+      { label: "Reports", href: "/dashboard/md/reports", icon: FileText },
+    ],
+    more: [
+      { label: "Consultation", href: "/dashboard/md/consultation", icon: Stethoscope },
+      { label: "Approved", href: "/dashboard/md/approved", icon: ClipboardList },
+      { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
+      { label: "Notifications", href: "/dashboard/md/notifications", icon: Bell },
+    ],
+  },
+  MEGA_ADMIN: { primary: [], more: [] },
+};
+
+export function MobileBottomNav({ role }: { role: Role }) {
+  const pathname = usePathname();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const config = navByRole[role];
+
+  const moreActive = useMemo(
+    () =&gt; config.more.some((item) =&gt; pathname === item.href || pathname.startsWith(`${item.href}/`)),
+    [config.more, pathname]
+  );
+
+  if (!config || config.primary.length === 0) return null;
+
+  return (
+    &lt;&gt;
+      &lt;nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-2px_10px_rgba(15,23,42,0.06)] backdrop-blur md:hidden"&gt;
+        &lt;ul
+          className="grid grid-cols-5 pt-1"
+          style={{
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
+          }}
+        &gt;
+          {config.primary.map((item) =&gt; {
+            const Icon = item.icon;
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              &lt;li key={item.href}&gt;
+                &lt;Link
+                  href={item.href}
+                  className={`flex min-h-[58px] flex-col items-center justify-center gap-1 px-1 text-[11px] ${
+                    active ? "text-blue-600" : "text-slate-500"
+                  }`}
+                &gt;
+                  &lt;Icon className={`h-4 w-4 ${active ? "text-blue-600" : "text-slate-400"}`} /&gt;
+                  &lt;span className="font-medium"&gt;{item.label}&lt;/span&gt;
+                &lt;/Link&gt;
+              &lt;/li&gt;
+            );
+          })}
+          &lt;li&gt;
+            &lt;button
+              type="button"
+              onClick={() =&gt; setMoreOpen(true)}
+              className={`flex min-h-[58px] w-full flex-col items-center justify-center gap-1 px-1 text-[11px] ${
+                moreOpen || moreActive ? "text-blue-600" : "text-slate-500"
+              }`}
+            &gt;
+              &lt;MoreHorizontal className={`h-4 w-4 ${moreOpen || moreActive ? "text-blue-600" : "text-slate-400"}`} /&gt;
+              &lt;span className="font-medium"&gt;More&lt;/span&gt;
+            &lt;/button&gt;
+          &lt;/li&gt;
+        &lt;/ul&gt;
+      &lt;/nav&gt;
+
+      {moreOpen ? (
+        &lt;div className="fixed inset-0 z-50 md:hidden"&gt;
+          &lt;button
+            type="button"
+            aria-label="Close more menu"
+            onClick={() =&gt; setMoreOpen(false)}
+            className="absolute inset-0 bg-slate-900/35"
+          /&gt;
+          &lt;div
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-200 bg-white p-4 shadow-2xl"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
+          &gt;
+            &lt;div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" /&gt;
+            &lt;p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;More&lt;/p&gt;
+            &lt;div className="grid grid-cols-1 gap-1"&gt;
+              {config.more.map((item) =&gt; {
+                const Icon = item.icon;
+                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                return (
+                  &lt;Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() =&gt; setMoreOpen(false)}
+                    className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${
+                      active ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  &gt;
+                    &lt;Icon className="h-4 w-4" /&gt;
+                    &lt;span&gt;{item.label}&lt;/span&gt;
+                  &lt;/Link&gt;
+                );
+              })}
+              &lt;button
+                type="button"
+                onClick={() =&gt; signOut({ callbackUrl: "/login" })}
+                className="mt-1 flex items-center gap-2 rounded-lg border border-red-100 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50"
+              &gt;
+                &lt;LogOut className="h-4 w-4" /&gt;
+                &lt;span&gt;Sign out&lt;/span&gt;
+              &lt;/button&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      ) : null}
+    &lt;/&gt;
+  );
+}
+
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/notifications/notification-bell.tsx</div><pre>"use client";
 
@@ -20195,6 +21089,7 @@ import { useRouter } from "next/navigation";
 import { Search, Plus, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { formatCurrency } from "@/lib/utils";
+import { UpgradeHint } from "@/components/billing/upgrade-hint";
 
 type Sex = "MALE" | "FEMALE" | "OTHER";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -20300,6 +21195,35 @@ function emptyField(): CreateFieldDraft {
     referenceNote: "",
     options: "",
   };
+}
+
+function isAdvancedFeatureSearch(query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+  return [
+    "xray",
+    "x-ray",
+    "x ray",
+    "mri",
+    "ct",
+    "scan",
+    "ultrasound",
+    "uss",
+    "radiology",
+    "cardio",
+    "ecg",
+    "echo",
+    "doppler",
+  ].some((token) =&gt; q.includes(token));
+}
+
+function isUpgradeRelatedMessage(message: string) {
+  const value = message.toLowerCase();
+  return (
+    value.includes("available on trial or advanced plan") ||
+    value.includes("staff limit reached") ||
+    value.includes("upgrade")
+  );
 }
 
 const inputCls =
@@ -20597,7 +21521,14 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
         Remove test is allowed only before result submission to MD. Added tests are routed to lab automatically.
       &lt;/div&gt;
 
-      {error ? &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt; : null}
+      {error ? (
+        &lt;div className="space-y-2"&gt;
+          &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt;
+          {isUpgradeRelatedMessage(error) ? (
+            &lt;UpgradeHint message="Your current plan limits this action. Upgrade to continue." ctaLabel="Open Billing" /&gt;
+          ) : null}
+        &lt;/div&gt;
+      ) : null}
       {success ? &lt;div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700"&gt;{success}&lt;/div&gt; : null}
 
       &lt;div className="grid grid-cols-1 gap-4 lg:grid-cols-3"&gt;
@@ -20694,6 +21625,18 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
                         &lt;/span&gt;
                       &lt;/button&gt;
                     ))}
+                  &lt;/div&gt;
+                ) : null}
+                {showDropdown &amp;&amp; testSearch.length &gt; 0 &amp;&amp; testResults.length === 0 &amp;&amp; !searchLoading ? (
+                  &lt;div className="absolute z-50 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg px-3 py-3"&gt;
+                    {isAdvancedFeatureSearch(testSearch) ? (
+                      &lt;UpgradeHint
+                        message={`No tests found for "${testSearch}". Radiology/Cardiology tests are available on Advanced plan.`}
+                        ctaLabel="Go to Billing"
+                      /&gt;
+                    ) : (
+                      &lt;p className="text-center text-xs text-slate-400"&gt;No tests found for "{testSearch}"&lt;/p&gt;
+                    )}
                   &lt;/div&gt;
                 ) : null}
               &lt;/div&gt;
@@ -20935,6 +21878,7 @@ import { useRouter } from "next/navigation";
 import { Search, X, Plus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
 import { formatCurrency } from "@/lib/utils";
+import { UpgradeHint } from "@/components/billing/upgrade-hint";
 import { enqueueOfflinePatient, listOfflinePatientItems, removeOfflinePatient, type OfflinePatientPayload } from "@/lib/offline-sync";
 import { buildReferenceNote, splitReferenceNote } from "@/lib/reference-ranges";
 import { estimateDateOfBirthFromEnteredAge } from "@/lib/patient-age";
@@ -20988,6 +21932,35 @@ function toFieldKey(label: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+function isAdvancedFeatureSearch(query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+  return [
+    "xray",
+    "x-ray",
+    "x ray",
+    "mri",
+    "ct",
+    "scan",
+    "ultrasound",
+    "uss",
+    "radiology",
+    "cardio",
+    "ecg",
+    "echo",
+    "doppler",
+  ].some((token) =&gt; q.includes(token));
+}
+
+function isUpgradeRelatedMessage(message: string) {
+  const value = message.toLowerCase();
+  return (
+    value.includes("available on trial or advanced plan") ||
+    value.includes("staff limit reached") ||
+    value.includes("upgrade")
+  );
 }
 
 function emptyField(): CreateFieldDraft {
@@ -21646,8 +22619,15 @@ export function NewPatientForm() {
                   &lt;/div&gt;
                 )}
                 {showDropdown &amp;&amp; testSearch.length &gt; 0 &amp;&amp; testResults.length === 0 &amp;&amp; !searchLoading &amp;&amp; (
-                  &lt;div className="absolute z-50 w-full mt-1 rounded border border-slate-200 bg-white shadow-lg px-4 py-3 text-center text-xs text-slate-400"&gt;
-                    No tests found for "{testSearch}"
+                  &lt;div className="absolute z-50 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg px-3 py-3"&gt;
+                    {isAdvancedFeatureSearch(testSearch) ? (
+                      &lt;UpgradeHint
+                        message={`No tests found for "${testSearch}". Radiology/Cardiology tests are available on Advanced plan.`}
+                        ctaLabel="Go to Billing"
+                      /&gt;
+                    ) : (
+                      &lt;p className="text-center text-xs text-slate-400"&gt;No tests found for "{testSearch}"&lt;/p&gt;
+                    )}
                   &lt;/div&gt;
                 )}
               &lt;/div&gt;
@@ -22039,7 +23019,12 @@ export function NewPatientForm() {
           {/* Submit */}
           &lt;div className="space-y-2"&gt;
             {error &amp;&amp; (
-              &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt;
+              &lt;div className="space-y-2"&gt;
+                &lt;div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt;
+                {isUpgradeRelatedMessage(error) ? (
+                  &lt;UpgradeHint message="Your current plan limits this action. Upgrade to continue." ctaLabel="Open Billing" /&gt;
+                ) : null}
+              &lt;/div&gt;
             )}
             &lt;button
               disabled={submitting || cart.length === 0}
@@ -22060,6 +23045,7 @@ export function NewPatientForm() {
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "@/lib/utils";
+import { UpgradeHint } from "@/components/billing/upgrade-hint";
 
 type ReportType = "lab" | "radiology";
 type Department = "LABORATORY" | "RADIOLOGY";
@@ -22087,6 +23073,11 @@ type LabCatalogTest = {
     normalMax?: number | null;
     normalText?: string | null;
   }&gt;;
+};
+
+type BillingAccessHint = {
+  shouldShowWatermark: boolean;
+  canUseCustomLetterhead: boolean;
 };
 
 function deepCopy&lt;T&gt;(value: T): T {
@@ -22219,6 +23210,7 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
   const [labTestSearch, setLabTestSearch] = useState("");
   const [labTestSearchBusy, setLabTestSearchBusy] = useState(false);
   const [labTestSearchResults, setLabTestSearchResults] = useState&lt;LabCatalogTest[]&gt;([]);
+  const [billingAccess, setBillingAccess] = useState&lt;BillingAccessHint | null&gt;(null);
   const previewRef = useRef&lt;HTMLIFrameElement | null&gt;(null);
   const loadReportsSeqRef = useRef(0);
   const loadDetailsSeqRef = useRef(0);
@@ -22363,6 +23355,22 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
     const timer = window.setTimeout(() =&gt; { void searchLabCatalog(labTestSearch); }, 250);
     return () =&gt; window.clearTimeout(timer);
   }, [labTestSearch]);
+
+  useEffect(() =&gt; {
+    void (async () =&gt; {
+      try {
+        const res = await fetch("/api/billing/overview");
+        const json = await res.json();
+        if (!json?.success) return;
+        setBillingAccess({
+          shouldShowWatermark: Boolean(json.data?.access?.shouldShowWatermark),
+          canUseCustomLetterhead: Boolean(json.data?.access?.canUseCustomLetterhead),
+        });
+      } catch {
+        // no-op
+      }
+    })();
+  }, []);
 
   function updateLabField(tIdx: number, rIdx: number, key: "value" | "unit" | "reference", value: string) {
     setEditableContent((prev: any) =&gt; {
@@ -22689,8 +23697,21 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
                     {canReceptionDispatch ? "Dispatch" : "Release"}
                   &lt;/p&gt;
                   &lt;div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600"&gt;
-                    Print option: choose with or without letterhead. Watermark stays in both modes. WhatsApp always uses letterhead.
+                    Print option: choose with or without letterhead. WhatsApp always uses letterhead.
+                    {billingAccess?.shouldShowWatermark ? " Watermark is currently enabled for this plan." : " Watermark is currently removed for this plan."}
                   &lt;/div&gt;
+                  {billingAccess?.shouldShowWatermark ? (
+                    &lt;UpgradeHint
+                      message="Upgrade to Advanced to remove DiagSync watermark on printed/downloaded reports and unlock custom branding."
+                      ctaLabel="Upgrade on Billing"
+                    /&gt;
+                  ) : null}
+                  {billingAccess &amp;&amp; !billingAccess.canUseCustomLetterhead ? (
+                    &lt;UpgradeHint
+                      message="Custom letterhead is not available on this plan. Upgrade to Advanced for branded report letterheads."
+                      ctaLabel="Go to Billing"
+                    /&gt;
+                  ) : null}
                   &lt;div&gt;
                     &lt;label className={labelCls}&gt;Print format&lt;/label&gt;
                     &lt;select
@@ -23269,6 +24290,35 @@ export function StatsCard({
     &lt;/div&gt;
   );
 }
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/standalone-dashboard-redirect.tsx</div><pre>"use client";
+
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+
+function isStandaloneMode() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+}
+
+export function StandaloneDashboardRedirect() {
+  const pathname = usePathname();
+
+  useEffect(() =&gt; {
+    if (!pathname) return;
+    if (!isStandaloneMode()) return;
+    if (pathname.startsWith("/dashboard")) return;
+    if (pathname.startsWith("/login") || pathname.startsWith("/register") || pathname.startsWith("/admin")) return;
+
+    const bootedKey = "diagsync_standalone_booted";
+    if (window.sessionStorage.getItem(bootedKey) === "1") return;
+    window.sessionStorage.setItem(bootedKey, "1");
+    window.location.replace("/dashboard");
+  }, [pathname]);
+
+  return null;
+}
+
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/ui/button.tsx</div><pre>import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
@@ -33353,7 +34403,7 @@ import { getToken } from "next-auth/jwt";
 import { getDashboardPath } from "@/lib/utils";
 import { Role } from "@prisma/client";
 
-const publicRoutes = new Set(["/", "/login", "/register"]);
+const publicRoutes = new Set(["/", "/login", "/register", "/offline"]);
 const AUTH_SECRET =
   process.env.AUTH_SECRET ||
   process.env.NEXTAUTH_SECRET ||
@@ -33382,6 +34432,9 @@ export default async function middleware(req: NextRequest) {
 
   const isPublicRoute =
     publicRoutes.has(pathname) ||
+    pathname === "/manifest.json" ||
+    pathname === "/sw.js" ||
+    pathname.startsWith("/workbox-") ||
     pathname.startsWith("/public/reports/") ||
     pathname.startsWith("/api/auth") ||
     pathname === "/api/uploads/branding" ||
@@ -33424,7 +34477,7 @@ export default async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.svg|.*\\.ico|.*\\.webp).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|workbox-.*\\.js|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.svg|.*\\.ico|.*\\.webp).*)",
   ],
 };
 </pre></div>
