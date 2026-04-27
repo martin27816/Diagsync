@@ -710,7 +710,7 @@ export function NewPatientForm() {
           </div>
 
           {/* Tests */}
-          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-lg border border-slate-200 bg-white">
             <div className="border-b border-slate-100 px-4 py-2.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tests Ordered</span>
             </div>
@@ -730,7 +730,7 @@ export function NewPatientForm() {
                 </div>
 
                 {showDropdown && testResults.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 rounded border border-slate-200 bg-white shadow-lg max-h-56 overflow-y-auto">
+                  <div className="absolute z-50 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg max-h-[min(24rem,calc(100vh-12rem))] overflow-y-auto">
                     {testResults.map((test) => (
                       <button key={test.id} type="button" onClick={() => addToCart(test)}
                         className="flex w-full items-center justify-between px-3 py-2.5 text-xs hover:bg-slate-50 transition-colors text-left border-b border-slate-100 last:border-0">
