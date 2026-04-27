@@ -46,7 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
                   document.documentElement.classList.toggle("dark", dark);
                   var meta = document.querySelector('meta[name="theme-color"]');
-                  if (meta) meta.setAttribute("content", dark ? "#020617" : "#ffffff");
+                  if (meta) meta.setAttribute("content", dark ? "#050505" : "#ffffff");
                 } catch (e) {}
               })();
             `,
