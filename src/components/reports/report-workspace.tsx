@@ -497,21 +497,20 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
 
   async function sendWhatsapp() {
     if (!details) return;
-    const whatsappWindow = window.open("about:blank", "_blank", "noopener,noreferrer");
-    let shouldCloseWindow = true;
     setBusy(true); setError(""); setMessage("");
     try {
       const res = await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "SEND_WHATSAPP" }) });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "WhatsApp handoff failed"); return; }
       if (json.data?.waUrl) {
-        if (whatsappWindow) { whatsappWindow.location.href = json.data.waUrl; }
-        else { try { window.location.href = json.data.waUrl; } catch { } }
-        shouldCloseWindow = false;
-        setMessage("WhatsApp opened. Send the report link to the patient.");
+        const popup = window.open(json.data.waUrl, "_blank", "noopener,noreferrer");
+        if (!popup) {
+          setError("Unable to open new tab. Please allow popups for this site and try again.");
+          return;
+        }
+        setMessage("WhatsApp opened in a new tab. Send the report link to the patient.");
       } else { setError("WhatsApp destination unavailable."); }
     } finally {
-      if (shouldCloseWindow && whatsappWindow && whatsappWindow.location.href === "about:blank") whatsappWindow.close();
       setBusy(false);
     }
   }
