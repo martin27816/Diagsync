@@ -71,6 +71,7 @@ export default async function EditReceptionPatientPage({
         visitId={latestVisit.id}
         patient={{
           id: patient.id,
+          patientId: patient.patientId,
           fullName: patient.fullName,
           age: patient.age,
           sex: patient.sex,

@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 const updateVisitSchema = z.object({
   patient: z.object({
+    patientId: z.string().trim().min(1, "Patient number is required"),
     fullName: z.string().min(2, "Patient full name is required"),
     age: z.number().int().min(0).max(150),
     sex: z.nativeEnum(Sex),
@@ -158,6 +159,23 @@ export async function PATCH(
     if (!visit) {
       return NextResponse.json({ success: false, error: "Visit not found" }, { status: 404 });
     }
+
+    const nextPatientNumber = data.patient.patientId.trim();
+    const duplicatePatient = await prisma.patient.findFirst({
+      where: {
+        organizationId: user.organizationId,
+        patientId: { equals: nextPatientNumber, mode: "insensitive" },
+        id: { not: visit.patientId },
+      },
+      select: { id: true },
+    });
+    if (duplicatePatient) {
+      return NextResponse.json(
+        { success: false, error: "Patient number already exists in this organization" },
+        { status: 409 }
+      );
+    }
+
     if (tests.length !== uniqueTestIds.size) {
       return NextResponse.json({ success: false, error: "One or more selected tests were not found" }, { status: 400 });
     }
@@ -210,6 +228,7 @@ export async function PATCH(
       await tx.patient.update({
         where: { id: visit.patientId },
         data: {
+          patientId: nextPatientNumber,
           fullName: data.patient.fullName.trim(),
           age: data.patient.age,
           sex: data.patient.sex,
@@ -428,6 +447,7 @@ export async function DELETE(
     const taskIds = visit.routingTasks.map((task) => task.id);
     const testOrderIds = visit.testOrders.map((order) => order.id);
 
+    let deletedPatient = false;
     await prisma.$transaction(async (tx) => {
       const notificationClauses: Array<Record<string, unknown>> = [
         { entityType: "Visit", entityId: visit.id },
@@ -465,6 +485,33 @@ export async function DELETE(
       await tx.visit.delete({
         where: { id: visit.id },
       });
+
+      const remainingVisitCount = await tx.visit.count({
+        where: {
+          organizationId: user.organizationId,
+          patientId: visit.patient.id,
+        },
+      });
+
+      if (remainingVisitCount === 0) {
+        await tx.notification.deleteMany({
+          where: {
+            organizationId: user.organizationId,
+            entityType: "Patient",
+            entityId: visit.patient.id,
+          },
+        });
+        await tx.auditLog.deleteMany({
+          where: {
+            entityType: "Patient",
+            entityId: visit.patient.id,
+          },
+        });
+        await tx.patient.delete({
+          where: { id: visit.patient.id },
+        });
+        deletedPatient = true;
+      }
     });
 
     await createAuditLog({
@@ -483,12 +530,30 @@ export async function DELETE(
       notes: "Visit and all linked workflow records deleted permanently",
     });
 
+    if (deletedPatient) {
+      await createAuditLog({
+        actorId: user.id,
+        actorRole: user.role as Role,
+        action: "PATIENT_DELETED",
+        entityType: "Patient",
+        entityId: visit.patient.id,
+        oldValue: {
+          patientId: visit.patient.patientId,
+          fullName: visit.patient.fullName,
+        },
+        notes: "Patient removed automatically after deleting last remaining visit",
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      message: "Visit deleted permanently",
+      message: deletedPatient
+        ? "Visit deleted permanently. Patient profile was also removed because no visits remain."
+        : "Visit deleted permanently",
       data: {
         visitId: visit.id,
         patientId: visit.patient.id,
+        patientDeleted: deletedPatient,
         taskCount: taskIds.length,
         testOrderCount: testOrderIds.length,
       },

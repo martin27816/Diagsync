@@ -156,9 +156,46 @@ export async function POST(req: NextRequest) {
         organizationId: user.organizationId,
         patientId: { equals: patientNumber, mode: "insensitive" },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        _count: { select: { visits: true } },
+      },
     });
     if (existingPatient) {
+      // Historical cleanup: reclaim patient numbers left behind by older "delete visit" flows.
+      if (existingPatient._count.visits === 0) {
+        await prisma.$transaction(async (tx) => {
+          await tx.notification.deleteMany({
+            where: {
+              organizationId: user.organizationId,
+              entityType: "Patient",
+              entityId: existingPatient.id,
+            },
+          });
+          await tx.auditLog.deleteMany({
+            where: {
+              entityType: "Patient",
+              entityId: existingPatient.id,
+            },
+          });
+          await tx.patient.delete({ where: { id: existingPatient.id } });
+        });
+      } else {
+        return NextResponse.json(
+          { success: false, error: "Patient number already exists in this organization" },
+          { status: 409 }
+        );
+      }
+    }
+
+    const duplicateAfterCleanup = await prisma.patient.findFirst({
+      where: {
+        organizationId: user.organizationId,
+        patientId: { equals: patientNumber, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    if (duplicateAfterCleanup) {
       return NextResponse.json(
         { success: false, error: "Patient number already exists in this organization" },
         { status: 409 }

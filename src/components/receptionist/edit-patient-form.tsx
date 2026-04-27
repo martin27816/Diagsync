@@ -55,6 +55,7 @@ interface Props {
   visitId: string;
   patient: {
     id: string;
+    patientId: string;
     fullName: string;
     age: number;
     sex: Sex;
@@ -150,6 +151,7 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
   const router = useRouter();
   const searchRef = useRef<HTMLDivElement>(null);
 
+  const [patientNumber, setPatientNumber] = useState(patient.patientId);
   const [fullName, setFullName] = useState(patient.fullName);
   const [age, setAge] = useState(String(patient.age));
   const [sex, setSex] = useState<Sex>(patient.sex);
@@ -404,6 +406,7 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
     setError("");
     setSuccess("");
 
+    if (!patientNumber.trim()) return setError("Patient number is required.");
     if (!fullName.trim()) return setError("Patient full name is required.");
     if (!age.trim() || Number.isNaN(Number(age))) return setError("Valid age is required.");
     if (!phone.trim()) return setError("Phone number is required.");
@@ -414,6 +417,7 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
     try {
       const payload = {
         patient: {
+          patientId: patientNumber.trim(),
           fullName: fullName.trim(),
           age: Math.trunc(Number(age)),
           sex,
@@ -477,6 +481,10 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Patient Details</span>
             </div>
             <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>Patient Number *</label>
+                <input className={inputCls} value={patientNumber} onChange={(e) => setPatientNumber(e.target.value)} />
+              </div>
               <div className="sm:col-span-2">
                 <label className={labelCls}>Full Name *</label>
                 <input className={inputCls} value={fullName} onChange={(e) => setFullName(e.target.value)} />

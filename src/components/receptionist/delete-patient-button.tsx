@@ -19,7 +19,7 @@ export function DeletePatientButton({
   async function onDelete() {
     if (busy) return;
     const approved = window.confirm(
-      `Delete this visit for ${patientName}${visitNumber ? ` (${visitNumber})` : ""}? This removes only this visit's tests/results/reports/tasks and keeps previous visits.`
+      `Delete this visit for ${patientName}${visitNumber ? ` (${visitNumber})` : ""}? This removes this visit's tests/results/reports/tasks. If this is the only visit, the patient profile and patient number will also be removed.`
     );
     if (!approved) return;
 
