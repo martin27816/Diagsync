@@ -42,6 +42,22 @@ export async function POST(req: NextRequest) {
         select: { id: true, deviceKey: true, organizationId: true, name: true, createdAt: true },
       }));
 
+    // Always keep current signed-in staff linked to this trusted device,
+    // so account switch can always return to the active session identity.
+    await prisma.deviceStaff.upsert({
+      where: {
+        deviceId_staffId: {
+          deviceId: device.id,
+          staffId: actor.id,
+        },
+      },
+      update: {},
+      create: {
+        deviceId: device.id,
+        staffId: actor.id,
+      },
+    });
+
     if (!existing) {
       await createAuditLog({
         actorId: actor.id,
