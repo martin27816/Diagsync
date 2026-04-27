@@ -893,7 +893,7 @@ export default async function HomePage() {
 
       {/* ── CTA ── */}
       <section className="mx-auto max-w-6xl px-6 py-20">
-        <div className="rv rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white px-10 py-16 text-center">
+        <div className="rv rounded-2xl border border-blue-100 dark:border-blue-900/40 bg-gradient-to-br from-blue-50 to-white dark:from-slate-900 dark:to-slate-950 px-10 py-16 text-center">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-700 mb-6">
             <span className="h-1.5 w-1.5 rounded-full bg-blue-500 pulse" />
             Ready to get started

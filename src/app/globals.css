@@ -101,10 +101,28 @@
     background-color: rgb(30 41 59) !important;
   }
 
+  .dark .bg-gray-50 {
+    background-color: rgb(2 6 23) !important;
+  }
+
+  .dark .bg-gray-100 {
+    background-color: rgb(15 23 42) !important;
+  }
+
+  .dark .bg-gray-900 {
+    background-color: rgb(2 6 23) !important;
+  }
+
   .dark .border-slate-50,
   .dark .border-slate-100,
   .dark .border-slate-200,
   .dark .border-slate-300 {
+    border-color: rgb(51 65 85) !important;
+  }
+
+  .dark .border-gray-100,
+  .dark .border-gray-200,
+  .dark .border-gray-300 {
     border-color: rgb(51 65 85) !important;
   }
 
@@ -124,6 +142,26 @@
     color: rgb(148 163 184) !important;
   }
 
+  .dark .text-gray-900,
+  .dark .text-gray-800 {
+    color: rgb(241 245 249) !important;
+  }
+
+  .dark .text-gray-700,
+  .dark .text-gray-600,
+  .dark .text-gray-500 {
+    color: rgb(203 213 225) !important;
+  }
+
+  .dark .text-gray-400,
+  .dark .text-gray-300 {
+    color: rgb(148 163 184) !important;
+  }
+
+  .dark .placeholder\:text-gray-300::placeholder {
+    color: rgb(100 116 139) !important;
+  }
+
   .dark .placeholder\:text-slate-300::placeholder {
     color: rgb(100 116 139) !important;
   }
@@ -133,6 +171,14 @@
   }
 
   .dark .hover\:bg-slate-100:hover {
+    background-color: rgb(30 41 59) !important;
+  }
+
+  .dark .hover\:bg-gray-50:hover {
+    background-color: rgb(15 23 42) !important;
+  }
+
+  .dark .hover\:bg-gray-100:hover {
     background-color: rgb(30 41 59) !important;
   }
 
@@ -199,6 +245,22 @@
     --tw-gradient-from: rgb(15 23 42) var(--tw-gradient-from-position) !important;
     --tw-gradient-to: rgb(15 23 42 / 0) var(--tw-gradient-to-position) !important;
     --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  }
+
+  .dark .from-blue-50 {
+    --tw-gradient-from: rgb(15 23 42) var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgb(15 23 42 / 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  }
+
+  .dark .to-white,
+  .dark .to-indigo-50 {
+    --tw-gradient-to: rgb(2 6 23) var(--tw-gradient-to-position) !important;
+  }
+
+  .dark .via-white {
+    --tw-gradient-to: rgb(15 23 42 / 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), rgb(15 23 42) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
   }
 }
 

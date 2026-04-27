@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireMegaAdmin } from "@/lib/admin-auth";
 import { AdminSignOutButton } from "@/components/admin/admin-sign-out-button";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 const links = [
   { href: "/admin/dashboard", label: "Dashboard" },
@@ -18,6 +19,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div className="sticky top-0 z-40 border-b border-gray-200 bg-white px-6 py-3 flex items-center justify-between shadow-sm">
         <span className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Platform Admin</span>
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <AdminSignOutButton className="h-8 border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-900" />
           <div className="h-7 w-7 rounded-full bg-gray-900 flex items-center justify-center text-white text-xs font-bold">
             {user.fullName.charAt(0)}
