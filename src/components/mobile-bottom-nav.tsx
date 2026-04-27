@@ -142,7 +142,7 @@ export function MobileBottomNav({ role }: { role: Role }) {
 
   return (
     <>
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-2px_10px_rgba(15,23,42,0.06)] backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-2px_10px_rgba(15,23,42,0.06)] backdrop-blur dark:border-neutral-800 dark:bg-black/95 dark:shadow-[0_-2px_10px_rgba(0,0,0,0.5)] md:hidden">
         <ul
           className="grid grid-cols-5 pt-1"
           style={{
@@ -157,10 +157,10 @@ export function MobileBottomNav({ role }: { role: Role }) {
                 <Link
                   href={item.href}
                   className={`flex min-h-[58px] flex-col items-center justify-center gap-1 px-1 text-[11px] ${
-                    active ? "text-blue-600" : "text-slate-500"
+                    active ? "text-blue-600" : "text-slate-500 dark:text-neutral-400"
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${active ? "text-blue-600" : "text-slate-400"}`} />
+                  <Icon className={`h-4 w-4 ${active ? "text-blue-600" : "text-slate-400 dark:text-neutral-500"}`} />
                   <span className="font-medium">{item.label}</span>
                 </Link>
               </li>
@@ -171,10 +171,10 @@ export function MobileBottomNav({ role }: { role: Role }) {
               type="button"
               onClick={() => setMoreOpen(true)}
               className={`flex min-h-[58px] w-full flex-col items-center justify-center gap-1 px-1 text-[11px] ${
-                moreOpen || moreActive ? "text-blue-600" : "text-slate-500"
+                moreOpen || moreActive ? "text-blue-600" : "text-slate-500 dark:text-neutral-400"
               }`}
             >
-              <MoreHorizontal className={`h-4 w-4 ${moreOpen || moreActive ? "text-blue-600" : "text-slate-400"}`} />
+              <MoreHorizontal className={`h-4 w-4 ${moreOpen || moreActive ? "text-blue-600" : "text-slate-400 dark:text-neutral-500"}`} />
               <span className="font-medium">More</span>
             </button>
           </li>
@@ -187,14 +187,14 @@ export function MobileBottomNav({ role }: { role: Role }) {
             type="button"
             aria-label="Close more menu"
             onClick={() => setMoreOpen(false)}
-            className="absolute inset-0 bg-slate-900/35"
+            className="absolute inset-0 bg-slate-900/35 dark:bg-black/55"
           />
           <div
-            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-200 bg-white p-4 shadow-2xl"
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-200 bg-white p-4 shadow-2xl dark:border-neutral-800 dark:bg-black"
             style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
           >
-            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">More</p>
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200 dark:bg-neutral-700" />
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">More</p>
             <div className="grid grid-cols-1 gap-1">
               {config.more.map((item) => {
                 const Icon = item.icon;
@@ -205,7 +205,9 @@ export function MobileBottomNav({ role }: { role: Role }) {
                     href={item.href}
                     onClick={() => setMoreOpen(false)}
                     className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${
-                      active ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
+                      active
+                        ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                        : "text-slate-700 hover:bg-slate-50 dark:text-neutral-200 dark:hover:bg-neutral-900"
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -216,7 +218,7 @@ export function MobileBottomNav({ role }: { role: Role }) {
               <button
                 type="button"
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="mt-1 flex items-center gap-2 rounded-lg border border-red-100 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50"
+                className="mt-1 flex items-center gap-2 rounded-lg border border-red-100 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/40"
               >
                 <LogOut className="h-4 w-4" />
                 <span>Sign out</span>
@@ -228,4 +230,3 @@ export function MobileBottomNav({ role }: { role: Role }) {
     </>
   );
 }
-
