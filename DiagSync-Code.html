@@ -187,6 +187,7 @@ model Organization {
   tests                      DiagnosticTest[]
   patients                   Patient[]
   staff                      Staff[]
+  devices                    Device[]
 
   @@map("organizations")
 }
@@ -208,6 +209,9 @@ model Staff {
   lastAvailableAt                      DateTime?
   lastUnavailableAt                    DateTime?
   lastSeen                             DateTime?
+  pinHash                              String?
+  pinSetAt                             DateTime?
+  lastQuickSwitchAt                    DateTime?
   createdAt                            DateTime                  @default(now())
   updatedAt                            DateTime                  @updatedAt
   createdById                          String?
@@ -239,6 +243,7 @@ model Staff {
   assignedTestOrders                   TestOrder[]               @relation("AssignedTestOrders")
   overriddenTestOrders                 TestOrder[]               @relation("OverriddenTestOrders")
   visitPayments                        VisitPayment[]
+  deviceLinks                          DeviceStaff[]
 
   @@map("staff")
 }
@@ -777,6 +782,34 @@ enum OrganizationPlan {
   TRIAL
   STARTER
   ADVANCED
+}
+
+model Device {
+  id             String        @id @default(cuid())
+  deviceKey      String        @unique
+  organizationId String
+  name           String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  staffLinks     DeviceStaff[]
+
+  @@index([organizationId])
+  @@map("devices")
+}
+
+model DeviceStaff {
+  id         String   @id @default(cuid())
+  deviceId   String
+  staffId    String
+  addedAt    DateTime @default(now())
+  lastUsedAt DateTime?
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, staffId])
+  @@index([staffId])
+  @@map("device_staff")
 }
 
 enum OrganizationStatus {
@@ -3960,7 +3993,7 @@ main()
 
 
 </pre></div>
-<div class='file-block'><div class='file-header'>public/fallback-pIcB52wUFRAAFwQrJbVGD.js</div><pre>(()=&gt;{"use strict";self.fallback=async e=&gt;"document"===e.destination?caches.match("/offline",{ignoreSearch:!0}):Response.error()})();</pre></div>
+<div class='file-block'><div class='file-header'>public/fallback-DLLRNZFgv067eZf-1BkmZ.js</div><pre>(()=&gt;{"use strict";self.fallback=async e=&gt;"document"===e.destination?caches.match("/offline",{ignoreSearch:!0}):Response.error()})();</pre></div>
 <div class='file-block'><div class='file-header'>public/manifest.json</div><pre>{
   "name": "DiagSync",
   "short_name": "DiagSync",
@@ -3968,7 +4001,7 @@ main()
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "theme_color": "#ffffff",
   "orientation": "portrait",
   "icons": [
     {
@@ -3984,7 +4017,7 @@ main()
   ]
 }
 </pre></div>
-<div class='file-block'><div class='file-header'>public/sw.js</div><pre>if(!self.define){let a,e={};const s=(s,r)=&gt;(s=new URL(s+".js",r).href,e[s]||new Promise(e=&gt;{if("document"in self){const a=document.createElement("script");a.src=s,a.onload=e,document.head.appendChild(a)}else a=s,importScripts(s),e()}).then(()=&gt;{let a=e[s];if(!a)throw new Error(`Module ${s} didnâ€™t register its module`);return a}));self.define=(r,c)=&gt;{const i=a||("document"in self?document.currentScript.src:"")||location.href;if(e[i])return;let n={};const t=a=&gt;s(a,i),d={module:{uri:i},exports:n,require:t};e[i]=Promise.all(r.map(a=&gt;d[a]||t(a))).then(a=&gt;(c(...a),n))}}define(["./workbox-5268f9bb"],function(a){"use strict";importScripts("fallback-pIcB52wUFRAAFwQrJbVGD.js"),self.skipWaiting(),a.clientsClaim(),a.precacheAndRoute([{url:"/_next/app-build-manifest.json",revision:"66d4b4553b029b6057398c36c201bc07"},{url:"/_next/static/chunks/1114-02d7a6cf5b898211.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/1718-cdea0b2ef0657e8b.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/2117-6248ab8a803926e9.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/2736-b854e4d0eb1cc744.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/2972-d7f9b35a010ac3d8.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/5878-51910f4ce925886c.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/5898-64cb067901f4071a.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/5945-780c5f10685ba6bd.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/6137-de267f975f27b52e.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/7526-2941b8a7b9d63709.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/8778-2df859ca51eebdac.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/8989-261cee64e802debc.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/932-8a254be1e395d5ba.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/analytics/page-62bcc79e5d719b6d.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/dashboard/page-ee84b87a0b0093f3.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/labs/%5Bid%5D/page-25fd06e96d520ce6.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/labs/page-73129bf29d8fecc3.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/layout-a643ade4d834e2cd.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/loading-dd81057faffb916f.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/page-c6646a202f9c5fa0.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(admin)/admin/users/page-f0fb1baaeee94daf.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(auth)/layout-f13773e16ab51359.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(auth)/login/page-78efb85392b16af4.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(auth)/register/page-57691950ac11fe7f.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/billing/page-9193ba2b6b87b806.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/analytics/page-1cbfad64f6c4540a.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/audit/page-cfd1510a47d30e76.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/consultation/page-17612f8f0cadd6f7.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/notifications/page-aca02e1373dafeed.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/operations/page-87d52a234ed39557.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/page-0c9e185501c8b078.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/release/page-f2eba5be2a550206.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/settings/page-be847f3c2a5ddb08.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/%5Bid%5D/page-002c92bc805dce04.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/new/page-aaed7383083618fb.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/page-d05324d13cfedac2.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/tests/page-0f7b2dd0a00defd8.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/notifications/page-c745781ea410bb04.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/page-4b520c59e13bdd8b.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/queue/page-81ed58841ddbf45e.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/results/page-012ab9f1432a3f4d.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/approved/page-28aaaea069a5adb6.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/consultation/page-0babefc40c1a5ddb.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/notifications/page-94369fba75256fc8.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/page-8f9a8759c24329bf.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/reports/page-d31204fd31df7871.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/review/page-5c6219eeaca5d9b0.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/notifications/page-c224b13f76fe7fa9.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/page-dd866c7786fa9375.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/queue/page-6bf7a7ba7e7f795a.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/reports/page-e339cae048811e0d.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/consultation/page-f94d9e4034a6ae66.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/new-patient/page-0e6f7837df913028.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/notifications/page-4915db60cceacd5f.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/page-73e692c7cd0a7e12.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/%5BpatientId%5D/edit/page-c56764da54b127ff.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/page-73fee85b7e12f993.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/release/page-695479a4947850fb.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/error-75e2a57f15a66f59.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/layout-1a945e27760cd273.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/(dashboard)/loading-bee72116b26cdb65.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/_not-found/page-4c0a0e18fd9a95e3.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/dashboard/page-f599eda5209bdf25.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/error-c77673c4d9bf4c49.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/global-error-0e83b7331b1f188c.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/layout-862f9a34d486f2ab.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/not-found-9fdecb90e2a9e21f.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/offline/page-051a51daf2a8b659.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/page-b7e27963907821d4.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/app/public/reports/%5Btoken%5D/page-d46784d455178628.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/fd9d1056-8d69396482e34025.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/framework-a63c59c368572696.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/main-5532213164ed73bf.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/main-app-2877bb5658641a8d.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/pages/_app-78ddf957b9a9b996.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/pages/_error-7ce03bcf1df914ce.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/chunks/polyfills-42372ed130431b0a.js",revision:"846118c33b2c0e922d7b3a7676f81f6f"},{url:"/_next/static/chunks/webpack-e96e1091b6e3d5e0.js",revision:"pIcB52wUFRAAFwQrJbVGD"},{url:"/_next/static/css/57d4bf8df65b23b4.css",revision:"57d4bf8df65b23b4"},{url:"/_next/static/media/19cfc7226ec3afaa-s.woff2",revision:"9dda5cfc9a46f256d0e131bb535e46f8"},{url:"/_next/static/media/21350d82a1f187e9-s.woff2",revision:"4e2553027f1d60eff32898367dd4d541"},{url:"/_next/static/media/8e9860b6e62d6359-s.woff2",revision:"01ba6c2a184b8cba08b0d57167664d75"},{url:"/_next/static/media/ba9851c3c22cd980-s.woff2",revision:"9e494903d6b0ffec1a1e14d34427d44d"},{url:"/_next/static/media/c5fe6dc8356a8c31-s.woff2",revision:"027a89e9ab733a145db70f09b8a18b42"},{url:"/_next/static/media/df0a9ae256c0569c-s.woff2",revision:"d54db44de5ccb18886ece2fda72bdfe0"},{url:"/_next/static/media/e4af272ccee01ff0-s.p.woff2",revision:"65850a373e258f1c897a2b3d75eb74de"},{url:"/_next/static/pIcB52wUFRAAFwQrJbVGD/_buildManifest.js",revision:"0ea7e7088aabf697ba3d8aa8c7b54a89"},{url:"/_next/static/pIcB52wUFRAAFwQrJbVGD/_ssgManifest.js",revision:"b6652df95db52feb4daf4eca35380933"},{url:"/diagsync-logo.png",revision:"77e9c567b2a574379952fca17baf6e35"},{url:"/diagsync-watermark.png",revision:"aeff36c86804a6d13167bef4500ec421"},{url:"/icons/icon-192.png",revision:"cde0b3a52915e1aff301981f4779e52b"},{url:"/icons/icon-512.png",revision:"49194c78838f3f11eb491c3253dbfdbc"},{url:"/manifest.json",revision:"b6b303d4ac1bebfec1ed6952b808d1c2"},{url:"/offline",revision:"pIcB52wUFRAAFwQrJbVGD"}],{ignoreURLParametersMatching:[]}),a.cleanupOutdatedCaches(),a.registerRoute("/",new a.NetworkFirst({cacheName:"start-url",plugins:[{cacheWillUpdate:async({request:a,response:e,event:s,state:r})=&gt;e&amp;&amp;"opaqueredirect"===e.type?new Response(e.body,{status:200,statusText:"OK",headers:e.headers}):e},{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET"),a.registerRoute(({request:a})=&gt;"document"===a.destination,new a.NetworkFirst({cacheName:"pages-cache",networkTimeoutSeconds:5,plugins:[new a.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400}),{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET"),a.registerRoute(({url:a})=&gt;a.pathname.startsWith("/_next/static/"),new a.StaleWhileRevalidate({cacheName:"next-static-cache",plugins:[new a.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET"),a.registerRoute(({request:a})=&gt;"image"===a.destination,new a.CacheFirst({cacheName:"image-cache",plugins:[new a.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET"),a.registerRoute(({request:a})=&gt;"style"===a.destination||"script"===a.destination,new a.StaleWhileRevalidate({cacheName:"asset-cache",plugins:[new a.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET"),a.registerRoute(({url:a})=&gt;a.pathname.startsWith("/api/"),new a.NetworkOnly({cacheName:"api-no-cache",plugins:[{handlerDidError:async({request:a})=&gt;self.fallback(a)}]}),"GET")});
+<div class='file-block'><div class='file-header'>public/sw.js</div><pre>if(!self.define){let e,a={};const s=(s,i)=&gt;(s=new URL(s+".js",i).href,a[s]||new Promise(a=&gt;{if("document"in self){const e=document.createElement("script");e.src=s,e.onload=a,document.head.appendChild(e)}else e=s,importScripts(s),a()}).then(()=&gt;{let e=a[s];if(!e)throw new Error(`Module ${s} didnâ€™t register its module`);return e}));self.define=(i,n)=&gt;{const t=e||("document"in self?document.currentScript.src:"")||location.href;if(a[t])return;let r={};const d=e=&gt;s(e,t),c={module:{uri:t},exports:r,require:d};a[t]=Promise.all(i.map(e=&gt;c[e]||d(e))).then(e=&gt;(n(...e),r))}}define(["./workbox-5268f9bb"],function(e){"use strict";importScripts("fallback-DLLRNZFgv067eZf-1BkmZ.js"),self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"/_next/app-build-manifest.json",revision:"591c0b8ba9d1ead34ffb26a4f0cab991"},{url:"/_next/static/DLLRNZFgv067eZf-1BkmZ/_buildManifest.js",revision:"0ea7e7088aabf697ba3d8aa8c7b54a89"},{url:"/_next/static/DLLRNZFgv067eZf-1BkmZ/_ssgManifest.js",revision:"b6652df95db52feb4daf4eca35380933"},{url:"/_next/static/chunks/1718-cdea0b2ef0657e8b.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/2117-6248ab8a803926e9.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/2736-b854e4d0eb1cc744.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/2972-d7f9b35a010ac3d8.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/5878-51910f4ce925886c.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/5898-14b7d00275bff2b1.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/5945-780c5f10685ba6bd.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/6137-de267f975f27b52e.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/7526-2941b8a7b9d63709.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/8345-191dbf09d88a605f.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/8778-2df859ca51eebdac.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/8989-261cee64e802debc.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/932-8a254be1e395d5ba.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/analytics/page-b7b005834cafd4f3.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/dashboard/page-f87764f9488d30dc.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/labs/%5Bid%5D/page-25fd06e96d520ce6.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/labs/page-d2acc2f98cd56f8f.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/layout-a643ade4d834e2cd.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/loading-2d0580acb8a97dd2.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/page-27579f6edfdb69b5.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/users/page-d341ad3eb18e0ad0.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(auth)/layout-c689f4417a61a5be.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(auth)/login/page-78efb85392b16af4.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(auth)/register/page-57691950ac11fe7f.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/billing/page-9193ba2b6b87b806.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/analytics/page-d53b3e4d29feb398.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/audit/page-d568e30748e77484.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/consultation/page-17612f8f0cadd6f7.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/notifications/page-aca02e1373dafeed.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/operations/page-87d52a234ed39557.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/page-0c9e185501c8b078.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/release/page-f2eba5be2a550206.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/settings/page-be847f3c2a5ddb08.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/%5Bid%5D/page-002c92bc805dce04.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/new/page-aaed7383083618fb.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/page-d05324d13cfedac2.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/tests/page-0f7b2dd0a00defd8.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/notifications/page-c745781ea410bb04.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/page-4b520c59e13bdd8b.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/queue/page-81ed58841ddbf45e.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/results/page-4f40e5702a348a3d.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/approved/page-d00fd463d2cc563a.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/consultation/page-0babefc40c1a5ddb.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/notifications/page-94369fba75256fc8.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/page-8f9a8759c24329bf.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/reports/page-d31204fd31df7871.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/review/page-e52a25dde393738e.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/notifications/page-c224b13f76fe7fa9.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/page-dd866c7786fa9375.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/queue/page-6bf7a7ba7e7f795a.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/reports/page-42114ae36bc4ab28.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/consultation/page-f94d9e4034a6ae66.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/new-patient/page-a0f40cb16e20fe51.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/notifications/page-4915db60cceacd5f.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/page-73e692c7cd0a7e12.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/%5BpatientId%5D/edit/page-2cbc1297bb2fba9f.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/page-73fee85b7e12f993.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/release/page-695479a4947850fb.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/error-75e2a57f15a66f59.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/layout-4f1147b5bf584cd7.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/loading-68b36652b172fffb.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/_not-found/page-b1893bbc8d83e2db.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/dashboard/page-4fde7671ec839957.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/error-c77673c4d9bf4c49.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/global-error-0e83b7331b1f188c.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/layout-ec1b5a22fea6bb85.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/not-found-5374a67cdc18d930.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/offline/page-8919abde04b94da1.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/page-b7e27963907821d4.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/public/reports/%5Btoken%5D/page-1999b0dfdc302537.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/fd9d1056-8d69396482e34025.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/framework-a63c59c368572696.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/main-app-2877bb5658641a8d.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/main-cdf6783a7c85cd61.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/pages/_app-78ddf957b9a9b996.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/pages/_error-7ce03bcf1df914ce.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/polyfills-42372ed130431b0a.js",revision:"846118c33b2c0e922d7b3a7676f81f6f"},{url:"/_next/static/chunks/webpack-e96e1091b6e3d5e0.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/css/d7878e2f1813864a.css",revision:"d7878e2f1813864a"},{url:"/_next/static/media/19cfc7226ec3afaa-s.woff2",revision:"9dda5cfc9a46f256d0e131bb535e46f8"},{url:"/_next/static/media/21350d82a1f187e9-s.woff2",revision:"4e2553027f1d60eff32898367dd4d541"},{url:"/_next/static/media/8e9860b6e62d6359-s.woff2",revision:"01ba6c2a184b8cba08b0d57167664d75"},{url:"/_next/static/media/ba9851c3c22cd980-s.woff2",revision:"9e494903d6b0ffec1a1e14d34427d44d"},{url:"/_next/static/media/c5fe6dc8356a8c31-s.woff2",revision:"027a89e9ab733a145db70f09b8a18b42"},{url:"/_next/static/media/df0a9ae256c0569c-s.woff2",revision:"d54db44de5ccb18886ece2fda72bdfe0"},{url:"/_next/static/media/e4af272ccee01ff0-s.p.woff2",revision:"65850a373e258f1c897a2b3d75eb74de"},{url:"/diagsync-logo.png",revision:"77e9c567b2a574379952fca17baf6e35"},{url:"/diagsync-watermark.png",revision:"aeff36c86804a6d13167bef4500ec421"},{url:"/icons/icon-192.png",revision:"cde0b3a52915e1aff301981f4779e52b"},{url:"/icons/icon-512.png",revision:"49194c78838f3f11eb491c3253dbfdbc"},{url:"/manifest.json",revision:"8bdaaa3cc85732dcb12359430cd0e4ef"},{url:"/offline",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/splash-screen.png",revision:"febe7eb192dd065880036523e3d1a075"}],{ignoreURLParametersMatching:[]}),e.cleanupOutdatedCaches(),e.registerRoute("/",new e.NetworkFirst({cacheName:"start-url",plugins:[{cacheWillUpdate:async({request:e,response:a,event:s,state:i})=&gt;a&amp;&amp;"opaqueredirect"===a.type?new Response(a.body,{status:200,statusText:"OK",headers:a.headers}):a},{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"document"===e.destination,new e.NetworkFirst({cacheName:"pages-cache",networkTimeoutSeconds:5,plugins:[new e.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({url:e})=&gt;e.pathname.startsWith("/_next/static/"),new e.StaleWhileRevalidate({cacheName:"next-static-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"image"===e.destination,new e.CacheFirst({cacheName:"image-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"style"===e.destination||"script"===e.destination,new e.StaleWhileRevalidate({cacheName:"asset-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({url:e})=&gt;e.pathname.startsWith("/api/"),new e.NetworkOnly({cacheName:"api-no-cache",plugins:[{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET")});
 </pre></div>
 <div class='file-block'><div class='file-header'>public/workbox-5268f9bb.js</div><pre>define(["exports"],function(t){"use strict";try{self["workbox:core:6.5.4"]&amp;&amp;_()}catch(t){}const e=(t,...e)=&gt;{let s=t;return e.length&gt;0&amp;&amp;(s+=` :: ${JSON.stringify(e)}`),s};class s extends Error{constructor(t,s){super(e(t,s)),this.name=t,this.details=s}}try{self["workbox:routing:6.5.4"]&amp;&amp;_()}catch(t){}const n=t=&gt;t&amp;&amp;"object"==typeof t?t:{handle:t};class r{constructor(t,e,s="GET"){this.handler=n(e),this.match=t,this.method=s}setCatchHandler(t){this.catchHandler=n(t)}}class i extends r{constructor(t,e,s){super(({url:e})=&gt;{const s=t.exec(e.href);if(s&amp;&amp;(e.origin===location.origin||0===s.index))return s.slice(1)},e,s)}}class a{constructor(){this.t=new Map,this.i=new Map}get routes(){return this.t}addFetchListener(){self.addEventListener("fetch",t=&gt;{const{request:e}=t,s=this.handleRequest({request:e,event:t});s&amp;&amp;t.respondWith(s)})}addCacheListener(){self.addEventListener("message",t=&gt;{if(t.data&amp;&amp;"CACHE_URLS"===t.data.type){const{payload:e}=t.data,s=Promise.all(e.urlsToCache.map(e=&gt;{"string"==typeof e&amp;&amp;(e=[e]);const s=new Request(...e);return this.handleRequest({request:s,event:t})}));t.waitUntil(s),t.ports&amp;&amp;t.ports[0]&amp;&amp;s.then(()=&gt;t.ports[0].postMessage(!0))}})}handleRequest({request:t,event:e}){const s=new URL(t.url,location.href);if(!s.protocol.startsWith("http"))return;const n=s.origin===location.origin,{params:r,route:i}=this.findMatchingRoute({event:e,request:t,sameOrigin:n,url:s});let a=i&amp;&amp;i.handler;const o=t.method;if(!a&amp;&amp;this.i.has(o)&amp;&amp;(a=this.i.get(o)),!a)return;let c;try{c=a.handle({url:s,request:t,event:e,params:r})}catch(t){c=Promise.reject(t)}const h=i&amp;&amp;i.catchHandler;return c instanceof Promise&amp;&amp;(this.o||h)&amp;&amp;(c=c.catch(async n=&gt;{if(h)try{return await h.handle({url:s,request:t,event:e,params:r})}catch(t){t instanceof Error&amp;&amp;(n=t)}if(this.o)return this.o.handle({url:s,request:t,event:e});throw n})),c}findMatchingRoute({url:t,sameOrigin:e,request:s,event:n}){const r=this.t.get(s.method)||[];for(const i of r){let r;const a=i.match({url:t,sameOrigin:e,request:s,event:n});if(a)return r=a,(Array.isArray(r)&amp;&amp;0===r.length||a.constructor===Object&amp;&amp;0===Object.keys(a).length||"boolean"==typeof a)&amp;&amp;(r=void 0),{route:i,params:r}}return{}}setDefaultHandler(t,e="GET"){this.i.set(e,n(t))}setCatchHandler(t){this.o=n(t)}registerRoute(t){this.t.has(t.method)||this.t.set(t.method,[]),this.t.get(t.method).push(t)}unregisterRoute(t){if(!this.t.has(t.method))throw new s("unregister-route-but-not-found-with-method",{method:t.method});const e=this.t.get(t.method).indexOf(t);if(!(e&gt;-1))throw new s("unregister-route-route-not-registered");this.t.get(t.method).splice(e,1)}}let o;const c=()=&gt;(o||(o=new a,o.addFetchListener(),o.addCacheListener()),o);function h(t,e,n){let a;if("string"==typeof t){const s=new URL(t,location.href);a=new r(({url:t})=&gt;t.href===s.href,e,n)}else if(t instanceof RegExp)a=new i(t,e,n);else if("function"==typeof t)a=new r(t,e,n);else{if(!(t instanceof r))throw new s("unsupported-route-type",{moduleName:"workbox-routing",funcName:"registerRoute",paramName:"capture"});a=t}return c().registerRoute(a),a}try{self["workbox:strategies:6.5.4"]&amp;&amp;_()}catch(t){}const u={cacheWillUpdate:async({response:t})=&gt;200===t.status||0===t.status?t:null},l={googleAnalytics:"googleAnalytics",precache:"precache-v2",prefix:"workbox",runtime:"runtime",suffix:"undefined"!=typeof registration?registration.scope:""},f=t=&gt;[l.prefix,t,l.suffix].filter(t=&gt;t&amp;&amp;t.length&gt;0).join("-"),w=t=&gt;t||f(l.precache),d=t=&gt;t||f(l.runtime);function p(t,e){const s=new URL(t);for(const t of e)s.searchParams.delete(t);return s.href}class y{constructor(){this.promise=new Promise((t,e)=&gt;{this.resolve=t,this.reject=e})}}const m=new Set;function g(t){return new Promise(e=&gt;setTimeout(e,t))}function R(t){return"string"==typeof t?new Request(t):t}class v{constructor(t,e){this.h={},Object.assign(this,e),this.event=e.event,this.u=t,this.l=new y,this.p=[],this.m=[...t.plugins],this.R=new Map;for(const t of this.m)this.R.set(t,{});this.event.waitUntil(this.l.promise)}async fetch(t){const{event:e}=this;let n=R(t);if("navigate"===n.mode&amp;&amp;e instanceof FetchEvent&amp;&amp;e.preloadResponse){const t=await e.preloadResponse;if(t)return t}const r=this.hasCallback("fetchDidFail")?n.clone():null;try{for(const t of this.iterateCallbacks("requestWillFetch"))n=await t({request:n.clone(),event:e})}catch(t){if(t instanceof Error)throw new s("plugin-error-request-will-fetch",{thrownErrorMessage:t.message})}const i=n.clone();try{let t;t=await fetch(n,"navigate"===n.mode?void 0:this.u.fetchOptions);for(const s of this.iterateCallbacks("fetchDidSucceed"))t=await s({event:e,request:i,response:t});return t}catch(t){throw r&amp;&amp;await this.runCallbacks("fetchDidFail",{error:t,event:e,originalRequest:r.clone(),request:i.clone()}),t}}async fetchAndCachePut(t){const e=await this.fetch(t),s=e.clone();return this.waitUntil(this.cachePut(t,s)),e}async cacheMatch(t){const e=R(t);let s;const{cacheName:n,matchOptions:r}=this.u,i=await this.getCacheKey(e,"read"),a=Object.assign(Object.assign({},r),{cacheName:n});s=await caches.match(i,a);for(const t of this.iterateCallbacks("cachedResponseWillBeUsed"))s=await t({cacheName:n,matchOptions:r,cachedResponse:s,request:i,event:this.event})||void 0;return s}async cachePut(t,e){const n=R(t);await g(0);const r=await this.getCacheKey(n,"write");if(!e)throw new s("cache-put-with-no-response",{url:(i=r.url,new URL(String(i),location.href).href.replace(new RegExp(`^${location.origin}`),""))});var i;const a=await this.v(e);if(!a)return!1;const{cacheName:o,matchOptions:c}=this.u,h=await self.caches.open(o),u=this.hasCallback("cacheDidUpdate"),l=u?await async function(t,e,s,n){const r=p(e.url,s);if(e.url===r)return t.match(e,n);const i=Object.assign(Object.assign({},n),{ignoreSearch:!0}),a=await t.keys(e,i);for(const e of a)if(r===p(e.url,s))return t.match(e,n)}(h,r.clone(),["__WB_REVISION__"],c):null;try{await h.put(r,u?a.clone():a)}catch(t){if(t instanceof Error)throw"QuotaExceededError"===t.name&amp;&amp;await async function(){for(const t of m)await t()}(),t}for(const t of this.iterateCallbacks("cacheDidUpdate"))await t({cacheName:o,oldResponse:l,newResponse:a.clone(),request:r,event:this.event});return!0}async getCacheKey(t,e){const s=`${t.url} | ${e}`;if(!this.h[s]){let n=t;for(const t of this.iterateCallbacks("cacheKeyWillBeUsed"))n=R(await t({mode:e,request:n,event:this.event,params:this.params}));this.h[s]=n}return this.h[s]}hasCallback(t){for(const e of this.u.plugins)if(t in e)return!0;return!1}async runCallbacks(t,e){for(const s of this.iterateCallbacks(t))await s(e)}*iterateCallbacks(t){for(const e of this.u.plugins)if("function"==typeof e[t]){const s=this.R.get(e),n=n=&gt;{const r=Object.assign(Object.assign({},n),{state:s});return e[t](r)};yield n}}waitUntil(t){return this.p.push(t),t}async doneWaiting(){let t;for(;t=this.p.shift();)await t}destroy(){this.l.resolve(null)}async v(t){let e=t,s=!1;for(const t of this.iterateCallbacks("cacheWillUpdate"))if(e=await t({request:this.request,response:e,event:this.event})||void 0,s=!0,!e)break;return s||e&amp;&amp;200!==e.status&amp;&amp;(e=void 0),e}}class b{constructor(t={}){this.cacheName=d(t.cacheName),this.plugins=t.plugins||[],this.fetchOptions=t.fetchOptions,this.matchOptions=t.matchOptions}handle(t){const[e]=this.handleAll(t);return e}handleAll(t){t instanceof FetchEvent&amp;&amp;(t={event:t,request:t.request});const e=t.event,s="string"==typeof t.request?new Request(t.request):t.request,n="params"in t?t.params:void 0,r=new v(this,{event:e,request:s,params:n}),i=this.q(r,s,e);return[i,this.D(i,r,s,e)]}async q(t,e,n){let r;await t.runCallbacks("handlerWillStart",{event:n,request:e});try{if(r=await this.U(e,t),!r||"error"===r.type)throw new s("no-response",{url:e.url})}catch(s){if(s instanceof Error)for(const i of t.iterateCallbacks("handlerDidError"))if(r=await i({error:s,event:n,request:e}),r)break;if(!r)throw s}for(const s of t.iterateCallbacks("handlerWillRespond"))r=await s({event:n,request:e,response:r});return r}async D(t,e,s,n){let r,i;try{r=await t}catch(i){}try{await e.runCallbacks("handlerDidRespond",{event:n,request:s,response:r}),await e.doneWaiting()}catch(t){t instanceof Error&amp;&amp;(i=t)}if(await e.runCallbacks("handlerDidComplete",{event:n,request:s,response:r,error:i}),e.destroy(),i)throw i}}function q(t){t.then(()=&gt;{})}function D(){return D=Object.assign?Object.assign.bind():function(t){for(var e=1;e&lt;arguments.length;e++){var s=arguments[e];for(var n in s)({}).hasOwnProperty.call(s,n)&amp;&amp;(t[n]=s[n])}return t},D.apply(null,arguments)}let U,x;const E=new WeakMap,I=new WeakMap,L=new WeakMap,C=new WeakMap,N=new WeakMap;let k={get(t,e,s){if(t instanceof IDBTransaction){if("done"===e)return I.get(t);if("objectStoreNames"===e)return t.objectStoreNames||L.get(t);if("store"===e)return s.objectStoreNames[1]?void 0:s.objectStore(s.objectStoreNames[0])}return T(t[e])},set:(t,e,s)=&gt;(t[e]=s,!0),has:(t,e)=&gt;t instanceof IDBTransaction&amp;&amp;("done"===e||"store"===e)||e in t};function O(t){return t!==IDBDatabase.prototype.transaction||"objectStoreNames"in IDBTransaction.prototype?(x||(x=[IDBCursor.prototype.advance,IDBCursor.prototype.continue,IDBCursor.prototype.continuePrimaryKey])).includes(t)?function(...e){return t.apply(P(this),e),T(E.get(this))}:function(...e){return T(t.apply(P(this),e))}:function(e,...s){const n=t.call(P(this),e,...s);return L.set(n,e.sort?e.sort():[e]),T(n)}}function B(t){return"function"==typeof t?O(t):(t instanceof IDBTransaction&amp;&amp;function(t){if(I.has(t))return;const e=new Promise((e,s)=&gt;{const n=()=&gt;{t.removeEventListener("complete",r),t.removeEventListener("error",i),t.removeEventListener("abort",i)},r=()=&gt;{e(),n()},i=()=&gt;{s(t.error||new DOMException("AbortError","AbortError")),n()};t.addEventListener("complete",r),t.addEventListener("error",i),t.addEventListener("abort",i)});I.set(t,e)}(t),e=t,(U||(U=[IDBDatabase,IDBObjectStore,IDBIndex,IDBCursor,IDBTransaction])).some(t=&gt;e instanceof t)?new Proxy(t,k):t);var e}function T(t){if(t instanceof IDBRequest)return function(t){const e=new Promise((e,s)=&gt;{const n=()=&gt;{t.removeEventListener("success",r),t.removeEventListener("error",i)},r=()=&gt;{e(T(t.result)),n()},i=()=&gt;{s(t.error),n()};t.addEventListener("success",r),t.addEventListener("error",i)});return e.then(e=&gt;{e instanceof IDBCursor&amp;&amp;E.set(e,t)}).catch(()=&gt;{}),N.set(e,t),e}(t);if(C.has(t))return C.get(t);const e=B(t);return e!==t&amp;&amp;(C.set(t,e),N.set(e,t)),e}const P=t=&gt;N.get(t);const M=["get","getKey","getAll","getAllKeys","count"],W=["put","add","delete","clear"],j=new Map;function S(t,e){if(!(t instanceof IDBDatabase)||e in t||"string"!=typeof e)return;if(j.get(e))return j.get(e);const s=e.replace(/FromIndex$/,""),n=e!==s,r=W.includes(s);if(!(s in(n?IDBIndex:IDBObjectStore).prototype)||!r&amp;&amp;!M.includes(s))return;const i=async function(t,...e){const i=this.transaction(t,r?"readwrite":"readonly");let a=i.store;return n&amp;&amp;(a=a.index(e.shift())),(await Promise.all([a[s](...e),r&amp;&amp;i.done]))[0]};return j.set(e,i),i}k=(t=&gt;D({},t,{get:(e,s,n)=&gt;S(e,s)||t.get(e,s,n),has:(e,s)=&gt;!!S(e,s)||t.has(e,s)}))(k);try{self["workbox:expiration:6.5.4"]&amp;&amp;_()}catch(t){}const K="cache-entries",A=t=&gt;{const e=new URL(t,location.href);return e.hash="",e.href};class F{constructor(t){this._=null,this.I=t}L(t){const e=t.createObjectStore(K,{keyPath:"id"});e.createIndex("cacheName","cacheName",{unique:!1}),e.createIndex("timestamp","timestamp",{unique:!1})}C(t){this.L(t),this.I&amp;&amp;function(t,{blocked:e}={}){const s=indexedDB.deleteDatabase(t);e&amp;&amp;s.addEventListener("blocked",t=&gt;e(t.oldVersion,t)),T(s).then(()=&gt;{})}(this.I)}async setTimestamp(t,e){const s={url:t=A(t),timestamp:e,cacheName:this.I,id:this.N(t)},n=(await this.getDb()).transaction(K,"readwrite",{durability:"relaxed"});await n.store.put(s),await n.done}async getTimestamp(t){const e=await this.getDb(),s=await e.get(K,this.N(t));return null==s?void 0:s.timestamp}async expireEntries(t,e){const s=await this.getDb();let n=await s.transaction(K).store.index("timestamp").openCursor(null,"prev");const r=[];let i=0;for(;n;){const s=n.value;s.cacheName===this.I&amp;&amp;(t&amp;&amp;s.timestamp&lt;t||e&amp;&amp;i&gt;=e?r.push(n.value):i++),n=await n.continue()}const a=[];for(const t of r)await s.delete(K,t.id),a.push(t.url);return a}N(t){return this.I+"|"+A(t)}async getDb(){return this._||(this._=await function(t,e,{blocked:s,upgrade:n,blocking:r,terminated:i}={}){const a=indexedDB.open(t,e),o=T(a);return n&amp;&amp;a.addEventListener("upgradeneeded",t=&gt;{n(T(a.result),t.oldVersion,t.newVersion,T(a.transaction),t)}),s&amp;&amp;a.addEventListener("blocked",t=&gt;s(t.oldVersion,t.newVersion,t)),o.then(t=&gt;{i&amp;&amp;t.addEventListener("close",()=&gt;i()),r&amp;&amp;t.addEventListener("versionchange",t=&gt;r(t.oldVersion,t.newVersion,t))}).catch(()=&gt;{}),o}("workbox-expiration",1,{upgrade:this.C.bind(this)})),this._}}class ${constructor(t,e={}){this.k=!1,this.O=!1,this.B=e.maxEntries,this.T=e.maxAgeSeconds,this.P=e.matchOptions,this.I=t,this.M=new F(t)}async expireEntries(){if(this.k)return void(this.O=!0);this.k=!0;const t=this.T?Date.now()-1e3*this.T:0,e=await this.M.expireEntries(t,this.B),s=await self.caches.open(this.I);for(const t of e)await s.delete(t,this.P);this.k=!1,this.O&amp;&amp;(this.O=!1,q(this.expireEntries()))}async updateTimestamp(t){await this.M.setTimestamp(t,Date.now())}async isURLExpired(t){if(this.T){const e=await this.M.getTimestamp(t),s=Date.now()-1e3*this.T;return void 0===e||e&lt;s}return!1}async delete(){this.O=!1,await this.M.expireEntries(1/0)}}function H(t,e){const s=e();return t.waitUntil(s),s}try{self["workbox:precaching:6.5.4"]&amp;&amp;_()}catch(t){}function G(t){if(!t)throw new s("add-to-cache-list-unexpected-type",{entry:t});if("string"==typeof t){const e=new URL(t,location.href);return{cacheKey:e.href,url:e.href}}const{revision:e,url:n}=t;if(!n)throw new s("add-to-cache-list-unexpected-type",{entry:t});if(!e){const t=new URL(n,location.href);return{cacheKey:t.href,url:t.href}}const r=new URL(n,location.href),i=new URL(n,location.href);return r.searchParams.set("__WB_REVISION__",e),{cacheKey:r.href,url:i.href}}class V{constructor(){this.updatedURLs=[],this.notUpdatedURLs=[],this.handlerWillStart=async({request:t,state:e})=&gt;{e&amp;&amp;(e.originalRequest=t)},this.cachedResponseWillBeUsed=async({event:t,state:e,cachedResponse:s})=&gt;{if("install"===t.type&amp;&amp;e&amp;&amp;e.originalRequest&amp;&amp;e.originalRequest instanceof Request){const t=e.originalRequest.url;s?this.notUpdatedURLs.push(t):this.updatedURLs.push(t)}return s}}}class J{constructor({precacheController:t}){this.cacheKeyWillBeUsed=async({request:t,params:e})=&gt;{const s=(null==e?void 0:e.cacheKey)||this.W.getCacheKeyForURL(t.url);return s?new Request(s,{headers:t.headers}):t},this.W=t}}let Q,z;async function X(t,e){let n=null;if(t.url){n=new URL(t.url).origin}if(n!==self.location.origin)throw new s("cross-origin-copy-response",{origin:n});const r=t.clone(),i={headers:new Headers(r.headers),status:r.status,statusText:r.statusText},a=e?e(i):i,o=function(){if(void 0===Q){const t=new Response("");if("body"in t)try{new Response(t.body),Q=!0}catch(t){Q=!1}Q=!1}return Q}()?r.body:await r.blob();return new Response(o,a)}class Y extends b{constructor(t={}){t.cacheName=w(t.cacheName),super(t),this.j=!1!==t.fallbackToNetwork,this.plugins.push(Y.copyRedirectedCacheableResponsesPlugin)}async U(t,e){const s=await e.cacheMatch(t);return s||(e.event&amp;&amp;"install"===e.event.type?await this.S(t,e):await this.K(t,e))}async K(t,e){let n;const r=e.params||{};if(!this.j)throw new s("missing-precache-entry",{cacheName:this.cacheName,url:t.url});{const s=r.integrity,i=t.integrity,a=!i||i===s;n=await e.fetch(new Request(t,{integrity:"no-cors"!==t.mode?i||s:void 0})),s&amp;&amp;a&amp;&amp;"no-cors"!==t.mode&amp;&amp;(this.A(),await e.cachePut(t,n.clone()))}return n}async S(t,e){this.A();const n=await e.fetch(t);if(!await e.cachePut(t,n.clone()))throw new s("bad-precaching-response",{url:t.url,status:n.status});return n}A(){let t=null,e=0;for(const[s,n]of this.plugins.entries())n!==Y.copyRedirectedCacheableResponsesPlugin&amp;&amp;(n===Y.defaultPrecacheCacheabilityPlugin&amp;&amp;(t=s),n.cacheWillUpdate&amp;&amp;e++);0===e?this.plugins.push(Y.defaultPrecacheCacheabilityPlugin):e&gt;1&amp;&amp;null!==t&amp;&amp;this.plugins.splice(t,1)}}Y.defaultPrecacheCacheabilityPlugin={cacheWillUpdate:async({response:t})=&gt;!t||t.status&gt;=400?null:t},Y.copyRedirectedCacheableResponsesPlugin={cacheWillUpdate:async({response:t})=&gt;t.redirected?await X(t):t};class Z{constructor({cacheName:t,plugins:e=[],fallbackToNetwork:s=!0}={}){this.F=new Map,this.$=new Map,this.H=new Map,this.u=new Y({cacheName:w(t),plugins:[...e,new J({precacheController:this})],fallbackToNetwork:s}),this.install=this.install.bind(this),this.activate=this.activate.bind(this)}get strategy(){return this.u}precache(t){this.addToCacheList(t),this.G||(self.addEventListener("install",this.install),self.addEventListener("activate",this.activate),this.G=!0)}addToCacheList(t){const e=[];for(const n of t){"string"==typeof n?e.push(n):n&amp;&amp;void 0===n.revision&amp;&amp;e.push(n.url);const{cacheKey:t,url:r}=G(n),i="string"!=typeof n&amp;&amp;n.revision?"reload":"default";if(this.F.has(r)&amp;&amp;this.F.get(r)!==t)throw new s("add-to-cache-list-conflicting-entries",{firstEntry:this.F.get(r),secondEntry:t});if("string"!=typeof n&amp;&amp;n.integrity){if(this.H.has(t)&amp;&amp;this.H.get(t)!==n.integrity)throw new s("add-to-cache-list-conflicting-integrities",{url:r});this.H.set(t,n.integrity)}if(this.F.set(r,t),this.$.set(r,i),e.length&gt;0){const t=`Workbox is precaching URLs without revision info: ${e.join(", ")}\nThis is generally NOT safe. Learn more at https://bit.ly/wb-precache`;console.warn(t)}}}install(t){return H(t,async()=&gt;{const e=new V;this.strategy.plugins.push(e);for(const[e,s]of this.F){const n=this.H.get(s),r=this.$.get(e),i=new Request(e,{integrity:n,cache:r,credentials:"same-origin"});await Promise.all(this.strategy.handleAll({params:{cacheKey:s},request:i,event:t}))}const{updatedURLs:s,notUpdatedURLs:n}=e;return{updatedURLs:s,notUpdatedURLs:n}})}activate(t){return H(t,async()=&gt;{const t=await self.caches.open(this.strategy.cacheName),e=await t.keys(),s=new Set(this.F.values()),n=[];for(const r of e)s.has(r.url)||(await t.delete(r),n.push(r.url));return{deletedURLs:n}})}getURLsToCacheKeys(){return this.F}getCachedURLs(){return[...this.F.keys()]}getCacheKeyForURL(t){const e=new URL(t,location.href);return this.F.get(e.href)}getIntegrityForCacheKey(t){return this.H.get(t)}async matchPrecache(t){const e=t instanceof Request?t.url:t,s=this.getCacheKeyForURL(e);if(s){return(await self.caches.open(this.strategy.cacheName)).match(s)}}createHandlerBoundToURL(t){const e=this.getCacheKeyForURL(t);if(!e)throw new s("non-precached-url",{url:t});return s=&gt;(s.request=new Request(t),s.params=Object.assign({cacheKey:e},s.params),this.strategy.handle(s))}}const tt=()=&gt;(z||(z=new Z),z);class et extends r{constructor(t,e){super(({request:s})=&gt;{const n=t.getURLsToCacheKeys();for(const r of function*(t,{ignoreURLParametersMatching:e=[/^utm_/,/^fbclid$/],directoryIndex:s="index.html",cleanURLs:n=!0,urlManipulation:r}={}){const i=new URL(t,location.href);i.hash="",yield i.href;const a=function(t,e=[]){for(const s of[...t.searchParams.keys()])e.some(t=&gt;t.test(s))&amp;&amp;t.searchParams.delete(s);return t}(i,e);if(yield a.href,s&amp;&amp;a.pathname.endsWith("/")){const t=new URL(a.href);t.pathname+=s,yield t.href}if(n){const t=new URL(a.href);t.pathname+=".html",yield t.href}if(r){const t=r({url:i});for(const e of t)yield e.href}}(s.url,e)){const e=n.get(r);if(e){return{cacheKey:e,integrity:t.getIntegrityForCacheKey(e)}}}},t.strategy)}}t.CacheFirst=class extends b{async U(t,e){let n,r=await e.cacheMatch(t);if(!r)try{r=await e.fetchAndCachePut(t)}catch(t){t instanceof Error&amp;&amp;(n=t)}if(!r)throw new s("no-response",{url:t.url,error:n});return r}},t.ExpirationPlugin=class{constructor(t={}){this.cachedResponseWillBeUsed=async({event:t,request:e,cacheName:s,cachedResponse:n})=&gt;{if(!n)return null;const r=this.V(n),i=this.J(s);q(i.expireEntries());const a=i.updateTimestamp(e.url);if(t)try{t.waitUntil(a)}catch(t){}return r?n:null},this.cacheDidUpdate=async({cacheName:t,request:e})=&gt;{const s=this.J(t);await s.updateTimestamp(e.url),await s.expireEntries()},this.X=t,this.T=t.maxAgeSeconds,this.Y=new Map,t.purgeOnQuotaError&amp;&amp;function(t){m.add(t)}(()=&gt;this.deleteCacheAndMetadata())}J(t){if(t===d())throw new s("expire-custom-caches-only");let e=this.Y.get(t);return e||(e=new $(t,this.X),this.Y.set(t,e)),e}V(t){if(!this.T)return!0;const e=this.Z(t);if(null===e)return!0;return e&gt;=Date.now()-1e3*this.T}Z(t){if(!t.headers.has("date"))return null;const e=t.headers.get("date"),s=new Date(e).getTime();return isNaN(s)?null:s}async deleteCacheAndMetadata(){for(const[t,e]of this.Y)await self.caches.delete(t),await e.delete();this.Y=new Map}},t.NetworkFirst=class extends b{constructor(t={}){super(t),this.plugins.some(t=&gt;"cacheWillUpdate"in t)||this.plugins.unshift(u),this.tt=t.networkTimeoutSeconds||0}async U(t,e){const n=[],r=[];let i;if(this.tt){const{id:s,promise:a}=this.et({request:t,logs:n,handler:e});i=s,r.push(a)}const a=this.st({timeoutId:i,request:t,logs:n,handler:e});r.push(a);const o=await e.waitUntil((async()=&gt;await e.waitUntil(Promise.race(r))||await a)());if(!o)throw new s("no-response",{url:t.url});return o}et({request:t,logs:e,handler:s}){let n;return{promise:new Promise(e=&gt;{n=setTimeout(async()=&gt;{e(await s.cacheMatch(t))},1e3*this.tt)}),id:n}}async st({timeoutId:t,request:e,logs:s,handler:n}){let r,i;try{i=await n.fetchAndCachePut(e)}catch(t){t instanceof Error&amp;&amp;(r=t)}return t&amp;&amp;clearTimeout(t),!r&amp;&amp;i||(i=await n.cacheMatch(e)),i}},t.NetworkOnly=class extends b{constructor(t={}){super(t),this.tt=t.networkTimeoutSeconds||0}async U(t,e){let n,r;try{const s=[e.fetch(t)];if(this.tt){const t=g(1e3*this.tt);s.push(t)}if(r=await Promise.race(s),!r)throw new Error(`Timed out the network response after ${this.tt} seconds.`)}catch(t){t instanceof Error&amp;&amp;(n=t)}if(!r)throw new s("no-response",{url:t.url,error:n});return r}},t.StaleWhileRevalidate=class extends b{constructor(t={}){super(t),this.plugins.some(t=&gt;"cacheWillUpdate"in t)||this.plugins.unshift(u)}async U(t,e){const n=e.fetchAndCachePut(t).catch(()=&gt;{});e.waitUntil(n);let r,i=await e.cacheMatch(t);if(i);else try{i=await n}catch(t){t instanceof Error&amp;&amp;(r=t)}if(!i)throw new s("no-response",{url:t.url,error:r});return i}},t.cleanupOutdatedCaches=function(){self.addEventListener("activate",t=&gt;{const e=w();t.waitUntil((async(t,e="-precache-")=&gt;{const s=(await self.caches.keys()).filter(s=&gt;s.includes(e)&amp;&amp;s.includes(self.registration.scope)&amp;&amp;s!==t);return await Promise.all(s.map(t=&gt;self.caches.delete(t))),s})(e).then(t=&gt;{}))})},t.clientsClaim=function(){self.addEventListener("activate",()=&gt;self.clients.claim())},t.precacheAndRoute=function(t,e){!function(t){tt().precache(t)}(t),function(t){const e=tt();h(new et(e,t))}(e)},t.registerRoute=h});
 </pre></div>
@@ -8024,6 +8057,7 @@ export default async function PatientsListPage({
                                 row.latestVisit ? (
                                   &lt;DeletePatientButton
                                     visitId={row.latestVisit.id}
+                                    patientId={row.id}
                                     patientName={row.fullName}
                                   /&gt;
                                 ) : null
@@ -8173,27 +8207,30 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
-  const organization = await syncOrganizationBillingState(staff.organizationId);
-  const access = getOrganizationAccess(organization);
   const canManageBilling = staff.role === "SUPER_ADMIN";
+  const [organization, paymentRequests] = await Promise.all([
+    syncOrganizationBillingState(staff.organizationId),
+    canManageBilling
+      ? prisma.subscriptionPaymentRequest.findMany({
+          where: { organizationId: staff.organizationId },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: {
+            id: true,
+            requestedPlan: true,
+            amount: true,
+            status: true,
+            transactionReference: true,
+            createdAt: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const access = getOrganizationAccess(organization);
 
   const operationalRoles: Role[] = ["LAB_SCIENTIST", "RADIOGRAPHER", "MD", "RECEPTIONIST"];
   const showAvailability = operationalRoles.includes(staff.role);
-  const paymentRequests = canManageBilling
-    ? await prisma.subscriptionPaymentRequest.findMany({
-        where: { organizationId: staff.organizationId },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-        select: {
-          id: true,
-          requestedPlan: true,
-          amount: true,
-          status: true,
-          transactionReference: true,
-          createdAt: true,
-        },
-      })
-    : [];
 
   const trialBanner =
     access.status === "TRIAL_ACTIVE" &amp;&amp; access.trialDaysLeft !== null
@@ -8222,7 +8259,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       }}
       staffId={staff.id}
       staffName={staff.fullName}
+      staffEmail={staff.email}
       role={staff.role}
+      organizationId={staff.organizationId}
       initialAvailability={staff.availabilityStatus === "AVAILABLE"}
       showAvailabilityToggle={showAvailability}
       trialBanner={trialBanner}
@@ -8795,6 +8834,614 @@ export async function GET() {
       );
     }
     console.error("[DEPARTMENTS_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/device/add-staff/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+import { createAuditLog } from "@/lib/audit";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
+import { prisma } from "@/lib/prisma";
+import { createDeviceToken } from "@/lib/device-tokens";
+import { ensureDeviceInOrganization, requireSessionStaffContext, toSafeStaffSummary } from "@/lib/device-server";
+
+export const dynamic = "force-dynamic";
+
+const schema = z.object({
+  deviceKey: z.string().min(10, "Invalid device key"),
+  email: z.string().email("Valid email required"),
+  password: z.string().min(6, "Password is required"),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const actorContext = await requireSessionStaffContext();
+    if ("error" in actorContext) {
+      return NextResponse.json({ success: false, error: actorContext.error }, { status: actorContext.status });
+    }
+
+    const parsed = schema.safeParse(await req.json().catch(() =&gt; ({})));
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: parsed.error.errors[0]?.message ?? "Invalid payload" }, { status: 400 });
+    }
+
+    const { actor } = actorContext;
+    const { deviceKey, email, password } = parsed.data;
+    const existing = await ensureDeviceInOrganization(deviceKey, actor.organizationId!);
+    if (existing === "OTHER_ORGANIZATION") {
+      return NextResponse.json({ success: false, error: "This device belongs to another organization" }, { status: 409 });
+    }
+
+    const device =
+      existing ??
+      (await prisma.device.create({
+        data: { deviceKey, organizationId: actor.organizationId! },
+        select: { id: true, deviceKey: true, organizationId: true },
+      }));
+
+    const candidate = await prisma.staff.findFirst({
+      where: { email: { equals: email.trim(), mode: "insensitive" } },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        organizationId: true,
+        status: true,
+        passwordHash: true,
+        pinHash: true,
+      },
+    });
+
+    if (!candidate) {
+      return NextResponse.json({ success: false, error: "Invalid staff email or password" }, { status: 401 });
+    }
+    if (candidate.organizationId !== actor.organizationId) {
+      return NextResponse.json({ success: false, error: "Staff must belong to this organization" }, { status: 403 });
+    }
+    if (candidate.status !== "ACTIVE") {
+      return NextResponse.json({ success: false, error: "This staff account is inactive" }, { status: 403 });
+    }
+
+    const passwordOk = await bcrypt.compare(password, candidate.passwordHash);
+    if (!passwordOk) {
+      return NextResponse.json({ success: false, error: "Invalid staff email or password" }, { status: 401 });
+    }
+
+    const link = await prisma.deviceStaff.findUnique({
+      where: {
+        deviceId_staffId: {
+          deviceId: device.id,
+          staffId: candidate.id,
+        },
+      },
+      select: { id: true },
+    });
+    if (link) {
+      return NextResponse.json({ success: false, error: "Staff already exists on this device" }, { status: 409 });
+    }
+
+    await prisma.deviceStaff.create({
+      data: {
+        deviceId: device.id,
+        staffId: candidate.id,
+      },
+    });
+
+    await createAuditLog({
+      actorId: actor.id,
+      actorRole: actor.role,
+      action: "STAFF_ADDED_TO_DEVICE",
+      entityType: "DeviceStaff",
+      entityId: candidate.id,
+      changes: {
+        deviceId: device.id,
+        deviceKey: device.deviceKey,
+        targetStaffId: candidate.id,
+      },
+      ...getAuditMetaFromRequest(req),
+    });
+
+    const pinSetupToken =
+      !candidate.pinHash
+        ? createDeviceToken(
+            "pin_setup",
+            {
+              staffId: candidate.id,
+              organizationId: actor.organizationId!,
+              deviceKey: device.deviceKey,
+            },
+            10 * 60
+          )
+        : null;
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        staff: toSafeStaffSummary(candidate),
+        requiresPinSetup: !candidate.pinHash,
+        pinSetupToken,
+      },
+      message: "Staff added to this device",
+    });
+  } catch (error) {
+    console.error("[DEVICE_ADD_STAFF_POST]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/device/clear/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { createAuditLog } from "@/lib/audit";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
+import { prisma } from "@/lib/prisma";
+import { ensureDeviceInOrganization, requireSessionStaffContext } from "@/lib/device-server";
+
+export const dynamic = "force-dynamic";
+
+const schema = z.object({
+  deviceKey: z.string().min(10, "Invalid device key"),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const actorContext = await requireSessionStaffContext();
+    if ("error" in actorContext) {
+      return NextResponse.json({ success: false, error: actorContext.error }, { status: actorContext.status });
+    }
+
+    const parsed = schema.safeParse(await req.json().catch(() =&gt; ({})));
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: parsed.error.errors[0]?.message ?? "Invalid payload" }, { status: 400 });
+    }
+
+    const { actor } = actorContext;
+    const device = await ensureDeviceInOrganization(parsed.data.deviceKey, actor.organizationId!);
+    if (!device) {
+      return NextResponse.json({ success: false, error: "Device not found" }, { status: 404 });
+    }
+    if (device === "OTHER_ORGANIZATION") {
+      return NextResponse.json({ success: false, error: "This device belongs to another organization" }, { status: 409 });
+    }
+
+    await prisma.deviceStaff.deleteMany({
+      where: { deviceId: device.id },
+    });
+
+    await createAuditLog({
+      actorId: actor.id,
+      actorRole: actor.role,
+      action: "DEVICE_CLEARED",
+      entityType: "Device",
+      entityId: device.id,
+      changes: {
+        deviceId: device.id,
+        deviceKey: device.deviceKey,
+      },
+      ...getAuditMetaFromRequest(req),
+    });
+
+    return NextResponse.json({ success: true, message: "Device cleared successfully" });
+  } catch (error) {
+    console.error("[DEVICE_CLEAR_POST]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/device/register/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { createAuditLog } from "@/lib/audit";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
+import { prisma } from "@/lib/prisma";
+import { ensureDeviceInOrganization, requireSessionStaffContext, toSafeStaffSummary } from "@/lib/device-server";
+
+export const dynamic = "force-dynamic";
+
+const schema = z.object({
+  deviceKey: z.string().min(10, "Invalid device key"),
+  name: z.string().trim().max(80).optional(),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const actorContext = await requireSessionStaffContext();
+    if ("error" in actorContext) {
+      return NextResponse.json({ success: false, error: actorContext.error }, { status: actorContext.status });
+    }
+
+    const parsed = schema.safeParse(await req.json().catch(() =&gt; ({})));
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: parsed.error.errors[0]?.message ?? "Invalid payload" }, { status: 400 });
+    }
+
+    const { actor } = actorContext;
+    const { deviceKey, name } = parsed.data;
+    const existing = await ensureDeviceInOrganization(deviceKey, actor.organizationId!);
+    if (existing === "OTHER_ORGANIZATION") {
+      return NextResponse.json({ success: false, error: "This device belongs to another organization" }, { status: 409 });
+    }
+
+    const device =
+      existing ??
+      (await prisma.device.create({
+        data: {
+          deviceKey,
+          organizationId: actor.organizationId!,
+          name: name?.trim() || null,
+        },
+        select: { id: true, deviceKey: true, organizationId: true, name: true, createdAt: true },
+      }));
+
+    // Always keep current signed-in staff linked to this trusted device,
+    // so account switch can always return to the active session identity.
+    await prisma.deviceStaff.upsert({
+      where: {
+        deviceId_staffId: {
+          deviceId: device.id,
+          staffId: actor.id,
+        },
+      },
+      update: {},
+      create: {
+        deviceId: device.id,
+        staffId: actor.id,
+      },
+    });
+
+    if (!existing) {
+      await createAuditLog({
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "DEVICE_REGISTERED",
+        entityType: "Device",
+        entityId: device.id,
+        changes: {
+          deviceKey: device.deviceKey,
+          organizationId: device.organizationId,
+          name: device.name,
+        },
+        ...getAuditMetaFromRequest(req),
+      });
+    }
+
+    const links = await prisma.deviceStaff.findMany({
+      where: {
+        deviceId: device.id,
+        staff: {
+          organizationId: actor.organizationId!,
+          status: "ACTIVE",
+        },
+      },
+      select: {
+        staff: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: { addedAt: "asc" },
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: device.id,
+        deviceKey: device.deviceKey,
+        organizationId: device.organizationId,
+        name: device.name,
+        staff: links.map((link) =&gt; toSafeStaffSummary(link.staff)),
+      },
+    });
+  } catch (error) {
+    console.error("[DEVICE_REGISTER_POST]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/device/remove-staff/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { createAuditLog } from "@/lib/audit";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
+import { prisma } from "@/lib/prisma";
+import { ensureDeviceInOrganization, requireSessionStaffContext } from "@/lib/device-server";
+
+export const dynamic = "force-dynamic";
+
+const schema = z.object({
+  deviceKey: z.string().min(10, "Invalid device key"),
+  staffId: z.string().min(1),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const actorContext = await requireSessionStaffContext();
+    if ("error" in actorContext) {
+      return NextResponse.json({ success: false, error: actorContext.error }, { status: actorContext.status });
+    }
+
+    const parsed = schema.safeParse(await req.json().catch(() =&gt; ({})));
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: parsed.error.errors[0]?.message ?? "Invalid payload" }, { status: 400 });
+    }
+
+    const { actor } = actorContext;
+    const { deviceKey, staffId } = parsed.data;
+    const device = await ensureDeviceInOrganization(deviceKey, actor.organizationId!);
+    if (!device) {
+      return NextResponse.json({ success: false, error: "Device not found" }, { status: 404 });
+    }
+    if (device === "OTHER_ORGANIZATION") {
+      return NextResponse.json({ success: false, error: "This device belongs to another organization" }, { status: 409 });
+    }
+
+    const link = await prisma.deviceStaff.findUnique({
+      where: {
+        deviceId_staffId: {
+          deviceId: device.id,
+          staffId,
+        },
+      },
+      select: { id: true },
+    });
+    if (!link) {
+      return NextResponse.json({ success: false, error: "Staff not linked to this device" }, { status: 404 });
+    }
+
+    await prisma.deviceStaff.delete({
+      where: {
+        deviceId_staffId: {
+          deviceId: device.id,
+          staffId,
+        },
+      },
+    });
+
+    await createAuditLog({
+      actorId: actor.id,
+      actorRole: actor.role,
+      action: "STAFF_REMOVED_FROM_DEVICE",
+      entityType: "DeviceStaff",
+      entityId: staffId,
+      changes: {
+        deviceId: device.id,
+        deviceKey: device.deviceKey,
+        targetStaffId: staffId,
+      },
+      ...getAuditMetaFromRequest(req),
+    });
+
+    return NextResponse.json({ success: true, message: "Staff removed from device" });
+  } catch (error) {
+    console.error("[DEVICE_REMOVE_STAFF_POST]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/device/staff/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { ensureDeviceInOrganization, requireSessionStaffContext, toSafeStaffSummary } from "@/lib/device-server";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
+  try {
+    const actorContext = await requireSessionStaffContext();
+    if ("error" in actorContext) {
+      return NextResponse.json({ success: false, error: actorContext.error }, { status: actorContext.status });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const deviceKey = searchParams.get("deviceKey")?.trim();
+    if (!deviceKey) {
+      return NextResponse.json({ success: false, error: "deviceKey is required" }, { status: 400 });
+    }
+
+    const { actor } = actorContext;
+    const device = await ensureDeviceInOrganization(deviceKey, actor.organizationId!);
+    if (!device) {
+      return NextResponse.json({ success: false, error: "Device not found" }, { status: 404 });
+    }
+    if (device === "OTHER_ORGANIZATION") {
+      return NextResponse.json({ success: false, error: "This device belongs to another organization" }, { status: 409 });
+    }
+
+    const rows = await prisma.deviceStaff.findMany({
+      where: {
+        deviceId: device.id,
+        staff: {
+          organizationId: actor.organizationId!,
+          status: "ACTIVE",
+        },
+      },
+      select: {
+        staff: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+          },
+        },
+        lastUsedAt: true,
+        addedAt: true,
+      },
+      orderBy: [{ lastUsedAt: "desc" }, { addedAt: "asc" }],
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        deviceId: device.id,
+        deviceKey: device.deviceKey,
+        staff: rows.map((row) =&gt; toSafeStaffSummary(row.staff)),
+      },
+    });
+  } catch (error) {
+    console.error("[DEVICE_STAFF_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/device/switch/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+import { createAuditLog } from "@/lib/audit";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
+import { prisma } from "@/lib/prisma";
+import { createDeviceToken } from "@/lib/device-tokens";
+import { ensureDeviceInOrganization, requireSessionStaffContext, toSafeStaffSummary } from "@/lib/device-server";
+import {
+  getPinAttemptState,
+  pinAttemptKey,
+  recordPinFailure,
+  resetPinFailures,
+} from "@/lib/device-pin-attempts";
+import { getDashboardPath } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+
+const schema = z.object({
+  deviceKey: z.string().min(10, "Invalid device key"),
+  staffId: z.string().min(1),
+  pin: z.string().regex(/^\d{4}$/, "Enter a valid 4-digit PIN"),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const actorContext = await requireSessionStaffContext();
+    if ("error" in actorContext) {
+      return NextResponse.json({ success: false, error: actorContext.error }, { status: actorContext.status });
+    }
+
+    const parsed = schema.safeParse(await req.json().catch(() =&gt; ({})));
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: parsed.error.errors[0]?.message ?? "Invalid payload" }, { status: 400 });
+    }
+
+    const { actor } = actorContext;
+    const { deviceKey, staffId, pin } = parsed.data;
+    const device = await ensureDeviceInOrganization(deviceKey, actor.organizationId!);
+    if (!device) {
+      return NextResponse.json({ success: false, error: "Device not found. Please reset this device." }, { status: 404 });
+    }
+    if (device === "OTHER_ORGANIZATION") {
+      return NextResponse.json({ success: false, error: "This device belongs to another organization" }, { status: 409 });
+    }
+
+    const attemptKey = pinAttemptKey(deviceKey, staffId);
+    const blockState = getPinAttemptState(attemptKey);
+    if (blockState.blocked) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many PIN attempts. Try again in ${blockState.secondsLeft}s`,
+        },
+        { status: 429 }
+      );
+    }
+
+    const target = await prisma.staff.findUnique({
+      where: { id: staffId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        status: true,
+        organizationId: true,
+        pinHash: true,
+      },
+    });
+    if (!target || target.organizationId !== actor.organizationId) {
+      return NextResponse.json({ success: false, error: "Staff not found in this organization" }, { status: 404 });
+    }
+    if (target.status !== "ACTIVE") {
+      return NextResponse.json({ success: false, error: "This staff account is inactive" }, { status: 403 });
+    }
+    if (!target.pinHash) {
+      return NextResponse.json({ success: false, error: "This staff account has no PIN yet" }, { status: 400 });
+    }
+
+    const link = await prisma.deviceStaff.findUnique({
+      where: {
+        deviceId_staffId: {
+          deviceId: device.id,
+          staffId: target.id,
+        },
+      },
+      select: { id: true },
+    });
+    if (!link) {
+      return NextResponse.json({ success: false, error: "Staff not linked to this device" }, { status: 403 });
+    }
+
+    const pinOk = await bcrypt.compare(pin, target.pinHash);
+    if (!pinOk) {
+      recordPinFailure(attemptKey);
+      return NextResponse.json({ success: false, error: "Incorrect PIN" }, { status: 401 });
+    }
+
+    resetPinFailures(attemptKey);
+
+    const now = new Date();
+    await prisma.$transaction([
+      prisma.staff.update({
+        where: { id: target.id },
+        data: { lastQuickSwitchAt: now },
+      }),
+      prisma.deviceStaff.update({
+        where: {
+          deviceId_staffId: {
+            deviceId: device.id,
+            staffId: target.id,
+          },
+        },
+        data: { lastUsedAt: now },
+      }),
+    ]);
+
+    await createAuditLog({
+      actorId: actor.id,
+      actorRole: actor.role,
+      action: "STAFF_QUICK_SWITCHED",
+      entityType: "Staff",
+      entityId: target.id,
+      changes: {
+        fromStaffId: actor.id,
+        toStaffId: target.id,
+        deviceId: device.id,
+        deviceKey: device.deviceKey,
+      },
+      ...getAuditMetaFromRequest(req),
+    });
+
+    const switchToken = createDeviceToken(
+      "quick_switch",
+      {
+        staffId: target.id,
+        organizationId: actor.organizationId!,
+        deviceKey: device.deviceKey,
+        actorId: actor.id,
+      },
+      60
+    );
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        switchToken,
+        staff: toSafeStaffSummary(target),
+        dashboardPath: getDashboardPath(target.role),
+      },
+      message: "Account switched successfully",
+    });
+  } catch (error) {
+    console.error("[DEVICE_SWITCH_POST]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
@@ -9747,9 +10394,46 @@ export async function POST(req: NextRequest) {
         organizationId: user.organizationId,
         patientId: { equals: patientNumber, mode: "insensitive" },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        _count: { select: { visits: true } },
+      },
     });
     if (existingPatient) {
+      // Historical cleanup: reclaim patient numbers left behind by older "delete visit" flows.
+      if (existingPatient._count.visits === 0) {
+        await prisma.$transaction(async (tx) =&gt; {
+          await tx.notification.deleteMany({
+            where: {
+              organizationId: user.organizationId,
+              entityType: "Patient",
+              entityId: existingPatient.id,
+            },
+          });
+          await tx.auditLog.deleteMany({
+            where: {
+              entityType: "Patient",
+              entityId: existingPatient.id,
+            },
+          });
+          await tx.patient.delete({ where: { id: existingPatient.id } });
+        });
+      } else {
+        return NextResponse.json(
+          { success: false, error: "Patient number already exists in this organization" },
+          { status: 409 }
+        );
+      }
+    }
+
+    const duplicateAfterCleanup = await prisma.patient.findFirst({
+      where: {
+        organizationId: user.organizationId,
+        patientId: { equals: patientNumber, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    if (duplicateAfterCleanup) {
       return NextResponse.json(
         { success: false, error: "Patient number already exists in this organization" },
         { status: 409 }
@@ -10478,6 +11162,111 @@ export async function POST(req: NextRequest) {
   }
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/staff/set-pin/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+import { createAuditLog } from "@/lib/audit";
+import { getAuditMetaFromRequest } from "@/lib/audit-core";
+import { prisma } from "@/lib/prisma";
+import { verifyDeviceToken } from "@/lib/device-tokens";
+import { ensureDeviceInOrganization, requireSessionStaffContext } from "@/lib/device-server";
+
+export const dynamic = "force-dynamic";
+
+const schema = z.object({
+  staffId: z.string().min(1),
+  pin: z.string().regex(/^\d{4}$/, "PIN must be exactly 4 digits"),
+  pinSetupToken: z.string().optional(),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const actorContext = await requireSessionStaffContext();
+    if ("error" in actorContext) {
+      return NextResponse.json({ success: false, error: actorContext.error }, { status: actorContext.status });
+    }
+
+    const parsed = schema.safeParse(await req.json().catch(() =&gt; ({})));
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: parsed.error.errors[0]?.message ?? "Invalid payload" }, { status: 400 });
+    }
+
+    const { actor } = actorContext;
+    const { staffId, pin, pinSetupToken } = parsed.data;
+
+    const target = await prisma.staff.findUnique({
+      where: { id: staffId },
+      select: {
+        id: true,
+        organizationId: true,
+        status: true,
+      },
+    });
+    if (!target || target.organizationId !== actor.organizationId) {
+      return NextResponse.json({ success: false, error: "Staff not found in your organization" }, { status: 404 });
+    }
+    if (target.status !== "ACTIVE") {
+      return NextResponse.json({ success: false, error: "This staff account is inactive" }, { status: 403 });
+    }
+
+    if (actor.id !== target.id) {
+      if (!pinSetupToken) {
+        return NextResponse.json({ success: false, error: "PIN setup authorization is required" }, { status: 403 });
+      }
+      const tokenData = verifyDeviceToken(pinSetupToken, "pin_setup");
+      if (!tokenData) {
+        return NextResponse.json({ success: false, error: "Invalid or expired PIN setup session" }, { status: 401 });
+      }
+      if (tokenData.staffId !== target.id || tokenData.organizationId !== actor.organizationId) {
+        return NextResponse.json({ success: false, error: "Invalid PIN setup target" }, { status: 403 });
+      }
+      const device = await ensureDeviceInOrganization(tokenData.deviceKey, actor.organizationId!);
+      if (!device || device === "OTHER_ORGANIZATION") {
+        return NextResponse.json({ success: false, error: "This device belongs to another organization" }, { status: 409 });
+      }
+      const link = await prisma.deviceStaff.findUnique({
+        where: {
+          deviceId_staffId: {
+            deviceId: device.id,
+            staffId: target.id,
+          },
+        },
+        select: { id: true },
+      });
+      if (!link) {
+        return NextResponse.json({ success: false, error: "Staff is not linked to this device" }, { status: 404 });
+      }
+    }
+
+    const pinHash = await bcrypt.hash(pin, 12);
+    await prisma.staff.update({
+      where: { id: target.id },
+      data: {
+        pinHash,
+        pinSetAt: new Date(),
+      },
+    });
+
+    await createAuditLog({
+      actorId: actor.id,
+      actorRole: actor.role,
+      action: "STAFF_PIN_SET",
+      entityType: "Staff",
+      entityId: target.id,
+      changes: { staffId: target.id },
+      ...getAuditMetaFromRequest(req),
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "PIN created successfully",
+    });
+  } catch (error) {
+    console.error("[STAFF_SET_PIN_POST]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/tests/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -11044,36 +11833,6 @@ export default function GlobalError({
   }
 }
 
-@keyframes splashFloat {
-  0% {
-    transform: translateY(8px) scale(0.96);
-    opacity: 0.6;
-  }
-  60% {
-    transform: translateY(-2px) scale(1.02);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(0) scale(1);
-    opacity: 1;
-  }
-}
-
-@keyframes splashPulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.16);
-  }
-  100% {
-    box-shadow: 0 0 0 20px rgba(37, 99, 235, 0);
-  }
-}
-
-.splash-logo-wrap {
-  border-radius: 9999px;
-  background: radial-gradient(circle at 30% 20%, #ffffff 0%, #f8fbff 58%, #eef5ff 100%);
-  padding: 0.75rem;
-  animation: splashFloat 700ms ease-out, splashPulse 1.4s ease-out 1;
-}
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/layout.tsx</div><pre>import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
@@ -11106,7 +11865,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#000000",
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -11114,7 +11873,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     &lt;html lang="en" suppressHydrationWarning&gt;
       &lt;head&gt;
         &lt;link rel="manifest" href="/manifest.json" /&gt;
-        &lt;meta name="theme-color" content="#000000" /&gt;
+        &lt;meta name="theme-color" content="#ffffff" /&gt;
         &lt;meta name="apple-mobile-web-app-capable" content="yes" /&gt;
         &lt;meta name="apple-mobile-web-app-status-bar-style" content="default" /&gt;
         &lt;meta name="apple-mobile-web-app-title" content="DiagSync" /&gt;
@@ -12164,61 +12923,78 @@ export function AdminSignOutButton({ className }: AdminSignOutButtonProps) {
 <div class='file-block'><div class='file-header'>src/components/app-launch-splash.tsx</div><pre>"use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+
+const SPLASH_KEY = "diagsync_launch_splash_seen";
 
 function isStandaloneMode() {
   if (typeof window === "undefined") return false;
-  return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as any).standalone === true
+  );
 }
 
 export function AppLaunchSplash() {
   const pathname = usePathname();
-  const [ready, setReady] = useState(false);
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [imageReady, setImageReady] = useState(false);
+  const shownRef = useRef(false);
 
   useEffect(() =&gt; {
-    if (!pathname) {
-      setVisible(false);
-      setReady(true);
-      return;
-    }
+    if (!pathname || shownRef.current) return;
+    if (!isStandaloneMode()) return;
+    if (!pathname.startsWith("/dashboard")) return;
+    if (window.sessionStorage.getItem(SPLASH_KEY) === "1") return;
 
-    const shouldShow =
-      isStandaloneMode() &amp;&amp;
-      pathname.startsWith("/dashboard") &amp;&amp;
-      window.sessionStorage.getItem("diagsync_launch_splash_seen") !== "1";
-
-    if (!shouldShow) {
-      setVisible(false);
-      setReady(true);
-      return;
-    }
-
-    setReady(true);
-    window.sessionStorage.setItem("diagsync_launch_splash_seen", "1");
-    const startClose = window.setTimeout(() =&gt; setClosing(true), 900);
-    const remove = window.setTimeout(() =&gt; setVisible(false), 1300);
-    return () =&gt; {
-      window.clearTimeout(startClose);
-      window.clearTimeout(remove);
-    };
+    shownRef.current = true;
+    window.sessionStorage.setItem(SPLASH_KEY, "1");
+    setVisible(true);
   }, [pathname]);
 
-  if (!ready || !visible) return null;
+  useEffect(() =&gt; {
+    if (!visible || !imageReady) return;
+
+    const startClose = window.setTimeout(() =&gt; setClosing(true), 900);
+    const hide = window.setTimeout(() =&gt; setVisible(false), 1400);
+
+    return () =&gt; {
+      window.clearTimeout(startClose);
+      window.clearTimeout(hide);
+    };
+  }, [visible, imageReady]);
+
+  useEffect(() =&gt; {
+    if (!visible) return;
+    const failSafe = window.setTimeout(() =&gt; {
+      setClosing(true);
+      window.setTimeout(() =&gt; setVisible(false), 350);
+    }, 10000);
+    return () =&gt; window.clearTimeout(failSafe);
+  }, [visible]);
+
+  if (!visible) return null;
 
   return (
     &lt;div
-      className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-100 transition-opacity duration-500 ${
-        closing ? "opacity-0" : "opacity-100"
+      className={`fixed inset-0 z-[120] flex items-center justify-center bg-slate-100 transition-opacity duration-500 ${
+        closing ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
     &gt;
-      &lt;div className="flex flex-col items-center"&gt;
-        &lt;div className="splash-logo-wrap"&gt;
-          &lt;Image src="/diagsync-logo.png" alt="DiagSync" width={260} height={260} priority className="h-auto w-[180px] sm:w-[220px]" /&gt;
-        &lt;/div&gt;
-        &lt;p className="mt-3 text-sm font-semibold tracking-wide text-slate-600"&gt;Loading workspace...&lt;/p&gt;
+      &lt;div className="flex flex-col items-center gap-3 px-6 text-center"&gt;
+        &lt;Image
+          src="/splash-screen.png"
+          alt="DiagSync"
+          width={900}
+          height={540}
+          priority
+          className="h-auto w-[min(82vw,380px)] animate-[pulse_1.8s_ease-in-out_infinite]"
+          onLoad={() =&gt; setImageReady(true)}
+          onError={() =&gt; setImageReady(true)}
+        /&gt;
+        &lt;p className="text-sm font-semibold tracking-wide text-slate-500"&gt;Loading workspace...&lt;/p&gt;
       &lt;/div&gt;
     &lt;/div&gt;
   );
@@ -13323,6 +14099,894 @@ export function ConsultationBoard({ role }: { role: "RECEPTIONIST" | "MD" | "HRM
             &lt;/table&gt;
           &lt;/div&gt;
         )}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/device/add-staff-to-device-modal.tsx</div><pre>"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { DeviceStaffSummary } from "@/lib/device-client";
+import { PinInput } from "@/components/device/pin-input";
+
+type AddStaffResponse = {
+  success: boolean;
+  error?: string;
+  message?: string;
+  data?: {
+    staff: DeviceStaffSummary;
+    requiresPinSetup: boolean;
+    pinSetupToken: string | null;
+  };
+};
+
+interface AddStaffToDeviceModalProps {
+  open: boolean;
+  deviceKey: string;
+  onClose: () =&gt; void;
+  onStaffAdded: (staff: DeviceStaffSummary) =&gt; void;
+}
+
+const inputCls =
+  "h-9 w-full rounded border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+export function AddStaffToDeviceModal({ open, deviceKey, onClose, onStaffAdded }: AddStaffToDeviceModalProps) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [verifiedStaff, setVerifiedStaff] = useState&lt;DeviceStaffSummary | null&gt;(null);
+  const [needsPin, setNeedsPin] = useState(false);
+  const [pinSetupToken, setPinSetupToken] = useState&lt;string | null&gt;(null);
+  const readyToSubmitPin = useMemo(() =&gt; pin.length === 4 &amp;&amp; confirmPin.length === 4, [pin, confirmPin]);
+
+  useEffect(() =&gt; {
+    if (!open) return;
+    setEmail("");
+    setPassword("");
+    setPin("");
+    setConfirmPin("");
+    setBusy(false);
+    setError("");
+    setMessage("");
+    setVerifiedStaff(null);
+    setNeedsPin(false);
+    setPinSetupToken(null);
+  }, [open]);
+
+  if (!open) return null;
+
+  async function verifyStaff() {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await fetch("/api/device/add-staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deviceKey,
+          email: email.trim(),
+          password,
+        }),
+      });
+      const json = (await res.json()) as AddStaffResponse;
+      if (!json.success || !json.data) {
+        setError(json.error ?? "Failed to verify staff");
+        return;
+      }
+      setVerifiedStaff(json.data.staff);
+      setNeedsPin(json.data.requiresPinSetup);
+      setPinSetupToken(json.data.pinSetupToken);
+      onStaffAdded(json.data.staff);
+      if (json.data.requiresPinSetup) {
+        setMessage("Staff verified. Create a 4-digit PIN.");
+      } else {
+        setMessage("Staff added to this device.");
+      }
+    } catch {
+      setError("Network error while verifying staff.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setPinForStaff() {
+    if (!verifiedStaff || !pinSetupToken) return;
+    if (pin !== confirmPin) {
+      setError("PINs do not match");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await fetch("/api/staff/set-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          staffId: verifiedStaff.staffId,
+          pin,
+          pinSetupToken,
+        }),
+      });
+      const json = (await res.json()) as { success: boolean; error?: string; message?: string };
+      if (!json.success) {
+        setError(json.error ?? "Failed to set PIN");
+        return;
+      }
+      setNeedsPin(false);
+      setPinSetupToken(null);
+      setMessage(json.message ?? "PIN created successfully");
+    } catch {
+      setError("Network error while setting PIN.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const showVerifyForm = !verifiedStaff;
+  const showPinForm = !!verifiedStaff &amp;&amp; needsPin;
+
+  return (
+    &lt;div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4"&gt;
+      &lt;div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-xl"&gt;
+        &lt;div className="mb-3"&gt;
+          &lt;h3 className="text-sm font-semibold text-slate-800"&gt;Add Staff to This Device&lt;/h3&gt;
+          &lt;p className="mt-0.5 text-xs text-slate-500"&gt;
+            Verify staff credentials, then create PIN if needed.
+          &lt;/p&gt;
+        &lt;/div&gt;
+
+        {error ? (
+          &lt;div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt;
+        ) : null}
+        {message ? (
+          &lt;div className="mb-3 rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700"&gt;
+            {message}
+          &lt;/div&gt;
+        ) : null}
+
+        {showVerifyForm ? (
+          &lt;div className="space-y-3"&gt;
+            &lt;label className="block"&gt;
+              &lt;span className="mb-1 block text-xs font-medium text-slate-600"&gt;Email&lt;/span&gt;
+              &lt;input
+                type="email"
+                value={email}
+                onChange={(event) =&gt; setEmail(event.target.value)}
+                className={inputCls}
+                placeholder="staff@lab.com"
+              /&gt;
+            &lt;/label&gt;
+            &lt;label className="block"&gt;
+              &lt;span className="mb-1 block text-xs font-medium text-slate-600"&gt;Password&lt;/span&gt;
+              &lt;input
+                type="password"
+                value={password}
+                onChange={(event) =&gt; setPassword(event.target.value)}
+                className={inputCls}
+                placeholder="Enter staff password"
+              /&gt;
+            &lt;/label&gt;
+            &lt;div className="flex items-center justify-end gap-2 pt-1"&gt;
+              &lt;button
+                type="button"
+                onClick={onClose}
+                className="rounded border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+              &gt;
+                Cancel
+              &lt;/button&gt;
+              &lt;button
+                type="button"
+                disabled={busy || !email.trim() || !password}
+                onClick={() =&gt; void verifyStaff()}
+                className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              &gt;
+                {busy ? "Verifying..." : "Verify Staff"}
+              &lt;/button&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        ) : null}
+
+        {showPinForm ? (
+          &lt;div className="space-y-3"&gt;
+            &lt;p className="text-xs text-slate-600"&gt;
+              Set a 4-digit PIN for &lt;span className="font-semibold"&gt;{verifiedStaff.name}&lt;/span&gt;.
+            &lt;/p&gt;
+            &lt;div className="space-y-2"&gt;
+              &lt;div&gt;
+                &lt;p className="mb-1 text-xs font-medium text-slate-600"&gt;Enter PIN&lt;/p&gt;
+                &lt;PinInput value={pin} onChange={setPin} autoFocus disabled={busy} /&gt;
+              &lt;/div&gt;
+              &lt;div&gt;
+                &lt;p className="mb-1 text-xs font-medium text-slate-600"&gt;Confirm PIN&lt;/p&gt;
+                &lt;PinInput value={confirmPin} onChange={setConfirmPin} disabled={busy} /&gt;
+              &lt;/div&gt;
+            &lt;/div&gt;
+            &lt;div className="flex items-center justify-end gap-2 pt-1"&gt;
+              &lt;button
+                type="button"
+                onClick={onClose}
+                className="rounded border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+              &gt;
+                Close
+              &lt;/button&gt;
+              &lt;button
+                type="button"
+                disabled={busy || !readyToSubmitPin}
+                onClick={() =&gt; void setPinForStaff()}
+                className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              &gt;
+                {busy ? "Saving..." : "Create PIN"}
+              &lt;/button&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        ) : null}
+
+        {verifiedStaff &amp;&amp; !needsPin ? (
+          &lt;div className="flex items-center justify-end pt-1"&gt;
+            &lt;button
+              type="button"
+              onClick={onClose}
+              className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+            &gt;
+              Done
+            &lt;/button&gt;
+          &lt;/div&gt;
+        ) : null}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/device/device-account-menu.tsx</div><pre>"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { signOut } from "next-auth/react";
+import { ChevronDown, RefreshCw, UserPlus, Users, UserX } from "lucide-react";
+import {
+  DeviceStaffSummary,
+  clearDeviceContext,
+  ensureDeviceContext,
+  markLastActiveStaff,
+  setDeviceStaff,
+} from "@/lib/device-client";
+import { ROLE_LABELS } from "@/lib/utils";
+import { AddStaffToDeviceModal } from "@/components/device/add-staff-to-device-modal";
+import { SwitchStaffModal } from "@/components/device/switch-staff-modal";
+import { RemoveStaffFromDeviceDialog } from "@/components/device/remove-staff-from-device-dialog";
+
+interface DeviceAccountMenuProps {
+  staffId: string;
+  staffName: string;
+  staffEmail: string;
+  role: keyof typeof ROLE_LABELS;
+  organizationId: string;
+}
+
+export function DeviceAccountMenu({
+  staffId,
+  staffName,
+  staffEmail,
+  role,
+  organizationId,
+}: DeviceAccountMenuProps) {
+  const menuRef = useRef&lt;HTMLDivElement&gt;(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [deviceKey, setDeviceKey] = useState("");
+  const [savedStaff, setSavedStaffState] = useState&lt;DeviceStaffSummary[]&gt;([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const sortedStaff = useMemo(() =&gt; {
+    const deduped = new Map&lt;string, DeviceStaffSummary&gt;();
+    for (const item of savedStaff) deduped.set(item.staffId, item);
+    return Array.from(deduped.values());
+  }, [savedStaff]);
+
+  const syncStaffToState = useCallback(
+    (staff: DeviceStaffSummary[]) =&gt; {
+      setSavedStaffState(staff);
+      if (organizationId) setDeviceStaff(organizationId, staff);
+    },
+    [organizationId]
+  );
+
+  const loadDeviceState = useCallback(
+    async (key: string, allowRetryWithReset = true) =&gt; {
+      if (!key) return;
+      setLoading(true);
+      setError("");
+      try {
+        const registerRes = await fetch("/api/device/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deviceKey: key }),
+        });
+        const registerJson = (await registerRes.json()) as {
+          success: boolean;
+          error?: string;
+          data?: { staff?: DeviceStaffSummary[] };
+        };
+        if (!registerJson.success) {
+          if (allowRetryWithReset &amp;&amp; registerJson.error?.toLowerCase().includes("another organization")) {
+            clearDeviceContext();
+            const ctx = ensureDeviceContext(organizationId);
+            setDeviceKey(ctx.deviceKey);
+            await loadDeviceState(ctx.deviceKey, false);
+            return;
+          }
+          setError(registerJson.error ?? "Failed to register device");
+          return;
+        }
+
+        const listRes = await fetch(`/api/device/staff?deviceKey=${encodeURIComponent(key)}`);
+        const listJson = (await listRes.json()) as {
+          success: boolean;
+          error?: string;
+          data?: { staff: DeviceStaffSummary[] };
+        };
+        if (!listJson.success) {
+          setError(listJson.error ?? "Failed to load saved staff");
+          return;
+        }
+        syncStaffToState(listJson.data?.staff ?? registerJson.data?.staff ?? []);
+      } catch {
+        setError("Network error while loading device account list.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [organizationId, syncStaffToState]
+  );
+
+  useEffect(() =&gt; {
+    const ctx = ensureDeviceContext(organizationId);
+    setDeviceKey(ctx.deviceKey);
+    setSavedStaffState(ctx.staff ?? []);
+    void loadDeviceState(ctx.deviceKey);
+  }, [organizationId, loadDeviceState]);
+
+  useEffect(() =&gt; {
+    function onClickOutside(event: MouseEvent) {
+      if (!menuRef.current || menuRef.current.contains(event.target as Node)) return;
+      setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () =&gt; document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  async function resetThisDevice() {
+    if (!deviceKey) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/device/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceKey }),
+      });
+      const json = (await res.json()) as { success: boolean; error?: string };
+      if (!json.success) {
+        setError(json.error ?? "Failed to reset device");
+        return;
+      }
+      clearDeviceContext();
+      const next = ensureDeviceContext(organizationId);
+      setDeviceKey(next.deviceKey);
+      syncStaffToState([]);
+      await loadDeviceState(next.deviceKey, false);
+    } catch {
+      setError("Network error while resetting device.");
+    } finally {
+      setLoading(false);
+      setMenuOpen(false);
+    }
+  }
+
+  function addStaffToLocal(staff: DeviceStaffSummary) {
+    syncStaffToState([staff, ...sortedStaff.filter((item) =&gt; item.staffId !== staff.staffId)]);
+  }
+
+  function removeStaffFromLocal(targetStaffId: string) {
+    syncStaffToState(sortedStaff.filter((item) =&gt; item.staffId !== targetStaffId));
+  }
+
+  function onSwitched(staffIdToMark: string) {
+    markLastActiveStaff(organizationId, staffIdToMark);
+    setMenuOpen(false);
+  }
+
+  return (
+    &lt;div className="relative" ref={menuRef}&gt;
+      &lt;button
+        type="button"
+        onClick={() =&gt; setMenuOpen((prev) =&gt; !prev)}
+        className="flex items-center gap-2 rounded border border-slate-200 px-2.5 py-1.5 text-left hover:bg-slate-50"
+      &gt;
+        &lt;div className="hidden sm:block"&gt;
+          &lt;p className="max-w-[140px] truncate text-xs font-semibold text-slate-700"&gt;{staffName}&lt;/p&gt;
+          &lt;p className="text-[11px] text-slate-500"&gt;{ROLE_LABELS[role]}&lt;/p&gt;
+        &lt;/div&gt;
+        &lt;ChevronDown className="h-4 w-4 text-slate-500" /&gt;
+      &lt;/button&gt;
+
+      {menuOpen ? (
+        &lt;div className="absolute right-0 z-[65] mt-2 w-72 rounded-lg border border-slate-200 bg-white p-2 shadow-lg"&gt;
+          &lt;div className="border-b border-slate-100 px-2.5 pb-2"&gt;
+            &lt;p className="truncate text-xs font-semibold text-slate-800"&gt;{staffName}&lt;/p&gt;
+            &lt;p className="truncate text-[11px] text-slate-500"&gt;
+              {ROLE_LABELS[role]} Â· {staffEmail}
+            &lt;/p&gt;
+          &lt;/div&gt;
+
+          {error ? (
+            &lt;div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-600"&gt;
+              {error}
+            &lt;/div&gt;
+          ) : null}
+
+          &lt;div className="mt-2 space-y-1"&gt;
+            &lt;button
+              type="button"
+              onClick={() =&gt; {
+                setMenuOpen(false);
+                setShowSwitchModal(true);
+              }}
+              className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-xs text-slate-700 hover:bg-slate-50"
+            &gt;
+              &lt;Users className="h-3.5 w-3.5" /&gt;
+              Switch Account
+            &lt;/button&gt;
+            &lt;button
+              type="button"
+              onClick={() =&gt; {
+                setMenuOpen(false);
+                setShowAddModal(true);
+              }}
+              className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-xs text-slate-700 hover:bg-slate-50"
+            &gt;
+              &lt;UserPlus className="h-3.5 w-3.5" /&gt;
+              Add Staff to This Device
+            &lt;/button&gt;
+            &lt;button
+              type="button"
+              onClick={() =&gt; {
+                setMenuOpen(false);
+                setShowRemoveModal(true);
+              }}
+              className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-xs text-slate-700 hover:bg-slate-50"
+            &gt;
+              &lt;UserX className="h-3.5 w-3.5" /&gt;
+              Remove Staff from Device
+            &lt;/button&gt;
+            &lt;button
+              type="button"
+              onClick={() =&gt; void resetThisDevice()}
+              disabled={loading}
+              className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+            &gt;
+              &lt;RefreshCw className="h-3.5 w-3.5" /&gt;
+              Reset This Device
+            &lt;/button&gt;
+            &lt;button
+              type="button"
+              onClick={() =&gt; signOut({ callbackUrl: "/login" })}
+              className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-xs text-red-600 hover:bg-red-50"
+            &gt;
+              Logout
+            &lt;/button&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      ) : null}
+
+      &lt;AddStaffToDeviceModal
+        open={showAddModal}
+        deviceKey={deviceKey}
+        onClose={() =&gt; setShowAddModal(false)}
+        onStaffAdded={addStaffToLocal}
+      /&gt;
+
+      &lt;SwitchStaffModal
+        open={showSwitchModal}
+        deviceKey={deviceKey}
+        currentStaffId={staffId}
+        staff={sortedStaff}
+        onClose={() =&gt; setShowSwitchModal(false)}
+        onSwitched={onSwitched}
+      /&gt;
+
+      &lt;RemoveStaffFromDeviceDialog
+        open={showRemoveModal}
+        deviceKey={deviceKey}
+        staff={sortedStaff}
+        currentStaffId={staffId}
+        onClose={() =&gt; setShowRemoveModal(false)}
+        onRemoved={removeStaffFromLocal}
+      /&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/device/pin-input.tsx</div><pre>"use client";
+
+import { useEffect, useMemo, useRef } from "react";
+
+interface PinInputProps {
+  value: string;
+  onChange: (value: string) =&gt; void;
+  autoFocus?: boolean;
+  disabled?: boolean;
+}
+
+function toDigits(value: string) {
+  return value.replace(/\D/g, "").slice(0, 4);
+}
+
+export function PinInput({ value, onChange, autoFocus = false, disabled = false }: PinInputProps) {
+  const refs = useRef&lt;Array&lt;HTMLInputElement | null&gt;&gt;([]);
+  const digits = useMemo(() =&gt; {
+    const safe = toDigits(value);
+    return [safe[0] ?? "", safe[1] ?? "", safe[2] ?? "", safe[3] ?? ""];
+  }, [value]);
+
+  useEffect(() =&gt; {
+    if (!autoFocus || disabled) return;
+    refs.current[0]?.focus();
+  }, [autoFocus, disabled]);
+
+  function focusIndex(index: number) {
+    refs.current[Math.max(0, Math.min(3, index))]?.focus();
+  }
+
+  function handleInput(index: number, nextRaw: string) {
+    const nextDigit = nextRaw.replace(/\D/g, "").slice(-1);
+    const chars = [...digits];
+    chars[index] = nextDigit;
+    const nextValue = toDigits(chars.join(""));
+    onChange(nextValue);
+    if (nextDigit &amp;&amp; index &lt; 3) focusIndex(index + 1);
+  }
+
+  function handleKeyDown(index: number, event: React.KeyboardEvent&lt;HTMLInputElement&gt;) {
+    if (event.key === "Backspace") {
+      if (digits[index]) {
+        const chars = [...digits];
+        chars[index] = "";
+        onChange(chars.join(""));
+        return;
+      }
+      if (index &gt; 0) {
+        const chars = [...digits];
+        chars[index - 1] = "";
+        onChange(chars.join(""));
+        focusIndex(index - 1);
+      }
+      return;
+    }
+    if (event.key === "ArrowLeft" &amp;&amp; index &gt; 0) {
+      focusIndex(index - 1);
+      return;
+    }
+    if (event.key === "ArrowRight" &amp;&amp; index &lt; 3) {
+      focusIndex(index + 1);
+    }
+  }
+
+  function handlePaste(event: React.ClipboardEvent&lt;HTMLInputElement&gt;) {
+    event.preventDefault();
+    const pasted = toDigits(event.clipboardData.getData("text"));
+    if (!pasted) return;
+    onChange(pasted);
+    focusIndex(Math.min(3, pasted.length - 1));
+  }
+
+  return (
+    &lt;div className="flex items-center gap-2"&gt;
+      {[0, 1, 2, 3].map((index) =&gt; (
+        &lt;input
+          key={index}
+          ref={(el) =&gt; {
+            refs.current[index] = el;
+          }}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern="[0-9]*"
+          maxLength={1}
+          disabled={disabled}
+          value={digits[index]}
+          onChange={(event) =&gt; handleInput(index, event.target.value)}
+          onKeyDown={(event) =&gt; handleKeyDown(index, event)}
+          onPaste={handlePaste}
+          className="h-11 w-11 rounded border border-slate-300 bg-white text-center text-lg font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+        /&gt;
+      ))}
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/device/remove-staff-from-device-dialog.tsx</div><pre>"use client";
+
+import { useState } from "react";
+import { ROLE_LABELS } from "@/lib/utils";
+import { DeviceStaffSummary } from "@/lib/device-client";
+
+interface RemoveStaffFromDeviceDialogProps {
+  open: boolean;
+  deviceKey: string;
+  staff: DeviceStaffSummary[];
+  currentStaffId: string;
+  onClose: () =&gt; void;
+  onRemoved: (staffId: string) =&gt; void;
+}
+
+export function RemoveStaffFromDeviceDialog({
+  open,
+  deviceKey,
+  staff,
+  currentStaffId,
+  onClose,
+  onRemoved,
+}: RemoveStaffFromDeviceDialogProps) {
+  const [busyStaffId, setBusyStaffId] = useState&lt;string | null&gt;(null);
+  const [error, setError] = useState("");
+
+  if (!open) return null;
+
+  async function removeStaff(staffId: string) {
+    setBusyStaffId(staffId);
+    setError("");
+    try {
+      const res = await fetch("/api/device/remove-staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceKey, staffId }),
+      });
+      const json = (await res.json()) as { success: boolean; error?: string };
+      if (!json.success) {
+        setError(json.error ?? "Failed to remove staff");
+        return;
+      }
+      onRemoved(staffId);
+    } catch {
+      setError("Network error while removing staff.");
+    } finally {
+      setBusyStaffId(null);
+    }
+  }
+
+  return (
+    &lt;div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4"&gt;
+      &lt;div className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-4 shadow-xl"&gt;
+        &lt;div className="mb-3"&gt;
+          &lt;h3 className="text-sm font-semibold text-slate-800"&gt;Remove Staff from Device&lt;/h3&gt;
+          &lt;p className="mt-0.5 text-xs text-slate-500"&gt;Choose staff to remove from this device.&lt;/p&gt;
+        &lt;/div&gt;
+
+        {error ? (
+          &lt;div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt;
+        ) : null}
+
+        {staff.length === 0 ? (
+          &lt;div className="rounded border border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500"&gt;
+            No saved staff to remove.
+          &lt;/div&gt;
+        ) : (
+          &lt;div className="max-h-60 space-y-2 overflow-y-auto pr-1"&gt;
+            {staff.map((item) =&gt; (
+              &lt;div
+                key={item.staffId}
+                className="flex items-center justify-between rounded border border-slate-200 px-3 py-2"
+              &gt;
+                &lt;div className="min-w-0"&gt;
+                  &lt;p className="truncate text-sm font-medium text-slate-800"&gt;
+                    {item.name}
+                    {item.staffId === currentStaffId ? (
+                      &lt;span className="ml-2 text-[11px] text-blue-600"&gt;(Current)&lt;/span&gt;
+                    ) : null}
+                  &lt;/p&gt;
+                  &lt;p className="truncate text-xs text-slate-500"&gt;{item.email}&lt;/p&gt;
+                  &lt;p className="text-[11px] text-slate-400"&gt;{ROLE_LABELS[item.role]}&lt;/p&gt;
+                &lt;/div&gt;
+                &lt;button
+                  type="button"
+                  onClick={() =&gt; void removeStaff(item.staffId)}
+                  disabled={busyStaffId === item.staffId}
+                  className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-60"
+                &gt;
+                  {busyStaffId === item.staffId ? "Removing..." : "Remove"}
+                &lt;/button&gt;
+              &lt;/div&gt;
+            ))}
+          &lt;/div&gt;
+        )}
+
+        &lt;div className="mt-4 flex items-center justify-end"&gt;
+          &lt;button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+          &gt;
+            Close
+          &lt;/button&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/device/switch-staff-modal.tsx</div><pre>"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
+import { ROLE_LABELS } from "@/lib/utils";
+import { DeviceStaffSummary } from "@/lib/device-client";
+import { PinInput } from "@/components/device/pin-input";
+
+interface SwitchStaffModalProps {
+  open: boolean;
+  deviceKey: string;
+  currentStaffId: string;
+  staff: DeviceStaffSummary[];
+  onClose: () =&gt; void;
+  onSwitched: (staffId: string) =&gt; void;
+}
+
+type SwitchResponse = {
+  success: boolean;
+  error?: string;
+  message?: string;
+  data?: {
+    switchToken: string;
+    dashboardPath: string;
+    staff: DeviceStaffSummary;
+  };
+};
+
+export function SwitchStaffModal({
+  open,
+  deviceKey,
+  currentStaffId,
+  staff,
+  onClose,
+  onSwitched,
+}: SwitchStaffModalProps) {
+  const router = useRouter();
+  const [selectedStaffId, setSelectedStaffId] = useState("");
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const selected = useMemo(
+    () =&gt; staff.find((item) =&gt; item.staffId === selectedStaffId) ?? null,
+    [selectedStaffId, staff]
+  );
+
+  useEffect(() =&gt; {
+    if (!open) return;
+    setError("");
+    setBusy(false);
+    setPin("");
+    const first = staff.find((item) =&gt; item.staffId !== currentStaffId) ?? staff[0] ?? null;
+    setSelectedStaffId(first?.staffId ?? "");
+  }, [open, staff, currentStaffId]);
+
+  if (!open) return null;
+
+  async function switchAccount() {
+    if (!selected || pin.length !== 4) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/device/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deviceKey,
+          staffId: selected.staffId,
+          pin,
+        }),
+      });
+      const json = (await res.json()) as SwitchResponse;
+      if (!json.success || !json.data) {
+        setError(json.error ?? "Unable to switch account");
+        return;
+      }
+
+      const loginResult = await signIn("device-switch", {
+        switchToken: json.data.switchToken,
+        redirect: false,
+      });
+      if (loginResult?.error) {
+        setError("Failed to activate selected account");
+        return;
+      }
+
+      onSwitched(selected.staffId);
+      onClose();
+      router.push(json.data.dashboardPath);
+      router.refresh();
+    } catch {
+      setError("Network error while switching account.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    &lt;div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4"&gt;
+      &lt;div className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-4 shadow-xl"&gt;
+        &lt;div className="mb-3"&gt;
+          &lt;h3 className="text-sm font-semibold text-slate-800"&gt;Switch Account&lt;/h3&gt;
+          &lt;p className="mt-0.5 text-xs text-slate-500"&gt;Select staff and enter PIN.&lt;/p&gt;
+        &lt;/div&gt;
+
+        {error ? (
+          &lt;div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"&gt;{error}&lt;/div&gt;
+        ) : null}
+
+        {staff.length === 0 ? (
+          &lt;div className="rounded border border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500"&gt;
+            No staff saved on this device yet.
+          &lt;/div&gt;
+        ) : (
+          &lt;div className="space-y-3"&gt;
+            &lt;div className="max-h-52 space-y-2 overflow-y-auto pr-1"&gt;
+              {staff.map((item) =&gt; {
+                const active = item.staffId === selectedStaffId;
+                const isCurrent = item.staffId === currentStaffId;
+                return (
+                  &lt;button
+                    key={item.staffId}
+                    type="button"
+                    onClick={() =&gt; setSelectedStaffId(item.staffId)}
+                    className={`w-full rounded border px-3 py-2 text-left transition-colors ${
+                      active ? "border-blue-300 bg-blue-50" : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  &gt;
+                    &lt;p className="text-sm font-medium text-slate-800"&gt;
+                      {item.name}
+                      {isCurrent ? &lt;span className="ml-2 text-[11px] text-blue-600"&gt;(Current)&lt;/span&gt; : null}
+                    &lt;/p&gt;
+                    &lt;p className="text-xs text-slate-500"&gt;{item.email}&lt;/p&gt;
+                    &lt;p className="mt-0.5 text-[11px] text-slate-400"&gt;{ROLE_LABELS[item.role]}&lt;/p&gt;
+                  &lt;/button&gt;
+                );
+              })}
+            &lt;/div&gt;
+
+            &lt;div&gt;
+              &lt;p className="mb-1 text-xs font-medium text-slate-600"&gt;Enter PIN&lt;/p&gt;
+              &lt;PinInput value={pin} onChange={setPin} autoFocus disabled={busy || !selected} /&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        )}
+
+        &lt;div className="mt-4 flex items-center justify-end gap-2"&gt;
+          &lt;button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+          &gt;
+            Cancel
+          &lt;/button&gt;
+          &lt;button
+            type="button"
+            disabled={!selected || pin.length !== 4 || busy}
+            onClick={() =&gt; void switchAccount()}
+            className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+          &gt;
+            {busy ? "Switching..." : "Switch Account"}
+          &lt;/button&gt;
+        &lt;/div&gt;
       &lt;/div&gt;
     &lt;/div&gt;
   );
@@ -17883,7 +19547,9 @@ type DashboardShellProps = {
   };
   staffId: string;
   staffName: string;
+  staffEmail: string;
   role: Role;
+  organizationId: string;
   initialAvailability: boolean;
   showAvailabilityToggle?: boolean;
   trialBanner?: { text: string; warning?: boolean } | null;
@@ -17894,7 +19560,9 @@ export function DashboardShell({
   user,
   staffId,
   staffName,
+  staffEmail,
   role,
+  organizationId,
   initialAvailability,
   showAvailabilityToggle = true,
   trialBanner = null,
@@ -17909,7 +19577,9 @@ export function DashboardShell({
         &lt;HeaderBar
           staffId={staffId}
           staffName={staffName}
+          staffEmail={staffEmail}
           role={role}
+          organizationId={organizationId}
           initialAvailability={initialAvailability}
           showAvailabilityToggle={showAvailabilityToggle}
         /&gt;
@@ -17942,11 +19612,15 @@ import { Menu } from "lucide-react";
 import { Switch } from "@/components/ui/index";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { DeviceAccountMenu } from "@/components/device/device-account-menu";
+import { Role } from "@prisma/client";
 
 interface HeaderBarProps {
   staffId: string;
   staffName: string;
-  role: string;
+  staffEmail: string;
+  role: Role;
+  organizationId: string;
   initialAvailability: boolean;
   showAvailabilityToggle?: boolean;
   onOpenSidebar?: () =&gt; void;
@@ -17955,7 +19629,9 @@ interface HeaderBarProps {
 export function HeaderBar({
   staffId,
   staffName,
+  staffEmail,
   role,
+  organizationId,
   initialAvailability,
   showAvailabilityToggle = true,
   onOpenSidebar,
@@ -18023,6 +19699,13 @@ export function HeaderBar({
           &lt;/div&gt;
         )}
         &lt;NotificationBell role={role} /&gt;
+        &lt;DeviceAccountMenu
+          staffId={staffId}
+          staffName={staffName}
+          staffEmail={staffEmail}
+          role={role}
+          organizationId={organizationId}
+        /&gt;
       &lt;/div&gt;
     &lt;/header&gt;
   );
@@ -21032,33 +22715,38 @@ import { useState } from "react";
 
 export function DeletePatientButton({
   visitId,
+  patientId,
   patientName,
   visitNumber,
 }: {
   visitId: string;
+  patientId: string;
   patientName: string;
   visitNumber?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [open, setOpen] = useState(false);
+  const [deleteEntirePatient, setDeleteEntirePatient] = useState(false);
 
-  async function onDelete() {
+  async function onDeleteConfirmed() {
     if (busy) return;
-    const approved = window.confirm(
-      `Delete this visit for ${patientName}${visitNumber ? ` (${visitNumber})` : ""}? This removes only this visit's tests/results/reports/tasks and keeps previous visits.`
-    );
-    if (!approved) return;
 
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`/api/visits/${visitId}`, { method: "DELETE" });
+      const res = await fetch(
+        deleteEntirePatient ? `/api/patients/${patientId}` : `/api/visits/${visitId}`,
+        { method: "DELETE" }
+      );
       const json = (await res.json()) as { success: boolean; error?: string };
       if (!json.success) {
         setError(json.error ?? "Unable to delete visit");
         return;
       }
+      setOpen(false);
+      setDeleteEntirePatient(false);
       router.refresh();
     } catch {
       setError("Network error while deleting patient");
@@ -21071,13 +22759,71 @@ export function DeletePatientButton({
     &lt;div className="inline-flex flex-col items-start gap-1"&gt;
       &lt;button
         type="button"
-        onClick={onDelete}
+        onClick={() =&gt; {
+          if (busy) return;
+          setDeleteEntirePatient(false);
+          setOpen(true);
+        }}
         disabled={busy}
         className="rounded border border-red-200 px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
       &gt;
         {busy ? "Deleting..." : "Delete Visit"}
       &lt;/button&gt;
       {error ? &lt;p className="text-[10px] text-red-600"&gt;{error}&lt;/p&gt; : null}
+
+      {open ? (
+        &lt;div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4"&gt;
+          &lt;div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-xl"&gt;
+            &lt;div className="mb-3"&gt;
+              &lt;h3 className="text-sm font-semibold text-slate-800"&gt;Delete Patient Data&lt;/h3&gt;
+              &lt;p className="mt-1 text-xs text-slate-500"&gt;
+                {patientName}
+                {visitNumber ? ` (${visitNumber})` : ""}
+              &lt;/p&gt;
+            &lt;/div&gt;
+
+            &lt;p className="mb-3 text-xs text-slate-600"&gt;
+              Unchecked: delete only this visit. Checked: delete everything about this patient (all visits and records).
+            &lt;/p&gt;
+
+            &lt;label className="mb-4 flex items-start gap-2 rounded border border-red-100 bg-red-50 px-2.5 py-2"&gt;
+              &lt;input
+                type="checkbox"
+                checked={deleteEntirePatient}
+                onChange={(e) =&gt; setDeleteEntirePatient(e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-red-600 focus:ring-red-500"
+              /&gt;
+              &lt;span className="text-xs text-red-700"&gt;Delete everything about this patient&lt;/span&gt;
+            &lt;/label&gt;
+
+            &lt;div className="flex items-center justify-end gap-2"&gt;
+              &lt;button
+                type="button"
+                onClick={() =&gt; {
+                  if (busy) return;
+                  setOpen(false);
+                }}
+                disabled={busy}
+                className="rounded border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+              &gt;
+                Cancel
+              &lt;/button&gt;
+              &lt;button
+                type="button"
+                onClick={() =&gt; void onDeleteConfirmed()}
+                disabled={busy}
+                className="rounded border border-red-200 bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              &gt;
+                {busy
+                  ? "Deleting..."
+                  : deleteEntirePatient
+                    ? "Delete Patient + All Visits"
+                    : "Delete This Visit"}
+              &lt;/button&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      ) : null}
     &lt;/div&gt;
   );
 }
@@ -21139,6 +22885,7 @@ interface Props {
   visitId: string;
   patient: {
     id: string;
+    patientId: string;
     fullName: string;
     age: number;
     sex: Sex;
@@ -21234,6 +22981,7 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
   const router = useRouter();
   const searchRef = useRef&lt;HTMLDivElement&gt;(null);
 
+  const [patientNumber, setPatientNumber] = useState(patient.patientId);
   const [fullName, setFullName] = useState(patient.fullName);
   const [age, setAge] = useState(String(patient.age));
   const [sex, setSex] = useState&lt;Sex&gt;(patient.sex);
@@ -21254,6 +23002,8 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
   const [testResults, setTestResults] = useState&lt;TestResult[]&gt;([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [hasAdvancedDiagnosticsAccess, setHasAdvancedDiagnosticsAccess] = useState(true);
+  const [billingAccessLoaded, setBillingAccessLoaded] = useState(false);
 
   const [cart, setCart] = useState&lt;CartItem[]&gt;(
     tests.map((row) =&gt; ({
@@ -21343,6 +23093,27 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
     }
     document.addEventListener("mousedown", onClickOutside);
     return () =&gt; document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  useEffect(() =&gt; {
+    let alive = true;
+    void (async () =&gt; {
+      try {
+        const res = await fetch("/api/billing/overview");
+        const json = await res.json();
+        if (!alive || !json.success) return;
+        const canUseRadiology = Boolean(json.data?.access?.canUseRadiology);
+        const canUseCardiology = Boolean(json.data?.access?.canUseCardiology);
+        setHasAdvancedDiagnosticsAccess(canUseRadiology || canUseCardiology);
+      } catch {
+        // keep permissive default to avoid false upgrade prompts
+      } finally {
+        if (alive) setBillingAccessLoaded(true);
+      }
+    })();
+    return () =&gt; {
+      alive = false;
+    };
   }, []);
 
   function addToCart(test: TestResult) {
@@ -21465,6 +23236,7 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
     setError("");
     setSuccess("");
 
+    if (!patientNumber.trim()) return setError("Patient number is required.");
     if (!fullName.trim()) return setError("Patient full name is required.");
     if (!age.trim() || Number.isNaN(Number(age))) return setError("Valid age is required.");
     if (!phone.trim()) return setError("Phone number is required.");
@@ -21475,6 +23247,7 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
     try {
       const payload = {
         patient: {
+          patientId: patientNumber.trim(),
           fullName: fullName.trim(),
           age: Math.trunc(Number(age)),
           sex,
@@ -21538,6 +23311,10 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
               &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Patient Details&lt;/span&gt;
             &lt;/div&gt;
             &lt;div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2"&gt;
+              &lt;div&gt;
+                &lt;label className={labelCls}&gt;Patient Number *&lt;/label&gt;
+                &lt;input className={inputCls} value={patientNumber} onChange={(e) =&gt; setPatientNumber(e.target.value)} /&gt;
+              &lt;/div&gt;
               &lt;div className="sm:col-span-2"&gt;
                 &lt;label className={labelCls}&gt;Full Name *&lt;/label&gt;
                 &lt;input className={inputCls} value={fullName} onChange={(e) =&gt; setFullName(e.target.value)} /&gt;
@@ -21629,7 +23406,7 @@ export function EditPatientForm({ visitId, patient, visit, tests }: Props) {
                 ) : null}
                 {showDropdown &amp;&amp; testSearch.length &gt; 0 &amp;&amp; testResults.length === 0 &amp;&amp; !searchLoading ? (
                   &lt;div className="absolute z-50 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg px-3 py-3"&gt;
-                    {isAdvancedFeatureSearch(testSearch) ? (
+                    {billingAccessLoaded &amp;&amp; !hasAdvancedDiagnosticsAccess &amp;&amp; isAdvancedFeatureSearch(testSearch) ? (
                       &lt;UpgradeHint
                         message={`No tests found for "${testSearch}". Radiology/Cardiology tests are available on Advanced plan.`}
                         ctaLabel="Go to Billing"
@@ -22052,6 +23829,8 @@ export function NewPatientForm() {
   const [expandedRangeByTest, setExpandedRangeByTest] = useState&lt;Record&lt;string, boolean&gt;&gt;({});
   const [rangeProfileByTest, setRangeProfileByTest] = useState&lt;Record&lt;string, RangeProfile&gt;&gt;({});
   const [showDropdown, setShowDropdown] = useState(false);
+  const [hasAdvancedDiagnosticsAccess, setHasAdvancedDiagnosticsAccess] = useState(true);
+  const [billingAccessLoaded, setBillingAccessLoaded] = useState(false);
   const searchRef = useRef&lt;HTMLDivElement&gt;(null);
   const [submitting, setSubmitting] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -22167,6 +23946,27 @@ export function NewPatientForm() {
     const sync = () =&gt; setIsOnline(navigator.onLine);
     sync(); window.addEventListener("online", sync); window.addEventListener("offline", sync);
     return () =&gt; { window.removeEventListener("online", sync); window.removeEventListener("offline", sync); };
+  }, []);
+
+  useEffect(() =&gt; {
+    let alive = true;
+    void (async () =&gt; {
+      try {
+        const res = await fetch("/api/billing/overview");
+        const json = await res.json();
+        if (!alive || !json.success) return;
+        const canUseRadiology = Boolean(json.data?.access?.canUseRadiology);
+        const canUseCardiology = Boolean(json.data?.access?.canUseCardiology);
+        setHasAdvancedDiagnosticsAccess(canUseRadiology || canUseCardiology);
+      } catch {
+        // keep permissive default to avoid false upgrade prompts
+      } finally {
+        if (alive) setBillingAccessLoaded(true);
+      }
+    })();
+    return () =&gt; {
+      alive = false;
+    };
   }, []);
 
   const subtotal = cart.reduce((s, t) =&gt; s + toNumberPrice(t.enteredPrice), 0);
@@ -22583,7 +24383,7 @@ export function NewPatientForm() {
           &lt;/div&gt;
 
           {/* Tests */}
-          &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
+          &lt;div className="rounded-lg border border-slate-200 bg-white"&gt;
             &lt;div className="border-b border-slate-100 px-4 py-2.5"&gt;
               &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Tests Ordered&lt;/span&gt;
             &lt;/div&gt;
@@ -22603,7 +24403,7 @@ export function NewPatientForm() {
                 &lt;/div&gt;
 
                 {showDropdown &amp;&amp; testResults.length &gt; 0 &amp;&amp; (
-                  &lt;div className="absolute z-50 w-full mt-1 rounded border border-slate-200 bg-white shadow-lg max-h-56 overflow-y-auto"&gt;
+                  &lt;div className="absolute z-50 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg max-h-[min(24rem,calc(100vh-12rem))] overflow-y-auto"&gt;
                     {testResults.map((test) =&gt; (
                       &lt;button key={test.id} type="button" onClick={() =&gt; addToCart(test)}
                         className="flex w-full items-center justify-between px-3 py-2.5 text-xs hover:bg-slate-50 transition-colors text-left border-b border-slate-100 last:border-0"&gt;
@@ -22620,7 +24420,7 @@ export function NewPatientForm() {
                 )}
                 {showDropdown &amp;&amp; testSearch.length &gt; 0 &amp;&amp; testResults.length === 0 &amp;&amp; !searchLoading &amp;&amp; (
                   &lt;div className="absolute z-50 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg px-3 py-3"&gt;
-                    {isAdvancedFeatureSearch(testSearch) ? (
+                    {billingAccessLoaded &amp;&amp; !hasAdvancedDiagnosticsAccess &amp;&amp; isAdvancedFeatureSearch(testSearch) ? (
                       &lt;UpgradeHint
                         message={`No tests found for "${testSearch}". Radiology/Cardiology tests are available on Advanced plan.`}
                         ctaLabel="Go to Billing"
@@ -23540,21 +25340,20 @@ export function ReportWorkspace({ role }: { role: "MD" | "HRM" | "SUPER_ADMIN" |
 
   async function sendWhatsapp() {
     if (!details) return;
-    const whatsappWindow = window.open("about:blank", "_blank", "noopener,noreferrer");
-    let shouldCloseWindow = true;
     setBusy(true); setError(""); setMessage("");
     try {
       const res = await fetch(`/api/reports/${details.id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "SEND_WHATSAPP" }) });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "WhatsApp handoff failed"); return; }
       if (json.data?.waUrl) {
-        if (whatsappWindow) { whatsappWindow.location.href = json.data.waUrl; }
-        else { try { window.location.href = json.data.waUrl; } catch { } }
-        shouldCloseWindow = false;
-        setMessage("WhatsApp opened. Send the report link to the patient.");
+        const popup = window.open(json.data.waUrl, "_blank", "noopener,noreferrer");
+        if (!popup) {
+          setError("Unable to open new tab. Please allow popups for this site and try again.");
+          return;
+        }
+        setMessage("WhatsApp opened in a new tab. Send the report link to the patient.");
       } else { setError("WhatsApp destination unavailable."); }
     } finally {
-      if (shouldCloseWindow &amp;&amp; whatsappWindow &amp;&amp; whatsappWindow.location.href === "about:blank") whatsappWindow.close();
       setBusy(false);
     }
   }
@@ -24294,31 +26093,33 @@ export function StatsCard({
 <div class='file-block'><div class='file-header'>src/components/standalone-dashboard-redirect.tsx</div><pre>"use client";
 
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 function isStandaloneMode() {
   if (typeof window === "undefined") return false;
-  return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as any).standalone === true
+  );
 }
 
 export function StandaloneDashboardRedirect() {
-  const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() =&gt; {
-    if (!pathname) return;
     if (!isStandaloneMode()) return;
-    if (pathname.startsWith("/dashboard")) return;
-    if (pathname.startsWith("/login") || pathname.startsWith("/register") || pathname.startsWith("/admin")) return;
+    if (window.location.pathname.startsWith("/dashboard")) return;
+    if (["/login", "/register"].some((p) =&gt; window.location.pathname.startsWith(p))) return;
 
-    const bootedKey = "diagsync_standalone_booted";
-    if (window.sessionStorage.getItem(bootedKey) === "1") return;
-    window.sessionStorage.setItem(bootedKey, "1");
-    window.location.replace("/dashboard");
-  }, [pathname]);
+    const booted = window.sessionStorage.getItem("diagsync_standalone_booted");
+    if (booted === "1") return;
+
+    window.sessionStorage.setItem("diagsync_standalone_booted", "1");
+    router.replace("/dashboard");
+  }, [router]);
 
   return null;
 }
-
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/ui/button.tsx</div><pre>import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
@@ -25340,6 +27141,12 @@ export const AUDIT_ACTIONS = {
   STAFF_LOGIN: "STAFF_LOGIN",
   STAFF_LOGOUT: "STAFF_LOGOUT",
   AVAILABILITY_CHANGED: "AVAILABILITY_CHANGED",
+  DEVICE_REGISTERED: "DEVICE_REGISTERED",
+  STAFF_ADDED_TO_DEVICE: "STAFF_ADDED_TO_DEVICE",
+  STAFF_PIN_SET: "STAFF_PIN_SET",
+  STAFF_QUICK_SWITCHED: "STAFF_QUICK_SWITCHED",
+  STAFF_REMOVED_FROM_DEVICE: "STAFF_REMOVED_FROM_DEVICE",
+  DEVICE_CLEARED: "DEVICE_CLEARED",
 
   // Phase 3 â€” Patient &amp; Visit
   PATIENT_REGISTERED: "PATIENT_REGISTERED",
@@ -25454,6 +27261,8 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { verifyDeviceToken } from "@/lib/device-tokens";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
 
 const AUTH_SECRET =
   process.env.AUTH_SECRET ||
@@ -25463,6 +27272,10 @@ const AUTH_SECRET =
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
+});
+
+const deviceSwitchSchema = z.object({
+  switchToken: z.string().min(20),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -25558,6 +27371,81 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           organizationPlan: staff.organization?.plan ?? null,
           organizationStatus: staff.organization?.status ?? null,
           trialEndsAt: staff.organization?.trialEndsAt?.toISOString() ?? null,
+          fullName: staff.fullName,
+          department: staff.department,
+        };
+      },
+    }),
+    Credentials({
+      id: "device-switch",
+      name: "Device Switch",
+      credentials: {
+        switchToken: { label: "Switch Token", type: "text" },
+      },
+      async authorize(credentials) {
+        const parsed = deviceSwitchSchema.safeParse(credentials);
+        if (!parsed.success) return null;
+
+        const tokenPayload = verifyDeviceToken(parsed.data.switchToken, "quick_switch");
+        if (!tokenPayload) return null;
+
+        const staff = await prisma.staff.findUnique({
+          where: { id: tokenPayload.staffId },
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            role: true,
+            department: true,
+            organizationId: true,
+            status: true,
+            organization: {
+              select: {
+                plan: true,
+                status: true,
+                trialEndsAt: true,
+              },
+            },
+            deviceLinks: {
+              where: {
+                device: {
+                  deviceKey: tokenPayload.deviceKey,
+                  organizationId: tokenPayload.organizationId,
+                },
+              },
+              select: { id: true },
+              take: 1,
+            },
+          },
+        });
+
+        if (!staff) return null;
+        if (staff.status !== "ACTIVE") return null;
+        if (staff.role === "MEGA_ADMIN") return null;
+        if (!staff.organizationId || staff.organizationId !== tokenPayload.organizationId) return null;
+        if (!staff.organization) return null;
+        if (staff.deviceLinks.length === 0) return null;
+
+        try {
+          await requireOrganizationCoreAccess(staff.organizationId);
+        } catch {
+          return null;
+        }
+
+        await prisma.staff.update({
+          where: { id: staff.id },
+          data: { lastSeen: new Date() },
+        });
+
+        return {
+          id: staff.id,
+          email: staff.email,
+          name: staff.fullName,
+          role: staff.role,
+          organizationId: staff.organizationId,
+          organizationPlan: staff.organization.plan,
+          organizationStatus: staff.organization.status,
+          trialEndsAt: staff.organization.trialEndsAt?.toISOString() ?? null,
           fullName: staff.fullName,
           department: staff.department,
         };
@@ -26375,6 +28263,312 @@ export function validateResultDataPayload(input: unknown): ValidationResult&lt;R
   }
 
   return { ok: true, value: input };
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/device-client.ts</div><pre>"use client";
+
+import { Role } from "@prisma/client";
+
+export const DEVICE_CONTEXT_KEY = "diagsync_device_context";
+
+export type DeviceStaffSummary = {
+  staffId: string;
+  name: string;
+  email: string;
+  role: Role;
+};
+
+export type DeviceContext = {
+  deviceKey: string;
+  organizationId: string;
+  staff: DeviceStaffSummary[];
+  lastActiveStaffId?: string;
+};
+
+function safeParse(input: string | null): DeviceContext | null {
+  if (!input) return null;
+  try {
+    const parsed = JSON.parse(input) as DeviceContext;
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.deviceKey !== "string" || typeof parsed.organizationId !== "string") return null;
+    if (!Array.isArray(parsed.staff)) return null;
+    return {
+      deviceKey: parsed.deviceKey,
+      organizationId: parsed.organizationId,
+      staff: parsed.staff.filter(
+        (item) =&gt;
+          item &amp;&amp;
+          typeof item.staffId === "string" &amp;&amp;
+          typeof item.name === "string" &amp;&amp;
+          typeof item.email === "string" &amp;&amp;
+          typeof item.role === "string"
+      ),
+      lastActiveStaffId:
+        typeof parsed.lastActiveStaffId === "string" ? parsed.lastActiveStaffId : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function randomKey() {
+  if (typeof crypto !== "undefined" &amp;&amp; typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function getDeviceContext() {
+  if (typeof window === "undefined") return null;
+  return safeParse(window.localStorage.getItem(DEVICE_CONTEXT_KEY));
+}
+
+export function saveDeviceContext(context: DeviceContext) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(DEVICE_CONTEXT_KEY, JSON.stringify(context));
+}
+
+export function clearDeviceContext() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(DEVICE_CONTEXT_KEY);
+}
+
+export function ensureDeviceContext(organizationId: string) {
+  const existing = getDeviceContext();
+  if (!existing || existing.organizationId !== organizationId) {
+    const next: DeviceContext = {
+      deviceKey: randomKey(),
+      organizationId,
+      staff: [],
+    };
+    saveDeviceContext(next);
+    return next;
+  }
+  return existing;
+}
+
+export function setDeviceStaff(organizationId: string, staff: DeviceStaffSummary[]) {
+  const current = ensureDeviceContext(organizationId);
+  saveDeviceContext({
+    ...current,
+    staff,
+    lastActiveStaffId: current.lastActiveStaffId,
+  });
+}
+
+export function markLastActiveStaff(organizationId: string, staffId: string) {
+  const current = ensureDeviceContext(organizationId);
+  saveDeviceContext({
+    ...current,
+    lastActiveStaffId: staffId,
+  });
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/device-pin-attempts.ts</div><pre>type AttemptRecord = {
+  count: number;
+  blockedUntil: number;
+  lastAttemptAt: number;
+};
+
+const MAX_ATTEMPTS = 5;
+const BLOCK_DURATION_MS = 5 * 60 * 1000;
+const STALE_AFTER_MS = 30 * 60 * 1000;
+const attempts = new Map&lt;string, AttemptRecord&gt;();
+
+function now() {
+  return Date.now();
+}
+
+function cleanup(recordKey: string, record: AttemptRecord) {
+  if (now() - record.lastAttemptAt &gt; STALE_AFTER_MS) {
+    attempts.delete(recordKey);
+  }
+}
+
+export function pinAttemptKey(deviceKey: string, staffId: string) {
+  return `${deviceKey}:${staffId}`;
+}
+
+export function getPinAttemptState(key: string) {
+  const record = attempts.get(key);
+  if (!record) return { blocked: false, secondsLeft: 0 };
+  cleanup(key, record);
+  const fresh = attempts.get(key);
+  if (!fresh) return { blocked: false, secondsLeft: 0 };
+  if (fresh.blockedUntil &lt;= now()) return { blocked: false, secondsLeft: 0 };
+  return {
+    blocked: true,
+    secondsLeft: Math.max(1, Math.ceil((fresh.blockedUntil - now()) / 1000)),
+  };
+}
+
+export function recordPinFailure(key: string) {
+  const existing = attempts.get(key);
+  const nextCount = (existing?.count ?? 0) + 1;
+  const next: AttemptRecord = {
+    count: nextCount,
+    blockedUntil: nextCount &gt;= MAX_ATTEMPTS ? now() + BLOCK_DURATION_MS : 0,
+    lastAttemptAt: now(),
+  };
+  attempts.set(key, next);
+  return next;
+}
+
+export function resetPinFailures(key: string) {
+  attempts.delete(key);
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/device-server.ts</div><pre>import { Role, StaffStatus } from "@prisma/client";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { requireOrganizationCoreAccess } from "@/lib/billing-service";
+
+export type SafeDeviceStaffSummary = {
+  staffId: string;
+  name: string;
+  email: string;
+  role: Role;
+};
+
+export function toSafeStaffSummary(staff: { id: string; fullName: string; email: string; role: Role }) {
+  return {
+    staffId: staff.id,
+    name: staff.fullName,
+    email: staff.email,
+    role: staff.role,
+  } satisfies SafeDeviceStaffSummary;
+}
+
+export async function requireSessionStaffContext() {
+  const session = await auth();
+  if (!session?.user?.id) return { error: "Unauthorized", status: 401 as const };
+
+  const actor = await prisma.staff.findUnique({
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      role: true,
+      status: true,
+      organizationId: true,
+      fullName: true,
+      email: true,
+    },
+  });
+  if (!actor || actor.status !== StaffStatus.ACTIVE) {
+    return { error: "Unauthorized", status: 401 as const };
+  }
+  if (!actor.organizationId) {
+    return { error: "Organization not found", status: 404 as const };
+  }
+
+  try {
+    const { organization } = await requireOrganizationCoreAccess(actor.organizationId);
+    return { actor, organization };
+  } catch (error) {
+    if (error instanceof Error &amp;&amp; error.message === "BILLING_LOCKED") {
+      return {
+        error: "Your organization subscription is not active",
+        status: 403 as const,
+      };
+    }
+    throw error;
+  }
+}
+
+export async function ensureDeviceInOrganization(deviceKey: string, organizationId: string) {
+  const device = await prisma.device.findUnique({
+    where: { deviceKey },
+    select: { id: true, deviceKey: true, organizationId: true, name: true, createdAt: true },
+  });
+  if (!device) return null;
+  if (device.organizationId !== organizationId) return "OTHER_ORGANIZATION" as const;
+  return device;
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/device-tokens.ts</div><pre>import crypto from "crypto";
+
+type DeviceTokenType = "pin_setup" | "quick_switch";
+
+type DeviceTokenPayloadMap = {
+  pin_setup: {
+    staffId: string;
+    organizationId: string;
+    deviceKey: string;
+  };
+  quick_switch: {
+    staffId: string;
+    organizationId: string;
+    deviceKey: string;
+    actorId: string;
+  };
+};
+
+type SignedTokenBody&lt;T extends DeviceTokenType&gt; = {
+  t: T;
+  exp: number;
+  iat: number;
+  d: DeviceTokenPayloadMap[T];
+};
+
+const TOKEN_SECRET =
+  process.env.AUTH_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  (process.env.NODE_ENV !== "production" ? "diagsync-local-dev-auth-secret" : undefined);
+
+function base64UrlEncode(value: string | Buffer) {
+  return Buffer.from(value)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function base64UrlDecode(value: string) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4));
+  return Buffer.from(normalized + padding, "base64");
+}
+
+function signPayload(payload: string) {
+  if (!TOKEN_SECRET) throw new Error("AUTH_SECRET_MISSING");
+  return base64UrlEncode(crypto.createHmac("sha256", TOKEN_SECRET).update(payload).digest());
+}
+
+export function createDeviceToken&lt;T extends DeviceTokenType&gt;(
+  type: T,
+  data: DeviceTokenPayloadMap[T],
+  expiresInSeconds: number
+) {
+  const now = Math.floor(Date.now() / 1000);
+  const payload: SignedTokenBody&lt;T&gt; = {
+    t: type,
+    iat: now,
+    exp: now + Math.max(5, expiresInSeconds),
+    d: data,
+  };
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signature = signPayload(encodedPayload);
+  return `${encodedPayload}.${signature}`;
+}
+
+export function verifyDeviceToken&lt;T extends DeviceTokenType&gt;(token: string, type: T) {
+  const [encodedPayload, encodedSignature] = token.split(".");
+  if (!encodedPayload || !encodedSignature) return null;
+
+  const expected = signPayload(encodedPayload);
+  const incomingBuffer = Buffer.from(encodedSignature);
+  const expectedBuffer = Buffer.from(expected);
+  if (incomingBuffer.length !== expectedBuffer.length) return null;
+  if (!crypto.timingSafeEqual(incomingBuffer, expectedBuffer)) return null;
+
+  try {
+    const payload = JSON.parse(base64UrlDecode(encodedPayload).toString("utf8")) as SignedTokenBody&lt;T&gt;;
+    if (!payload || payload.t !== type) return null;
+    if (typeof payload.exp !== "number" || payload.exp &lt; Math.floor(Date.now() / 1000)) return null;
+    return payload.d;
+  } catch {
+    return null;
+  }
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/edit-system-core.test.ts</div><pre>import assert from "node:assert/strict";

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { DeviceAccountMenu } from "@/components/device/device-account-menu";
 import { Role } from "@prisma/client";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 interface HeaderBarProps {
   staffId: string;
@@ -92,6 +93,7 @@ export function HeaderBar({
           </div>
         )}
         <NotificationBell role={role} />
+        <ThemeToggle />
         <DeviceAccountMenu
           staffId={staffId}
           staffName={staffName}
