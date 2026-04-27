@@ -410,6 +410,7 @@ export default async function PatientsListPage({
                                 row.latestVisit ? (
                                   <DeletePatientButton
                                     visitId={row.latestVisit.id}
+                                    patientId={row.id}
                                     patientName={row.fullName}
                                   />
                                 ) : null
