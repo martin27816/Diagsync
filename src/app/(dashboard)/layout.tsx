@@ -84,7 +84,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       }}
       staffId={staff.id}
       staffName={staff.fullName}
+      staffEmail={staff.email}
       role={staff.role}
+      organizationId={staff.organizationId}
       initialAvailability={staff.availabilityStatus === "AVAILABLE"}
       showAvailabilityToggle={showAvailability}
       trialBanner={trialBanner}

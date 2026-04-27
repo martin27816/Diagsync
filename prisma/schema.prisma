@@ -37,6 +37,7 @@ model Organization {
   tests                      DiagnosticTest[]
   patients                   Patient[]
   staff                      Staff[]
+  devices                    Device[]
 
   @@map("organizations")
 }
@@ -58,6 +59,9 @@ model Staff {
   lastAvailableAt                      DateTime?
   lastUnavailableAt                    DateTime?
   lastSeen                             DateTime?
+  pinHash                              String?
+  pinSetAt                             DateTime?
+  lastQuickSwitchAt                    DateTime?
   createdAt                            DateTime                  @default(now())
   updatedAt                            DateTime                  @updatedAt
   createdById                          String?
@@ -89,6 +93,7 @@ model Staff {
   assignedTestOrders                   TestOrder[]               @relation("AssignedTestOrders")
   overriddenTestOrders                 TestOrder[]               @relation("OverriddenTestOrders")
   visitPayments                        VisitPayment[]
+  deviceLinks                          DeviceStaff[]
 
   @@map("staff")
 }
@@ -627,6 +632,34 @@ enum OrganizationPlan {
   TRIAL
   STARTER
   ADVANCED
+}
+
+model Device {
+  id             String        @id @default(cuid())
+  deviceKey      String        @unique
+  organizationId String
+  name           String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  staffLinks     DeviceStaff[]
+
+  @@index([organizationId])
+  @@map("devices")
+}
+
+model DeviceStaff {
+  id         String   @id @default(cuid())
+  deviceId   String
+  staffId    String
+  addedAt    DateTime @default(now())
+  lastUsedAt DateTime?
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, staffId])
+  @@index([staffId])
+  @@map("device_staff")
 }
 
 enum OrganizationStatus {

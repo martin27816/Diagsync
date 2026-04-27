@@ -5,11 +5,15 @@ import { Menu } from "lucide-react";
 import { Switch } from "@/components/ui/index";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { DeviceAccountMenu } from "@/components/device/device-account-menu";
+import { Role } from "@prisma/client";
 
 interface HeaderBarProps {
   staffId: string;
   staffName: string;
-  role: string;
+  staffEmail: string;
+  role: Role;
+  organizationId: string;
   initialAvailability: boolean;
   showAvailabilityToggle?: boolean;
   onOpenSidebar?: () => void;
@@ -18,7 +22,9 @@ interface HeaderBarProps {
 export function HeaderBar({
   staffId,
   staffName,
+  staffEmail,
   role,
+  organizationId,
   initialAvailability,
   showAvailabilityToggle = true,
   onOpenSidebar,
@@ -86,6 +92,13 @@ export function HeaderBar({
           </div>
         )}
         <NotificationBell role={role} />
+        <DeviceAccountMenu
+          staffId={staffId}
+          staffName={staffName}
+          staffEmail={staffEmail}
+          role={role}
+          organizationId={organizationId}
+        />
       </div>
     </header>
   );

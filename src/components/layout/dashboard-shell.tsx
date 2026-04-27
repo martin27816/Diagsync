@@ -17,7 +17,9 @@ type DashboardShellProps = {
   };
   staffId: string;
   staffName: string;
+  staffEmail: string;
   role: Role;
+  organizationId: string;
   initialAvailability: boolean;
   showAvailabilityToggle?: boolean;
   trialBanner?: { text: string; warning?: boolean } | null;
@@ -28,7 +30,9 @@ export function DashboardShell({
   user,
   staffId,
   staffName,
+  staffEmail,
   role,
+  organizationId,
   initialAvailability,
   showAvailabilityToggle = true,
   trialBanner = null,
@@ -43,7 +47,9 @@ export function DashboardShell({
         <HeaderBar
           staffId={staffId}
           staffName={staffName}
+          staffEmail={staffEmail}
           role={role}
+          organizationId={organizationId}
           initialAvailability={initialAvailability}
           showAvailabilityToggle={showAvailabilityToggle}
         />
