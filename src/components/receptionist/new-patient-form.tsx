@@ -179,6 +179,8 @@ export function NewPatientForm() {
   const [expandedRangeByTest, setExpandedRangeByTest] = useState<Record<string, boolean>>({});
   const [rangeProfileByTest, setRangeProfileByTest] = useState<Record<string, RangeProfile>>({});
   const [showDropdown, setShowDropdown] = useState(false);
+  const [hasAdvancedDiagnosticsAccess, setHasAdvancedDiagnosticsAccess] = useState(true);
+  const [billingAccessLoaded, setBillingAccessLoaded] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -294,6 +296,27 @@ export function NewPatientForm() {
     const sync = () => setIsOnline(navigator.onLine);
     sync(); window.addEventListener("online", sync); window.addEventListener("offline", sync);
     return () => { window.removeEventListener("online", sync); window.removeEventListener("offline", sync); };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/billing/overview");
+        const json = await res.json();
+        if (!alive || !json.success) return;
+        const canUseRadiology = Boolean(json.data?.access?.canUseRadiology);
+        const canUseCardiology = Boolean(json.data?.access?.canUseCardiology);
+        setHasAdvancedDiagnosticsAccess(canUseRadiology || canUseCardiology);
+      } catch {
+        // keep permissive default to avoid false upgrade prompts
+      } finally {
+        if (alive) setBillingAccessLoaded(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const subtotal = cart.reduce((s, t) => s + toNumberPrice(t.enteredPrice), 0);
@@ -747,7 +770,7 @@ export function NewPatientForm() {
                 )}
                 {showDropdown && testSearch.length > 0 && testResults.length === 0 && !searchLoading && (
                   <div className="absolute z-50 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg px-3 py-3">
-                    {isAdvancedFeatureSearch(testSearch) ? (
+                    {billingAccessLoaded && !hasAdvancedDiagnosticsAccess && isAdvancedFeatureSearch(testSearch) ? (
                       <UpgradeHint
                         message={`No tests found for "${testSearch}". Radiology/Cardiology tests are available on Advanced plan.`}
                         ctaLabel="Go to Billing"
