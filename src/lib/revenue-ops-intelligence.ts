@@ -52,7 +52,7 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
           status: true,
           price: true,
           defaultPrice: true,
-          test: { select: { id: true, name: true, code: true, type: true, costPrice: true } },
+          test: { select: { id: true, name: true, code: true, type: true } },
         },
       },
       payments: {
@@ -62,7 +62,6 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
     orderBy: { registeredAt: "desc" },
   });
 
-  let orderedValue = 0;
   let billedValue = 0;
   let collectedValue = 0;
   let incompleteBilledValue = 0;
@@ -70,11 +69,11 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
   let completedCount = 0;
 
   const completedStatuses = new Set<OrderStatus>([OrderStatus.APPROVED, OrderStatus.RELEASED]);
-  const profitMap = new Map<
+  const performanceMap = new Map<
     string,
-    { name: string; code: string; type: string; orders: number; revenue: number; cost: number; profit: number }
+    { name: string; code: string; type: string; orders: number; revenue: number; avgOrderValue: number }
   >();
-  const dailyProfitMap = new Map<string, { revenue: number; cost: number; profit: number }>();
+  const dailyRevenueMap = new Map<string, { revenue: number; orders: number }>();
 
   for (const visit of visits) {
     const paymentLedger = visit.payments.reduce((sum, payment) => {
@@ -88,9 +87,6 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
     for (const order of visit.testOrders) {
       const defaultPrice = toMoney(order.defaultPrice) > 0 ? toMoney(order.defaultPrice) : toMoney(order.price);
       const billedPrice = toMoney(order.price);
-      const costPrice = toMoney(order.test.costPrice);
-
-      orderedValue += defaultPrice;
       billedValue += billedPrice;
       orderedCount += 1;
 
@@ -100,28 +96,25 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
         incompleteBilledValue += billedPrice;
       }
 
-      const byTest = profitMap.get(order.test.id) ?? {
+      const byTest = performanceMap.get(order.test.id) ?? {
         name: order.test.name,
         code: order.test.code,
         type: order.test.type,
         orders: 0,
         revenue: 0,
-        cost: 0,
-        profit: 0,
+        avgOrderValue: 0,
       };
       byTest.orders += 1;
       byTest.revenue += billedPrice;
-      byTest.cost += costPrice;
-      byTest.profit += billedPrice - costPrice;
-      profitMap.set(order.test.id, byTest);
+      byTest.avgOrderValue = byTest.orders > 0 ? byTest.revenue / byTest.orders : 0;
+      performanceMap.set(order.test.id, byTest);
 
       if (visit.registeredAt >= start14) {
         const key = dayKey(visit.registeredAt);
-        const day = dailyProfitMap.get(key) ?? { revenue: 0, cost: 0, profit: 0 };
+        const day = dailyRevenueMap.get(key) ?? { revenue: 0, orders: 0 };
         day.revenue += billedPrice;
-        day.cost += costPrice;
-        day.profit += billedPrice - costPrice;
-        dailyProfitMap.set(key, day);
+        day.orders += 1;
+        dailyRevenueMap.set(key, day);
       }
     }
   }
@@ -159,41 +152,34 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
   const predictedNoShowsNext7 = Math.max(0, Math.round(last7Rate * avgDailyRegistrations * 7));
   const confidence = totalVisits >= 150 ? "high" : totalVisits >= 60 ? "medium" : "low";
 
-  const unbilledLeakage = Math.max(0, orderedValue - billedValue);
   const uncollectedLeakage = Math.max(0, billedValue - collectedValue);
   const completionLeakageRate = orderedCount > 0 ? (orderedCount - completedCount) / orderedCount : 0;
 
-  const topProfitLines = Array.from(profitMap.values())
-    .sort((a, b) => b.profit - a.profit)
+  const topTestPerformance = Array.from(performanceMap.values())
+    .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 12);
 
-  const dailyProfit = Array.from({ length: 14 }, (_, i) => {
+  const dailyRevenue = Array.from({ length: 14 }, (_, i) => {
     const date = new Date(start14);
     date.setDate(start14.getDate() + i);
     const key = dayKey(date);
-    const day = dailyProfitMap.get(key) ?? { revenue: 0, cost: 0, profit: 0 };
+    const day = dailyRevenueMap.get(key) ?? { revenue: 0, orders: 0 };
     return { date: key, ...day };
   });
-
-  const totalCost = topProfitLines.reduce((sum, row) => sum + row.cost, 0);
-  const totalRevenue = topProfitLines.reduce((sum, row) => sum + row.revenue, 0);
 
   return {
     summary: {
       windowDays: 30,
-      orderedValue,
       billedValue,
       collectedValue,
-      unbilledLeakage,
       uncollectedLeakage,
       incompleteBilledValue,
       completionLeakageRate,
-      grossMarginPct: totalRevenue > 0 ? (totalRevenue - totalCost) / totalRevenue : 0,
       orderedCount,
       completedCount,
     },
-    profitByTestLine: topProfitLines,
-    dailyProfit,
+    topTestPerformance,
+    dailyRevenue,
     noShowForecast: {
       noShowCancelRate,
       last7Rate,

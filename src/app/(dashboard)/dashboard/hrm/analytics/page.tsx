@@ -98,20 +98,19 @@ export default async function HrmAnalyticsPage() {
         )}
       </div>
 
-      {/* Revenue + leakage */}
+      {/* Revenue + collections */}
       <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
         <div className="border-b border-slate-100 px-4 py-2.5">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Revenue + Leakage ({revenueOps.summary.windowDays}d)
+            Revenue + Collections ({revenueOps.summary.windowDays}d)
           </span>
         </div>
-        <div className="grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: "Ordered Value", value: formatCurrency(revenueOps.summary.orderedValue) },
             { label: "Billed Value", value: formatCurrency(revenueOps.summary.billedValue) },
             { label: "Collected", value: formatCurrency(revenueOps.summary.collectedValue) },
-            { label: "Unbilled Leakage", value: formatCurrency(revenueOps.summary.unbilledLeakage), alert: revenueOps.summary.unbilledLeakage > 0 },
             { label: "Uncollected Leakage", value: formatCurrency(revenueOps.summary.uncollectedLeakage), alert: revenueOps.summary.uncollectedLeakage > 0 },
+            { label: "Incomplete Billed", value: formatCurrency(revenueOps.summary.incompleteBilledValue), alert: revenueOps.summary.incompleteBilledValue > 0 },
           ].map((s) => (
             <div key={s.label} className="bg-white px-4 py-3">
               <p className="text-[11px] uppercase tracking-wide text-slate-400">{s.label}</p>
@@ -125,12 +124,12 @@ export default async function HrmAnalyticsPage() {
         </div>
       </div>
 
-      {/* Profit by test line */}
+      {/* Top test performance */}
       <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
         <div className="border-b border-slate-100 px-4 py-2.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Daily Profit by Test Line</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Top Test Performance</span>
         </div>
-        {revenueOps.profitByTestLine.length === 0 ? (
+        {revenueOps.topTestPerformance.length === 0 ? (
           <p className="px-4 py-6 text-xs text-slate-400">No billing data yet.</p>
         ) : (
           <div className="overflow-x-auto">
@@ -140,21 +139,19 @@ export default async function HrmAnalyticsPage() {
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Test</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Orders</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Revenue</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Cost</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Profit</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Avg Order Value</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {revenueOps.profitByTestLine.map((row) => (
+              {revenueOps.topTestPerformance.map((row) => (
                 <tr key={`${row.code}-${row.name}`}>
                   <td className="px-4 py-2.5 font-medium text-slate-800">
                     {row.name} <span className="text-slate-400">({row.code})</span>
                   </td>
                   <td className="px-4 py-2.5 text-slate-700">{row.orders}</td>
                   <td className="px-4 py-2.5 text-slate-700">{formatCurrency(row.revenue)}</td>
-                  <td className="px-4 py-2.5 text-slate-700">{formatCurrency(row.cost)}</td>
-                  <td className={`px-4 py-2.5 font-semibold ${row.profit < 0 ? "text-red-600" : "text-emerald-700"}`}>
-                    {formatCurrency(row.profit)}
+                  <td className="px-4 py-2.5 font-semibold text-slate-800">
+                    {formatCurrency(row.avgOrderValue)}
                   </td>
                 </tr>
               ))}

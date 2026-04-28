@@ -115,12 +115,13 @@ const navByRole: Record<Role, NavConfig> = {
   },
   MD: {
     primary: [
-      { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Review", href: "/dashboard/md/review", icon: ClipboardList },
       { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
-      { label: "Tasks", href: "/dashboard/md/review", icon: ClipboardList },
+      { label: "Tasks", href: "/dashboard/md/consultation", icon: Stethoscope },
       { label: "Reports", href: "/dashboard/md/reports", icon: FileText },
     ],
     more: [
+      { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
       { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
       { label: "Consultation", href: "/dashboard/md/consultation", icon: Stethoscope },
       { label: "Approved", href: "/dashboard/md/approved", icon: ClipboardList },
