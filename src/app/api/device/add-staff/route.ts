@@ -79,52 +79,47 @@ export async function POST(req: NextRequest) {
       },
       select: { id: true },
     });
-    if (link) {
-      return NextResponse.json({ success: false, error: "Staff already exists on this device" }, { status: 409 });
+    if (!link) {
+      await prisma.deviceStaff.create({
+        data: {
+          deviceId: device.id,
+          staffId: candidate.id,
+        },
+      });
+
+      await createAuditLog({
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "STAFF_ADDED_TO_DEVICE",
+        entityType: "DeviceStaff",
+        entityId: candidate.id,
+        changes: {
+          deviceId: device.id,
+          deviceKey: device.deviceKey,
+          targetStaffId: candidate.id,
+        },
+        ...getAuditMetaFromRequest(req),
+      });
     }
-
-    await prisma.deviceStaff.create({
-      data: {
-        deviceId: device.id,
+    const pinSetupToken = createDeviceToken(
+      "pin_setup",
+      {
         staffId: candidate.id,
-      },
-    });
-
-    await createAuditLog({
-      actorId: actor.id,
-      actorRole: actor.role,
-      action: "STAFF_ADDED_TO_DEVICE",
-      entityType: "DeviceStaff",
-      entityId: candidate.id,
-      changes: {
-        deviceId: device.id,
+        organizationId: actor.organizationId!,
         deviceKey: device.deviceKey,
-        targetStaffId: candidate.id,
       },
-      ...getAuditMetaFromRequest(req),
-    });
-
-    const pinSetupToken =
-      !candidate.pinHash
-        ? createDeviceToken(
-            "pin_setup",
-            {
-              staffId: candidate.id,
-              organizationId: actor.organizationId!,
-              deviceKey: device.deviceKey,
-            },
-            10 * 60
-          )
-        : null;
+      10 * 60
+    );
 
     return NextResponse.json({
       success: true,
       data: {
         staff: toSafeStaffSummary(candidate),
-        requiresPinSetup: !candidate.pinHash,
+        requiresPinSetup: true,
         pinSetupToken,
+        alreadyLinked: Boolean(link),
       },
-      message: "Staff added to this device",
+      message: link ? "Staff already on this device. You can update PIN now." : "Staff added to this device",
     });
   } catch (error) {
     console.error("[DEVICE_ADD_STAFF_POST]", error);

@@ -12,6 +12,7 @@ type AddStaffResponse = {
     staff: DeviceStaffSummary;
     requiresPinSetup: boolean;
     pinSetupToken: string | null;
+    alreadyLinked?: boolean;
   };
 };
 
@@ -78,9 +79,9 @@ export function AddStaffToDeviceModal({ open, deviceKey, onClose, onStaffAdded }
       setPinSetupToken(json.data.pinSetupToken);
       onStaffAdded(json.data.staff);
       if (json.data.requiresPinSetup) {
-        setMessage("Staff verified. Create a 4-digit PIN.");
+        setMessage(json.message ?? "Staff verified. Create or update a 4-digit PIN.");
       } else {
-        setMessage("Staff added to this device.");
+        setMessage(json.message ?? "Staff added to this device.");
       }
     } catch {
       setError("Network error while verifying staff.");
