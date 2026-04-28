@@ -15,11 +15,18 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 
-    const reports = await prisma.labInsightReport.findMany({
-      where: { organizationId: user.organizationId },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    });
+    let reports: Awaited<ReturnType<typeof prisma.labInsightReport.findMany>> = [];
+    try {
+      reports = await prisma.labInsightReport.findMany({
+        where: { organizationId: user.organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      });
+    } catch (error: any) {
+      if (error?.code !== "P2021") {
+        throw error;
+      }
+    }
 
     return NextResponse.json({
       success: true,

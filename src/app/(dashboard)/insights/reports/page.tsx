@@ -14,11 +14,18 @@ export default async function InsightsReportsPage() {
     redirect(getDashboardPath(user.role));
   }
 
-  const reports = await prisma.labInsightReport.findMany({
-    where: { organizationId: user.organizationId },
-    orderBy: { createdAt: "desc" },
-    take: 30,
-  });
+  let reports: Awaited<ReturnType<typeof prisma.labInsightReport.findMany>> = [];
+  try {
+    reports = await prisma.labInsightReport.findMany({
+      where: { organizationId: user.organizationId },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    });
+  } catch (error: any) {
+    if (error?.code !== "P2021") {
+      throw error;
+    }
+  }
 
   const normalized = reports.map((report) => {
     const data = (report.data as Record<string, unknown>) ?? {};
