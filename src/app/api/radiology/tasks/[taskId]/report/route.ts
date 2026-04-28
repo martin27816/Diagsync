@@ -71,14 +71,11 @@ export async function POST(
     const user = session.user as any;
     const signatureName = parsed.data.signatureName?.trim() ?? "";
     const signatureImage = parsed.data.signatureImage?.trim() ?? "";
-    if ((signatureName || signatureImage) && (!signatureName || !signatureImage)) {
-      endApiMetric(metric, { ok: false, status: 400, note: "invalid_signature_pair" });
-      return NextResponse.json({ success: false, error: "Signature image and name must be provided together" }, { status: 400 });
-    }
     if (signatureImage && !isDataImageUrl(signatureImage)) {
       endApiMetric(metric, { ok: false, status: 400, note: "invalid_signature_format" });
       return NextResponse.json({ success: false, error: "Invalid signature image format" }, { status: 400 });
     }
+    const includeSignature = Boolean(signatureName && signatureImage);
 
     const report = await saveRadiologyReport(
       params.taskId,
@@ -93,7 +90,7 @@ export async function POST(
         testReports: (parsed.data.testReports ?? []) as RadiologyPerTestSection[],
         extraFields: {
           ...customFieldsCheck.value,
-          ...(signatureName && signatureImage
+          ...(includeSignature
             ? {
                 [SIGNOFF_NAME_KEY]: signatureName,
                 [SIGNOFF_IMAGE_KEY]: signatureImage,

@@ -438,10 +438,15 @@ export async function submitRadiologyTask(
     ...actor.auditMeta,
   });
 
-  await notifyMdResultSubmitted({
-    organizationId: actor.organizationId,
-    taskId: task.id,
-    patientName: task.visit.patient.fullName,
-    department: task.department,
-  });
+  try {
+    await notifyMdResultSubmitted({
+      organizationId: actor.organizationId,
+      taskId: task.id,
+      patientName: task.visit.patient.fullName,
+      department: task.department,
+    });
+  } catch (error) {
+    // Notification delivery must never fail report submission.
+    console.error("[RAD_TASK_SUBMIT_NOTIFY]", error);
+  }
 }

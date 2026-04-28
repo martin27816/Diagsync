@@ -916,6 +916,9 @@ export function RadiologyTaskBoard() {
                                   {busyTaskId === task.id ? "Submitting..." : "Submit Report"}
                                 </button>
                               </div>
+                              {error ? (
+                                <p className="text-[11px] text-red-500">{error}</p>
+                              ) : null}
                               {!reportReady(task.id) && (
                                 <p className="text-[11px] text-slate-400">Each radiology test must have findings and impression before submission.</p>
                               )}
