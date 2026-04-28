@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { ROLE_LABELS } from "@/lib/utils";
 import { DeviceStaffSummary } from "@/lib/device-client";
@@ -35,7 +34,6 @@ export function SwitchStaffModal({
   onClose,
   onSwitched,
 }: SwitchStaffModalProps) {
-  const router = useRouter();
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -87,8 +85,7 @@ export function SwitchStaffModal({
 
       onSwitched(selected.staffId);
       onClose();
-      router.push(json.data.dashboardPath);
-      router.refresh();
+      window.location.assign(json.data.dashboardPath);
     } catch {
       setError("Network error while switching account.");
     } finally {
