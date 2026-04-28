@@ -6,6 +6,7 @@ import { validateCustomFieldsMap } from "@/lib/custom-fields-core";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY, isDataImageUrl } from "@/lib/report-signoff";
 import { z } from "zod";
 import { beginApiMetric, endApiMetric } from "@/lib/api-observability";
+import type { RadiologyPerTestSection } from "@/lib/radiology-report-sections";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,16 @@ const reportSchema = z.object({
   findings: z.string().max(10000).default(""),
   impression: z.string().max(10000).default(""),
   notes: z.string().max(10000).optional(),
+  testReports: z
+    .array(
+      z.object({
+        testOrderId: z.string().min(1),
+        findings: z.string().max(10000).default(""),
+        impression: z.string().max(10000).default(""),
+        notes: z.string().max(10000).optional().default(""),
+      })
+    )
+    .optional(),
   extraFields: z.record(z.string().max(80), z.string().max(10000)).optional(),
   signatureName: z.string().max(120).optional(),
   signatureImage: z.string().max(400000).optional(),
@@ -63,6 +74,7 @@ export async function POST(
       },
       {
         ...parsed.data,
+        testReports: (parsed.data.testReports ?? []) as RadiologyPerTestSection[],
         extraFields: {
           ...customFieldsCheck.value,
           ...(signatureName && signatureImage

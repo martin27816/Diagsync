@@ -40,7 +40,25 @@ export function isValidImagingFile(params: { mimeType: string; sizeBytes: number
 export function hasRequiredReportFields(report: {
   findings?: string | null;
   impression?: string | null;
-}) {
-  return Boolean(report.findings?.trim()) && Boolean(report.impression?.trim());
-}
+  extraFields?: Record<string, string> | null;
+}, testOrderIds?: string[]) {
+  const hasTopLevel = Boolean(report.findings?.trim()) && Boolean(report.impression?.trim());
+  if (!testOrderIds || testOrderIds.length === 0) return hasTopLevel;
 
+  try {
+    const raw = report.extraFields?.["__perTestReports"];
+    if (!raw) return hasTopLevel;
+    const parsed = JSON.parse(raw) as Array<{ testOrderId?: string; findings?: string; impression?: string }>;
+    const map = new Map(
+      (Array.isArray(parsed) ? parsed : [])
+        .filter((row) => row && typeof row === "object" && typeof row.testOrderId === "string")
+        .map((row) => [row.testOrderId as string, row])
+    );
+    return testOrderIds.every((id) => {
+      const row = map.get(id);
+      return Boolean(row?.findings?.trim()) && Boolean(row?.impression?.trim());
+    });
+  } catch {
+    return hasTopLevel;
+  }
+}

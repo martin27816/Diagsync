@@ -18,6 +18,7 @@ import {
   saveSignaturePresets,
   upsertSignaturePreset,
 } from "@/lib/signature-presets";
+import { parseRadiologyPerTestSections, type RadiologyPerTestSection } from "@/lib/radiology-report-sections";
 
 type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -45,6 +46,7 @@ type Draft = {
   findings: string;
   impression: string;
   notes: string;
+  testReports: Record<string, { findings: string; impression: string; notes: string }>;
   extraFields: Record<string, string>;
   signatureName: string;
   signatureImage: string;
@@ -54,6 +56,7 @@ const EMPTY_DRAFT: Draft = {
   findings: "",
   impression: "",
   notes: "",
+  testReports: {},
   extraFields: {},
   signatureName: "",
   signatureImage: "",
@@ -117,10 +120,21 @@ export function RadiologyTaskBoard() {
     });
     for (const task of rows) {
       const offline = offlineByTask.get(task.id)?.draft;
+      const parsedPerTest = parseRadiologyPerTestSections(task.radiologyReport?.extraFields);
+      const testReports: Record<string, { findings: string; impression: string; notes: string }> = {};
+      for (const order of task.testOrders) {
+        const perTest = parsedPerTest.find((row) => row.testOrderId === order.id);
+        testReports[order.id] = {
+          findings: perTest?.findings ?? task.radiologyReport?.findings ?? "",
+          impression: perTest?.impression ?? task.radiologyReport?.impression ?? "",
+          notes: perTest?.notes ?? task.radiologyReport?.notes ?? "",
+        };
+      }
       const baselineDraft: Draft = {
         findings: offline?.findings ?? task.radiologyReport?.findings ?? "",
         impression: offline?.impression ?? task.radiologyReport?.impression ?? "",
         notes: offline?.notes ?? task.radiologyReport?.notes ?? "",
+        testReports: offline?.testReports ?? testReports,
         extraFields: offline?.extraFields ?? task.radiologyReport?.extraFields ?? {},
         signatureName:
           offline?.signatureName ?? task.radiologyReport?.extraFields?.[SIGNOFF_NAME_KEY] ?? "",
@@ -258,7 +272,41 @@ export function RadiologyTaskBoard() {
   }
   function reportReady(taskId: string) {
     const d = drafts[taskId];
-    return Boolean(d?.findings?.trim()) && Boolean(d?.impression?.trim());
+    const task = tasks.find((row) => row.id === taskId);
+    if (!task) return false;
+    return task.testOrders.every((order) => {
+      const row = d?.testReports?.[order.id];
+      return Boolean(row?.findings?.trim()) && Boolean(row?.impression?.trim());
+    });
+  }
+
+  function setTestReportField(
+    taskId: string,
+    testOrderId: string,
+    field: "findings" | "impression" | "notes",
+    value: string
+  ) {
+    const current = drafts[taskId] ?? EMPTY_DRAFT;
+    const nextTestReports = {
+      ...(current.testReports ?? {}),
+      [testOrderId]: {
+        findings: current.testReports?.[testOrderId]?.findings ?? "",
+        impression: current.testReports?.[testOrderId]?.impression ?? "",
+        notes: current.testReports?.[testOrderId]?.notes ?? "",
+        [field]: value,
+      },
+    };
+
+    const all = Object.values(nextTestReports);
+    const summaryFindings = all.map((row) => row.findings.trim()).filter(Boolean).join("\n\n");
+    const summaryImpression = all.map((row) => row.impression.trim()).filter(Boolean).join("\n\n");
+    const summaryNotes = all.map((row) => row.notes.trim()).filter(Boolean).join("\n\n");
+    updateDraft(taskId, {
+      testReports: nextTestReports,
+      findings: summaryFindings,
+      impression: summaryImpression,
+      notes: summaryNotes,
+    });
   }
 
   function setExtraFieldValue(taskId: string, fieldKey: string, value: string) {
@@ -336,7 +384,14 @@ export function RadiologyTaskBoard() {
     invalidateTaskCache();
     try {
     const d = drafts[taskId] ?? EMPTY_DRAFT;
-    const json = await (await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })).json();
+    const testReports: RadiologyPerTestSection[] = Object.entries(d.testReports ?? {}).map(([testOrderId, value]) => ({
+      testOrderId,
+      findings: value.findings ?? "",
+      impression: value.impression ?? "",
+      notes: value.notes ?? "",
+    }));
+    const payload = { ...d, testReports };
+    const json = await (await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })).json();
       if (!json.success) { setError(json.error ?? "Unable to save report"); return; }
       const pending = listOfflineRadiologyDraftItems().find((item) => item.taskId === taskId);
       if (pending) removeOfflineRadiologyDraft(pending.id);
@@ -369,8 +424,20 @@ export function RadiologyTaskBoard() {
     invalidateTaskCache();
     try {
       const d = drafts[taskId] ?? EMPTY_DRAFT;
-      if (!d.findings.trim() || !d.impression.trim()) { setError("Findings and impression are required before submission."); return; }
-      await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) });
+      const task = tasks.find((row) => row.id === taskId);
+      if (!task) { setError("Task not found."); return; }
+      const missing = task.testOrders.find((order) => {
+        const row = d.testReports?.[order.id];
+        return !row?.findings?.trim() || !row?.impression?.trim();
+      });
+      if (missing) { setError(`Findings and impression are required for ${missing.test.name}.`); return; }
+      const testReports: RadiologyPerTestSection[] = Object.entries(d.testReports ?? {}).map(([testOrderId, value]) => ({
+        testOrderId,
+        findings: value.findings ?? "",
+        impression: value.impression ?? "",
+        notes: value.notes ?? "",
+      }));
+      await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...d, testReports }) });
       const json = await (await fetch(`/api/radiology/tasks/${taskId}/submit`, { method: "PATCH", headers: { "Content-Type": "application/json" } })).json();
       if (!json.success) { setError(json.error ?? "Unable to submit report"); return; }
       const pending = listOfflineRadiologyDraftItems().find((item) => item.taskId === taskId);
@@ -407,6 +474,7 @@ export function RadiologyTaskBoard() {
           findings: draft.findings,
           impression: draft.impression,
           notes: draft.notes,
+          testReports: draft.testReports ?? {},
           extraFields: draft.extraFields ?? {},
           signatureName: draft.signatureName ?? "",
           signatureImage: draft.signatureImage ?? "",
@@ -429,6 +497,7 @@ export function RadiologyTaskBoard() {
           findings: draft.findings,
           impression: draft.impression,
           notes: draft.notes,
+          testReports: draft.testReports ?? {},
           extraFields: draft.extraFields ?? {},
           signatureName: draft.signatureName ?? "",
           signatureImage: draft.signatureImage ?? "",
@@ -597,28 +666,36 @@ export function RadiologyTaskBoard() {
                         <td colSpan={6} className="px-4 py-4 bg-slate-50 border-b border-slate-200">
                           <div className="space-y-3">
                               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Radiology Report</p>
-                              <div>
-                                <label className="block text-[11px] font-medium text-slate-500 mb-1">Findings *</label>
-                                <textarea rows={3} value={drafts[task.id]?.findings ?? ""} onChange={(e) => updateDraft(task.id, { findings: e.target.value })}
-                                  className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                              </div>
-                              <div>
-                                <label className="block text-[11px] font-medium text-slate-500 mb-1">Impression *</label>
-                                <textarea rows={3} value={drafts[task.id]?.impression ?? ""} onChange={(e) => updateDraft(task.id, { impression: e.target.value })}
-                                  className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                              </div>
-                              <div>
-                                <label className="block text-[11px] font-medium text-slate-500 mb-1">Notes (optional)</label>
-                                <input value={drafts[task.id]?.notes ?? ""} onChange={(e) => updateDraft(task.id, { notes: e.target.value })}
-                                  className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                              </div>
+                              {task.testOrders.map((order) => (
+                                <div key={`${task.id}-${order.id}`} className="rounded border border-slate-200 bg-white p-3 space-y-2">
+                                  <p className="text-xs font-semibold text-slate-700">{order.test.name} <span className="font-mono text-slate-400">{order.test.code}</span></p>
+                                  <div>
+                                    <label className="block text-[11px] font-medium text-slate-500 mb-1">Findings *</label>
+                                    <textarea rows={3} value={drafts[task.id]?.testReports?.[order.id]?.findings ?? ""} onChange={(e) => setTestReportField(task.id, order.id, "findings", e.target.value)}
+                                      className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] font-medium text-slate-500 mb-1">Impression *</label>
+                                    <textarea rows={3} value={drafts[task.id]?.testReports?.[order.id]?.impression ?? ""} onChange={(e) => setTestReportField(task.id, order.id, "impression", e.target.value)}
+                                      className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] font-medium text-slate-500 mb-1">Notes (optional)</label>
+                                    <input value={drafts[task.id]?.testReports?.[order.id]?.notes ?? ""} onChange={(e) => setTestReportField(task.id, order.id, "notes", e.target.value)}
+                                      className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                  </div>
+                                </div>
+                              ))}
                               <div className="rounded border border-slate-200 bg-white p-3">
                                 <p className="text-[11px] font-medium text-slate-500 mb-2">Extra Fields</p>
                                 <div className="space-y-2">
                                   {Object.entries(
                                     Object.fromEntries(
                                       Object.entries(drafts[task.id]?.extraFields ?? {}).filter(
-                                        ([key]) => key !== SIGNOFF_IMAGE_KEY && key !== SIGNOFF_NAME_KEY
+                                        ([key]) =>
+                                          key !== SIGNOFF_IMAGE_KEY &&
+                                          key !== SIGNOFF_NAME_KEY &&
+                                          key !== "__perTestReports"
                                       )
                                     )
                                   ).length === 0 ? (
@@ -627,7 +704,10 @@ export function RadiologyTaskBoard() {
                                     Object.entries(
                                       Object.fromEntries(
                                         Object.entries(drafts[task.id]?.extraFields ?? {}).filter(
-                                          ([key]) => key !== SIGNOFF_IMAGE_KEY && key !== SIGNOFF_NAME_KEY
+                                          ([key]) =>
+                                            key !== SIGNOFF_IMAGE_KEY &&
+                                            key !== SIGNOFF_NAME_KEY &&
+                                            key !== "__perTestReports"
                                         )
                                       )
                                     ).map(([fieldKey, fieldValue]) => (
@@ -791,7 +871,7 @@ export function RadiologyTaskBoard() {
                                 </button>
                               </div>
                               {!reportReady(task.id) && (
-                                <p className="text-[11px] text-slate-400">Findings and impression required before submission.</p>
+                                <p className="text-[11px] text-slate-400">Each radiology test must have findings and impression before submission.</p>
                               )}
                           </div>
                         </td>

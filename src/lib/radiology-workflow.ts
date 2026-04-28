@@ -17,6 +17,7 @@ import {
   hasRequiredReportFields,
   isValidImagingFile,
 } from "./radiology-workflow-core";
+import { mergeRadiologyPerTestSections, type RadiologyPerTestSection } from "./radiology-report-sections";
 
 export type RadiologyActor = {
   id: string;
@@ -57,6 +58,7 @@ async function assertOwnership(taskId: string, actor: RadiologyActor) {
           findings: true,
           impression: true,
           notes: true,
+          extraFields: true,
           isSubmitted: true,
           submittedAt: true,
         },
@@ -300,11 +302,20 @@ export async function saveRadiologyReport(
     impression: string;
     notes?: string;
     extraFields?: Prisma.InputJsonObject;
+    testReports?: RadiologyPerTestSection[];
   }
 ) {
   assertRadiographer(actor);
   await assertRadiologyAccess(actor);
   const task = await assertOwnership(taskId, actor);
+
+  const safeTestReports = (input.testReports ?? []).filter((row) =>
+    task.testOrderIds.includes(row.testOrderId)
+  );
+  const mergedExtraFields = mergeRadiologyPerTestSections(
+    (input.extraFields ?? {}) as Record<string, string>,
+    safeTestReports
+  );
 
   const report = await prisma.radiologyReport.upsert({
     where: { taskId: task.id },
@@ -315,13 +326,13 @@ export async function saveRadiologyReport(
       findings: input.findings,
       impression: input.impression,
       notes: input.notes,
-      extraFields: input.extraFields,
+      extraFields: mergedExtraFields,
     },
     update: {
       findings: input.findings,
       impression: input.impression,
       notes: input.notes,
-      extraFields: input.extraFields,
+      extraFields: mergedExtraFields,
     },
   });
 
@@ -354,10 +365,36 @@ export async function submitRadiologyTask(
   if (task.status === RoutingTaskStatus.COMPLETED && task.radiologyReport?.isSubmitted) return;
   if (!canSubmitRadiologyTask(task.status)) throw new Error("TASK_ALREADY_COMPLETED");
   if (!task.radiologyReport) throw new Error("MISSING_REPORT");
-  if (!hasRequiredReportFields(task.radiologyReport)) {
+  const reportExtraFields =
+    task.radiologyReport.extraFields &&
+    typeof task.radiologyReport.extraFields === "object" &&
+    !Array.isArray(task.radiologyReport.extraFields)
+      ? (task.radiologyReport.extraFields as Record<string, string>)
+      : {};
+  if (!hasRequiredReportFields({ ...task.radiologyReport, extraFields: reportExtraFields }, task.testOrderIds)) {
     const missingFields: string[] = [];
     if (!task.radiologyReport.findings?.trim()) missingFields.push("findings");
     if (!task.radiologyReport.impression?.trim()) missingFields.push("impression");
+    try {
+      const parsed = JSON.parse(reportExtraFields["__perTestReports"] ?? "[]") as Array<{
+        testOrderId?: string;
+        findings?: string;
+        impression?: string;
+      }>;
+      const map = new Map(
+        (Array.isArray(parsed) ? parsed : [])
+          .filter((row) => row && typeof row === "object" && typeof row.testOrderId === "string")
+          .map((row) => [row.testOrderId as string, row])
+      );
+      for (const id of task.testOrderIds) {
+        const row = map.get(id);
+        if (!row?.findings?.trim() || !row?.impression?.trim()) {
+          missingFields.push(`test:${id}`);
+        }
+      }
+    } catch {
+      // keep default fallback details above
+    }
     throw new Error(
       missingFields.length > 0 ? `INCOMPLETE_REPORT:${missingFields.join(", ")}` : "INCOMPLETE_REPORT"
     );

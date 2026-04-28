@@ -746,6 +746,7 @@ export function renderReportHtml(args: RenderArgs) {
                     ? Object.entries(test.extraFields as Record<string, unknown>)
                         .map(([key, value]) => {
                           if (key === SIGNOFF_IMAGE_KEY || key === SIGNOFF_NAME_KEY) return "";
+                          if (key === "__perTestReports") return "";
                           const k = String(key ?? "").trim();
                           const v = value === null || value === undefined ? "" : String(value);
                           if (!k) return "";

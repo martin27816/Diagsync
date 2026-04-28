@@ -21,6 +21,7 @@ import { Department, NotificationType, OrderStatus, ReportStatus, Role, ReviewSt
 import { formatReferenceDisplay } from "./reference-ranges";
 import { extractSignOffFromMap, stripSignOffKeys } from "./report-signoff";
 import { canUseCustomLetterhead, shouldShowWatermark } from "./billing-access";
+import { parseRadiologyPerTestSections } from "./radiology-report-sections";
 
 export type ReportActor = {
   id: string;
@@ -163,19 +164,22 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
     : null;
   const reportExtraFields = report ? (report as Record<string, unknown>)["extraFields"] : null;
   const rawExtraFields = pickExtraFields(activeVersionExtraFields ?? reportExtraFields);
+  const parsedPerTest = parseRadiologyPerTestSections((rawExtraFields ?? {}) as Record<string, string>);
+  const perTestMap = new Map(parsedPerTest.map((row) => [row.testOrderId, row]));
   const signOff = extractSignOffFromMap(rawExtraFields);
   const extraFields = rawExtraFields
     ? Object.fromEntries(
         Object.entries(stripSignOffKeys(rawExtraFields))
+          .filter(([key]) => key !== "__perTestReports")
           .map(([key, value]) => [key, value === null || value === undefined ? "" : String(value)])
           .filter(([key]) => key.trim().length > 0)
       )
     : {};
   const tests = radiologyTests.map((order) => ({
     name: order.test.name,
-    findings: activeReportVersion?.findings ?? report?.findings ?? "",
-    impression: activeReportVersion?.impression ?? report?.impression ?? "",
-    notes: activeReportVersion?.notes ?? report?.notes ?? "",
+    findings: perTestMap.get(order.id)?.findings ?? activeReportVersion?.findings ?? report?.findings ?? "",
+    impression: perTestMap.get(order.id)?.impression ?? activeReportVersion?.impression ?? report?.impression ?? "",
+    notes: perTestMap.get(order.id)?.notes ?? activeReportVersion?.notes ?? report?.notes ?? "",
     extraFields,
   }));
   const imagingFiles = task.imagingFiles.map((file) => ({

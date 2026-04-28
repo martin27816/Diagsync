@@ -51,6 +51,7 @@ export type OfflineRadiologyDraftItem = {
     findings: string;
     impression: string;
     notes: string;
+    testReports?: Record<string, { findings: string; impression: string; notes: string }>;
     extraFields: Record<string, string>;
     signatureName: string;
     signatureImage: string;
