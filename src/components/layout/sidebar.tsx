@@ -108,6 +108,10 @@ function notificationPathForRole(role: Role) {
 export function Sidebar({ user, className, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const navItems = navByRole[user.role] ?? [];
+  const isActivePath = (href: string) => {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname === href || pathname.startsWith(href + "/");
+  };
 
   return (
     <aside className={cn("flex h-[100dvh] w-56 flex-col border-r border-slate-200 bg-white", className)}>
@@ -140,8 +144,7 @@ export function Sidebar({ user, className, onNavigate }: SidebarProps) {
         <ul className="space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive =
-              pathname === item.href || pathname.startsWith(item.href + "/");
+            const isActive = isActivePath(item.href);
             return (
               <li key={item.href}>
                 <Link

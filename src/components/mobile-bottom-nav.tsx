@@ -136,9 +136,13 @@ export function MobileBottomNav({ role }: { role: Role }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const config = navByRole[role];
+  const isActivePath = (href: string) => {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   const moreActive = useMemo(
-    () => config.more.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)),
+    () => config.more.some((item) => isActivePath(item.href)),
     [config.more, pathname]
   );
 
@@ -155,7 +159,7 @@ export function MobileBottomNav({ role }: { role: Role }) {
         >
           {config.primary.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active = isActivePath(item.href);
             return (
               <li key={item.href}>
                 <Link
@@ -202,7 +206,7 @@ export function MobileBottomNav({ role }: { role: Role }) {
             <div className="grid grid-cols-1 gap-1">
               {config.more.map((item) => {
                 const Icon = item.icon;
-                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const active = isActivePath(item.href);
                 return (
                   <Link
                     key={item.href}
