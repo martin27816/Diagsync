@@ -12,12 +12,12 @@ export function getDashboardPath(role: Role): string {
     MEGA_ADMIN: "/admin/dashboard",
     SUPER_ADMIN: "/dashboard",
     HRM: "/dashboard",
-    RECEPTIONIST: "/dashboard",
-    LAB_SCIENTIST: "/dashboard",
-    RADIOGRAPHER: "/dashboard",
+    RECEPTIONIST: "/dashboard/receptionist",
+    LAB_SCIENTIST: "/dashboard/lab-scientist",
+    RADIOGRAPHER: "/dashboard/radiographer",
     MD: "/dashboard",
   };
-  return map[role] ?? "/dashboard";
+  return map[role] ?? "/dashboard/hrm";
 }
 
 // Format date to readable string

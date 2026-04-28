@@ -7,11 +7,15 @@ import { getRevenueStats } from "@/lib/analytics/revenue";
 import { getLabStats } from "@/lib/analytics/lab-stats";
 import { StatCard } from "@/components/insights/StatCard";
 import { SectionCard } from "@/components/insights/SectionCard";
+import { getDashboardPath } from "@/lib/utils";
 
 export default async function InsightsDashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
+  if (!["SUPER_ADMIN", "HRM", "MD"].includes(user.role)) {
+    redirect(getDashboardPath(user.role));
+  }
 
   const now = new Date();
   const todayStart = new Date(now);

@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ReportsBoard } from "@/components/insights/reports-board";
+import { getDashboardPath } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,9 @@ export default async function InsightsReportsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const user = session.user as any;
+  if (!["SUPER_ADMIN", "HRM", "MD"].includes(user.role)) {
+    redirect(getDashboardPath(user.role));
+  }
 
   const reports = await prisma.labInsightReport.findMany({
     where: { organizationId: user.organizationId },

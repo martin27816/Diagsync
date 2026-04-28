@@ -11,6 +11,9 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
     const user = session.user as any;
+    if (!["SUPER_ADMIN", "HRM", "MD"].includes(user.role)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
 
     const reports = await prisma.labInsightReport.findMany({
       where: { organizationId: user.organizationId },
