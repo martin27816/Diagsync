@@ -8,6 +8,7 @@ import { getLabStats } from "@/lib/analytics/lab-stats";
 import { StatCard } from "@/components/insights/StatCard";
 import { SectionCard } from "@/components/insights/SectionCard";
 import { getDashboardPath } from "@/lib/utils";
+import { MdStaffCallPanel } from "@/components/md/md-staff-call-panel";
 
 export default async function InsightsDashboardPage() {
   const session = await auth();
@@ -70,6 +71,8 @@ export default async function InsightsDashboardPage() {
         <h1 className="text-base font-semibold text-slate-800">Insights Dashboard</h1>
         <p className="text-xs text-slate-500">Revenue, growth, activity and performance at a glance.</p>
       </div>
+
+      <MdStaffCallPanel callerRole={user.role} />
 
       <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard
