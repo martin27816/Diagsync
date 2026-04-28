@@ -18,7 +18,11 @@ import {
   saveSignaturePresets,
   upsertSignaturePreset,
 } from "@/lib/signature-presets";
-import { parseRadiologyPerTestSections, type RadiologyPerTestSection } from "@/lib/radiology-report-sections";
+import {
+  parseRadiologyPerTestSections,
+  RADIOLOGY_PER_TEST_KEY,
+  type RadiologyPerTestSection,
+} from "@/lib/radiology-report-sections";
 
 type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -61,6 +65,20 @@ const EMPTY_DRAFT: Draft = {
   signatureName: "",
   signatureImage: "",
 };
+
+function sanitizeDraftExtraFields(
+  extraFields: Record<string, string> | null | undefined
+): Record<string, string> {
+  const source = extraFields ?? {};
+  return Object.fromEntries(
+    Object.entries(source).filter(
+      ([key]) =>
+        key !== SIGNOFF_IMAGE_KEY &&
+        key !== SIGNOFF_NAME_KEY &&
+        key !== RADIOLOGY_PER_TEST_KEY
+    )
+  );
+}
 
 const priorityStyle: Record<string, string> = {
   EMERGENCY: "bg-red-50 text-red-600", URGENT: "bg-amber-50 text-amber-700", ROUTINE: "bg-slate-100 text-slate-600",
@@ -135,7 +153,9 @@ export function RadiologyTaskBoard() {
         impression: offline?.impression ?? task.radiologyReport?.impression ?? "",
         notes: offline?.notes ?? task.radiologyReport?.notes ?? "",
         testReports: offline?.testReports ?? testReports,
-        extraFields: offline?.extraFields ?? task.radiologyReport?.extraFields ?? {},
+        extraFields: offline?.extraFields
+          ? sanitizeDraftExtraFields(offline.extraFields)
+          : sanitizeDraftExtraFields(task.radiologyReport?.extraFields),
         signatureName:
           offline?.signatureName ?? task.radiologyReport?.extraFields?.[SIGNOFF_NAME_KEY] ?? "",
         signatureImage:
@@ -390,8 +410,17 @@ export function RadiologyTaskBoard() {
       impression: value.impression ?? "",
       notes: value.notes ?? "",
     }));
-    const payload = { ...d, testReports };
-    const json = await (await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })).json();
+    const payload = {
+      ...d,
+      extraFields: sanitizeDraftExtraFields(d.extraFields),
+      testReports,
+    };
+    const saveRes = await fetch(`/api/radiology/tasks/${taskId}/report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = await saveRes.json();
       if (!json.success) { setError(json.error ?? "Unable to save report"); return; }
       const pending = listOfflineRadiologyDraftItems().find((item) => item.taskId === taskId);
       if (pending) removeOfflineRadiologyDraft(pending.id);
@@ -401,11 +430,11 @@ export function RadiologyTaskBoard() {
           findings: d.findings,
           impression: d.impression,
           notes: d.notes,
-          extraFields: d.extraFields,
+          extraFields: sanitizeDraftExtraFields(d.extraFields),
           ...(d.signatureName && d.signatureImage
             ? {
                 extraFields: {
-                  ...d.extraFields,
+                  ...sanitizeDraftExtraFields(d.extraFields),
                   [SIGNOFF_NAME_KEY]: d.signatureName,
                   [SIGNOFF_IMAGE_KEY]: d.signatureImage,
                 },
@@ -437,8 +466,25 @@ export function RadiologyTaskBoard() {
         impression: value.impression ?? "",
         notes: value.notes ?? "",
       }));
-      await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...d, testReports }) });
-      const json = await (await fetch(`/api/radiology/tasks/${taskId}/submit`, { method: "PATCH", headers: { "Content-Type": "application/json" } })).json();
+      const saveRes = await fetch(`/api/radiology/tasks/${taskId}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...d,
+          extraFields: sanitizeDraftExtraFields(d.extraFields),
+          testReports,
+        }),
+      });
+      const saveJson = await saveRes.json();
+      if (!saveJson.success) {
+        setError(saveJson.error ?? "Unable to save report before submission");
+        return;
+      }
+      const submitRes = await fetch(`/api/radiology/tasks/${taskId}/submit`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = await submitRes.json();
       if (!json.success) { setError(json.error ?? "Unable to submit report"); return; }
       const pending = listOfflineRadiologyDraftItems().find((item) => item.taskId === taskId);
       if (pending) removeOfflineRadiologyDraft(pending.id);
@@ -695,7 +741,7 @@ export function RadiologyTaskBoard() {
                                         ([key]) =>
                                           key !== SIGNOFF_IMAGE_KEY &&
                                           key !== SIGNOFF_NAME_KEY &&
-                                          key !== "__perTestReports"
+                                          key !== RADIOLOGY_PER_TEST_KEY
                                       )
                                     )
                                   ).length === 0 ? (
@@ -707,7 +753,7 @@ export function RadiologyTaskBoard() {
                                           ([key]) =>
                                             key !== SIGNOFF_IMAGE_KEY &&
                                             key !== SIGNOFF_NAME_KEY &&
-                                            key !== "__perTestReports"
+                                            key !== RADIOLOGY_PER_TEST_KEY
                                         )
                                       )
                                     ).map(([fieldKey, fieldValue]) => (

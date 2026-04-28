@@ -6,9 +6,23 @@ import { validateCustomFieldsMap } from "@/lib/custom-fields-core";
 import { SIGNOFF_IMAGE_KEY, SIGNOFF_NAME_KEY, isDataImageUrl } from "@/lib/report-signoff";
 import { z } from "zod";
 import { beginApiMetric, endApiMetric } from "@/lib/api-observability";
-import type { RadiologyPerTestSection } from "@/lib/radiology-report-sections";
+import { RADIOLOGY_PER_TEST_KEY, type RadiologyPerTestSection } from "@/lib/radiology-report-sections";
 
 export const dynamic = "force-dynamic";
+
+function sanitizeIncomingExtraFields(
+  extraFields: Record<string, string> | undefined
+): Record<string, string> {
+  if (!extraFields) return {};
+  return Object.fromEntries(
+    Object.entries(extraFields).filter(
+      ([key]) =>
+        key !== SIGNOFF_IMAGE_KEY &&
+        key !== SIGNOFF_NAME_KEY &&
+        key !== RADIOLOGY_PER_TEST_KEY
+    )
+  );
+}
 
 const reportSchema = z.object({
   findings: z.string().max(10000).default(""),
@@ -46,7 +60,9 @@ export async function POST(
       endApiMetric(metric, { ok: false, status: 400, note: "invalid_payload" });
       return NextResponse.json({ success: false, error: parsed.error.errors[0].message }, { status: 400 });
     }
-    const customFieldsCheck = validateCustomFieldsMap(parsed.data.extraFields);
+    const customFieldsCheck = validateCustomFieldsMap(
+      sanitizeIncomingExtraFields(parsed.data.extraFields)
+    );
     if (!customFieldsCheck.ok) {
       endApiMetric(metric, { ok: false, status: 400, note: "invalid_extra_fields" });
       return NextResponse.json({ success: false, error: customFieldsCheck.error }, { status: 400 });
