@@ -16,7 +16,7 @@ function testPermissions() {
   );
   assert.equal(
     canModifyRadiologyTask({ userRole: "RADIOGRAPHER", userId: "u2", assignedStaffId: "u1" }),
-    false
+    true
   );
   assert.equal(
     canModifyRadiologyTask({ userRole: "LAB_SCIENTIST", userId: "u1", assignedStaffId: "u1" }),
@@ -69,4 +69,3 @@ function run() {
 }
 
 run();
-

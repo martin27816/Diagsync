@@ -16,11 +16,7 @@ export function canModifyRadiologyTask(params: {
   userId: string;
   assignedStaffId: string | null;
 }) {
-  return (
-    params.userRole === "RADIOGRAPHER" &&
-    Boolean(params.assignedStaffId) &&
-    params.userId === params.assignedStaffId
-  );
+  return params.userRole === "RADIOGRAPHER";
 }
 
 export function canStartRadiologyTask(status: RoutingTaskStatus) {

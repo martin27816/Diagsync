@@ -73,6 +73,7 @@ async function getTaskForReview(taskId: string, actor: MdActor) {
       },
       radiologyReport: {
         include: {
+          staff: { select: { id: true, fullName: true } },
           versions: {
             include: { editedBy: { select: { id: true, fullName: true } } },
             orderBy: { version: "desc" },
@@ -138,6 +139,7 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
       imagingFiles: true,
       radiologyReport: {
         include: {
+          staff: { select: { id: true, fullName: true } },
           versions: {
             include: { editedBy: { select: { id: true, fullName: true } } },
             orderBy: { version: "desc" },
@@ -274,15 +276,18 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
   const items = tasks.map((task) => {
     const startedByNames = Array.from(
       new Set(
-        task.results
-          .map((result) => result.testOrder.assignedTo?.fullName?.trim() ?? "")
-          .filter((name) => name.length > 0)
+        [
+          task.department === Department.RADIOLOGY ? task.staff?.fullName?.trim() ?? "" : "",
+          ...task.results
+            .map((result) => result.testOrder.assignedTo?.fullName?.trim() ?? ""),
+        ].filter((name) => name.length > 0)
       )
     );
     const submittedByNames = Array.from(
       new Set(
         [
           task.staff?.fullName?.trim() ?? "",
+          task.radiologyReport?.staff?.fullName?.trim() ?? "",
           ...task.results
             .map((result) => result.staff?.fullName?.trim() ?? "")
             .filter((name) => name.length > 0),

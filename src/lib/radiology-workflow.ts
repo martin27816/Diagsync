@@ -408,7 +408,7 @@ export async function submitRadiologyTask(
   await prisma.$transaction(async (tx) => {
     await tx.radiologyReport.update({
       where: { taskId: task.id },
-      data: { isSubmitted: true, submittedAt: now },
+      data: { staffId: actor.id, isSubmitted: true, submittedAt: now },
     });
 
     await tx.routingTask.update({
