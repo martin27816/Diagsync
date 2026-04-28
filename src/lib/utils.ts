@@ -15,7 +15,7 @@ export function getDashboardPath(role: Role): string {
     RECEPTIONIST: "/dashboard/receptionist",
     LAB_SCIENTIST: "/dashboard/lab-scientist",
     RADIOGRAPHER: "/dashboard/radiographer",
-    MD: "/dashboard",
+    MD: "/dashboard/md/review",
   };
   return map[role] ?? "/dashboard/hrm";
 }
