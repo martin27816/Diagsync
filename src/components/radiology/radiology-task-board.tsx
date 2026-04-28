@@ -37,6 +37,8 @@ type Task = {
   id: string;
   status: TaskStatus;
   priority: Priority;
+  staffId?: string | null;
+  canEdit?: boolean;
   createdAt: string;
   updatedAt: string;
   visit: {
@@ -404,6 +406,11 @@ export function RadiologyTaskBoard() {
     invalidateTaskCache();
     try {
     const d = drafts[taskId] ?? EMPTY_DRAFT;
+    const task = tasks.find((row) => row.id === taskId);
+    if (task && !task.canEdit) {
+      setError("This task is assigned to another radiographer. Please click Start on your own pending task.");
+      return;
+    }
     const testReports: RadiologyPerTestSection[] = Object.entries(d.testReports ?? {}).map(([testOrderId, value]) => ({
       testOrderId,
       findings: value.findings ?? "",
@@ -455,6 +462,10 @@ export function RadiologyTaskBoard() {
       const d = drafts[taskId] ?? EMPTY_DRAFT;
       const task = tasks.find((row) => row.id === taskId);
       if (!task) { setError("Task not found."); return; }
+      if (!task.canEdit) {
+        setError("This task is assigned to another radiographer. You can only submit tasks assigned to you.");
+        return;
+      }
       const missing = task.testOrders.find((order) => {
         const row = d.testReports?.[order.id];
         return !row?.findings?.trim() || !row?.impression?.trim();
@@ -698,10 +709,14 @@ export function RadiologyTaskBoard() {
                           )}
                           {task.status !== "COMPLETED" && task.status !== "PENDING" && (
                             <button onClick={() => setExpandedTask(isExpanded ? null : task.id)}
+                              disabled={!task.canEdit}
                               className="rounded border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50 transition-colors">
                               {isExpanded ? "Close" : "Open Report"}
                             </button>
                           )}
+                          {task.status !== "COMPLETED" && task.status !== "PENDING" && !task.canEdit ? (
+                            <span className="text-[11px] text-amber-500">Assigned to another radiographer</span>
+                          ) : null}
                           {task.status === "COMPLETED" && <span className="text-green-600 font-medium">âœ“ Submitted</span>}
                         </div>
                       </td>

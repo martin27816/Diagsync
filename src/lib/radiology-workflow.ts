@@ -162,6 +162,11 @@ export async function getRadiologyTasks(
 
   return rows.map((task) => ({
     ...task,
+    canEdit: canModifyRadiologyTask({
+      userRole: actor.role,
+      userId: actor.id,
+      assignedStaffId: task.staffId,
+    }),
     testOrders: task.testOrderIds
       .map((id) => orderMap.get(id))
       .filter((order): order is (typeof orders)[number] => Boolean(order)),
