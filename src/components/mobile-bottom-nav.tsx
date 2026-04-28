@@ -37,12 +37,13 @@ type NavConfig = {
 const navByRole: Record<Role, NavConfig> = {
   SUPER_ADMIN: {
     primary: [
-      { label: "Dashboard", href: "/dashboard/hrm", icon: LayoutDashboard },
+      { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
       { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
       { label: "Tasks", href: "/dashboard/hrm/operations", icon: Activity },
       { label: "Reports", href: "/dashboard/hrm/release", icon: FileText },
     ],
     more: [
+      { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
       { label: "Lab Settings", href: "/dashboard/hrm/settings", icon: Settings2 },
       { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
       { label: "Review Queue", href: "/dashboard/md/review", icon: ClipboardList },
@@ -57,12 +58,13 @@ const navByRole: Record<Role, NavConfig> = {
   },
   HRM: {
     primary: [
-      { label: "Dashboard", href: "/dashboard/hrm", icon: LayoutDashboard },
+      { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
       { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
       { label: "Tasks", href: "/dashboard/hrm/operations", icon: Activity },
       { label: "Reports", href: "/dashboard/hrm/release", icon: FileText },
     ],
     more: [
+      { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
       { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
       { label: "Review Queue", href: "/dashboard/md/review", icon: ClipboardList },
       { label: "Staff Management", href: "/dashboard/hrm/staff", icon: Users },
@@ -76,12 +78,13 @@ const navByRole: Record<Role, NavConfig> = {
   },
   RECEPTIONIST: {
     primary: [
-      { label: "Dashboard", href: "/dashboard/receptionist", icon: LayoutDashboard },
+      { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
       { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
       { label: "Tasks", href: "/dashboard/receptionist/consultation", icon: ClipboardList },
       { label: "Reports", href: "/dashboard/receptionist/release", icon: FileText },
     ],
     more: [
+      { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
       { label: "New Patient", href: "/dashboard/receptionist/new-patient", icon: UserPlus },
       { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
       { label: "Notifications", href: "/dashboard/receptionist/notifications", icon: Bell },
@@ -89,36 +92,39 @@ const navByRole: Record<Role, NavConfig> = {
   },
   LAB_SCIENTIST: {
     primary: [
-      { label: "Dashboard", href: "/dashboard/lab-scientist", icon: LayoutDashboard },
+      { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
       { label: "Patients", href: "/dashboard/lab-scientist/results", icon: Users },
       { label: "Tasks", href: "/dashboard/lab-scientist/queue", icon: ClipboardList },
       { label: "Reports", href: "/dashboard/lab-scientist/results", icon: FileText },
     ],
     more: [
+      { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
       { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
       { label: "Notifications", href: "/dashboard/lab-scientist/notifications", icon: Bell },
     ],
   },
   RADIOGRAPHER: {
     primary: [
-      { label: "Dashboard", href: "/dashboard/radiographer", icon: LayoutDashboard },
+      { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
       { label: "Patients", href: "/dashboard/radiographer/reports", icon: Users },
       { label: "Tasks", href: "/dashboard/radiographer/queue", icon: Scan },
       { label: "Reports", href: "/dashboard/radiographer/reports", icon: FileText },
     ],
     more: [
+      { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
       { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
       { label: "Notifications", href: "/dashboard/radiographer/notifications", icon: Bell },
     ],
   },
   MD: {
     primary: [
-      { label: "Dashboard", href: "/dashboard/md", icon: LayoutDashboard },
+      { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
       { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
       { label: "Tasks", href: "/dashboard/md/review", icon: ClipboardList },
       { label: "Reports", href: "/dashboard/md/reports", icon: FileText },
     ],
     more: [
+      { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
       { label: "Consultation", href: "/dashboard/md/consultation", icon: Stethoscope },
       { label: "Approved", href: "/dashboard/md/approved", icon: ClipboardList },
       { label: "Billing", href: "/dashboard/billing", icon: CreditCard },

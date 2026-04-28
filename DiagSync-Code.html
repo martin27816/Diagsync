@@ -4675,6 +4675,7 @@ export default async function AdminLabsPage({ searchParams }: { searchParams: Se
 <div class='file-block'><div class='file-header'>src/app/(admin)/admin/layout.tsx</div><pre>import Link from "next/link";
 import { requireMegaAdmin } from "@/lib/admin-auth";
 import { AdminSignOutButton } from "@/components/admin/admin-sign-out-button";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 const links = [
   { href: "/admin/dashboard", label: "Dashboard" },
@@ -4692,6 +4693,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       &lt;div className="sticky top-0 z-40 border-b border-gray-200 bg-white px-6 py-3 flex items-center justify-between shadow-sm"&gt;
         &lt;span className="text-xs font-semibold tracking-widest text-gray-400 uppercase"&gt;Platform Admin&lt;/span&gt;
         &lt;div className="flex items-center gap-2"&gt;
+          &lt;ThemeToggle /&gt;
           &lt;AdminSignOutButton className="h-8 border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-900" /&gt;
           &lt;div className="h-7 w-7 rounded-full bg-gray-900 flex items-center justify-center text-white text-xs font-bold"&gt;
             {user.fullName.charAt(0)}
@@ -4935,7 +4937,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: S
 }</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(auth)/layout.tsx</div><pre>export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    &lt;div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4"&gt;
+    &lt;div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex items-center justify-center p-4"&gt;
       {children}
     &lt;/div&gt;
   );
@@ -11780,24 +11782,24 @@ export default function GlobalError({
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 0 0% 5%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 0 0% 7%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 0 0% 7%;
     --popover-foreground: 210 40% 98%;
     --primary: 217.2 91.2% 59.8%;
     --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 0 0% 12%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 70%;
+    --accent: 0 0% 12%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
     --ring: 224.3 76.3% 48%;
   }
 }
@@ -11830,6 +11832,203 @@ export default function GlobalError({
     textarea {
       font-size: 16px !important;
     }
+  }
+}
+
+@layer utilities {
+  .dark {
+    color-scheme: dark;
+  }
+
+  .dark .bg-white {
+    background-color: rgb(10 10 10) !important;
+  }
+
+  .dark .bg-slate-50 {
+    background-color: rgb(3 3 3) !important;
+  }
+
+  .dark .bg-slate-100 {
+    background-color: rgb(10 10 10) !important;
+  }
+
+  .dark .bg-slate-200 {
+    background-color: rgb(23 23 23) !important;
+  }
+
+  .dark .bg-gray-50 {
+    background-color: rgb(3 3 3) !important;
+  }
+
+  .dark .bg-gray-100 {
+    background-color: rgb(10 10 10) !important;
+  }
+
+  .dark .bg-gray-900 {
+    background-color: rgb(3 3 3) !important;
+  }
+
+  .dark .border-slate-50,
+  .dark .border-slate-100,
+  .dark .border-slate-200,
+  .dark .border-slate-300 {
+    border-color: rgb(38 38 38) !important;
+  }
+
+  .dark .divide-slate-50 &gt; :not([hidden]) ~ :not([hidden]),
+  .dark .divide-slate-100 &gt; :not([hidden]) ~ :not([hidden]),
+  .dark .divide-slate-200 &gt; :not([hidden]) ~ :not([hidden]),
+  .dark .divide-slate-300 &gt; :not([hidden]) ~ :not([hidden]) {
+    border-color: rgb(38 38 38) !important;
+  }
+
+  .dark .border-gray-100,
+  .dark .border-gray-200,
+  .dark .border-gray-300 {
+    border-color: rgb(38 38 38) !important;
+  }
+
+  .dark .divide-gray-100 &gt; :not([hidden]) ~ :not([hidden]),
+  .dark .divide-gray-200 &gt; :not([hidden]) ~ :not([hidden]),
+  .dark .divide-gray-300 &gt; :not([hidden]) ~ :not([hidden]) {
+    border-color: rgb(38 38 38) !important;
+  }
+
+  .dark .text-slate-900,
+  .dark .text-slate-800 {
+    color: rgb(245 245 245) !important;
+  }
+
+  .dark .text-slate-700,
+  .dark .text-slate-600 {
+    color: rgb(212 212 212) !important;
+  }
+
+  .dark .text-slate-500,
+  .dark .text-slate-400,
+  .dark .text-slate-300 {
+    color: rgb(163 163 163) !important;
+  }
+
+  .dark .text-gray-900,
+  .dark .text-gray-800 {
+    color: rgb(245 245 245) !important;
+  }
+
+  .dark .text-gray-700,
+  .dark .text-gray-600,
+  .dark .text-gray-500 {
+    color: rgb(212 212 212) !important;
+  }
+
+  .dark .text-gray-400,
+  .dark .text-gray-300 {
+    color: rgb(163 163 163) !important;
+  }
+
+  .dark .placeholder\:text-gray-300::placeholder {
+    color: rgb(115 115 115) !important;
+  }
+
+  .dark .placeholder\:text-slate-300::placeholder {
+    color: rgb(115 115 115) !important;
+  }
+
+  .dark .hover\:bg-slate-50:hover {
+    background-color: rgb(23 23 23) !important;
+  }
+
+  .dark .hover\:bg-slate-100:hover {
+    background-color: rgb(38 38 38) !important;
+  }
+
+  .dark .hover\:bg-gray-50:hover {
+    background-color: rgb(23 23 23) !important;
+  }
+
+  .dark .hover\:bg-gray-100:hover {
+    background-color: rgb(38 38 38) !important;
+  }
+
+  .dark .bg-blue-50 {
+    background-color: rgb(30 58 138 / 0.28) !important;
+  }
+
+  .dark .bg-blue-100 {
+    background-color: rgb(30 64 175 / 0.3) !important;
+  }
+
+  .dark .border-blue-100,
+  .dark .border-blue-200,
+  .dark .border-blue-300 {
+    border-color: rgb(59 130 246 / 0.45) !important;
+  }
+
+  .dark .text-blue-700,
+  .dark .text-blue-600 {
+    color: rgb(147 197 253) !important;
+  }
+
+  .dark .bg-green-50 {
+    background-color: rgb(20 83 45 / 0.32) !important;
+  }
+
+  .dark .border-green-200 {
+    border-color: rgb(74 222 128 / 0.35) !important;
+  }
+
+  .dark .text-green-700,
+  .dark .text-green-600 {
+    color: rgb(134 239 172) !important;
+  }
+
+  .dark .bg-amber-50 {
+    background-color: rgb(120 53 15 / 0.35) !important;
+  }
+
+  .dark .border-amber-200,
+  .dark .border-amber-300 {
+    border-color: rgb(251 191 36 / 0.4) !important;
+  }
+
+  .dark .text-amber-700 {
+    color: rgb(253 230 138) !important;
+  }
+
+  .dark .bg-red-50 {
+    background-color: rgb(127 29 29 / 0.33) !important;
+  }
+
+  .dark .border-red-200,
+  .dark .border-red-300 {
+    border-color: rgb(248 113 113 / 0.45) !important;
+  }
+
+  .dark .text-red-700,
+  .dark .text-red-600 {
+    color: rgb(252 165 165) !important;
+  }
+
+  .dark .from-white {
+    --tw-gradient-from: rgb(10 10 10) var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgb(10 10 10 / 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  }
+
+  .dark .from-blue-50 {
+    --tw-gradient-from: rgb(10 10 10) var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgb(10 10 10 / 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  }
+
+  .dark .to-white,
+  .dark .to-indigo-50 {
+    --tw-gradient-to: rgb(3 3 3) var(--tw-gradient-to-position) !important;
+  }
+
+  .dark .via-white {
+    --tw-gradient-to: rgb(10 10 10 / 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), rgb(10 10 10) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
   }
 }
 
@@ -11872,6 +12071,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     &lt;html lang="en" suppressHydrationWarning&gt;
       &lt;head&gt;
+        &lt;script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                try {
+                  var key = "diagsync-theme";
+                  var saved = localStorage.getItem(key);
+                  var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+                  document.documentElement.classList.toggle("dark", dark);
+                  var meta = document.querySelector('meta[name="theme-color"]');
+                  if (meta) meta.setAttribute("content", dark ? "#050505" : "#ffffff");
+                } catch (e) {}
+              })();
+            `,
+          }}
+        /&gt;
         &lt;link rel="manifest" href="/manifest.json" /&gt;
         &lt;meta name="theme-color" content="#ffffff" /&gt;
         &lt;meta name="apple-mobile-web-app-capable" content="yes" /&gt;
@@ -12818,7 +13033,7 @@ export default async function HomePage() {
 
       {/* â”€â”€ CTA â”€â”€ */}
       &lt;section className="mx-auto max-w-6xl px-6 py-20"&gt;
-        &lt;div className="rv rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white px-10 py-16 text-center"&gt;
+        &lt;div className="rv rounded-2xl border border-blue-100 dark:border-blue-900/40 bg-gradient-to-br from-blue-50 to-white dark:from-slate-900 dark:to-slate-950 px-10 py-16 text-center"&gt;
           &lt;span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-700 mb-6"&gt;
             &lt;span className="h-1.5 w-1.5 rounded-full bg-blue-500 pulse" /&gt;
             Ready to get started
@@ -19614,6 +19829,7 @@ import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { DeviceAccountMenu } from "@/components/device/device-account-menu";
 import { Role } from "@prisma/client";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 interface HeaderBarProps {
   staffId: string;
@@ -19699,6 +19915,7 @@ export function HeaderBar({
           &lt;/div&gt;
         )}
         &lt;NotificationBell role={role} /&gt;
+        &lt;ThemeToggle /&gt;
         &lt;DeviceAccountMenu
           staffId={staffId}
           staffName={staffName}
@@ -19923,6 +20140,60 @@ export function Sidebar({ user, className, onNavigate }: SidebarProps) {
   );
 }
 
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/layout/theme-toggle.tsx</div><pre>"use client";
+
+import { useEffect, useState } from "react";
+import { Moon, Sun } from "lucide-react";
+
+const THEME_KEY = "diagsync-theme";
+
+function resolveInitialTheme() {
+  if (typeof window === "undefined") return "light";
+  const saved = window.localStorage.getItem(THEME_KEY);
+  if (saved === "light" || saved === "dark") return saved;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme(theme: "light" | "dark") {
+  const root = document.documentElement;
+  root.classList.toggle("dark", theme === "dark");
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute("content", theme === "dark" ? "#050505" : "#ffffff");
+  }
+}
+
+export function ThemeToggle() {
+  const [mounted, setMounted] = useState(false);
+  const [theme, setTheme] = useState&lt;"light" | "dark"&gt;("light");
+
+  useEffect(() =&gt; {
+    const initial = resolveInitialTheme();
+    setTheme(initial);
+    applyTheme(initial);
+    setMounted(true);
+  }, []);
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    window.localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  }
+
+  return (
+    &lt;button
+      type="button"
+      onClick={toggleTheme}
+      aria-label={mounted &amp;&amp; theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      title={mounted &amp;&amp; theme === "dark" ? "Light mode" : "Dark mode"}
+      className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-neutral-700 dark:bg-black dark:text-neutral-300 dark:hover:bg-neutral-900"
+    &gt;
+      {mounted &amp;&amp; theme === "dark" ? &lt;Sun className="h-4 w-4" /&gt; : &lt;Moon className="h-4 w-4" /&gt;}
+    &lt;/button&gt;
+  );
+}
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/md/md-review-board.tsx</div><pre>"use client";
 
@@ -20970,7 +21241,7 @@ export function MobileBottomNav({ role }: { role: Role }) {
 
   return (
     &lt;&gt;
-      &lt;nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-2px_10px_rgba(15,23,42,0.06)] backdrop-blur md:hidden"&gt;
+      &lt;nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-2px_10px_rgba(15,23,42,0.06)] backdrop-blur dark:border-neutral-800 dark:bg-black/95 dark:shadow-[0_-2px_10px_rgba(0,0,0,0.5)] md:hidden"&gt;
         &lt;ul
           className="grid grid-cols-5 pt-1"
           style={{
@@ -20985,10 +21256,10 @@ export function MobileBottomNav({ role }: { role: Role }) {
                 &lt;Link
                   href={item.href}
                   className={`flex min-h-[58px] flex-col items-center justify-center gap-1 px-1 text-[11px] ${
-                    active ? "text-blue-600" : "text-slate-500"
+                    active ? "text-blue-600" : "text-slate-500 dark:text-neutral-400"
                   }`}
                 &gt;
-                  &lt;Icon className={`h-4 w-4 ${active ? "text-blue-600" : "text-slate-400"}`} /&gt;
+                  &lt;Icon className={`h-4 w-4 ${active ? "text-blue-600" : "text-slate-400 dark:text-neutral-500"}`} /&gt;
                   &lt;span className="font-medium"&gt;{item.label}&lt;/span&gt;
                 &lt;/Link&gt;
               &lt;/li&gt;
@@ -20999,10 +21270,10 @@ export function MobileBottomNav({ role }: { role: Role }) {
               type="button"
               onClick={() =&gt; setMoreOpen(true)}
               className={`flex min-h-[58px] w-full flex-col items-center justify-center gap-1 px-1 text-[11px] ${
-                moreOpen || moreActive ? "text-blue-600" : "text-slate-500"
+                moreOpen || moreActive ? "text-blue-600" : "text-slate-500 dark:text-neutral-400"
               }`}
             &gt;
-              &lt;MoreHorizontal className={`h-4 w-4 ${moreOpen || moreActive ? "text-blue-600" : "text-slate-400"}`} /&gt;
+              &lt;MoreHorizontal className={`h-4 w-4 ${moreOpen || moreActive ? "text-blue-600" : "text-slate-400 dark:text-neutral-500"}`} /&gt;
               &lt;span className="font-medium"&gt;More&lt;/span&gt;
             &lt;/button&gt;
           &lt;/li&gt;
@@ -21015,14 +21286,14 @@ export function MobileBottomNav({ role }: { role: Role }) {
             type="button"
             aria-label="Close more menu"
             onClick={() =&gt; setMoreOpen(false)}
-            className="absolute inset-0 bg-slate-900/35"
+            className="absolute inset-0 bg-slate-900/35 dark:bg-black/55"
           /&gt;
           &lt;div
-            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-200 bg-white p-4 shadow-2xl"
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-200 bg-white p-4 shadow-2xl dark:border-neutral-800 dark:bg-black"
             style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
           &gt;
-            &lt;div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" /&gt;
-            &lt;p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;More&lt;/p&gt;
+            &lt;div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200 dark:bg-neutral-700" /&gt;
+            &lt;p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400"&gt;More&lt;/p&gt;
             &lt;div className="grid grid-cols-1 gap-1"&gt;
               {config.more.map((item) =&gt; {
                 const Icon = item.icon;
@@ -21033,7 +21304,9 @@ export function MobileBottomNav({ role }: { role: Role }) {
                     href={item.href}
                     onClick={() =&gt; setMoreOpen(false)}
                     className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${
-                      active ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
+                      active
+                        ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                        : "text-slate-700 hover:bg-slate-50 dark:text-neutral-200 dark:hover:bg-neutral-900"
                     }`}
                   &gt;
                     &lt;Icon className="h-4 w-4" /&gt;
@@ -21044,7 +21317,7 @@ export function MobileBottomNav({ role }: { role: Role }) {
               &lt;button
                 type="button"
                 onClick={() =&gt; signOut({ callbackUrl: "/login" })}
-                className="mt-1 flex items-center gap-2 rounded-lg border border-red-100 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50"
+                className="mt-1 flex items-center gap-2 rounded-lg border border-red-100 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/40"
               &gt;
                 &lt;LogOut className="h-4 w-4" /&gt;
                 &lt;span&gt;Sign out&lt;/span&gt;
@@ -21056,7 +21329,6 @@ export function MobileBottomNav({ role }: { role: Role }) {
     &lt;/&gt;
   );
 }
-
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/notifications/notification-bell.tsx</div><pre>"use client";
 
@@ -21891,6 +22163,11 @@ import {
   saveSignaturePresets,
   upsertSignaturePreset,
 } from "@/lib/signature-presets";
+import {
+  parseRadiologyPerTestSections,
+  RADIOLOGY_PER_TEST_KEY,
+  type RadiologyPerTestSection,
+} from "@/lib/radiology-report-sections";
 
 type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 type Priority = "ROUTINE" | "URGENT" | "EMERGENCY";
@@ -21905,6 +22182,8 @@ type Task = {
   id: string;
   status: TaskStatus;
   priority: Priority;
+  staffId?: string | null;
+  canEdit?: boolean;
   createdAt: string;
   updatedAt: string;
   visit: {
@@ -21918,6 +22197,7 @@ type Draft = {
   findings: string;
   impression: string;
   notes: string;
+  testReports: Record&lt;string, { findings: string; impression: string; notes: string }&gt;;
   extraFields: Record&lt;string, string&gt;;
   signatureName: string;
   signatureImage: string;
@@ -21927,10 +22207,25 @@ const EMPTY_DRAFT: Draft = {
   findings: "",
   impression: "",
   notes: "",
+  testReports: {},
   extraFields: {},
   signatureName: "",
   signatureImage: "",
 };
+
+function sanitizeDraftExtraFields(
+  extraFields: Record&lt;string, string&gt; | null | undefined
+): Record&lt;string, string&gt; {
+  const source = extraFields ?? {};
+  return Object.fromEntries(
+    Object.entries(source).filter(
+      ([key]) =&gt;
+        key !== SIGNOFF_IMAGE_KEY &amp;&amp;
+        key !== SIGNOFF_NAME_KEY &amp;&amp;
+        key !== RADIOLOGY_PER_TEST_KEY
+    )
+  );
+}
 
 const priorityStyle: Record&lt;string, string&gt; = {
   EMERGENCY: "bg-red-50 text-red-600", URGENT: "bg-amber-50 text-amber-700", ROUTINE: "bg-slate-100 text-slate-600",
@@ -21990,11 +22285,24 @@ export function RadiologyTaskBoard() {
     });
     for (const task of rows) {
       const offline = offlineByTask.get(task.id)?.draft;
+      const parsedPerTest = parseRadiologyPerTestSections(task.radiologyReport?.extraFields);
+      const testReports: Record&lt;string, { findings: string; impression: string; notes: string }&gt; = {};
+      for (const order of task.testOrders) {
+        const perTest = parsedPerTest.find((row) =&gt; row.testOrderId === order.id);
+        testReports[order.id] = {
+          findings: perTest?.findings ?? task.radiologyReport?.findings ?? "",
+          impression: perTest?.impression ?? task.radiologyReport?.impression ?? "",
+          notes: perTest?.notes ?? task.radiologyReport?.notes ?? "",
+        };
+      }
       const baselineDraft: Draft = {
         findings: offline?.findings ?? task.radiologyReport?.findings ?? "",
         impression: offline?.impression ?? task.radiologyReport?.impression ?? "",
         notes: offline?.notes ?? task.radiologyReport?.notes ?? "",
-        extraFields: offline?.extraFields ?? task.radiologyReport?.extraFields ?? {},
+        testReports: offline?.testReports ?? testReports,
+        extraFields: offline?.extraFields
+          ? sanitizeDraftExtraFields(offline.extraFields)
+          : sanitizeDraftExtraFields(task.radiologyReport?.extraFields),
         signatureName:
           offline?.signatureName ?? task.radiologyReport?.extraFields?.[SIGNOFF_NAME_KEY] ?? "",
         signatureImage:
@@ -22131,7 +22439,41 @@ export function RadiologyTaskBoard() {
   }
   function reportReady(taskId: string) {
     const d = drafts[taskId];
-    return Boolean(d?.findings?.trim()) &amp;&amp; Boolean(d?.impression?.trim());
+    const task = tasks.find((row) =&gt; row.id === taskId);
+    if (!task) return false;
+    return task.testOrders.every((order) =&gt; {
+      const row = d?.testReports?.[order.id];
+      return Boolean(row?.findings?.trim()) &amp;&amp; Boolean(row?.impression?.trim());
+    });
+  }
+
+  function setTestReportField(
+    taskId: string,
+    testOrderId: string,
+    field: "findings" | "impression" | "notes",
+    value: string
+  ) {
+    const current = drafts[taskId] ?? EMPTY_DRAFT;
+    const nextTestReports = {
+      ...(current.testReports ?? {}),
+      [testOrderId]: {
+        findings: current.testReports?.[testOrderId]?.findings ?? "",
+        impression: current.testReports?.[testOrderId]?.impression ?? "",
+        notes: current.testReports?.[testOrderId]?.notes ?? "",
+        [field]: value,
+      },
+    };
+
+    const all = Object.values(nextTestReports);
+    const summaryFindings = all.map((row) =&gt; row.findings.trim()).filter(Boolean).join("\n\n");
+    const summaryImpression = all.map((row) =&gt; row.impression.trim()).filter(Boolean).join("\n\n");
+    const summaryNotes = all.map((row) =&gt; row.notes.trim()).filter(Boolean).join("\n\n");
+    updateDraft(taskId, {
+      testReports: nextTestReports,
+      findings: summaryFindings,
+      impression: summaryImpression,
+      notes: summaryNotes,
+    });
   }
 
   function setExtraFieldValue(taskId: string, fieldKey: string, value: string) {
@@ -22209,7 +22551,28 @@ export function RadiologyTaskBoard() {
     invalidateTaskCache();
     try {
     const d = drafts[taskId] ?? EMPTY_DRAFT;
-    const json = await (await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })).json();
+    const task = tasks.find((row) =&gt; row.id === taskId);
+    if (task &amp;&amp; !task.canEdit) {
+      setError("This task is assigned to another radiographer. Please click Start on your own pending task.");
+      return;
+    }
+    const testReports: RadiologyPerTestSection[] = Object.entries(d.testReports ?? {}).map(([testOrderId, value]) =&gt; ({
+      testOrderId,
+      findings: value.findings ?? "",
+      impression: value.impression ?? "",
+      notes: value.notes ?? "",
+    }));
+    const payload = {
+      ...d,
+      extraFields: sanitizeDraftExtraFields(d.extraFields),
+      testReports,
+    };
+    const saveRes = await fetch(`/api/radiology/tasks/${taskId}/report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = await saveRes.json();
       if (!json.success) { setError(json.error ?? "Unable to save report"); return; }
       const pending = listOfflineRadiologyDraftItems().find((item) =&gt; item.taskId === taskId);
       if (pending) removeOfflineRadiologyDraft(pending.id);
@@ -22219,11 +22582,11 @@ export function RadiologyTaskBoard() {
           findings: d.findings,
           impression: d.impression,
           notes: d.notes,
-          extraFields: d.extraFields,
+          extraFields: sanitizeDraftExtraFields(d.extraFields),
           ...(d.signatureName &amp;&amp; d.signatureImage
             ? {
                 extraFields: {
-                  ...d.extraFields,
+                  ...sanitizeDraftExtraFields(d.extraFields),
                   [SIGNOFF_NAME_KEY]: d.signatureName,
                   [SIGNOFF_IMAGE_KEY]: d.signatureImage,
                 },
@@ -22242,9 +22605,42 @@ export function RadiologyTaskBoard() {
     invalidateTaskCache();
     try {
       const d = drafts[taskId] ?? EMPTY_DRAFT;
-      if (!d.findings.trim() || !d.impression.trim()) { setError("Findings and impression are required before submission."); return; }
-      await fetch(`/api/radiology/tasks/${taskId}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) });
-      const json = await (await fetch(`/api/radiology/tasks/${taskId}/submit`, { method: "PATCH", headers: { "Content-Type": "application/json" } })).json();
+      const task = tasks.find((row) =&gt; row.id === taskId);
+      if (!task) { setError("Task not found."); return; }
+      if (!task.canEdit) {
+        setError("This task is assigned to another radiographer. You can only submit tasks assigned to you.");
+        return;
+      }
+      const missing = task.testOrders.find((order) =&gt; {
+        const row = d.testReports?.[order.id];
+        return !row?.findings?.trim() || !row?.impression?.trim();
+      });
+      if (missing) { setError(`Findings and impression are required for ${missing.test.name}.`); return; }
+      const testReports: RadiologyPerTestSection[] = Object.entries(d.testReports ?? {}).map(([testOrderId, value]) =&gt; ({
+        testOrderId,
+        findings: value.findings ?? "",
+        impression: value.impression ?? "",
+        notes: value.notes ?? "",
+      }));
+      const saveRes = await fetch(`/api/radiology/tasks/${taskId}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...d,
+          extraFields: sanitizeDraftExtraFields(d.extraFields),
+          testReports,
+        }),
+      });
+      const saveJson = await saveRes.json();
+      if (!saveJson.success) {
+        setError(saveJson.error ?? "Unable to save report before submission");
+        return;
+      }
+      const submitRes = await fetch(`/api/radiology/tasks/${taskId}/submit`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = await submitRes.json();
       if (!json.success) { setError(json.error ?? "Unable to submit report"); return; }
       const pending = listOfflineRadiologyDraftItems().find((item) =&gt; item.taskId === taskId);
       if (pending) removeOfflineRadiologyDraft(pending.id);
@@ -22280,6 +22676,7 @@ export function RadiologyTaskBoard() {
           findings: draft.findings,
           impression: draft.impression,
           notes: draft.notes,
+          testReports: draft.testReports ?? {},
           extraFields: draft.extraFields ?? {},
           signatureName: draft.signatureName ?? "",
           signatureImage: draft.signatureImage ?? "",
@@ -22302,6 +22699,7 @@ export function RadiologyTaskBoard() {
           findings: draft.findings,
           impression: draft.impression,
           notes: draft.notes,
+          testReports: draft.testReports ?? {},
           extraFields: draft.extraFields ?? {},
           signatureName: draft.signatureName ?? "",
           signatureImage: draft.signatureImage ?? "",
@@ -22456,10 +22854,14 @@ export function RadiologyTaskBoard() {
                           )}
                           {task.status !== "COMPLETED" &amp;&amp; task.status !== "PENDING" &amp;&amp; (
                             &lt;button onClick={() =&gt; setExpandedTask(isExpanded ? null : task.id)}
+                              disabled={!task.canEdit}
                               className="rounded border border-slate-200 px-2.5 py-1 text-slate-600 hover:bg-slate-50 transition-colors"&gt;
                               {isExpanded ? "Close" : "Open Report"}
                             &lt;/button&gt;
                           )}
+                          {task.status !== "COMPLETED" &amp;&amp; task.status !== "PENDING" &amp;&amp; !task.canEdit ? (
+                            &lt;span className="text-[11px] text-amber-500"&gt;Assigned to another radiographer&lt;/span&gt;
+                          ) : null}
                           {task.status === "COMPLETED" &amp;&amp; &lt;span className="text-green-600 font-medium"&gt;Ã¢Å“â€œ Submitted&lt;/span&gt;}
                         &lt;/div&gt;
                       &lt;/td&gt;
@@ -22470,28 +22872,36 @@ export function RadiologyTaskBoard() {
                         &lt;td colSpan={6} className="px-4 py-4 bg-slate-50 border-b border-slate-200"&gt;
                           &lt;div className="space-y-3"&gt;
                               &lt;p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400"&gt;Radiology Report&lt;/p&gt;
-                              &lt;div&gt;
-                                &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Findings *&lt;/label&gt;
-                                &lt;textarea rows={3} value={drafts[task.id]?.findings ?? ""} onChange={(e) =&gt; updateDraft(task.id, { findings: e.target.value })}
-                                  className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" /&gt;
-                              &lt;/div&gt;
-                              &lt;div&gt;
-                                &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Impression *&lt;/label&gt;
-                                &lt;textarea rows={3} value={drafts[task.id]?.impression ?? ""} onChange={(e) =&gt; updateDraft(task.id, { impression: e.target.value })}
-                                  className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" /&gt;
-                              &lt;/div&gt;
-                              &lt;div&gt;
-                                &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Notes (optional)&lt;/label&gt;
-                                &lt;input value={drafts[task.id]?.notes ?? ""} onChange={(e) =&gt; updateDraft(task.id, { notes: e.target.value })}
-                                  className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" /&gt;
-                              &lt;/div&gt;
+                              {task.testOrders.map((order) =&gt; (
+                                &lt;div key={`${task.id}-${order.id}`} className="rounded border border-slate-200 bg-white p-3 space-y-2"&gt;
+                                  &lt;p className="text-xs font-semibold text-slate-700"&gt;{order.test.name} &lt;span className="font-mono text-slate-400"&gt;{order.test.code}&lt;/span&gt;&lt;/p&gt;
+                                  &lt;div&gt;
+                                    &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Findings *&lt;/label&gt;
+                                    &lt;textarea rows={3} value={drafts[task.id]?.testReports?.[order.id]?.findings ?? ""} onChange={(e) =&gt; setTestReportField(task.id, order.id, "findings", e.target.value)}
+                                      className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" /&gt;
+                                  &lt;/div&gt;
+                                  &lt;div&gt;
+                                    &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Impression *&lt;/label&gt;
+                                    &lt;textarea rows={3} value={drafts[task.id]?.testReports?.[order.id]?.impression ?? ""} onChange={(e) =&gt; setTestReportField(task.id, order.id, "impression", e.target.value)}
+                                      className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" /&gt;
+                                  &lt;/div&gt;
+                                  &lt;div&gt;
+                                    &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Notes (optional)&lt;/label&gt;
+                                    &lt;input value={drafts[task.id]?.testReports?.[order.id]?.notes ?? ""} onChange={(e) =&gt; setTestReportField(task.id, order.id, "notes", e.target.value)}
+                                      className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" /&gt;
+                                  &lt;/div&gt;
+                                &lt;/div&gt;
+                              ))}
                               &lt;div className="rounded border border-slate-200 bg-white p-3"&gt;
                                 &lt;p className="text-[11px] font-medium text-slate-500 mb-2"&gt;Extra Fields&lt;/p&gt;
                                 &lt;div className="space-y-2"&gt;
                                   {Object.entries(
                                     Object.fromEntries(
                                       Object.entries(drafts[task.id]?.extraFields ?? {}).filter(
-                                        ([key]) =&gt; key !== SIGNOFF_IMAGE_KEY &amp;&amp; key !== SIGNOFF_NAME_KEY
+                                        ([key]) =&gt;
+                                          key !== SIGNOFF_IMAGE_KEY &amp;&amp;
+                                          key !== SIGNOFF_NAME_KEY &amp;&amp;
+                                          key !== RADIOLOGY_PER_TEST_KEY
                                       )
                                     )
                                   ).length === 0 ? (
@@ -22500,7 +22910,10 @@ export function RadiologyTaskBoard() {
                                     Object.entries(
                                       Object.fromEntries(
                                         Object.entries(drafts[task.id]?.extraFields ?? {}).filter(
-                                          ([key]) =&gt; key !== SIGNOFF_IMAGE_KEY &amp;&amp; key !== SIGNOFF_NAME_KEY
+                                          ([key]) =&gt;
+                                            key !== SIGNOFF_IMAGE_KEY &amp;&amp;
+                                            key !== SIGNOFF_NAME_KEY &amp;&amp;
+                                            key !== RADIOLOGY_PER_TEST_KEY
                                         )
                                       )
                                     ).map(([fieldKey, fieldValue]) =&gt; (
@@ -22663,8 +23076,11 @@ export function RadiologyTaskBoard() {
                                   {busyTaskId === task.id ? "Submitting..." : "Submit Report"}
                                 &lt;/button&gt;
                               &lt;/div&gt;
+                              {error ? (
+                                &lt;p className="text-[11px] text-red-500"&gt;{error}&lt;/p&gt;
+                              ) : null}
                               {!reportReady(task.id) &amp;&amp; (
-                                &lt;p className="text-[11px] text-slate-400"&gt;Findings and impression required before submission.&lt;/p&gt;
+                                &lt;p className="text-[11px] text-slate-400"&gt;Each radiology test must have findings and impression before submission.&lt;/p&gt;
                               )}
                           &lt;/div&gt;
                         &lt;/td&gt;
@@ -25894,8 +26310,8 @@ export function OfflineStatusBar() {
     &lt;div
       className={`border-b px-4 py-2 text-xs ${
         isOnline
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border-red-200 bg-red-50 text-red-700"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-200"
+          : "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/50 dark:text-red-200"
       }`}
     &gt;
       {isOnline ? (
@@ -25906,7 +26322,6 @@ export function OfflineStatusBar() {
     &lt;/div&gt;
   );
 }
-
 </pre></div>
 <div class='file-block'><div class='file-header'>src/components/shared/sidebar.tsx</div><pre>"use client";
 
@@ -30297,6 +30712,7 @@ async function getTaskForReview(taskId: string, actor: MdActor) {
       },
       radiologyReport: {
         include: {
+          staff: { select: { id: true, fullName: true } },
           versions: {
             include: { editedBy: { select: { id: true, fullName: true } } },
             orderBy: { version: "desc" },
@@ -30362,6 +30778,7 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
       imagingFiles: true,
       radiologyReport: {
         include: {
+          staff: { select: { id: true, fullName: true } },
           versions: {
             include: { editedBy: { select: { id: true, fullName: true } } },
             orderBy: { version: "desc" },
@@ -30498,15 +30915,18 @@ export async function getMdReviewItems(actor: MdActor, filter: MdFilter = "pendi
   const items = tasks.map((task) =&gt; {
     const startedByNames = Array.from(
       new Set(
-        task.results
-          .map((result) =&gt; result.testOrder.assignedTo?.fullName?.trim() ?? "")
-          .filter((name) =&gt; name.length &gt; 0)
+        [
+          task.department === Department.RADIOLOGY ? task.staff?.fullName?.trim() ?? "" : "",
+          ...task.results
+            .map((result) =&gt; result.testOrder.assignedTo?.fullName?.trim() ?? ""),
+        ].filter((name) =&gt; name.length &gt; 0)
       )
     );
     const submittedByNames = Array.from(
       new Set(
         [
           task.staff?.fullName?.trim() ?? "",
+          task.radiologyReport?.staff?.fullName?.trim() ?? "",
           ...task.results
             .map((result) =&gt; result.staff?.fullName?.trim() ?? "")
             .filter((name) =&gt; name.length &gt; 0),
@@ -31863,6 +32283,7 @@ export type OfflineRadiologyDraftItem = {
     findings: string;
     impression: string;
     notes: string;
+    testReports?: Record&lt;string, { findings: string; impression: string; notes: string }&gt;;
     extraFields: Record&lt;string, string&gt;;
     signatureName: string;
     signatureImage: string;
@@ -32570,6 +32991,60 @@ export async function getGroupedRadiologyTests(params: {
   `;
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/lib/radiology-report-sections.ts</div><pre>export const RADIOLOGY_PER_TEST_KEY = "__perTestReports";
+
+export type RadiologyPerTestSection = {
+  testOrderId: string;
+  findings: string;
+  impression: string;
+  notes?: string;
+};
+
+export function parseRadiologyPerTestSections(extraFields?: Record&lt;string, string&gt; | null) {
+  const raw = extraFields?.[RADIOLOGY_PER_TEST_KEY];
+  if (!raw) return [] as RadiologyPerTestSection[];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [] as RadiologyPerTestSection[];
+    return parsed
+      .filter((row) =&gt; row &amp;&amp; typeof row === "object")
+      .map((row) =&gt; {
+        const item = row as Record&lt;string, unknown&gt;;
+        return {
+          testOrderId: String(item.testOrderId ?? "").trim(),
+          findings: String(item.findings ?? ""),
+          impression: String(item.impression ?? ""),
+          notes: String(item.notes ?? ""),
+        };
+      })
+      .filter((row) =&gt; row.testOrderId.length &gt; 0);
+  } catch {
+    return [] as RadiologyPerTestSection[];
+  }
+}
+
+export function stringifyRadiologyPerTestSections(sections: RadiologyPerTestSection[]) {
+  return JSON.stringify(
+    sections.map((row) =&gt; ({
+      testOrderId: row.testOrderId,
+      findings: row.findings ?? "",
+      impression: row.impression ?? "",
+      notes: row.notes ?? "",
+    }))
+  );
+}
+
+export function mergeRadiologyPerTestSections(
+  extraFields: Record&lt;string, string&gt; | undefined,
+  sections: RadiologyPerTestSection[]
+) {
+  return {
+    ...(extraFields ?? {}),
+    [RADIOLOGY_PER_TEST_KEY]: stringifyRadiologyPerTestSections(sections),
+  };
+}
+
+</pre></div>
 <div class='file-block'><div class='file-header'>src/lib/radiology-workflow.ts</div><pre>import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
 import { requireOrganizationCoreAccess, requireOrganizationFeature } from "@/lib/billing-service";
@@ -32589,6 +33064,7 @@ import {
   hasRequiredReportFields,
   isValidImagingFile,
 } from "./radiology-workflow-core";
+import { mergeRadiologyPerTestSections, type RadiologyPerTestSection } from "./radiology-report-sections";
 
 export type RadiologyActor = {
   id: string;
@@ -32629,6 +33105,7 @@ async function assertOwnership(taskId: string, actor: RadiologyActor) {
           findings: true,
           impression: true,
           notes: true,
+          extraFields: true,
           isSubmitted: true,
           submittedAt: true,
         },
@@ -32732,6 +33209,11 @@ export async function getRadiologyTasks(
 
   return rows.map((task) =&gt; ({
     ...task,
+    canEdit: canModifyRadiologyTask({
+      userRole: actor.role,
+      userId: actor.id,
+      assignedStaffId: task.staffId,
+    }),
     testOrders: task.testOrderIds
       .map((id) =&gt; orderMap.get(id))
       .filter((order): order is (typeof orders)[number] =&gt; Boolean(order)),
@@ -32872,11 +33354,20 @@ export async function saveRadiologyReport(
     impression: string;
     notes?: string;
     extraFields?: Prisma.InputJsonObject;
+    testReports?: RadiologyPerTestSection[];
   }
 ) {
   assertRadiographer(actor);
   await assertRadiologyAccess(actor);
   const task = await assertOwnership(taskId, actor);
+
+  const safeTestReports = (input.testReports ?? []).filter((row) =&gt;
+    task.testOrderIds.includes(row.testOrderId)
+  );
+  const mergedExtraFields = mergeRadiologyPerTestSections(
+    (input.extraFields ?? {}) as Record&lt;string, string&gt;,
+    safeTestReports
+  );
 
   const report = await prisma.radiologyReport.upsert({
     where: { taskId: task.id },
@@ -32887,13 +33378,13 @@ export async function saveRadiologyReport(
       findings: input.findings,
       impression: input.impression,
       notes: input.notes,
-      extraFields: input.extraFields,
+      extraFields: mergedExtraFields,
     },
     update: {
       findings: input.findings,
       impression: input.impression,
       notes: input.notes,
-      extraFields: input.extraFields,
+      extraFields: mergedExtraFields,
     },
   });
 
@@ -32926,10 +33417,36 @@ export async function submitRadiologyTask(
   if (task.status === RoutingTaskStatus.COMPLETED &amp;&amp; task.radiologyReport?.isSubmitted) return;
   if (!canSubmitRadiologyTask(task.status)) throw new Error("TASK_ALREADY_COMPLETED");
   if (!task.radiologyReport) throw new Error("MISSING_REPORT");
-  if (!hasRequiredReportFields(task.radiologyReport)) {
+  const reportExtraFields =
+    task.radiologyReport.extraFields &amp;&amp;
+    typeof task.radiologyReport.extraFields === "object" &amp;&amp;
+    !Array.isArray(task.radiologyReport.extraFields)
+      ? (task.radiologyReport.extraFields as Record&lt;string, string&gt;)
+      : {};
+  if (!hasRequiredReportFields({ ...task.radiologyReport, extraFields: reportExtraFields }, task.testOrderIds)) {
     const missingFields: string[] = [];
     if (!task.radiologyReport.findings?.trim()) missingFields.push("findings");
     if (!task.radiologyReport.impression?.trim()) missingFields.push("impression");
+    try {
+      const parsed = JSON.parse(reportExtraFields["__perTestReports"] ?? "[]") as Array&lt;{
+        testOrderId?: string;
+        findings?: string;
+        impression?: string;
+      }&gt;;
+      const map = new Map(
+        (Array.isArray(parsed) ? parsed : [])
+          .filter((row) =&gt; row &amp;&amp; typeof row === "object" &amp;&amp; typeof row.testOrderId === "string")
+          .map((row) =&gt; [row.testOrderId as string, row])
+      );
+      for (const id of task.testOrderIds) {
+        const row = map.get(id);
+        if (!row?.findings?.trim() || !row?.impression?.trim()) {
+          missingFields.push(`test:${id}`);
+        }
+      }
+    } catch {
+      // keep default fallback details above
+    }
     throw new Error(
       missingFields.length &gt; 0 ? `INCOMPLETE_REPORT:${missingFields.join(", ")}` : "INCOMPLETE_REPORT"
     );
@@ -32938,7 +33455,7 @@ export async function submitRadiologyTask(
   await prisma.$transaction(async (tx) =&gt; {
     await tx.radiologyReport.update({
       where: { taskId: task.id },
-      data: { isSubmitted: true, submittedAt: now },
+      data: { staffId: actor.id, isSubmitted: true, submittedAt: now },
     });
 
     await tx.routingTask.update({
@@ -32973,12 +33490,17 @@ export async function submitRadiologyTask(
     ...actor.auditMeta,
   });
 
-  await notifyMdResultSubmitted({
-    organizationId: actor.organizationId,
-    taskId: task.id,
-    patientName: task.visit.patient.fullName,
-    department: task.department,
-  });
+  try {
+    await notifyMdResultSubmitted({
+      organizationId: actor.organizationId,
+      taskId: task.id,
+      patientName: task.visit.patient.fullName,
+      department: task.department,
+    });
+  } catch (error) {
+    // Notification delivery must never fail report submission.
+    console.error("[RAD_TASK_SUBMIT_NOTIFY]", error);
+  }
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/radiology-workflow-core.test.ts</div><pre>import assert from "node:assert/strict";
@@ -32999,7 +33521,7 @@ function testPermissions() {
   );
   assert.equal(
     canModifyRadiologyTask({ userRole: "RADIOGRAPHER", userId: "u2", assignedStaffId: "u1" }),
-    false
+    true
   );
   assert.equal(
     canModifyRadiologyTask({ userRole: "LAB_SCIENTIST", userId: "u1", assignedStaffId: "u1" }),
@@ -33052,7 +33574,6 @@ function run() {
 }
 
 run();
-
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/radiology-workflow-core.ts</div><pre>import { RoutingTaskStatus } from "@prisma/client";
 
@@ -33072,11 +33593,7 @@ export function canModifyRadiologyTask(params: {
   userId: string;
   assignedStaffId: string | null;
 }) {
-  return (
-    params.userRole === "RADIOGRAPHER" &amp;&amp;
-    Boolean(params.assignedStaffId) &amp;&amp;
-    params.userId === params.assignedStaffId
-  );
+  return params.userRole === "RADIOGRAPHER";
 }
 
 export function canStartRadiologyTask(status: RoutingTaskStatus) {
@@ -33096,10 +33613,28 @@ export function isValidImagingFile(params: { mimeType: string; sizeBytes: number
 export function hasRequiredReportFields(report: {
   findings?: string | null;
   impression?: string | null;
-}) {
-  return Boolean(report.findings?.trim()) &amp;&amp; Boolean(report.impression?.trim());
-}
+  extraFields?: Record&lt;string, string&gt; | null;
+}, testOrderIds?: string[]) {
+  const hasTopLevel = Boolean(report.findings?.trim()) &amp;&amp; Boolean(report.impression?.trim());
+  if (!testOrderIds || testOrderIds.length === 0) return hasTopLevel;
 
+  try {
+    const raw = report.extraFields?.["__perTestReports"];
+    if (!raw) return hasTopLevel;
+    const parsed = JSON.parse(raw) as Array&lt;{ testOrderId?: string; findings?: string; impression?: string }&gt;;
+    const map = new Map(
+      (Array.isArray(parsed) ? parsed : [])
+        .filter((row) =&gt; row &amp;&amp; typeof row === "object" &amp;&amp; typeof row.testOrderId === "string")
+        .map((row) =&gt; [row.testOrderId as string, row])
+    );
+    return testOrderIds.every((id) =&gt; {
+      const row = map.get(id);
+      return Boolean(row?.findings?.trim()) &amp;&amp; Boolean(row?.impression?.trim());
+    });
+  } catch {
+    return hasTopLevel;
+  }
+}
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/reference-ranges.ts</div><pre>export type ReferenceFieldType = "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
 export type ReferenceFlag = "LOW" | "HIGH" | "NORMAL" | "ABNORMAL";
@@ -34194,6 +34729,7 @@ export function renderReportHtml(args: RenderArgs) {
                     ? Object.entries(test.extraFields as Record&lt;string, unknown&gt;)
                         .map(([key, value]) =&gt; {
                           if (key === SIGNOFF_IMAGE_KEY || key === SIGNOFF_NAME_KEY) return "";
+                          if (key === "__perTestReports") return "";
                           const k = String(key ?? "").trim();
                           const v = value === null || value === undefined ? "" : String(value);
                           if (!k) return "";
@@ -34671,6 +35207,7 @@ import { Department, NotificationType, OrderStatus, ReportStatus, Role, ReviewSt
 import { formatReferenceDisplay } from "./reference-ranges";
 import { extractSignOffFromMap, stripSignOffKeys } from "./report-signoff";
 import { canUseCustomLetterhead, shouldShowWatermark } from "./billing-access";
+import { parseRadiologyPerTestSections } from "./radiology-report-sections";
 
 export type ReportActor = {
   id: string;
@@ -34813,19 +35350,22 @@ async function buildReportContentFromTask(taskId: string, organizationId: string
     : null;
   const reportExtraFields = report ? (report as Record&lt;string, unknown&gt;)["extraFields"] : null;
   const rawExtraFields = pickExtraFields(activeVersionExtraFields ?? reportExtraFields);
+  const parsedPerTest = parseRadiologyPerTestSections((rawExtraFields ?? {}) as Record&lt;string, string&gt;);
+  const perTestMap = new Map(parsedPerTest.map((row) =&gt; [row.testOrderId, row]));
   const signOff = extractSignOffFromMap(rawExtraFields);
   const extraFields = rawExtraFields
     ? Object.fromEntries(
         Object.entries(stripSignOffKeys(rawExtraFields))
+          .filter(([key]) =&gt; key !== "__perTestReports")
           .map(([key, value]) =&gt; [key, value === null || value === undefined ? "" : String(value)])
           .filter(([key]) =&gt; key.trim().length &gt; 0)
       )
     : {};
   const tests = radiologyTests.map((order) =&gt; ({
     name: order.test.name,
-    findings: activeReportVersion?.findings ?? report?.findings ?? "",
-    impression: activeReportVersion?.impression ?? report?.impression ?? "",
-    notes: activeReportVersion?.notes ?? report?.notes ?? "",
+    findings: perTestMap.get(order.id)?.findings ?? activeReportVersion?.findings ?? report?.findings ?? "",
+    impression: perTestMap.get(order.id)?.impression ?? activeReportVersion?.impression ?? report?.impression ?? "",
+    notes: perTestMap.get(order.id)?.notes ?? activeReportVersion?.notes ?? report?.notes ?? "",
     extraFields,
   }));
   const imagingFiles = task.imagingFiles.map((file) =&gt; ({

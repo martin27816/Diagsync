@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { EditPatientForm } from "@/components/receptionist/edit-patient-form";
+import { getPatientTrends } from "@/lib/intelligence/patient-trends";
 
 export default async function EditReceptionPatientPage({
   params,
@@ -52,6 +53,13 @@ export default async function EditReceptionPatientPage({
   }
 
   const latestVisit = patient.visits[0];
+  const trends = await getPatientTrends(patient.id);
+
+  const trendStyle: Record<string, string> = {
+    RISING: "bg-amber-50 text-amber-700 border-amber-200",
+    FALLING: "bg-blue-50 text-blue-700 border-blue-200",
+    STABLE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  };
 
   return (
     <div className="space-y-4">
@@ -102,6 +110,36 @@ export default async function EditReceptionPatientPage({
           price: Number(order.price),
         }))}
       />
+
+      <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-800">Patient Insights</h2>
+        <p className="mt-1 text-xs text-slate-500">Trend summary from the most recent result history.</p>
+        {trends.length === 0 ? (
+          <p className="mt-3 text-xs text-slate-500">No trend data available yet.</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {trends.map((trend) => (
+              <div
+                key={trend.testName}
+                className="rounded-md border border-slate-200 bg-slate-50/60 p-2.5"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-700">{trend.testName}</span>
+                  <span
+                    className={`rounded border px-1.5 py-0.5 text-[11px] font-semibold ${
+                      trendStyle[trend.trend] ?? "bg-slate-100 text-slate-600 border-slate-200"
+                    }`}
+                  >
+                    {trend.trend}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-600">{trend.message}</p>
+                <p className="mt-1 text-[11px] text-slate-500">Values: {trend.values.join(", ")}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

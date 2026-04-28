@@ -31,7 +31,8 @@ interface NavItem {
 
 const navByRole: Record<string, NavItem[]> = {
   SUPER_ADMIN: [
-    { label: "Overview", href: "/dashboard/hrm", icon: LayoutDashboard },
+    { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
     { label: "Lab Settings", href: "/dashboard/hrm/settings", icon: Settings2 },
     { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
     { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
@@ -45,7 +46,8 @@ const navByRole: Record<string, NavItem[]> = {
     { label: "Analytics", href: "/dashboard/hrm/analytics", icon: BarChart3 },
   ],
   HRM: [
-    { label: "Overview", href: "/dashboard/hrm", icon: LayoutDashboard },
+    { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
     { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
     { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
     { label: "Review Queue", href: "/dashboard/md/review", icon: ClipboardList },
@@ -58,24 +60,28 @@ const navByRole: Record<string, NavItem[]> = {
     { label: "Analytics", href: "/dashboard/hrm/analytics", icon: BarChart3 },
   ],
   RECEPTIONIST: [
-    { label: "Dashboard", href: "/dashboard/receptionist", icon: LayoutDashboard },
+    { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
     { label: "New Patient", href: "/dashboard/receptionist/new-patient", icon: UserPlus },
     { label: "Consultation Queue", href: "/dashboard/receptionist/consultation", icon: Stethoscope },
     { label: "Today's Patients", href: "/dashboard/receptionist/patients", icon: Users },
     { label: "Dispatch Center", href: "/dashboard/receptionist/release", icon: ClipboardList },
   ],
   LAB_SCIENTIST: [
-    { label: "Dashboard", href: "/dashboard/lab-scientist", icon: LayoutDashboard },
+    { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
     { label: "My Queue", href: "/dashboard/lab-scientist/queue", icon: ClipboardList },
     { label: "Results", href: "/dashboard/lab-scientist/results", icon: FlaskConical },
   ],
   RADIOGRAPHER: [
-    { label: "Dashboard", href: "/dashboard/radiographer", icon: LayoutDashboard },
+    { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
     { label: "Imaging Queue", href: "/dashboard/radiographer/queue", icon: Scan },
     { label: "Reports", href: "/dashboard/radiographer/reports", icon: ClipboardList },
   ],
   MD: [
-    { label: "Dashboard", href: "/dashboard/md", icon: LayoutDashboard },
+    { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
     { label: "Consultation Queue", href: "/dashboard/md/consultation", icon: Users },
     { label: "Review Queue", href: "/dashboard/md/review", icon: Stethoscope },
     { label: "Approved", href: "/dashboard/md/approved", icon: ClipboardList },

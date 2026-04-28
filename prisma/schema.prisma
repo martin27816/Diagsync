@@ -38,6 +38,7 @@ model Organization {
   patients                   Patient[]
   staff                      Staff[]
   devices                    Device[]
+  labInsightReports          LabInsightReport[]
 
   @@map("organizations")
 }
@@ -632,6 +633,20 @@ enum OrganizationPlan {
   TRIAL
   STARTER
   ADVANCED
+}
+
+model LabInsightReport {
+  id             String       @id @default(cuid())
+  organizationId String
+  periodStart    DateTime
+  periodEnd      DateTime
+  reportType     String
+  data           Json
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, reportType, periodStart, periodEnd])
+  @@map("lab_insight_reports")
 }
 
 model Device {

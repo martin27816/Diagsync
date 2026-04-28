@@ -10,14 +10,14 @@ export function cn(...inputs: ClassValue[]) {
 export function getDashboardPath(role: Role): string {
   const map: Record<Role, string> = {
     MEGA_ADMIN: "/admin/dashboard",
-    SUPER_ADMIN: "/dashboard/hrm",
-    HRM: "/dashboard/hrm",
-    RECEPTIONIST: "/dashboard/receptionist",
-    LAB_SCIENTIST: "/dashboard/lab-scientist",
-    RADIOGRAPHER: "/dashboard/radiographer",
-    MD: "/dashboard/md",
+    SUPER_ADMIN: "/dashboard",
+    HRM: "/dashboard",
+    RECEPTIONIST: "/dashboard",
+    LAB_SCIENTIST: "/dashboard",
+    RADIOGRAPHER: "/dashboard",
+    MD: "/dashboard",
   };
-  return map[role] ?? "/dashboard/hrm";
+  return map[role] ?? "/dashboard";
 }
 
 // Format date to readable string

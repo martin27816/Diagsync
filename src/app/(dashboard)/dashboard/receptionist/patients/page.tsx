@@ -406,6 +406,12 @@ export default async function PatientsListPage({
                                   Edit Patient
                                 </Link>
                               ) : null}
+                              <Link
+                                href={`/patients/${row.id}`}
+                                className="rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                              >
+                                Insights
+                              </Link>
                               {canDeletePatient ? (
                                 row.latestVisit ? (
                                   <DeletePatientButton

@@ -11,6 +11,7 @@ const AUTH_SECRET =
   (process.env.NODE_ENV !== "production" ? "diagsync-local-dev-auth-secret" : undefined);
 
 const roleRouteMap: Record<string, Role[]> = {
+  "/insights": ["RECEPTIONIST", "LAB_SCIENTIST", "RADIOGRAPHER", "MD", "HRM", "SUPER_ADMIN"],
   "/dashboard/receptionist": ["RECEPTIONIST", "SUPER_ADMIN"],
   "/dashboard/lab-scientist": ["LAB_SCIENTIST", "SUPER_ADMIN"],
   "/dashboard/radiographer": ["RADIOGRAPHER", "SUPER_ADMIN"],
@@ -55,10 +56,6 @@ export default async function middleware(req: NextRequest) {
   }
 
   const userRole = token.role as Role;
-  if (pathname === "/dashboard") {
-    return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
-  }
-
   if (pathname.startsWith("/admin") && userRole !== "MEGA_ADMIN") {
     return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
   }
