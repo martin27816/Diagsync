@@ -1186,23 +1186,144 @@ async function main() {
       groupKey: grouping.groupKey,
       viewType: grouping.viewType,
       isDefaultInGroup: grouping.isDefaultInGroup,
-      fields: makeRadiologyWorkflowFields(),
+      fields: buildRadiologyMainFields(test.name),
     });
   }
 
   const missingRadiologyTests: Array<{ code: string; name: string }> = [
     { code: "CXR-PAL", name: "Chest X-Ray (AP & LAT)" },
     { code: "CXR-LAT", name: "Chest X-Ray (Lateral)" },
+    { code: "CXR-SUP", name: "Chest X-Ray (AP Supine)" },
+    { code: "CXR-ERT", name: "Chest X-Ray (AP Erect)" },
+    { code: "CXR-EXP", name: "Chest X-Ray (Expiratory View)" },
     { code: "ORB", name: "Orbital X-Ray" },
+    { code: "SKL-LAT", name: "Skull X-Ray (Lateral)" },
+    { code: "SKL-TWN", name: "Skull X-Ray (Towne View)" },
     { code: "COB", name: "Scoliosis X-Ray (Full Spine)" },
     { code: "SHS", name: "Shoulder Stress View X-Ray" },
+    { code: "PEL-LAT", name: "Pelvis X-Ray (Lateral)" },
+    { code: "PEL-INL", name: "Pelvis X-Ray (Inlet View)" },
+    { code: "PEL-OUT", name: "Pelvis X-Ray (Outlet View)" },
+    { code: "SIJ-APL", name: "Sacroiliac Joint X-Ray (AP & Oblique)" },
+    { code: "HIP-XTL", name: "Hip X-Ray (Cross-Table Lateral)" },
     { code: "KNE-SKY", name: "Knee X-Ray (Skyline View)" },
+    { code: "KNE-TUN", name: "Knee X-Ray (Tunnel View)" },
+    { code: "ANK-MOR", name: "Ankle X-Ray (Mortise View)" },
+    { code: "FOO-OBL", name: "Foot X-Ray (Oblique)" },
+    { code: "TOE-OBL", name: "Toes X-Ray (Oblique)" },
+    { code: "ABD-DEC", name: "Abdomen X-Ray (Decubitus)" },
     { code: "USS-NT", name: "Neck Ultrasound" },
+    { code: "USS-TVS", name: "Pelvic Ultrasound (Transvaginal Scan - TVS)" },
+    { code: "USS-PTA", name: "Pelvic Ultrasound (Transabdominal)" },
+    { code: "USS-FAS", name: "FAST Scan (Abdominal Windows)" },
+    { code: "USS-EFS", name: "FAST Scan (Extended eFAST)" },
+    { code: "USS-CRD", name: "Carotid Doppler Ultrasound" },
+    { code: "USS-RAD", name: "Renal Artery Doppler Ultrasound" },
+    { code: "USS-DVT", name: "Lower Limb Venous Doppler (DVT Scan)" },
     { code: "USS-OB-ANOM", name: "Obstetric Ultrasound (Anomaly Scan)" },
+    { code: "USS-OB-NT", name: "Obstetric Ultrasound (NT Scan)" },
+    { code: "USS-OB-GR", name: "Obstetric Ultrasound (Growth Scan)" },
+    { code: "USS-OB-BPP", name: "Obstetric Ultrasound (Biophysical Profile)" },
     { code: "CT-SIN", name: "CT Sinuses" },
     { code: "CT-ORB", name: "CT Orbit" },
+    { code: "CT-KUB", name: "CT KUB (Non-Contrast)" },
+    { code: "CT-CTPA", name: "CT Pulmonary Angiogram (CTPA)" },
+    { code: "CT-CTCA", name: "CT Coronary Angiography (CTCA)" },
+    { code: "CT-BWC", name: "CT Brain (With Contrast)" },
+    { code: "CT-BCTA", name: "CT Brain Angiography (CTA)" },
+    { code: "CT-BCTV", name: "CT Brain Venography (CTV)" },
+    { code: "CT-CXSP", name: "CT Cervical Spine" },
+    { code: "CT-TXSP", name: "CT Thoracic Spine" },
+    { code: "CT-LXSP", name: "CT Lumbar Spine" },
+    { code: "CT-ABDP", name: "CT Abdomen and Pelvis (With Contrast)" },
+    { code: "CT-HRCT", name: "CT Chest (HRCT)" },
+    { code: "CT-LDCH", name: "CT Chest (Low Dose)" },
+    { code: "CT-APST", name: "CT Chest Abdomen Pelvis (Staging)" },
+    { code: "CT-URO", name: "CT Urography (3-Phase)" },
+    { code: "CT-ENTR", name: "CT Enterography" },
+    { code: "CT-COLN", name: "CT Colonography (Virtual Colonoscopy)" },
+    { code: "CT-AORT", name: "CTA Aorta (Thoracoabdominal)" },
+    { code: "CT-CARO", name: "CTA Carotid Arteries" },
+    { code: "CT-RNAL", name: "CTA Renal Arteries" },
+    { code: "CT-MESN", name: "CTA Mesenteric Arteries" },
+    { code: "CT-PERF", name: "CT Perfusion Brain" },
+    { code: "CT-TRMA", name: "CT Whole Body (Pan-Scan)" },
+    { code: "CT-CBIO", name: "CT-Guided Biopsy" },
+    { code: "CT-CDRN", name: "CT-Guided Drainage" },
+    { code: "CT-CRFA", name: "CT-Guided Radiofrequency Ablation" },
     { code: "MRI-KNE", name: "MRI Knee" },
     { code: "MRI-SHO", name: "MRI Shoulder" },
+    { code: "MRI-MRCP", name: "MRCP (MR Cholangiopancreatography)" },
+    { code: "MRI-MRA", name: "MRA Brain (TOF)" },
+    { code: "MRI-MRV", name: "MRV Brain" },
+    { code: "CON-BSW", name: "Barium Swallow (Single Contrast)" },
+    { code: "CON-BSD", name: "Barium Swallow (Double Contrast)" },
+    { code: "CON-BML", name: "Barium Meal (Single Contrast)" },
+    { code: "CON-BMD", name: "Barium Meal (Double Contrast)" },
+    { code: "CON-SBFT", name: "Small Bowel Follow-Through (SBFT)" },
+    { code: "CON-ECLS", name: "Enteroclysis" },
+    { code: "CON-BES", name: "Barium Enema (Single Contrast)" },
+    { code: "CON-BED", name: "Barium Enema (Double Contrast)" },
+    { code: "CON-WSE", name: "Water-Soluble Contrast Enema" },
+    { code: "CON-IVUP", name: "IVU/IVP (Plain + Contrast + Delayed)" },
+    { code: "CON-RGU", name: "Retrograde Urethrogram (RGU)" },
+    { code: "CON-CYSG", name: "Cystogram" },
+    { code: "CON-NEPG", name: "Nephrostogram" },
+    { code: "CON-LPGM", name: "Loopogram" },
+    { code: "CON-PTCG", name: "Percutaneous Transhepatic Cholangiogram (PTC)" },
+    { code: "CON-DSAC", name: "Cerebral Angiogram (DSA)" },
+    { code: "CON-CANG", name: "Coronary Angiogram" },
+    { code: "CON-PANG", name: "Pulmonary Angiogram" },
+    { code: "CON-VENG", name: "Venogram" },
+    { code: "CON-ARTH", name: "Arthrogram" },
+    { code: "CON-MYLG", name: "Myelogram" },
+    { code: "END-OGD", name: "OGD / EGD (Diagnostic)" },
+    { code: "END-OGB", name: "OGD / EGD (With Biopsy)" },
+    { code: "END-COL", name: "Colonoscopy (Diagnostic)" },
+    { code: "END-COB", name: "Colonoscopy (With Biopsy)" },
+    { code: "END-COP", name: "Colonoscopy (With Polypectomy)" },
+    { code: "END-SIG", name: "Flexible Sigmoidoscopy" },
+    { code: "END-PRO", name: "Proctoscopy" },
+    { code: "END-ERCP", name: "ERCP (Diagnostic)" },
+    { code: "END-ERST", name: "ERCP (With Stenting)" },
+    { code: "END-EUS", name: "Endoscopic Ultrasound (EUS)" },
+    { code: "END-EFNA", name: "Endoscopic Ultrasound (EUS-FNA)" },
+    { code: "END-BRNC", name: "Flexible Bronchoscopy" },
+    { code: "END-EBUS", name: "EBUS (Endobronchial Ultrasound)" },
+    { code: "END-LARY", name: "Flexible Laryngoscopy" },
+    { code: "END-CYST", name: "Flexible Cystoscopy" },
+    { code: "END-URTR", name: "Ureteroscopy" },
+    { code: "END-HYST", name: "Hysteroscopy (Diagnostic)" },
+    { code: "END-COLP", name: "Colposcopy" },
+    { code: "END-THOR", name: "Medical Thoracoscopy" },
+    { code: "END-VATS", name: "VATS (Diagnostic)" },
+    { code: "ECG-6LD", name: "6-Lead ECG" },
+    { code: "ECG-3LD", name: "3-Lead ECG (Monitoring)" },
+    { code: "ECG-15L", name: "15-Lead ECG" },
+    { code: "ECG-18L", name: "18-Lead ECG" },
+    { code: "ECG-SAE", name: "Signal-Averaged ECG (SAECG)" },
+    { code: "ECG-H24", name: "Holter Monitor (24-hour)" },
+    { code: "ECG-H48", name: "Holter Monitor (48-hour)" },
+    { code: "ECG-H72", name: "Holter Monitor (72-hour)" },
+    { code: "ECG-H7D", name: "Holter Monitor (7-day)" },
+    { code: "ECG-H14", name: "Holter Monitor (14-day)" },
+    { code: "ECG-ELR", name: "External Loop Recorder (30-day)" },
+    { code: "ECG-ESTB", name: "Exercise Stress Test (Bruce Protocol)" },
+    { code: "ECG-ESTM", name: "Exercise Stress Test (Modified Bruce)" },
+    { code: "ECG-TMT", name: "Treadmill Test (TMT)" },
+    { code: "ECG-TILT", name: "Tilt Table Test" },
+    { code: "ECHO-CLR", name: "Colour Doppler Echocardiography" },
+    { code: "ECHO-PWD", name: "PW Doppler Echocardiography" },
+    { code: "ECHO-CWD", name: "CW Doppler Echocardiography" },
+    { code: "ECHO-TDI", name: "Tissue Doppler Imaging (TDI)" },
+    { code: "ECHO-3D", name: "3D Echocardiography" },
+    { code: "ECHO-4D", name: "4D Echocardiography" },
+    { code: "ECHO-BUB", name: "Contrast Echo (Bubble Study)" },
+    { code: "ECHO-FET", name: "Fetal Echocardiography" },
+    { code: "CRD-CACS", name: "CT Calcium Scoring (CAC)" },
+    { code: "CRD-CMR", name: "Cardiac MRI (CMR)" },
+    { code: "CRD-MPI", name: "Nuclear Myocardial Perfusion Imaging" },
+    { code: "CRD-EPS", name: "Electrophysiology Study (EPS)" },
   ];
 
   for (const test of missingRadiologyTests) {
@@ -1228,7 +1349,7 @@ async function main() {
         groupKey: grouping.groupKey,
         viewType: grouping.viewType,
         isDefaultInGroup: grouping.isDefaultInGroup,
-        fields: makeRadiologyWorkflowFields(),
+        fields: buildRadiologyMainFields(test.name),
       });
       continue;
     }
@@ -1256,7 +1377,7 @@ async function main() {
       groupKey: grouping.groupKey,
       viewType: grouping.viewType,
       isDefaultInGroup: grouping.isDefaultInGroup,
-      fields: makeRadiologyWorkflowFields(),
+      fields: buildRadiologyMainFields(test.name),
     });
   }
 
@@ -2754,8 +2875,122 @@ async function main() {
     ];
   }
 
-  function buildRadiologyMainFields(_testName: string) {
+  function withCoreRadiologySections(fields: SeedField[]) {
+    const keys = new Set(fields.map((field) => field.fieldKey.toLowerCase()));
+    let nextSort = fields.length > 0 ? Math.max(...fields.map((field) => field.sortOrder)) + 1 : 1;
+    const merged = [...fields];
+    if (!keys.has("findings")) {
+      merged.push({ label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: nextSort++ });
+    }
+    if (!keys.has("impression")) {
+      merged.push({ label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: nextSort++ });
+    }
+    if (!keys.has("recommendation")) {
+      merged.push({
+        label: "Recommendation",
+        fieldKey: "recommendation",
+        fieldType: FieldType.TEXTAREA,
+        isRequired: false,
+        sortOrder: nextSort++,
+      });
+    }
+    return merged;
+  }
+
+  function inferRadiologyFieldTemplate(testName: string): SeedField[] {
+    const n = normalizeName(testName).toUpperCase();
+
+    if (n.includes("MAMMO")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+        { label: "Breast Density", fieldKey: "breast_density", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+        { label: "Right Breast", fieldKey: "right_breast", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+        { label: "Left Breast", fieldKey: "left_breast", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+        { label: "Axillae", fieldKey: "axillae", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+        { label: "BI-RADS", fieldKey: "birads", fieldType: FieldType.DROPDOWN, options: "0,1,2,3,4,5,6", isRequired: false, sortOrder: 6 },
+      ];
+    }
+
+    if (n.includes("TVS") || n.includes("TRANSVAGINAL") || n.includes("PELVIC ULTRASOUND")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+        { label: "Uterus", fieldKey: "uterus", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+        { label: "Endometrium", fieldKey: "endometrium", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+        { label: "Right Ovary", fieldKey: "right_ovary", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+        { label: "Left Ovary", fieldKey: "left_ovary", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+        { label: "Adnexa", fieldKey: "adnexa", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+        { label: "Pouch of Douglas", fieldKey: "pouch_of_douglas", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 7 },
+      ];
+    }
+
+    if (n.includes("OBSTETRIC") || n.includes("ANOMALY") || n.includes("NT SCAN") || n.includes("GROWTH SCAN") || n.includes("BPP")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+        { label: "Gestational Age", fieldKey: "gestational_age", fieldType: FieldType.TEXT, sortOrder: 2 },
+        { label: "Fetal Number", fieldKey: "fetal_number", fieldType: FieldType.DROPDOWN, options: "Singleton,Twins,Triplets", sortOrder: 3 },
+        { label: "Presentation", fieldKey: "presentation", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 4 },
+        { label: "Fetal Heart Rate", fieldKey: "fetal_heart_rate", fieldType: FieldType.NUMBER, unit: "bpm", isRequired: false, sortOrder: 5 },
+        { label: "Placenta", fieldKey: "placenta", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+        { label: "Liquor / AFI", fieldKey: "liquor_afi", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 7 },
+        { label: "Biometry", fieldKey: "biometry", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
+      ];
+    }
+
+    if (n.includes("DOPPLER")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+        { label: "Vessel / Region", fieldKey: "vessel_region", fieldType: FieldType.TEXT, sortOrder: 2 },
+        { label: "Peak Systolic Velocity", fieldKey: "peak_systolic_velocity", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 3 },
+        { label: "End Diastolic Velocity", fieldKey: "end_diastolic_velocity", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 4 },
+        { label: "Spectral / Flow Findings", fieldKey: "flow_findings", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+        { label: "Stenosis Grade", fieldKey: "stenosis_grade", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 6 },
+      ];
+    }
+
+    if (n.includes("ECHO")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+        { label: "Cardiac Chambers", fieldKey: "cardiac_chambers", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+        { label: "Valvular Findings", fieldKey: "valvular_findings", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+        { label: "Ejection Fraction", fieldKey: "ejection_fraction", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 4 },
+        { label: "Wall Motion", fieldKey: "wall_motion", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+        { label: "Pericardium", fieldKey: "pericardium", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+      ];
+    }
+
+    if (n.includes("ECG") || n.includes("HOLTER") || n.includes("TREADMILL") || n.includes("STRESS")) {
+      return [
+        { label: "Heart Rate", fieldKey: "heart_rate", fieldType: FieldType.TEXT, sortOrder: 1 },
+        { label: "Rhythm", fieldKey: "rhythm", fieldType: FieldType.TEXT, sortOrder: 2 },
+        { label: "Intervals", fieldKey: "intervals", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 3 },
+        { label: "Axis", fieldKey: "axis", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 4 },
+      ];
+    }
+
+    if (n.includes("ENDOSCOPY") || n.includes("OGD") || n.includes("COLONOSCOPY") || n.includes("SIGMOIDOSCOPY") || n.includes("ERCP") || n.includes("EUS")) {
+      return [
+        { label: "Procedure", fieldKey: "procedure", fieldType: FieldType.TEXT, sortOrder: 1 },
+        { label: "Extent Reached", fieldKey: "extent_reached", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+        { label: "Segment Findings", fieldKey: "segment_findings", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+        { label: "Interventions", fieldKey: "interventions", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+        { label: "Biopsy Taken", fieldKey: "biopsy_taken", fieldType: FieldType.DROPDOWN, options: "Yes,No", isRequired: false, sortOrder: 5 },
+        { label: "Complications", fieldKey: "complications", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+      ];
+    }
+
+    if (n.includes("CT") || n.includes("MRI") || n.includes("X-RAY") || n.includes("XRAY")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+      ];
+    }
+
     return makeRadiologyWorkflowFields();
+  }
+
+  function buildRadiologyMainFields(testName: string) {
+    const mapped = RADIOLOGY_FIELD_LIBRARY[testName];
+    if (mapped) return withCoreRadiologySections(mapped);
+    return withCoreRadiologySections(inferRadiologyFieldTemplate(testName));
   }
 
   // Refresh templates for already-existing standard lab tests

@@ -46,7 +46,21 @@ type Task = {
     patient: { fullName: string; patientId: string; age: number; dateOfBirth?: string | null; sex: string };
   };
   radiologyReport: Report | null;
-  testOrders: Array<{ id: string; createdAt: string; test: { name: string; code: string } }>;
+  testOrders: Array<{
+    id: string;
+    createdAt: string;
+    test: {
+      name: string;
+      code: string;
+      resultFields: Array<{
+        label: string;
+        fieldKey: string;
+        fieldType: "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
+        options?: string | null;
+        isRequired: boolean;
+      }>;
+    };
+  }>;
 };
 type Draft = {
   findings: string;
@@ -82,6 +96,10 @@ function sanitizeDraftExtraFields(
   );
 }
 
+function perTestFieldStorageKey(testOrderId: string, fieldKey: string) {
+  return `test_${testOrderId}__${fieldKey.trim().toLowerCase()}`;
+}
+
 const priorityStyle: Record<string, string> = {
   EMERGENCY: "bg-red-50 text-red-600", URGENT: "bg-amber-50 text-amber-700", ROUTINE: "bg-slate-100 text-slate-600",
 };
@@ -103,6 +121,8 @@ export function RadiologyTaskBoard() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [newExtraFieldLabel, setNewExtraFieldLabel] = useState<Record<string, string>>({});
   const [newExtraFieldValue, setNewExtraFieldValue] = useState<Record<string, string>>({});
+  const [newPerTestFieldLabel, setNewPerTestFieldLabel] = useState<Record<string, string>>({});
+  const [newPerTestFieldValue, setNewPerTestFieldValue] = useState<Record<string, string>>({});
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [signatureLibrary, setSignatureLibrary] = useState<SignaturePreset[]>([]);
   const [selectedSignatureByTask, setSelectedSignatureByTask] = useState<Record<string, string>>({});
@@ -336,6 +356,26 @@ export function RadiologyTaskBoard() {
     updateDraft(taskId, { extraFields: { ...current.extraFields, [fieldKey]: value } });
   }
 
+  function setPerTestTemplateFieldValue(
+    taskId: string,
+    testOrderId: string,
+    fieldKey: string,
+    value: string
+  ) {
+    const storageKey = perTestFieldStorageKey(testOrderId, fieldKey);
+    const current = drafts[taskId] ?? EMPTY_DRAFT;
+    updateDraft(taskId, { extraFields: { ...current.extraFields, [storageKey]: value } });
+  }
+
+  function removePerTestTemplateFieldValue(taskId: string, testOrderId: string, fieldKey: string) {
+    const storageKey = perTestFieldStorageKey(testOrderId, fieldKey);
+    const current = drafts[taskId] ?? EMPTY_DRAFT;
+    if (!Object.prototype.hasOwnProperty.call(current.extraFields, storageKey)) return;
+    const next = { ...current.extraFields };
+    delete next[storageKey];
+    updateDraft(taskId, { extraFields: next });
+  }
+
   function removeExtraField(taskId: string, fieldKey: string) {
     const current = drafts[taskId] ?? EMPTY_DRAFT;
     if (!Object.prototype.hasOwnProperty.call(current.extraFields, fieldKey)) return;
@@ -353,6 +393,19 @@ export function RadiologyTaskBoard() {
       return;
     }
     updateDraft(taskId, { extraFields: { ...current.extraFields, [baseKey]: value } });
+    setError("");
+  }
+
+  function addPerTestExtraField(taskId: string, testOrderId: string, label: string, value: string) {
+    const baseKey = toCustomFieldKey(label);
+    if (!baseKey) return;
+    const storageKey = perTestFieldStorageKey(testOrderId, `custom_${baseKey}`);
+    const current = drafts[taskId] ?? EMPTY_DRAFT;
+    if (Object.prototype.hasOwnProperty.call(current.extraFields, storageKey)) {
+      setError(`Field '${baseKey}' already exists for this test.`);
+      return;
+    }
+    updateDraft(taskId, { extraFields: { ...current.extraFields, [storageKey]: value } });
     setError("");
   }
 
@@ -744,6 +797,141 @@ export function RadiologyTaskBoard() {
                                     <label className="block text-[11px] font-medium text-slate-500 mb-1">Notes (optional)</label>
                                     <input value={drafts[task.id]?.testReports?.[order.id]?.notes ?? ""} onChange={(e) => setTestReportField(task.id, order.id, "notes", e.target.value)}
                                       className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                  </div>
+                                  {order.test.resultFields
+                                    .filter(
+                                      (field) =>
+                                        !["findings", "impression", "notes"].includes(
+                                          field.fieldKey.trim().toLowerCase()
+                                        )
+                                    )
+                                    .map((field) => {
+                                      const fieldValue =
+                                        drafts[task.id]?.extraFields?.[
+                                          perTestFieldStorageKey(order.id, field.fieldKey)
+                                        ] ?? "";
+                                      const options =
+                                        field.fieldType === "DROPDOWN"
+                                          ? (field.options ?? "")
+                                              .split(",")
+                                              .map((opt) => opt.trim())
+                                              .filter(Boolean)
+                                          : [];
+
+                                      return (
+                                        <div key={`${order.id}-${field.fieldKey}`}>
+                                          <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                                            {field.label}
+                                            {field.isRequired ? " *" : ""}
+                                          </label>
+                                          {field.fieldType === "TEXTAREA" ? (
+                                            <textarea
+                                              rows={2}
+                                              value={fieldValue}
+                                              onChange={(e) =>
+                                                setPerTestTemplateFieldValue(
+                                                  task.id,
+                                                  order.id,
+                                                  field.fieldKey,
+                                                  e.target.value
+                                                )
+                                              }
+                                              className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            />
+                                          ) : field.fieldType === "DROPDOWN" ? (
+                                            <select
+                                              value={fieldValue}
+                                              onChange={(e) =>
+                                                setPerTestTemplateFieldValue(
+                                                  task.id,
+                                                  order.id,
+                                                  field.fieldKey,
+                                                  e.target.value
+                                                )
+                                              }
+                                              className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            >
+                                              <option value="">Select...</option>
+                                              {options.map((option) => (
+                                                <option key={option} value={option}>
+                                                  {option}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          ) : (
+                                            <input
+                                              type={field.fieldType === "NUMBER" ? "number" : "text"}
+                                              value={fieldValue}
+                                              onChange={(e) =>
+                                                setPerTestTemplateFieldValue(
+                                                  task.id,
+                                                  order.id,
+                                                  field.fieldKey,
+                                                  e.target.value
+                                                )
+                                              }
+                                              className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            />
+                                          )}
+                                          <div className="mt-1 flex justify-end">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                removePerTestTemplateFieldValue(
+                                                  task.id,
+                                                  order.id,
+                                                  field.fieldKey
+                                                )
+                                              }
+                                              className="text-[11px] text-slate-500 hover:text-red-600"
+                                            >
+                                              Clear field
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  <div className="rounded border border-slate-200 bg-slate-50 p-2">
+                                    <p className="text-[11px] font-medium text-slate-500 mb-1">Add per-test extra field</p>
+                                    <div className="grid grid-cols-12 gap-2">
+                                      <input
+                                        value={newPerTestFieldLabel[`${task.id}_${order.id}`] ?? ""}
+                                        onChange={(e) =>
+                                          setNewPerTestFieldLabel((prev) => ({
+                                            ...prev,
+                                            [`${task.id}_${order.id}`]: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Field name"
+                                        className="col-span-4 rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                      <input
+                                        value={newPerTestFieldValue[`${task.id}_${order.id}`] ?? ""}
+                                        onChange={(e) =>
+                                          setNewPerTestFieldValue((prev) => ({
+                                            ...prev,
+                                            [`${task.id}_${order.id}`]: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Value"
+                                        className="col-span-6 rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const scopedKey = `${task.id}_${order.id}`;
+                                          const label = newPerTestFieldLabel[scopedKey] ?? "";
+                                          const value = newPerTestFieldValue[scopedKey] ?? "";
+                                          if (!label.trim()) return;
+                                          addPerTestExtraField(task.id, order.id, label, value);
+                                          setNewPerTestFieldLabel((prev) => ({ ...prev, [scopedKey]: "" }));
+                                          setNewPerTestFieldValue((prev) => ({ ...prev, [scopedKey]: "" }));
+                                        }}
+                                        className="col-span-2 rounded border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
+                                      >
+                                        Add
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               ))}

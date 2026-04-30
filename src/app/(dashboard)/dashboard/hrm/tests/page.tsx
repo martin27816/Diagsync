@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { TestCatalogForm } from "@/components/hrm/test-catalog-form";
+import { RadiologyFieldManager } from "@/components/hrm/radiology-field-manager";
 import { formatCurrency } from "@/lib/utils";
 
 function turnaround(mins: number) {
@@ -131,7 +132,7 @@ export default async function TestCatalogPage() {
           <p className="px-4 py-6 text-xs text-slate-400">No radiology tests.</p>
         ) : (
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-xs">
+          <table className="w-full min-w-[1040px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Test Name</th>
@@ -141,6 +142,7 @@ export default async function TestCatalogPage() {
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Price</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Cost</th>
                 <th className="px-4 py-2.5 text-left font-medium text-slate-400">Fields</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-400">Template</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -157,6 +159,9 @@ export default async function TestCatalogPage() {
                   <td className="px-4 py-2.5 text-slate-500">{formatCurrency(Number(test.price))}</td>
                   <td className="px-4 py-2.5 text-slate-500">{formatCurrency(Number((test as any).costPrice ?? 0))}</td>
                   <td className="px-4 py-2.5 text-slate-400">{test._count.resultFields}</td>
+                  <td className="px-4 py-2.5">
+                    <RadiologyFieldManager testId={test.id} />
+                  </td>
                 </tr>
               ))}
             </tbody>

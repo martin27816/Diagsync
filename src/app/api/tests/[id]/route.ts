@@ -31,7 +31,10 @@ const addFieldSchema = z.object({
 const updateTestSchema = z.object({
   rangeFields: z.array(updateRangeSchema).optional(),
   addFields: z.array(addFieldSchema).optional(),
+  removeFieldIds: z.array(z.string().min(1)).optional(),
 });
+
+const protectedRadiologyFieldKeys = new Set(["findings", "impression"]);
 
 function normalizeFieldKey(input: string) {
   const cleaned = input
@@ -102,13 +105,13 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    if (!parsed.data.rangeFields && !parsed.data.addFields) {
+    if (!parsed.data.rangeFields && !parsed.data.addFields && !parsed.data.removeFieldIds) {
       return NextResponse.json({ success: false, error: "Nothing to update" }, { status: 400 });
     }
 
     const test = await prisma.diagnosticTest.findFirst({
       where: { id: params.id, organizationId: user.organizationId, isActive: true },
-      select: { id: true },
+      select: { id: true, type: true, department: true },
     });
     if (!test) {
       return NextResponse.json({ success: false, error: "Test not found" }, { status: 404 });
@@ -192,6 +195,42 @@ export async function PATCH(
           sortOrder += 1;
         }
       }
+
+      if (parsed.data.removeFieldIds && parsed.data.removeFieldIds.length > 0) {
+        const removeSet = new Set(parsed.data.removeFieldIds);
+        const targetFields = await tx.resultTemplateField.findMany({
+          where: { testId: test.id, id: { in: Array.from(removeSet) } },
+          select: { id: true, fieldKey: true },
+        });
+
+        if (test.department === "RADIOLOGY") {
+          const hasProtected = targetFields.some((field) =>
+            protectedRadiologyFieldKeys.has(field.fieldKey.trim().toLowerCase())
+          );
+          if (hasProtected) {
+            throw new Error("Cannot remove protected radiology fields (Findings/Impression).");
+          }
+        }
+
+        if (targetFields.length > 0) {
+          await tx.resultTemplateField.deleteMany({
+            where: { testId: test.id, id: { in: targetFields.map((f) => f.id) } },
+          });
+
+          const remaining = await tx.resultTemplateField.findMany({
+            where: { testId: test.id },
+            select: { id: true },
+            orderBy: { sortOrder: "asc" },
+          });
+
+          for (let index = 0; index < remaining.length; index += 1) {
+            await tx.resultTemplateField.update({
+              where: { id: remaining[index].id },
+              data: { sortOrder: index },
+            });
+          }
+        }
+      }
     });
 
     const updated = await prisma.resultTemplateField.findMany({
@@ -205,6 +244,9 @@ export async function PATCH(
       message: "Test template updated",
     });
   } catch (error) {
+    if (error instanceof Error && error.message.includes("protected radiology fields")) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    }
     console.error("[TEST_PATCH_ID]", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }

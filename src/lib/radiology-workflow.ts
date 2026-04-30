@@ -154,7 +154,22 @@ export async function getRadiologyTasks(
         select: {
           id: true,
           createdAt: true,
-          test: { select: { name: true, code: true } },
+          test: {
+            select: {
+              name: true,
+              code: true,
+              resultFields: {
+                orderBy: { sortOrder: "asc" },
+                select: {
+                  label: true,
+                  fieldKey: true,
+                  fieldType: true,
+                  options: true,
+                  isRequired: true,
+                },
+              },
+            },
+          },
         },
       })
     : [];
