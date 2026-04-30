@@ -4,28 +4,9 @@ config();
 import { PrismaClient, Prisma, Department, TestType, FieldType, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-function tuneSeedDatabaseUrl(raw?: string | null) {
-  if (!raw) return raw;
-  try {
-    const parsed = new URL(raw);
-    if (parsed.hostname.includes("pooler.supabase.com")) {
-      parsed.searchParams.set("connection_limit", "1");
-      parsed.searchParams.set("pool_timeout", "120");
-      // Remove pgbouncer flag for session pooler (port 5432)
-      if (parsed.port === "5432") {
-        parsed.searchParams.delete("pgbouncer");
-      }
-    }
-    return parsed.toString();
-  } catch {
-    return raw;
-  }
-}
-
 if (process.env.DIRECT_URL) {
   process.env.DATABASE_URL = process.env.DIRECT_URL;
 }
-process.env.DATABASE_URL = tuneSeedDatabaseUrl(process.env.DATABASE_URL) ?? process.env.DATABASE_URL;
 
 const prisma = new PrismaClient();
 
@@ -1186,7 +1167,7 @@ async function main() {
       groupKey: grouping.groupKey,
       viewType: grouping.viewType,
       isDefaultInGroup: grouping.isDefaultInGroup,
-      fields: buildRadiologyMainFields(test.name),
+      fields: makeRadiologyWorkflowFields(),
     });
   }
 
@@ -1202,6 +1183,7 @@ async function main() {
     { code: "COB", name: "Scoliosis X-Ray (Full Spine)" },
     { code: "SHS", name: "Shoulder Stress View X-Ray" },
     { code: "PEL-LAT", name: "Pelvis X-Ray (Lateral)" },
+    { code: "PEL-APL", name: "Pelvis X-Ray (AP & LAT)" },
     { code: "PEL-INL", name: "Pelvis X-Ray (Inlet View)" },
     { code: "PEL-OUT", name: "Pelvis X-Ray (Outlet View)" },
     { code: "SIJ-APL", name: "Sacroiliac Joint X-Ray (AP & Oblique)" },
@@ -1349,7 +1331,7 @@ async function main() {
         groupKey: grouping.groupKey,
         viewType: grouping.viewType,
         isDefaultInGroup: grouping.isDefaultInGroup,
-        fields: buildRadiologyMainFields(test.name),
+        fields: makeRadiologyWorkflowFields(),
       });
       continue;
     }
@@ -1377,7 +1359,7 @@ async function main() {
       groupKey: grouping.groupKey,
       viewType: grouping.viewType,
       isDefaultInGroup: grouping.isDefaultInGroup,
-      fields: buildRadiologyMainFields(test.name),
+      fields: makeRadiologyWorkflowFields(),
     });
   }
 
@@ -1744,9 +1726,9 @@ async function main() {
     "BREAST SCAN",
     "OCCULAR SCAN",
     "TRANSRECTAL/PROSTATE SCAN",
-    "FOLLICULOMETRY",
+    "FOLLICULOMETRY (FOLLICULAR TRACKING)",
     "SONO-HSG",
-    "PROSTATE BIOPSY (ULTRASOUND GUIDED)",
+    "PROSTATE BIOPSY (ULTRASOUND GUIDED)",  
     "LIVER BIOPSY (ULTRASOUND GUIDED)",
     "KIDNEY BIOPSY (ULTRASOUND GUIDED)",
     "BREAST BIOPSY (ULTRASOUND GUIDED)",
@@ -2762,7 +2744,7 @@ async function main() {
     { label: "Common Bile Duct", fieldKey: "cbd", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
     { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
   ],
-  "FOLLICULOMETRY": [
+  "FOLLICULOMETRY (FOLLICULAR TRACKING)": [
     { label: "Day of Cycle", fieldKey: "day_of_cycle", fieldType: FieldType.TEXT, sortOrder: 1 },
     { label: "Right Ovary", fieldKey: "right_ovary", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
     { label: "Left Ovary", fieldKey: "left_ovary", fieldType: FieldType.TEXTAREA, sortOrder: 3 },

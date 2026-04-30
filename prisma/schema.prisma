@@ -9,92 +9,91 @@ datasource db {
 }
 
 model Organization {
-  id                         String              @id @default(cuid())
-  name                       String
-  email                      String              @unique
-  plan                       OrganizationPlan    @default(TRIAL)
-  status                     OrganizationStatus  @default(EXPIRED)
-  trialStartedAt             DateTime?
-  trialEndsAt                DateTime?
-  subscriptionStartedAt      DateTime?
-  subscriptionEndsAt         DateTime?
-  lastPaymentAt              DateTime?
-  watermarkEnabled           Boolean             @default(true)
-  staffLimit                 Int?
-  billingLockedAt            DateTime?
-  billingLockReason          String?
-  phone                      String
-  address                    String
-  logo                       String?
-  contactInfo                String?
-  letterheadUrl              String?
-  consultationTimeoutMinutes Int                 @default(10)
-  createdAt                  DateTime            @default(now())
-  updatedAt                  DateTime            @updatedAt
-  consultationQueueEntries   ConsultationQueue[]
-  reports                    DiagnosticReport[]
+  id                          String                       @id @default(cuid())
+  name                        String
+  email                       String                       @unique
+  phone                       String
+  address                     String
+  logo                        String?
+  contactInfo                 String?
+  letterheadUrl               String?
+  consultationTimeoutMinutes  Int                          @default(10)
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  plan                        OrganizationPlan             @default(TRIAL)
+  status                      OrganizationStatus           @default(ACTIVE)
+  trialStartedAt              DateTime?
+  trialEndsAt                 DateTime?
+  subscriptionStartedAt       DateTime?
+  subscriptionEndsAt          DateTime?
+  lastPaymentAt               DateTime?
+  watermarkEnabled            Boolean                      @default(true)
+  staffLimit                  Int?
+  billingLockedAt             DateTime?
+  billingLockReason           String?
+  consultationQueueEntries    ConsultationQueue[]
+  devices                     Device[]
+  reports                     DiagnosticReport[]
+  tests                       DiagnosticTest[]
+  patients                    Patient[]
+  staff                       Staff[]
   subscriptionPaymentRequests SubscriptionPaymentRequest[]
-  tests                      DiagnosticTest[]
-  patients                   Patient[]
-  staff                      Staff[]
-  devices                    Device[]
-  labInsightReports          LabInsightReport[]
 
   @@map("organizations")
 }
 
 model Staff {
-  id                                   String                    @id @default(cuid())
+  id                                   String                       @id @default(cuid())
   organizationId                       String?
   fullName                             String
-  email                                String                    @unique
+  email                                String                       @unique
   phone                                String
   passwordHash                         String
   role                                 Role
   department                           Department
   gender                               String?
-  dateJoined                           DateTime                  @default(now())
-  defaultShift                         Shift                     @default(MORNING)
-  status                               StaffStatus               @default(ACTIVE)
-  availabilityStatus                   AvailabilityStatus        @default(UNAVAILABLE)
+  dateJoined                           DateTime                     @default(now())
+  defaultShift                         Shift                        @default(MORNING)
+  status                               StaffStatus                  @default(ACTIVE)
+  availabilityStatus                   AvailabilityStatus           @default(UNAVAILABLE)
   lastAvailableAt                      DateTime?
   lastUnavailableAt                    DateTime?
+  createdAt                            DateTime                     @default(now())
+  updatedAt                            DateTime                     @updatedAt
+  createdById                          String?
   lastSeen                             DateTime?
   pinHash                              String?
   pinSetAt                             DateTime?
   lastQuickSwitchAt                    DateTime?
-  createdAt                            DateTime                  @default(now())
-  updatedAt                            DateTime                  @updatedAt
-  createdById                          String?
   auditLogs                            AuditLog[]
   availabilityLogs                     AvailabilityLog[]
-  acknowledgedConsultationQueueEntries ConsultationQueue[]       @relation("ConsultationAcknowledgedBy")
-  calledConsultationQueueEntries       ConsultationQueue[]       @relation("ConsultationCalledBy")
-  consultedConsultationQueueEntries    ConsultationQueue[]       @relation("ConsultationConsultedBy")
-  createdConsultationQueueEntries      ConsultationQueue[]       @relation("ConsultationCreatedBy")
+  acknowledgedConsultationQueueEntries ConsultationQueue[]          @relation("ConsultationAcknowledgedBy")
+  calledConsultationQueueEntries       ConsultationQueue[]          @relation("ConsultationCalledBy")
+  consultedConsultationQueueEntries    ConsultationQueue[]          @relation("ConsultationConsultedBy")
+  createdConsultationQueueEntries      ConsultationQueue[]          @relation("ConsultationCreatedBy")
+  deviceLinks                          DeviceStaff[]
   editedReportVersions                 DiagnosticReportVersion[]
-  generatedReports                     DiagnosticReport[]        @relation("ReportGeneratedBy")
-  releasedReports                      DiagnosticReport[]        @relation("ReportReleasedBy")
+  generatedReports                     DiagnosticReport[]           @relation("ReportGeneratedBy")
+  releasedReports                      DiagnosticReport[]           @relation("ReportReleasedBy")
   imagingFiles                         ImagingFile[]
-  reviewedSubscriptionPaymentRequests  SubscriptionPaymentRequest[] @relation("SubscriptionPaymentRequestReviewer")
-  editedLabResultVersions              LabResultVersion[]        @relation("LabResultVersionEditedBy")
+  editedLabResultVersions              LabResultVersion[]           @relation("LabResultVersionEditedBy")
   labResults                           LabResult[]
   labSamples                           LabSample[]
   notifications                        Notification[]
-  registeredPatients                   Patient[]                 @relation("RegisteredBy")
+  registeredPatients                   Patient[]                    @relation("RegisteredBy")
   pushSubscriptions                    PushSubscription[]
-  editedRadiologyReportVersions        RadiologyReportVersion[]  @relation("RadiologyReportVersionEditedBy")
+  editedRadiologyReportVersions        RadiologyReportVersion[]     @relation("RadiologyReportVersionEditedBy")
   radiologyReports                     RadiologyReport[]
   reviews                              Review[]
   routingTasks                         RoutingTask[]
   sessions                             Session[]
-  createdBy                            Staff?                    @relation("StaffCreatedBy", fields: [createdById], references: [id])
-  createdStaff                         Staff[]                   @relation("StaffCreatedBy")
-  organization                         Organization?             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assignedTestOrders                   TestOrder[]               @relation("AssignedTestOrders")
-  overriddenTestOrders                 TestOrder[]               @relation("OverriddenTestOrders")
+  createdBy                            Staff?                       @relation("StaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff                         Staff[]                      @relation("StaffCreatedBy")
+  organization                         Organization?                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewedSubscriptionPaymentRequests  SubscriptionPaymentRequest[] @relation("SubscriptionPaymentRequestReviewer")
+  assignedTestOrders                   TestOrder[]                  @relation("AssignedTestOrders")
+  overriddenTestOrders                 TestOrder[]                  @relation("OverriddenTestOrders")
   visitPayments                        VisitPayment[]
-  deviceLinks                          DeviceStaff[]
 
   @@map("staff")
 }
@@ -196,18 +195,19 @@ model DiagnosticTest {
   turnaroundMinutes Int
   sampleType        String?
   description       String?
-  groupKey          String?
-  viewType          String?
-  isDefaultInGroup  Boolean               @default(false)
   isActive          Boolean               @default(true)
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
+  groupKey          String?
+  viewType          String?
+  isDefaultInGroup  Boolean               @default(false)
   category          TestCategory?         @relation(fields: [categoryId], references: [id])
   organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   resultFields      ResultTemplateField[]
   testOrders        TestOrder[]
 
   @@unique([organizationId, code])
+  @@index([organizationId, groupKey])
   @@map("diagnostic_tests")
 }
 
@@ -619,36 +619,6 @@ model RadiologyReportVersion {
   @@map("radiology_report_versions")
 }
 
-enum Role {
-  MEGA_ADMIN
-  SUPER_ADMIN
-  RECEPTIONIST
-  LAB_SCIENTIST
-  RADIOGRAPHER
-  MD
-  HRM
-}
-
-enum OrganizationPlan {
-  TRIAL
-  STARTER
-  ADVANCED
-}
-
-model LabInsightReport {
-  id             String       @id @default(cuid())
-  organizationId String
-  periodStart    DateTime
-  periodEnd      DateTime
-  reportType     String
-  data           Json
-  createdAt      DateTime     @default(now())
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, reportType, periodStart, periodEnd])
-  @@map("lab_insight_reports")
-}
-
 model Device {
   id             String        @id @default(cuid())
   deviceKey      String        @unique
@@ -656,34 +626,25 @@ model Device {
   name           String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   staffLinks     DeviceStaff[]
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@map("devices")
 }
 
 model DeviceStaff {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   deviceId   String
   staffId    String
-  addedAt    DateTime @default(now())
+  addedAt    DateTime  @default(now())
   lastUsedAt DateTime?
-  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  device     Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  staff      Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   @@unique([deviceId, staffId])
   @@index([staffId])
   @@map("device_staff")
-}
-
-enum OrganizationStatus {
-  ACTIVE
-  SUSPENDED
-  TRIAL_ACTIVE
-  TRIAL_EXPIRED
-  PAYMENT_PENDING
-  EXPIRED
 }
 
 model SubscriptionPaymentRequest {
@@ -703,11 +664,36 @@ model SubscriptionPaymentRequest {
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  reviewedBy           Staff?               @relation("SubscriptionPaymentRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedBy           Staff?               @relation("SubscriptionPaymentRequestReviewer", fields: [reviewedById], references: [id])
 
-  @@index([organizationId, status, createdAt])
   @@index([reviewedById])
+  @@index([organizationId, status, createdAt], map: "subscription_payment_requests_organizationId_status_createdAt_i")
   @@map("subscription_payment_requests")
+}
+
+enum Role {
+  SUPER_ADMIN
+  RECEPTIONIST
+  LAB_SCIENTIST
+  RADIOGRAPHER
+  MD
+  HRM
+  MEGA_ADMIN
+}
+
+enum OrganizationPlan {
+  TRIAL
+  STARTER
+  ADVANCED
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL_ACTIVE
+  TRIAL_EXPIRED
+  PAYMENT_PENDING
+  EXPIRED
 }
 
 enum PaymentRequestStatus {
