@@ -1,0 +1,148 @@
+type WebsiteExtractedData = {
+  description?: string;
+  phone?: string;
+  address?: string;
+  logoUrl?: string;
+  images?: string[];
+  source?: string;
+};
+
+export type WebsiteScrapeResult =
+  | { ok: true; data: WebsiteExtractedData }
+  | { ok: false; reason: "INVALID_WEBSITE" | "TIMEOUT" | "HTTP_ERROR" | "EMPTY_RESPONSE" | "REQUEST_FAILED"; status?: number };
+
+function withTimeout(ms: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return { controller, clear: () => clearTimeout(timer) };
+}
+
+function absoluteUrl(base: string, value: string) {
+  try {
+    return new URL(value, base).toString();
+  } catch {
+    return null;
+  }
+}
+
+function cleanText(input: string) {
+  return input.replace(/\s+/g, " ").trim();
+}
+
+function extractMetaDescription(html: string) {
+  const m =
+    html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) ||
+    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i);
+  return m?.[1] ? cleanText(m[1]) : undefined;
+}
+
+function extractTitle(html: string) {
+  const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  return m?.[1] ? cleanText(m[1]) : undefined;
+}
+
+function extractPhones(text: string) {
+  const matches = text.match(/(\+?\d[\d\s\-().]{6,}\d)/g) ?? [];
+  const uniq = new Set<string>();
+  for (const m of matches) {
+    const value = m.trim();
+    if (value.replace(/\D/g, "").length >= 7) uniq.add(value);
+  }
+  return Array.from(uniq);
+}
+
+function extractAddressLike(text: string) {
+  const lines = text.split(/\n|\r/).map((l) => cleanText(l)).filter(Boolean);
+  for (const line of lines) {
+    if (line.length < 12) continue;
+    if (/(road|street|close|avenue|estate|junction|lga|state|nigeria)/i.test(line)) return line;
+  }
+  return undefined;
+}
+
+function extractImageUrls(html: string, baseUrl: string) {
+  const urls: string[] = [];
+  const re = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const abs = absoluteUrl(baseUrl, m[1]);
+    if (abs && /^https?:\/\//i.test(abs)) urls.push(abs);
+  }
+  return urls;
+}
+
+function pickLogo(images: string[]) {
+  const logoLike = images.find((u) => /logo|brand|header/i.test(u));
+  return logoLike ?? images[0];
+}
+
+function filterMainImages(images: string[]) {
+  const banned = /sprite|icon|avatar|favicon|googleusercontent|doubleclick|analytics|pixel/i;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const img of images) {
+    if (banned.test(img)) continue;
+    if (seen.has(img)) continue;
+    seen.add(img);
+    out.push(img);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+export async function scrapeLabWebsite(websiteUrl: string): Promise<WebsiteScrapeResult> {
+  let normalized: URL;
+  try {
+    normalized = new URL(websiteUrl);
+    if (!/^https?:$/i.test(normalized.protocol)) return { ok: false, reason: "INVALID_WEBSITE" };
+  } catch {
+    return { ok: false, reason: "INVALID_WEBSITE" };
+  }
+
+  const timeout = withTimeout(10_000);
+  try {
+    const res = await fetch(normalized.toString(), {
+      method: "GET",
+      headers: { "User-Agent": "DiagSyncBot/1.0 (+https://diagsync.vercel.app)" },
+      signal: timeout.controller.signal,
+      cache: "no-store",
+      redirect: "follow",
+    });
+
+    if (!res.ok) return { ok: false, reason: "HTTP_ERROR", status: res.status };
+    const html = await res.text();
+    if (!html || html.trim().length < 50) return { ok: false, reason: "EMPTY_RESPONSE" };
+
+    const strippedText = cleanText(
+      html
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, "\n")
+    );
+
+    const imagesRaw = extractImageUrls(html, normalized.toString());
+    const images = filterMainImages(imagesRaw);
+    const logoUrl = pickLogo(images);
+    const phone = extractPhones(strippedText)[0];
+    const description = extractMetaDescription(html) || extractTitle(html);
+    const address = extractAddressLike(strippedText);
+
+    return {
+      ok: true,
+      data: {
+        description,
+        phone,
+        address,
+        logoUrl,
+        images,
+        source: "website-scrape-rules",
+      },
+    };
+  } catch (error: any) {
+    if (error?.name === "AbortError") return { ok: false, reason: "TIMEOUT" };
+    return { ok: false, reason: "REQUEST_FAILED" };
+  } finally {
+    timeout.clear();
+  }
+}
+

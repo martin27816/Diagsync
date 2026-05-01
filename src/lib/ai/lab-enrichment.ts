@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ensureUniqueOrganizationSlug } from "@/lib/slug";
 import { fetchLabDataWithSerper } from "./serper";
+import { scrapeLabWebsite } from "./website-scrape";
 
 function isValidHttpUrl(value: string | null | undefined) {
   if (!value) return false;
@@ -63,7 +64,33 @@ export async function enrichOrganizationWithAi(organizationId: string, opts?: { 
     return { ok: false as const, reason: "RATE_LIMITED" as const };
   }
 
-  const fetched = await fetchLabDataWithSerper(org.name, org.city, org.state);
+  let fetched:
+    | { ok: true; data: { description?: string; website?: string; phone?: string; address?: string; logoUrl?: string; images?: string[]; source?: string } }
+    | { ok: false; reason: string; status?: number };
+
+  if (isValidHttpUrl(org.website)) {
+    const fromWebsite = await scrapeLabWebsite(org.website!);
+    if (fromWebsite.ok) {
+      fetched = {
+        ok: true,
+        data: {
+          ...fromWebsite.data,
+          website: org.website || undefined,
+        },
+      };
+    } else {
+      const fromSerper = await fetchLabDataWithSerper(org.name, org.city, org.state);
+      fetched = fromSerper.ok
+        ? fromSerper
+        : {
+            ok: false,
+            reason: `WEBSITE_${fromWebsite.reason}`,
+            status: fromWebsite.status ?? fromSerper.status,
+          };
+    }
+  } else {
+    fetched = await fetchLabDataWithSerper(org.name, org.city, org.state);
+  }
   const nextSlug = org.slug || (await ensureUniqueOrganizationSlug(org.name, org.id));
 
   if (!fetched.ok) {
