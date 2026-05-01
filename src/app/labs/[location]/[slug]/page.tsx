@@ -29,15 +29,11 @@ export default async function LabProfilePage({
   if (!data) notFound();
   const { lab, ranking } = data;
   const allImages = Array.isArray(lab.images) ? lab.images : [];
-  const buildingImage =
-    allImages.find((img) => /building|front|facility|outside|branch/i.test(img)) ||
-    allImages[0] ||
-    null;
-  const equipmentImage =
-    allImages.find((img) => /equipment|machine|device|scanner|lab/i.test(img) && img !== buildingImage) ||
-    allImages[1] ||
-    null;
-  const hasGallery = Boolean(lab.logoUrl || buildingImage || equipmentImage);
+  const galleryImages = [
+    ...(lab.logoUrl ? [lab.logoUrl] : []),
+    ...allImages.filter((img) => img !== lab.logoUrl),
+  ].slice(0, 24);
+  const hasGallery = galleryImages.length > 0;
   const initials = lab.name
     .split(/\s+/)
     .slice(0, 2)
@@ -56,6 +52,8 @@ export default async function LabProfilePage({
     ranking ? `Performance score: ${ranking.finalScore.toFixed(2)}` : "Performance score available in active ranking periods",
     lab.website ? "Official website verified" : "Website not yet published",
   ];
+  const score = ranking?.finalScore ?? 0;
+  const trustLevel = score >= 80 ? "Elite" : score >= 65 ? "Strong" : score >= 45 ? "Growing" : "Emerging";
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -136,38 +134,115 @@ export default async function LabProfilePage({
           </section>
         </div>
 
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-black text-slate-900">Why Patients Choose {lab.name}</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-600">
+            {lab.name} serves individuals, families, and referring clinicians who need dependable diagnostic support.
+            This profile combines public identity data with operational ranking signals, helping patients identify
+            laboratories that are active, consistent, and performance-tracked.
+          </p>
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Trust Tier</p>
+              <p className="mt-2 text-xl font-bold text-slate-900">{trustLevel}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Performance Score</p>
+              <p className="mt-2 text-xl font-bold text-slate-900">{score.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Public Profile</p>
+              <p className="mt-2 text-xl font-bold text-slate-900">Verified</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Coverage Area</p>
+              <p className="mt-2 text-xl font-bold text-slate-900">{lab.city ?? "City"}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-black text-slate-900">Service Scope & Diagnostic Focus</h2>
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 p-4">
+              <h3 className="text-lg font-bold text-slate-900">Core Diagnostics</h3>
+              <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                <li>• Hematology and routine blood investigations</li>
+                <li>• Clinical chemistry and metabolic screening</li>
+                <li>• Infection-focused and rapid support diagnostics</li>
+                <li>• Diagnostic workflow support for outpatient care</li>
+              </ul>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-4">
+              <h3 className="text-lg font-bold text-slate-900">Operational Reliability</h3>
+              <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                <li>• Monitored turnaround and completion efficiency</li>
+                <li>• Active ranking participation in city-level listings</li>
+                <li>• Structured profile enrichment and public trust signals</li>
+                <li>• Transparent location and website identity mapping</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
         {hasGallery ? (
           <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-bold text-slate-900">Gallery</h2>
-            <p className="mt-1 text-xs text-slate-500">Structured view: Logo, Building, Equipment</p>
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Logo</p>
-                {lab.logoUrl ? (
-                  <img src={lab.logoUrl} alt={`${lab.name} logo`} className="mt-2 h-44 w-full rounded-lg bg-white object-contain p-2" />
-                ) : (
-                  <div className="mt-2 flex h-44 items-center justify-center rounded-lg bg-white text-3xl font-black text-slate-700">{initials}</div>
-                )}
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Building</p>
-                {buildingImage ? (
-                  <img src={buildingImage} alt={`${lab.name} building`} className="mt-2 h-44 w-full rounded-lg object-cover" />
-                ) : (
-                  <div className="mt-2 flex h-44 items-center justify-center rounded-lg bg-white text-xs text-slate-400">No building image</div>
-                )}
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Equipment</p>
-                {equipmentImage ? (
-                  <img src={equipmentImage} alt={`${lab.name} equipment`} className="mt-2 h-44 w-full rounded-lg object-cover" />
-                ) : (
-                  <div className="mt-2 flex h-44 items-center justify-center rounded-lg bg-white text-xs text-slate-400">No equipment image</div>
-                )}
-              </div>
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {galleryImages.map((img, index) => (
+                <img
+                  key={`${img}-${index}`}
+                  src={img}
+                  alt={`${lab.name} gallery image ${index + 1}`}
+                  className="h-44 w-full rounded-lg border border-slate-200 bg-slate-50 object-cover"
+                />
+              ))}
             </div>
           </section>
         ) : null}
+
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-black text-slate-900">Public Lab FAQ</h2>
+          <div className="mt-4 space-y-4">
+            <div className="rounded-xl border border-slate-200 p-4">
+              <h3 className="text-sm font-bold text-slate-900">How is this lab ranked?</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                Rankings are computed from operational metrics such as turnaround reliability, consistency, activity,
+                and completion behavior over defined periods.
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-4">
+              <h3 className="text-sm font-bold text-slate-900">Can profile information change over time?</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                Yes. Profile content is updated as the lab maintains website presence, operational data, and public
+                profile signals.
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-4">
+              <h3 className="text-sm font-bold text-slate-900">Does this page include direct contact details?</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                Where available, the profile includes location data, official website, and validated public identity
+                fields for easier patient access.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-900 to-slate-800 p-6 text-white shadow-sm">
+          <h2 className="text-2xl font-black">Explore More Labs in {lab.city ?? "This City"}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-200">
+            Compare top-performing labs in this location to find the best fit for your diagnostic needs. DiagSync
+            rankings help patients and care teams make informed, trust-first choices.
+          </p>
+          <div className="mt-4">
+            <a
+              href={`/labs/${params.location}`}
+              className="inline-flex rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100"
+            >
+              View City Rankings
+            </a>
+          </div>
+        </section>
       </section>
     </main>
   );

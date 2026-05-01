@@ -32,7 +32,7 @@ function cleanImages(images: string[] | undefined) {
     if (seen.has(u)) continue;
     seen.add(u);
     out.push(u);
-    if (out.length >= 5) break;
+    if (out.length >= 24) break;
   }
   return out;
 }

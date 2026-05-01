@@ -71,11 +71,18 @@ function extractAddressLike(text: string) {
 
 function extractImageUrls(html: string, baseUrl: string) {
   const urls: string[] = [];
-  const re = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  const re = /<img[^>]*>/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html))) {
-    const abs = absoluteUrl(baseUrl, m[1]);
-    if (abs && /^https?:\/\//i.test(abs)) urls.push(abs);
+    const tag = m[0];
+    const srcMatch = tag.match(/src=["']([^"']+)["']/i);
+    if (!srcMatch?.[1]) continue;
+    const abs = absoluteUrl(baseUrl, srcMatch[1]);
+    if (!abs || !/^https?:\/\//i.test(abs)) continue;
+    const alt = (tag.match(/alt=["']([^"']*)["']/i)?.[1] ?? "").toLowerCase();
+    const cls = (tag.match(/class=["']([^"']*)["']/i)?.[1] ?? "").toLowerCase();
+    const text = `${abs} ${alt} ${cls}`;
+    urls.push(text);
   }
   return urls;
 }
@@ -104,19 +111,23 @@ function extractInternalLinks(html: string, baseUrl: string) {
 
 function pickLogo(images: string[]) {
   const logoLike = images.find((u) => /logo|brand|header/i.test(u));
-  return logoLike ?? images[0];
+  if (!logoLike) return images[0];
+  const firstUrl = logoLike.split(" ")[0];
+  return firstUrl;
 }
 
 function filterMainImages(images: string[]) {
-  const banned = /sprite|icon|avatar|favicon|googleusercontent|doubleclick|analytics|pixel/i;
+  const banned = /sprite|icon|avatar|favicon|googleusercontent|doubleclick|analytics|pixel|logo|brandmark|wordmark/i;
   const seen = new Set<string>();
   const out: string[] = [];
   for (const img of images) {
+    const url = img.split(" ")[0];
+    if (!url) continue;
     if (banned.test(img)) continue;
-    if (seen.has(img)) continue;
-    seen.add(img);
-    out.push(img);
-    if (out.length >= 8) break;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    out.push(url);
+    if (out.length >= 30) break;
   }
   return out;
 }
@@ -145,11 +156,20 @@ export async function scrapeLabWebsite(websiteUrl: string): Promise<WebsiteScrap
     if (!html || html.trim().length < 50) return { ok: false, reason: "EMPTY_RESPONSE" };
 
     const pages = [{ url: normalized.toString(), html }];
-    const firstLinks = extractInternalLinks(html, normalized.toString())
-      .filter((u) => /(about|contact|services|diagnostic|laboratory|lab)/i.test(u))
-      .slice(0, 3);
+    const firstLinks = extractInternalLinks(html, normalized.toString());
+    const rankedLinks = firstLinks
+      .map((u) => {
+        let score = 0;
+        if (/(about|contact|services|diagnostic|laboratory|lab)/i.test(u)) score += 2;
+        if (/(gallery|facility|facilities|equipment|branch|location|about-us|who-we-are)/i.test(u)) score += 3;
+        if (/(blog|news|privacy|terms|policy|login|signup)/i.test(u)) score -= 3;
+        return { u, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8)
+      .map((x) => x.u);
 
-    for (const link of firstLinks) {
+    for (const link of rankedLinks) {
       try {
         const pageRes = await fetch(link, {
           method: "GET",
@@ -180,7 +200,7 @@ export async function scrapeLabWebsite(websiteUrl: string): Promise<WebsiteScrap
       .join(" ");
 
     const allImagesRaw = pages.flatMap((p) => extractImageUrls(p.html, p.url));
-    const images = filterMainImages(allImagesRaw).slice(0, 5);
+    const images = filterMainImages(allImagesRaw).slice(0, 24);
     const ogImage = extractOgImage(html, normalized.toString());
     const logoUrl = ogImage || pickLogo(images);
     const phone = extractPhones(allText)[0];
