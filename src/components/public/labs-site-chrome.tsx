@@ -1,13 +1,18 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export function LabsSiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-sky-600 text-sm font-black text-white">
-            D
-          </span>
+          <Image
+            src="/diagsync-logo.png"
+            alt="Diagsync"
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded object-cover"
+          />
           <span className="text-sm font-bold tracking-wide text-slate-900">DiagSync Public Labs</span>
         </Link>
         <nav className="hidden items-center gap-5 text-sm font-medium text-slate-600 md:flex">
@@ -53,4 +58,3 @@ export function LabsSiteFooter() {
     </footer>
   );
 }
-
