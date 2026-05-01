@@ -22,6 +22,10 @@ function withTimeout(ms: number) {
   return { controller, clear: () => clearTimeout(timer) };
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function fetchLabDataWithGemini(labName: string, city?: string | null, state?: string | null): Promise<GeminiFetchResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { ok: false, reason: "MISSING_API_KEY" };
@@ -36,10 +40,11 @@ export async function fetchLabDataWithGemini(labName: string, city?: string | nu
   ].join("\n");
 
   const modelCandidates = [
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.5-flash-lite",
     "gemini-1.5-flash",
     "gemini-1.5-flash-latest",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
   ];
   const timeout = withTimeout(10_000);
 
@@ -48,16 +53,28 @@ export async function fetchLabDataWithGemini(labName: string, city?: string | nu
 
     for (const model of modelCandidates) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
-        }),
-        signal: timeout.controller.signal,
-        cache: "no-store",
-      });
+      let res: Response | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+          }),
+          signal: timeout.controller.signal,
+          cache: "no-store",
+        });
+
+        if (res.status !== 429) break;
+        if (attempt < 2) {
+          await sleep(700 * Math.pow(2, attempt));
+        }
+      }
+
+      if (!res) {
+        return { ok: false, reason: "REQUEST_FAILED" };
+      }
 
       if (!res.ok) {
         lastStatus = res.status;
