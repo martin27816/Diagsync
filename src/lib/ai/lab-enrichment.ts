@@ -19,6 +19,23 @@ function cleanDescription(value: string | null | undefined) {
   return value.trim().slice(0, 500);
 }
 
+function cleanPhone(value: string | null | undefined) {
+  if (!value) return null;
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (compact.length > 40) return null;
+  const hasDigits = compact.replace(/\D/g, "").length >= 7;
+  return hasDigits ? compact : null;
+}
+
+function cleanAddress(value: string | null | undefined) {
+  if (!value) return null;
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (compact.length < 10) return null;
+  if (compact.length > 180) return null;
+  if (/home about services gallery contact book now/i.test(compact)) return null;
+  return compact;
+}
+
 function cleanImages(images: string[] | undefined) {
   if (!Array.isArray(images)) return [];
   const banned = /icon|favicon|sprite|pixel|avatar|thumb|logo-small|placeholder/i;
@@ -154,8 +171,8 @@ export async function enrichOrganizationWithAi(organizationId: string, opts?: { 
     website: isValidHttpUrl(fetched.data.website) ? fetched.data.website!.trim() : null,
     logoUrl: isValidHttpUrl(fetched.data.logoUrl) ? fetched.data.logoUrl!.trim() : null,
     images: cleanImages(fetched.data.images),
-    phone: typeof fetched.data.phone === "string" ? fetched.data.phone.trim() : org.phone,
-    address: typeof fetched.data.address === "string" ? fetched.data.address.trim() : org.address,
+    phone: cleanPhone(typeof fetched.data.phone === "string" ? fetched.data.phone : null) ?? org.phone,
+    address: cleanAddress(typeof fetched.data.address === "string" ? fetched.data.address : null) ?? org.address,
     source: typeof fetched.data.source === "string" ? fetched.data.source.trim().slice(0, 200) : "serper-search-rules",
   };
 
