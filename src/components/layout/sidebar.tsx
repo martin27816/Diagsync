@@ -79,6 +79,7 @@ const navByRole: Record<string, NavItem[]> = {
   MD: [
     { label: "Review Queue", href: "/dashboard/md/review", icon: Stethoscope },
     { label: "Consultation Queue", href: "/dashboard/md/consultation", icon: Users },
+    { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
     { label: "Approved", href: "/dashboard/md/approved", icon: ClipboardList },
     { label: "Report Drafts", href: "/dashboard/md/reports", icon: ClipboardList },
     { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
