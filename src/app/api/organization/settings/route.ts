@@ -7,6 +7,7 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { canUseCustomLetterhead } from "@/lib/billing-access";
 import { requireOrganizationCoreAccess } from "@/lib/billing-service";
+import { ensureUniqueOrganizationSlug } from "@/lib/slug";
 
 export const dynamic = "force-dynamic";
 
@@ -88,9 +89,14 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Organization not found" }, { status: 404 });
     }
 
+    const nextSlug =
+      parsed.data.name && parsed.data.name.trim() !== oldOrg.name
+        ? await ensureUniqueOrganizationSlug(parsed.data.name.trim(), oldOrg.id)
+        : oldOrg.slug;
+
     const updated = await prisma.organization.update({
       where: { id: user.organizationId },
-      data: parsed.data,
+      data: { ...parsed.data, slug: nextSlug },
     });
 
     await createAuditLog({

@@ -10,6 +10,7 @@ import {
   rejectPaymentRequestAction,
   suspendLabAction,
   syncLabCatalogAction,
+  enrichLabProfileAction,
 } from "../actions";
 
 function asNumber(value: Decimal | number | null | undefined) {
@@ -43,6 +44,12 @@ export default async function AdminLabDetailPage({ params }: { params: { id: str
             <input type="hidden" name="organizationId" value={organization.id} />
             <button className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-100">
               Sync Test Catalog
+            </button>
+          </form>
+          <form action={enrichLabProfileAction}>
+            <input type="hidden" name="organizationId" value={organization.id} />
+            <button className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100">
+              Enrich Lab Data (AI)
             </button>
           </form>
           {organization.status === "SUSPENDED" ? (

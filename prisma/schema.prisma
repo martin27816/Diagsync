@@ -20,6 +20,14 @@ model Organization {
   logo                        String?
   contactInfo                 String?
   letterheadUrl               String?
+  description                 String?
+  website                     String?
+  logoUrl                     String?
+  images                      String[]
+  aiConfidence                Float?
+  aiSource                    String?
+  slug                        String                       @unique @default(cuid())
+  lastFetchedAt               DateTime?
   consultationTimeoutMinutes  Int                          @default(10)
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt

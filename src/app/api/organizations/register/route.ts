@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { Role, Department } from "@prisma/client";
 import { syncFullTestCatalogToOrganization } from "@/lib/test-catalog";
+import { ensureUniqueOrganizationSlug } from "@/lib/slug";
 
 // Helper: accepts a valid URL, an empty string, null, or undefined — but never a non-URL string
 const optionalUrl = z
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(data.adminPassword, 12);
+    const slug = await ensureUniqueOrganizationSlug(data.orgName);
 
     // Keep transaction short: create org + admin only
     const result = await prisma.$transaction(async (tx) => {
@@ -88,6 +90,7 @@ export async function POST(req: NextRequest) {
           city: data.orgCity,
           state: data.orgState,
           country: data.orgCountry || "Nigeria",
+          slug,
           contactInfo: data.orgContactInfo ?? null,
           logo: data.orgLogo ?? null,
           letterheadUrl: data.orgLetterheadUrl ?? null,
