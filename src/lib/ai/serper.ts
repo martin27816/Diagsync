@@ -46,12 +46,28 @@ function extractFirstPhone(text?: string | null) {
 
 function scoreDomain(url: string, labName: string) {
   try {
-    const host = new URL(url).hostname.toLowerCase();
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
     const normalized = labName.toLowerCase().replace(/[^a-z0-9]/g, "");
     const hostNorm = host.replace(/[^a-z0-9]/g, "");
+    const tokens = labName
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length >= 4 && !["medical", "center", "centre", "laboratory", "diagnostic"].includes(t));
     let score = 0;
-    if (!host.includes("facebook.com") && !host.includes("instagram.com") && !host.includes("linkedin.com")) score += 2;
-    if (hostNorm.includes(normalized.slice(0, Math.min(normalized.length, 8)))) score += 3;
+    const isSocial = host.includes("facebook.com") || host.includes("instagram.com") || host.includes("linkedin.com");
+    const isGov = host.endsWith(".gov.ng") || host.endsWith(".gov") || host.includes(".gov.");
+    const isDirectoryPath = /\/(facilit|facilitie|facility|directory|listing|listings|places|businesses)\b/.test(path);
+    const hasNameToken = tokens.some((t) => hostNorm.includes(t));
+    const hasStrongName = hostNorm.includes(normalized.slice(0, Math.min(normalized.length, 8)));
+
+    if (!isSocial) score += 2;
+    if (hasStrongName) score += 5;
+    if (hasNameToken) score += 4;
+    if (isGov) score -= 3;
+    if (isDirectoryPath) score -= 5;
+    if (path === "/" || path.length <= 1) score += 2;
     return score;
   } catch {
     return -1;
@@ -94,14 +110,35 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
     if (typeof knowledge?.website === "string") candidates.push(knowledge.website);
 
     let bestWebsite: string | null = null;
-    let bestScore = -1;
+    let bestScore = -999;
+    let bestHost = "";
     for (const link of candidates) {
       const normalized = normalizeUrl(link);
       if (!normalized) continue;
       const score = scoreDomain(normalized, labName);
+      const host = new URL(normalized).hostname.toLowerCase();
       if (score > bestScore) {
         bestScore = score;
         bestWebsite = normalized;
+        bestHost = host;
+      } else if (score === bestScore && bestWebsite) {
+        // Prefer shortest path on same/close score.
+        const currentPathLen = new URL(bestWebsite).pathname.length;
+        const nextPathLen = new URL(normalized).pathname.length;
+        if (nextPathLen < currentPathLen) {
+          bestWebsite = normalized;
+          bestHost = host;
+        }
+      }
+    }
+
+    // If selected URL is from a likely directory/government path, only keep it when no better candidate exists.
+    if (bestWebsite) {
+      const p = new URL(bestWebsite).pathname.toLowerCase();
+      const suspiciousPath = /\/(facilit|facilitie|facility|directory|listing|listings|places|businesses)\b/.test(p);
+      const suspiciousHost = bestHost.endsWith(".gov.ng") || bestHost.endsWith(".gov") || bestHost.includes(".gov.");
+      if ((suspiciousPath || suspiciousHost) && bestScore < 8) {
+        bestWebsite = null;
       }
     }
 
