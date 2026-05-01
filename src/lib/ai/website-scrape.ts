@@ -5,6 +5,7 @@ type WebsiteExtractedData = {
   logoUrl?: string;
   images?: string[];
   source?: string;
+  websiteText?: string;
 };
 
 export type WebsiteScrapeResult =
@@ -34,6 +35,14 @@ function extractMetaDescription(html: string) {
     html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) ||
     html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i);
   return m?.[1] ? cleanText(m[1]) : undefined;
+}
+
+function extractOgImage(html: string, baseUrl: string) {
+  const m =
+    html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+  if (!m?.[1]) return undefined;
+  return absoluteUrl(baseUrl, m[1]) ?? undefined;
 }
 
 function extractTitle(html: string) {
@@ -69,6 +78,28 @@ function extractImageUrls(html: string, baseUrl: string) {
     if (abs && /^https?:\/\//i.test(abs)) urls.push(abs);
   }
   return urls;
+}
+
+function extractInternalLinks(html: string, baseUrl: string) {
+  const links: string[] = [];
+  const base = new URL(baseUrl);
+  const re = /<a[^>]+href=["']([^"']+)["'][^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const next = absoluteUrl(baseUrl, m[1]);
+    if (!next) continue;
+    try {
+      const parsed = new URL(next);
+      if (parsed.hostname !== base.hostname) continue;
+      if (!/^https?:$/i.test(parsed.protocol)) continue;
+      if (/\.(jpg|jpeg|png|gif|svg|webp|pdf|zip)$/i.test(parsed.pathname)) continue;
+      if (/\#/.test(parsed.href)) continue;
+      links.push(parsed.toString());
+    } catch {
+      continue;
+    }
+  }
+  return Array.from(new Set(links));
 }
 
 function pickLogo(images: string[]) {
@@ -113,19 +144,49 @@ export async function scrapeLabWebsite(websiteUrl: string): Promise<WebsiteScrap
     const html = await res.text();
     if (!html || html.trim().length < 50) return { ok: false, reason: "EMPTY_RESPONSE" };
 
-    const strippedText = cleanText(
-      html
-        .replace(/<script[\s\S]*?<\/script>/gi, " ")
-        .replace(/<style[\s\S]*?<\/style>/gi, " ")
-        .replace(/<[^>]+>/g, "\n")
-    );
+    const pages = [{ url: normalized.toString(), html }];
+    const firstLinks = extractInternalLinks(html, normalized.toString())
+      .filter((u) => /(about|contact|services|diagnostic|laboratory|lab)/i.test(u))
+      .slice(0, 3);
 
-    const imagesRaw = extractImageUrls(html, normalized.toString());
-    const images = filterMainImages(imagesRaw);
-    const logoUrl = pickLogo(images);
-    const phone = extractPhones(strippedText)[0];
+    for (const link of firstLinks) {
+      try {
+        const pageRes = await fetch(link, {
+          method: "GET",
+          headers: { "User-Agent": "DiagSyncBot/1.0 (+https://diagsync.vercel.app)" },
+          signal: timeout.controller.signal,
+          cache: "no-store",
+          redirect: "follow",
+        });
+        if (!pageRes.ok) continue;
+        const pageHtml = await pageRes.text();
+        if (pageHtml && pageHtml.trim().length >= 50) {
+          pages.push({ url: link, html: pageHtml });
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    const allText = pages
+      .map((p) =>
+        cleanText(
+          p.html
+            .replace(/<script[\s\S]*?<\/script>/gi, " ")
+            .replace(/<style[\s\S]*?<\/style>/gi, " ")
+            .replace(/<[^>]+>/g, "\n")
+        )
+      )
+      .join(" ");
+
+    const allImagesRaw = pages.flatMap((p) => extractImageUrls(p.html, p.url));
+    const images = filterMainImages(allImagesRaw).slice(0, 5);
+    const ogImage = extractOgImage(html, normalized.toString());
+    const logoUrl = ogImage || pickLogo(images);
+    const phone = extractPhones(allText)[0];
     const description = extractMetaDescription(html) || extractTitle(html);
-    const address = extractAddressLike(strippedText);
+    const address = extractAddressLike(allText);
+    const websiteText = allText.slice(0, 6000);
 
     return {
       ok: true,
@@ -135,6 +196,7 @@ export async function scrapeLabWebsite(websiteUrl: string): Promise<WebsiteScrap
         address,
         logoUrl,
         images,
+        websiteText,
         source: "website-scrape-rules",
       },
     };
@@ -145,4 +207,3 @@ export async function scrapeLabWebsite(websiteUrl: string): Promise<WebsiteScrap
     timeout.clear();
   }
 }
-

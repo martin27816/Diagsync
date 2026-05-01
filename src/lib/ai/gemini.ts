@@ -110,3 +110,65 @@ export async function fetchLabDataWithGemini(labName: string, city?: string | nu
     timeout.clear();
   }
 }
+
+export async function refineLabDataWithGemini(input: {
+  labName: string;
+  city?: string | null;
+  state?: string | null;
+  snippets?: string[];
+  websiteContent?: string;
+  candidateWebsite?: string;
+  candidateLogoUrl?: string;
+  candidateImages?: string[];
+}): Promise<GeminiFetchResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { ok: false, reason: "MISSING_API_KEY" };
+
+  const prompt = [
+    "Return ONLY valid JSON. No text before or after.",
+    "You are validating profile data for an official diagnostic laboratory.",
+    "Only return high-confidence fields that match the exact lab identity.",
+    "JSON keys: description, website, phone, address, logoUrl, images, source",
+    `labName: ${input.labName}`,
+    `city: ${input.city ?? ""}`,
+    `state: ${input.state ?? ""}`,
+    `candidateWebsite: ${input.candidateWebsite ?? ""}`,
+    `candidateLogoUrl: ${input.candidateLogoUrl ?? ""}`,
+    `candidateImages: ${(input.candidateImages ?? []).join(", ")}`,
+    `searchSnippets: ${(input.snippets ?? []).join(" | ")}`,
+    `websiteContent: ${(input.websiteContent ?? "").slice(0, 5000)}`,
+  ].join("\n");
+
+  const model = "gemini-2.0-flash-lite";
+  const timeout = withTimeout(10_000);
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+      }),
+      signal: timeout.controller.signal,
+      cache: "no-store",
+    });
+    if (!res.ok) return { ok: false, reason: "HTTP_ERROR", status: res.status };
+    const payload = (await res.json()) as any;
+    const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (typeof text !== "string" || !text.trim()) return { ok: false, reason: "EMPTY_RESPONSE" };
+    try {
+      const parsed = JSON.parse(text) as GeminiLabData;
+      if (!parsed || typeof parsed !== "object") return { ok: false, reason: "INVALID_JSON" };
+      return { ok: true, data: parsed };
+    } catch {
+      return { ok: false, reason: "INVALID_JSON" };
+    }
+  } catch (error: any) {
+    if (error?.name === "AbortError") return { ok: false, reason: "TIMEOUT" };
+    return { ok: false, reason: "REQUEST_FAILED" };
+  } finally {
+    timeout.clear();
+  }
+}

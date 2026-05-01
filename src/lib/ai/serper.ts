@@ -6,6 +6,8 @@ type SerperLabData = {
   logoUrl?: string;
   images?: string[];
   source?: string;
+  snippets?: string[];
+  topResults?: Array<{ title: string; link: string; snippet: string }>;
 };
 
 const BLOCKED_DOMAINS = [
@@ -117,7 +119,7 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
   if (!apiKey) return { ok: false, reason: "MISSING_API_KEY" };
 
   const timeout = withTimeout(10_000);
-  const query = [`"${labName}"`, city, state, "Nigeria", "laboratory", "medical diagnostic center website phone address"].filter(Boolean).join(" ");
+  const query = `${labName} ${city ?? ""} ${state ?? ""} Nigeria diagnostic laboratory official website`;
 
   try {
     const res = await fetch("https://google.serper.dev/search", {
@@ -143,6 +145,7 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
 
     const candidatesStrict: string[] = [];
     const candidatesFallback: string[] = [];
+    const rankedResults: Array<{ title: string; link: string; snippet: string; score: number }> = [];
     for (const row of organic) {
       if (typeof row?.link === "string") {
         const title = typeof row?.title === "string" ? row.title : "";
@@ -150,6 +153,9 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
         if (isBlockedDomain(row.link)) continue;
         const hasSignal = hasGoodSignal(`${title} ${snippet} ${row.link}`);
         const hasNameMatch = hasNameTokenMatch(`${title} ${snippet}`, labName) || hasNameTokenMatch(row.link, labName);
+        const normalized = normalizeUrl(row.link);
+        const score = normalized ? scoreDomain(normalized, labName) : -999;
+        rankedResults.push({ title, link: row.link, snippet, score });
         if (hasSignal && hasNameMatch) {
           candidatesStrict.push(row.link);
         }
@@ -158,6 +164,12 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
         }
       }
     }
+    rankedResults.sort((a, b) => b.score - a.score);
+    const topResults = rankedResults.slice(0, 3).map((r) => ({
+      title: r.title,
+      link: r.link,
+      snippet: r.snippet,
+    }));
     if (
       typeof knowledge?.website === "string" &&
       !isBlockedDomain(knowledge.website) &&
@@ -218,6 +230,14 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
       .map((row: any) => (typeof row?.snippet === "string" ? row.snippet : ""))
       .filter((v: string) => Boolean(v) && hasGoodSignal(v))
       .join(" ");
+    const snippetsList = (strictSnippets
+      ? strictSnippets.split(". ")
+      : organic
+          .map((row: any) => (typeof row?.snippet === "string" ? row.snippet : ""))
+          .filter((v: string) => Boolean(v && v.trim())))
+      .map((v: string) => v.trim())
+      .filter(Boolean)
+      .slice(0, 5);
 
     const phone =
       extractFirstPhone(typeof knowledge?.phoneNumber === "string" ? knowledge.phoneNumber : null) ||
@@ -250,6 +270,8 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
         logoUrl,
         images,
         source: "serper-search-rules",
+        snippets: snippetsList,
+        topResults,
       },
     };
   } catch (error: any) {

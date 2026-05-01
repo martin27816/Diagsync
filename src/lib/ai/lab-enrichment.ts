@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureUniqueOrganizationSlug } from "@/lib/slug";
 import { fetchLabDataWithSerper } from "./serper";
 import { scrapeLabWebsite } from "./website-scrape";
+import { refineLabDataWithGemini } from "./gemini";
 
 function isValidHttpUrl(value: string | null | undefined) {
   if (!value) return false;
@@ -16,6 +17,24 @@ function isValidHttpUrl(value: string | null | undefined) {
 function cleanDescription(value: string | null | undefined) {
   if (!value) return "";
   return value.trim().slice(0, 500);
+}
+
+function cleanImages(images: string[] | undefined) {
+  if (!Array.isArray(images)) return [];
+  const banned = /icon|favicon|sprite|pixel|avatar|thumb|logo-small|placeholder/i;
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const img of images) {
+    if (typeof img !== "string") continue;
+    const u = img.trim();
+    if (!/^https:\/\//i.test(u)) continue;
+    if (banned.test(u)) continue;
+    if (seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+    if (out.length >= 5) break;
+  }
+  return out;
 }
 
 function containsCity(address: string | null | undefined, city: string | null | undefined) {
@@ -67,29 +86,53 @@ export async function enrichOrganizationWithAi(organizationId: string, opts?: { 
   let fetched:
     | { ok: true; data: { description?: string; website?: string; phone?: string; address?: string; logoUrl?: string; images?: string[]; source?: string } }
     | { ok: false; reason: string; status?: number };
+  const fromSerper = await fetchLabDataWithSerper(org.name, org.city, org.state);
+  const candidateWebsite =
+    (isValidHttpUrl(org.website) ? org.website : null) ||
+    (fromSerper.ok ? fromSerper.data.website ?? fromSerper.data.topResults?.[0]?.link : null);
 
-  if (isValidHttpUrl(org.website)) {
-    const fromWebsite = await scrapeLabWebsite(org.website!);
+  if (candidateWebsite && isValidHttpUrl(candidateWebsite)) {
+    const fromWebsite = await scrapeLabWebsite(candidateWebsite);
     if (fromWebsite.ok) {
-      fetched = {
-        ok: true,
-        data: {
-          ...fromWebsite.data,
-          website: org.website || undefined,
-        },
+      const baseData = {
+        ...fromWebsite.data,
+        website: candidateWebsite,
       };
+
+      const maybeGemini = await refineLabDataWithGemini({
+        labName: org.name,
+        city: org.city,
+        state: org.state,
+        snippets: fromSerper.ok ? fromSerper.data.snippets : [],
+        websiteContent: fromWebsite.data.websiteText,
+        candidateWebsite,
+        candidateLogoUrl: fromWebsite.data.logoUrl,
+        candidateImages: fromWebsite.data.images,
+      });
+
+      fetched =
+        maybeGemini.ok
+          ? {
+              ok: true,
+              data: {
+                ...baseData,
+                ...maybeGemini.data,
+                website: maybeGemini.data.website || baseData.website,
+                source: "website+serper+gemini",
+              },
+            }
+          : { ok: true, data: baseData };
+    } else if (fromSerper.ok) {
+      fetched = fromSerper;
     } else {
-      const fromSerper = await fetchLabDataWithSerper(org.name, org.city, org.state);
-      fetched = fromSerper.ok
-        ? fromSerper
-        : {
-            ok: false,
-            reason: `WEBSITE_${fromWebsite.reason}`,
-            status: fromWebsite.status ?? fromSerper.status,
-          };
+      fetched = {
+        ok: false,
+        reason: `WEBSITE_${fromWebsite.reason}`,
+        status: fromWebsite.status ?? fromSerper.status,
+      };
     }
   } else {
-    fetched = await fetchLabDataWithSerper(org.name, org.city, org.state);
+    fetched = fromSerper.ok ? fromSerper : { ok: false, reason: fromSerper.reason, status: fromSerper.status };
   }
   const nextSlug = org.slug || (await ensureUniqueOrganizationSlug(org.name, org.id));
 
@@ -110,9 +153,7 @@ export async function enrichOrganizationWithAi(organizationId: string, opts?: { 
     description: cleanDescription(fetched.data.description),
     website: isValidHttpUrl(fetched.data.website) ? fetched.data.website!.trim() : null,
     logoUrl: isValidHttpUrl(fetched.data.logoUrl) ? fetched.data.logoUrl!.trim() : null,
-    images: Array.isArray(fetched.data.images)
-      ? fetched.data.images.filter((v) => typeof v === "string" && /^https?:\/\//i.test(v.trim())).map((v) => v.trim())
-      : [],
+    images: cleanImages(fetched.data.images),
     phone: typeof fetched.data.phone === "string" ? fetched.data.phone.trim() : org.phone,
     address: typeof fetched.data.address === "string" ? fetched.data.address.trim() : org.address,
     source: typeof fetched.data.source === "string" ? fetched.data.source.trim().slice(0, 200) : "serper-search-rules",
