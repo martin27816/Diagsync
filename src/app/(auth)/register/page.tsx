@@ -18,6 +18,7 @@ const schema = z.object({
   orgState: z.string().min(2, "State is required"),
   orgCountry: z.string().min(2).default("Nigeria"),
   orgContactInfo: z.string().optional(),
+  orgWebsite: z.string().url().or(z.literal("")).optional(),
   // FIX: .or(z.literal("")) must come before .optional() so empty string is accepted
   orgLogo: z.string().url().or(z.literal("")).optional(),
   orgLetterheadUrl: z.string().url().or(z.literal("")).optional(),
@@ -250,6 +251,12 @@ export default function RegisterPage() {
                 ))}
               </select>
               {errors.orgCountry && <p className={errCls}>{errors.orgCountry.message}</p>}
+            </div>
+            <div className="col-span-2">
+              <label className={labelCls}>Website (strongly recommended)</label>
+              <input placeholder="https://yourlab.com" {...register("orgWebsite")} className={inputCls} />
+              <p className="mt-0.5 text-[11px] text-slate-400">Adding your website improves SEO visibility and public ranking profile quality.</p>
+              {errors.orgWebsite && <p className={errCls}>{errors.orgWebsite.message}</p>}
             </div>
             <div className="col-span-2">
               <label className={labelCls}>Additional Contact Info (optional)</label>

@@ -12,6 +12,7 @@ type OrgSettings = {
   state: string;
   country: string;
   contactInfo: string;
+  website: string;
   logo: string;
   letterheadUrl: string;
   consultationTimeoutMinutes: string;
@@ -30,6 +31,7 @@ const emptySettings: OrgSettings = {
   state: "",
   country: "Nigeria",
   contactInfo: "",
+  website: "",
   logo: "",
   letterheadUrl: "",
   consultationTimeoutMinutes: "10",
@@ -96,6 +98,7 @@ export function LabSettingsForm() {
         state: json.data?.state ?? "",
         country: json.data?.country ?? "Nigeria",
         contactInfo: json.data?.contactInfo ?? "",
+        website: json.data?.website ?? "",
         logo: json.data?.logo ?? "",
         letterheadUrl: json.data?.letterheadUrl ?? "",
         consultationTimeoutMinutes: String(json.data?.consultationTimeoutMinutes ?? 10),
@@ -151,6 +154,7 @@ export function LabSettingsForm() {
         state: settings.state.trim() || null,
         country: settings.country.trim() || "Nigeria",
         contactInfo: settings.contactInfo.trim() || null,
+        website: settings.website.trim() || null,
         logo: settings.logo.trim() || null,
         letterheadUrl: settings.letterheadUrl.trim() || null,
         consultationTimeoutMinutes: Math.max(
@@ -177,6 +181,7 @@ export function LabSettingsForm() {
         state: json.data?.state ?? payload.state ?? "",
         country: json.data?.country ?? payload.country ?? "Nigeria",
         contactInfo: json.data?.contactInfo ?? payload.contactInfo ?? "",
+        website: json.data?.website ?? payload.website ?? "",
         logo: json.data?.logo ?? payload.logo ?? "",
         letterheadUrl: json.data?.letterheadUrl ?? payload.letterheadUrl ?? "",
         consultationTimeoutMinutes: String(
@@ -327,6 +332,19 @@ export function LabSettingsForm() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Website (strongly recommended for SEO/rankings)</label>
+            <input
+              value={settings.website}
+              onChange={(e) => setSettings((prev) => ({ ...prev, website: e.target.value }))}
+              className={inputCls}
+              placeholder="https://yourlab.com"
+            />
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              This helps auto-scrape your official profile details and improves public ranking quality.
+            </p>
           </div>
 
           <div className="sm:col-span-2">

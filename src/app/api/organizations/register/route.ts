@@ -26,6 +26,7 @@ const registerSchema = z.object({
   orgState: z.string().min(2, "State is required"),
   orgCountry: z.string().min(2).optional().default("Nigeria"),
   orgContactInfo: z.string().max(1000).optional().nullable(),
+  orgWebsite: optionalUrl,
   orgLogo: optionalUrl,
   orgLetterheadUrl: optionalUrl,
   // Admin account details
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest) {
           country: data.orgCountry || "Nigeria",
           slug,
           contactInfo: data.orgContactInfo ?? null,
+          website: data.orgWebsite ?? null,
           logo: data.orgLogo ?? null,
           letterheadUrl: data.orgLetterheadUrl ?? null,
         },
@@ -126,6 +128,7 @@ export async function POST(req: NextRequest) {
         name: result.org.name,
         email: result.org.email,
         logo: result.org.logo,
+        website: result.org.website,
         letterheadUrl: result.org.letterheadUrl,
       },
     });
