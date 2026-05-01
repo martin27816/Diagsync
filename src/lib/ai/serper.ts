@@ -141,15 +141,20 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
     const knowledge = payload?.knowledgeGraph ?? null;
     if (!organic.length && !knowledge) return { ok: false, reason: "EMPTY_RESPONSE" };
 
-    const candidates: string[] = [];
+    const candidatesStrict: string[] = [];
+    const candidatesFallback: string[] = [];
     for (const row of organic) {
       if (typeof row?.link === "string") {
         const title = typeof row?.title === "string" ? row.title : "";
         const snippet = typeof row?.snippet === "string" ? row.snippet : "";
         if (isBlockedDomain(row.link)) continue;
-        if (!hasGoodSignal(`${title} ${snippet} ${row.link}`)) continue;
-        if (hasNameTokenMatch(`${title} ${snippet}`, labName) || hasNameTokenMatch(row.link, labName)) {
-          candidates.push(row.link);
+        const hasSignal = hasGoodSignal(`${title} ${snippet} ${row.link}`);
+        const hasNameMatch = hasNameTokenMatch(`${title} ${snippet}`, labName) || hasNameTokenMatch(row.link, labName);
+        if (hasSignal && hasNameMatch) {
+          candidatesStrict.push(row.link);
+        }
+        if (hasSignal || hasNameMatch) {
+          candidatesFallback.push(row.link);
         }
       }
     }
@@ -159,8 +164,12 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
       hasGoodSignal(knowledge.website) &&
       hasNameTokenMatch(knowledge.website, labName)
     ) {
-      candidates.push(knowledge.website);
+      candidatesStrict.push(knowledge.website);
     }
+    if (typeof knowledge?.website === "string" && !isBlockedDomain(knowledge.website)) {
+      candidatesFallback.push(knowledge.website);
+    }
+    const candidates = candidatesStrict.length > 0 ? candidatesStrict : candidatesFallback;
 
     let bestWebsite: string | null = null;
     let bestScore = -999;
@@ -196,7 +205,7 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
       }
     }
 
-    const snippets = organic
+    const strictSnippets = organic
       .filter((row: any) => {
         const title = typeof row?.title === "string" ? row.title : "";
         const snippet = typeof row?.snippet === "string" ? row.snippet : "";
@@ -204,6 +213,10 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
       })
       .map((row: any) => (typeof row?.snippet === "string" ? row.snippet : ""))
       .filter(Boolean)
+      .join(" ");
+    const snippets = strictSnippets || organic
+      .map((row: any) => (typeof row?.snippet === "string" ? row.snippet : ""))
+      .filter((v: string) => Boolean(v) && hasGoodSignal(v))
       .join(" ");
 
     const phone =
