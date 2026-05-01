@@ -64,6 +64,14 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/admin/dashboard", nextUrl.origin));
   }
 
+  // Allow MD/HRM to access patient list in read-only mode without opening full receptionist area.
+  if (pathname === "/dashboard/receptionist/patients" || pathname === "/dashboard/receptionist/patients/") {
+    if (!["RECEPTIONIST", "SUPER_ADMIN", "HRM", "MD"].includes(userRole)) {
+      return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
+    }
+    return NextResponse.next();
+  }
+
   for (const [route, allowedRoles] of Object.entries(roleRouteMap)) {
     if (pathname.startsWith(route) && !allowedRoles.includes(userRole)) {
       return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
