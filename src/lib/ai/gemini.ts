@@ -8,15 +8,23 @@ type GeminiLabData = {
   source?: string;
 };
 
+export type GeminiFetchResult =
+  | { ok: true; data: GeminiLabData }
+  | {
+      ok: false;
+      reason: "MISSING_API_KEY" | "TIMEOUT" | "HTTP_ERROR" | "EMPTY_RESPONSE" | "INVALID_JSON" | "REQUEST_FAILED";
+      status?: number;
+    };
+
 function withTimeout(ms: number) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
   return { controller, clear: () => clearTimeout(timer) };
 }
 
-export async function fetchLabDataWithGemini(labName: string, city?: string | null, state?: string | null) {
+export async function fetchLabDataWithGemini(labName: string, city?: string | null, state?: string | null): Promise<GeminiFetchResult> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) return { ok: false, reason: "MISSING_API_KEY" };
 
   const prompt = [
     "Return ONLY valid JSON. No text before or after.",
@@ -43,19 +51,25 @@ export async function fetchLabDataWithGemini(labName: string, city?: string | nu
       cache: "no-store",
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) return { ok: false, reason: "HTTP_ERROR", status: res.status };
     const payload = (await res.json()) as any;
     const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (typeof text !== "string" || !text.trim()) return null;
+    if (typeof text !== "string" || !text.trim()) return { ok: false, reason: "EMPTY_RESPONSE" };
 
     try {
       const parsed = JSON.parse(text) as GeminiLabData;
-      return parsed && typeof parsed === "object" ? parsed : null;
+      if (!parsed || typeof parsed !== "object") {
+        return { ok: false, reason: "INVALID_JSON" };
+      }
+      return { ok: true, data: parsed };
     } catch {
-      return null;
+      return { ok: false, reason: "INVALID_JSON" };
     }
-  } catch {
-    return null;
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      return { ok: false, reason: "TIMEOUT" };
+    }
+    return { ok: false, reason: "REQUEST_FAILED" };
   } finally {
     timeout.clear();
   }

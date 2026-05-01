@@ -72,6 +72,12 @@ export async function enrichLabProfileAction(formData: FormData) {
     qs.set("confidence", String(result.confidence));
   } else {
     qs.set("ai", result.reason);
+    if ("aiReason" in result && typeof result.aiReason === "string") {
+      qs.set("aiReason", result.aiReason);
+    }
+    if ("aiStatus" in result && typeof result.aiStatus === "number") {
+      qs.set("aiStatus", String(result.aiStatus));
+    }
     if ("confidence" in result && typeof result.confidence === "number") {
       qs.set("confidence", String(result.confidence));
     }
@@ -95,6 +101,12 @@ export async function forceEnrichLabProfileAction(formData: FormData) {
     qs.set("confidence", String(result.confidence));
   } else {
     qs.set("ai", `force_${result.reason}`);
+    if ("aiReason" in result && typeof result.aiReason === "string") {
+      qs.set("aiReason", result.aiReason);
+    }
+    if ("aiStatus" in result && typeof result.aiStatus === "number") {
+      qs.set("aiStatus", String(result.aiStatus));
+    }
     if ("confidence" in result && typeof result.confidence === "number") {
       qs.set("confidence", String(result.confidence));
     }

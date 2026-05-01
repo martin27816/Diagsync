@@ -20,16 +20,27 @@ function asNumber(value: Decimal | number | null | undefined) {
   return Number(value);
 }
 
-function getAiMessage(ai: string | undefined, confidence: string | undefined) {
+function getAiFetchReasonLabel(aiReason: string | undefined, aiStatus: string | undefined) {
+  if (!aiReason) return "";
+  if (aiReason === "MISSING_API_KEY") return "Gemini API key is missing in server environment.";
+  if (aiReason === "TIMEOUT") return "Gemini request timed out after 10 seconds.";
+  if (aiReason === "HTTP_ERROR") return `Gemini API returned HTTP ${aiStatus ?? "error"}.`;
+  if (aiReason === "EMPTY_RESPONSE") return "Gemini returned an empty response.";
+  if (aiReason === "INVALID_JSON") return "Gemini did not return valid JSON.";
+  if (aiReason === "REQUEST_FAILED") return "Network/request failed while contacting Gemini.";
+  return `AI fetch failed: ${aiReason}.`;
+}
+
+function getAiMessage(ai: string | undefined, confidence: string | undefined, aiReason: string | undefined, aiStatus: string | undefined) {
   if (!ai) return null;
   if (ai === "success") return { tone: "green", text: `AI enrichment saved successfully${confidence ? ` (confidence ${Number(confidence).toFixed(2)})` : ""}.` };
   if (ai === "force_success") return { tone: "green", text: `Force AI enrichment saved successfully${confidence ? ` (confidence ${Number(confidence).toFixed(2)})` : ""}.` };
   if (ai === "RATE_LIMITED") return { tone: "amber", text: "AI fetch skipped: this lab can only be enriched once per hour." };
   if (ai === "force_LOW_CONFIDENCE") return { tone: "amber", text: `Force AI fetch completed but confidence was too low to overwrite data${confidence ? ` (${Number(confidence).toFixed(2)})` : ""}.` };
-  if (ai === "force_NO_AI_DATA") return { tone: "amber", text: "Force AI fetch returned no usable data." };
+  if (ai === "force_NO_AI_DATA") return { tone: "amber", text: `Force AI fetch returned no usable data. ${getAiFetchReasonLabel(aiReason, aiStatus)}`.trim() };
   if (ai === "force_NOT_FOUND") return { tone: "red", text: "Lab not found for force enrichment." };
   if (ai === "LOW_CONFIDENCE") return { tone: "amber", text: `AI fetch completed but confidence was too low to overwrite data${confidence ? ` (${Number(confidence).toFixed(2)})` : ""}.` };
-  if (ai === "NO_AI_DATA") return { tone: "amber", text: "AI fetch returned no usable data." };
+  if (ai === "NO_AI_DATA") return { tone: "amber", text: `AI fetch returned no usable data. ${getAiFetchReasonLabel(aiReason, aiStatus)}`.trim() };
   if (ai === "NOT_FOUND") return { tone: "red", text: "Lab not found for enrichment." };
   return { tone: "amber", text: "AI enrichment completed with partial result." };
 }
@@ -39,7 +50,7 @@ export default async function AdminLabDetailPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams?: { ai?: string; confidence?: string };
+  searchParams?: { ai?: string; confidence?: string; aiReason?: string; aiStatus?: string };
 }) {
   await requireMegaAdmin();
   const detail = await getOrganizationDetail(params.id);
@@ -49,7 +60,7 @@ export default async function AdminLabDetailPage({
   }
 
   const { organization, users, paymentRequests, stats } = detail;
-  const aiMsg = getAiMessage(searchParams?.ai, searchParams?.confidence);
+  const aiMsg = getAiMessage(searchParams?.ai, searchParams?.confidence, searchParams?.aiReason, searchParams?.aiStatus);
 
   return (
     <div className="space-y-5">

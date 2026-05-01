@@ -54,6 +54,7 @@ const navByRole: Record<string, { href: string; label: string; icon: React.Eleme
   ],
   MD: [
     { href: "/dashboard/md", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/dashboard/receptionist/patients", label: "Patients", icon: Users },
     { href: "/dashboard/md/review-queue", label: "Review Queue", icon: ClipboardList },
     { href: "/dashboard/md/corrections", label: "Corrections", icon: FileText },
     { href: "/dashboard/md/approved", label: "Approved Today", icon: UserCheck },

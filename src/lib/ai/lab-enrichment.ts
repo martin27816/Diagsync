@@ -66,24 +66,29 @@ export async function enrichOrganizationWithAi(organizationId: string, opts?: { 
   const fetched = await fetchLabDataWithGemini(org.name, org.city, org.state);
   const nextSlug = org.slug || (await ensureUniqueOrganizationSlug(org.name, org.id));
 
-  if (!fetched) {
+  if (!fetched.ok) {
     await prisma.organization.update({
       where: { id: org.id },
       data: { lastFetchedAt: now, slug: nextSlug },
     });
-    return { ok: false as const, reason: "NO_AI_DATA" as const };
+    return {
+      ok: false as const,
+      reason: "NO_AI_DATA" as const,
+      aiReason: fetched.reason,
+      aiStatus: fetched.status,
+    };
   }
 
   const cleaned = {
-    description: cleanDescription(fetched.description),
-    website: isValidHttpUrl(fetched.website) ? fetched.website!.trim() : null,
-    logoUrl: isValidHttpUrl(fetched.logoUrl) ? fetched.logoUrl!.trim() : null,
-    images: Array.isArray(fetched.images)
-      ? fetched.images.filter((v) => typeof v === "string" && /^https?:\/\//i.test(v.trim())).map((v) => v.trim())
+    description: cleanDescription(fetched.data.description),
+    website: isValidHttpUrl(fetched.data.website) ? fetched.data.website!.trim() : null,
+    logoUrl: isValidHttpUrl(fetched.data.logoUrl) ? fetched.data.logoUrl!.trim() : null,
+    images: Array.isArray(fetched.data.images)
+      ? fetched.data.images.filter((v) => typeof v === "string" && /^https?:\/\//i.test(v.trim())).map((v) => v.trim())
       : [],
-    phone: typeof fetched.phone === "string" ? fetched.phone.trim() : org.phone,
-    address: typeof fetched.address === "string" ? fetched.address.trim() : org.address,
-    source: typeof fetched.source === "string" ? fetched.source.trim().slice(0, 200) : "gemini-1.5-flash",
+    phone: typeof fetched.data.phone === "string" ? fetched.data.phone.trim() : org.phone,
+    address: typeof fetched.data.address === "string" ? fetched.data.address.trim() : org.address,
+    source: typeof fetched.data.source === "string" ? fetched.data.source.trim().slice(0, 200) : "gemini-1.5-flash",
   };
 
   const confidence = computeConfidence({

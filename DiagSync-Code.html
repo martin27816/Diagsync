@@ -25,7 +25,9 @@ VAPID_SUBJECT="mailto:admin@example.com"
 
 mega_ADMIN_EMAIL= "admin@diagsync.com"
 mega_ADMIN_PASSWORD="Admin@1234"
-mega_ADMIN_NAME="MegaAdminDev"</pre></div>
+mega_ADMIN_NAME="MegaAdminDev"
+
+GEMINI_API_KEY="AIzaSyB9Peq6Huh4biz7XEywocqI-JRU15n6pWk"</pre></div>
 <div class='file-block'><div class='file-header'>.env.example</div><pre># Copy this file to .env.local and fill in your values
 
 # Database - PostgreSQL connection strings
@@ -116,6 +118,7 @@ declare module '*.module.sass';
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "country-state-city": "^3.2.1",
     "dotenv": "^17.4.2",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
@@ -164,9 +167,20 @@ model Organization {
   email                       String                       @unique
   phone                       String
   address                     String
+  city                        String?
+  state                       String?
+  country                     String                       @default("Nigeria")
   logo                        String?
   contactInfo                 String?
   letterheadUrl               String?
+  description                 String?
+  website                     String?
+  logoUrl                     String?
+  images                      String[]
+  aiConfidence                Float?
+  aiSource                    String?
+  slug                        String                       @unique @default(cuid())
+  lastFetchedAt               DateTime?
   consultationTimeoutMinutes  Int                          @default(10)
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
@@ -4213,7 +4227,1012 @@ main()
 
 
 </pre></div>
-<div class='file-block'><div class='file-header'>public/fallback-A9jBE7xex9dh-X1MzChjq.js</div><pre>(()=&gt;{"use strict";self.fallback=async e=&gt;"document"===e.destination?caches.match("/offline",{ignoreSearch:!0}):Response.error()})();</pre></div>
+<div class='file-block'><div class='file-header'>prisma/seed-update-tat.ts</div><pre>/**
+ * prisma/seed-update-tat.ts
+ *
+ * DiagSync â€” Turnaround Time (TAT) Bulk Update Script
+ * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * Updates turnaroundMinutes for 495 diagnostic tests.
+ *
+ * SAFETY:  ONLY updates turnaroundMinutes. No deletes, no creates.
+ * SOURCE:  DiagSync TAT Reference Guide v1.0 (globally benchmarked).
+ * TAT DEF: Start Test â†’ Result Submitted. Excludes MD review / release.
+ *
+ * â”€â”€ PRODUCTION CONTROLS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ *
+ *   DRY_RUN = true   â†’  No DB writes. Logs what WOULD be changed.
+ *   DRY_RUN = false  â†’  Live mode. Writes to DB.
+ *
+ *   TARGET_ORG_ID = "&lt;uuid&gt;"  â†’  Scope updates to one organisation only.
+ *   TARGET_ORG_ID = null      â†’  Update across all organisations.
+ *
+ * Usage:
+ *   npx ts-node prisma/seed-update-tat.ts
+ *   OR add to package.json scripts and call via tsx / ts-node.
+ */
+
+import { config } from "dotenv";
+config();
+
+import { PrismaClient } from "@prisma/client";
+
+if (process.env.DIRECT_URL) {
+  process.env.DATABASE_URL = process.env.DIRECT_URL;
+}
+
+const prisma = new PrismaClient();
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// PRODUCTION CONTROL FLAGS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+/**
+ * DRY_RUN â€” Set to `true` for a safe preview run (NO DB writes).
+ * Always verify output with DRY_RUN = true before setting to false.
+ */
+const DRY_RUN: boolean = false;
+
+/**
+ * TARGET_ORG_ID â€” Restrict updates to a single organisation.
+ * Set to null to update all organisations.
+ * Example: "clxyz123abc..."
+ */
+const TARGET_ORG_ID: string | null = null;
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// TAT CATALOG
+// Format: [testName, turnaroundMinutes]
+// Matched case-insensitively against DiagnosticTest.name in DB.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const TAT_CATALOG: [string, number][] = [
+
+  // â”€â”€ HAEMATOLOGY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Full Blood Count", 90],
+  ["Sickling Test", 45],
+  ["G6PD Screening", 90],
+  ["Bleeding Time &amp; Clotting Time", 60],
+  ["Haemoglobin (HB)", 60],
+  ["Haematocrit (PCV)", 45],
+  ["Reticulocyte Count", 60],
+  ["Peripheral Blood Film", 90],
+  ["Blood Film", 75],
+  ["Blood Group", 45],
+  ["Genotype", 60],
+  ["Genotyping (Confirmatory)", 180],
+  ["HB Electrophoresis", 240],
+  ["Direct Coombs Test", 60],
+  ["Indirect Coombs Test", 90],
+  ["Cross Matching", 75],
+  ["Prothrombin Time", 60],
+  ["APTT", 60],
+  ["Fibrinogen", 75],
+  ["ESR", 90],
+  ["D-Dimer", 60],
+  ["DNA Paternity Test", 4320],
+  ["Osmotic Fragility Test", 180],
+
+  // â”€â”€ CLINICAL CHEMISTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Fasting Blood Sugar", 60],
+  ["Random Blood Sugar", 45],
+  ["Liver Function Test", 150],
+  ["Kidney Function Test", 150],
+  ["Alkaline Phosphatase (ALP)", 90],
+  ["B10 Chemistry Panel HbA1c", 120],
+  ["Lipid Profile", 120],
+  ["Triglyceride", 90],
+  ["Cholesterol (Total)", 75],
+  ["HDL-C", 90],
+  ["AST (SGOT)", 75],
+  ["ALT (SGPT)", 75],
+  ["GGT", 90],
+  ["Total Bilirubin", 90],
+  ["Direct Bilirubin", 90],
+  ["LDL-C", 90],
+  ["Protein (Total)", 75],
+  ["VLDL-C", 90],
+  ["Albumin", 75],
+  ["Electrolytes", 90],
+  ["Urea", 75],
+  ["Creatinine", 75],
+  ["Blood Gases", 30],
+  ["Blood pH", 30],
+  ["Oxygen (O2)", 30],
+  ["Carbon Dioxide (CO2)", 30],
+  ["Calcium (Total)", 90],
+  ["Ionized Calcium", 45],
+  ["Lactate", 30],
+  ["Uric Acid", 75],
+  ["Pregnancy Test", 30],
+  ["CRP", 90],
+  ["Creatine Kinase", 90],
+  ["Procalcitonin", 90],
+  ["Amylase", 75],
+  ["Lipase", 90],
+  ["Comprehensive Metabolic Panel (CMP)", 150],
+  ["Protein Electrophoresis", 300],
+  ["Microalbumin", 90],
+  ["Blood Lead Level", 240],
+  ["Serum Folate", 180],
+  ["Aflatoxin B1", 480],
+  ["Drug Screen (Urine)", 60],
+  ["Alcohol Level", 90],
+  ["Ceruloplasmin", 180],
+  ["Copper (Serum)", 240],
+  ["Zinc (Serum)", 240],
+  ["Magnesium (Serum)", 90],
+  ["Phosphate (Serum)", 90],
+
+  // â”€â”€ CARDIAC MARKERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Brain Natriuretic Peptide (NT-proBNP)", 90],
+  ["CK-MB", 90],
+  ["Troponin T", 60],
+  ["Troponin I", 60],
+
+  // â”€â”€ HORMONES / ENDOCRINOLOGY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Thyroid Stimulating Hormone (TSH)", 150],
+  ["Thyroxine (T4 Free)", 150],
+  ["Thyroxine (T4 Total)", 150],
+  ["Triiodothyronine (T3 Total)", 150],
+  ["Triiodothyronine (T3 Free)", 150],
+  ["Thyroid Function Tests (TFT)", 180],
+  ["Thyroid Antibody Receptor (TRAb)", 180],
+  ["Anti-Mullerian Hormone (AMH)", 180],
+  ["Oestrogen (E2)", 180],
+  ["Follicle Stimulating Hormone (FSH)", 150],
+  ["Luteinizing Hormone (LH)", 150],
+  ["Prolactin", 150],
+  ["Hormonal Immunoassay Panel", 240],
+  ["Progesterone", 180],
+  ["Human Chorionic Gonadotropin (B-HCG)", 120],
+  ["Testosterone", 180],
+  ["Dehydroepiandrosterone Sulfate (DHEA-S)", 180],
+  ["Cortisol", 150],
+  ["Adrenocorticotropic Hormone (ACTH)", 180],
+  ["Parathyroid Hormone (PTH)", 150],
+  ["Human Growth Hormone", 180],
+
+  // â”€â”€ VITAMINS / MINERALS / IRON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Vitamin B12", 180],
+  ["Vitamin D", 180],
+  ["Ferritin", 150],
+  ["Serum Iron", 90],
+  ["Total Iron Binding Capacity (TIBC)", 120],
+
+  // â”€â”€ TUMOUR MARKERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Prostate Specific Antigen (PSA)", 150],
+  ["Prostate Specific Antigen (Free)", 150],
+  ["Carcinoembryonic Antigen (CEA)", 150],
+  ["Alpha-Fetoprotein (AFP)", 150],
+  ["CA-125 Test", 150],
+  ["CA 19-9", 150],
+
+  // â”€â”€ IMMUNOLOGY / AUTOIMMUNE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Anti Nuclear Antibody (ANA)", 240],
+  ["Double Stranded DNA Test (ds-DNA)", 240],
+  ["Anti-CCP Antibody", 180],
+  ["Anti-dsDNA Antibody", 240],
+  ["Anti-TPO Antibody", 180],
+  ["Anti-Thyroglobulin Antibody", 180],
+  ["Rheumatoid Factor", 90],
+  ["Immunoglobulin G (IgG)", 180],
+  ["Immunoglobulin M (IgM)", 180],
+  ["Immunoglobulin A (IgA)", 180],
+  ["Immunoglobulin E (IgE)", 180],
+  ["Complement C3", 180],
+  ["Complement C4", 180],
+  ["Lupus Anticoagulant", 240],
+  ["Antiphospholipid Antibodies", 240],
+  ["Activated Protein C Resistance", 240],
+  ["Serum Protein C", 240],
+  ["Serum Protein S", 240],
+  ["Anti-Streptolysin O (ASO) Titre", 90],
+  ["ASO Titre", 90],
+
+  // â”€â”€ SEROLOGY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Hepatitis B Surface Antigen (HBsAg)", 60],
+  ["HBsAg-Quantitative", 180],
+  ["HBsAg-Qualitative", 60],
+  ["HBsAb-Quantitative", 180],
+  ["HBsAb-Qualitative", 60],
+  ["HBeAg-Quantitative", 180],
+  ["HBeAg-Qualitative", 60],
+  ["HBeAb-Quantitative", 180],
+  ["HBeAb-Qualitative", 60],
+  ["HBcAb-Quantitative", 180],
+  ["HBcAb-Qualitative", 60],
+  ["HBV 5 Panel Test", 90],
+  ["HBV DNA Panel", 480],
+  ["HBV DNA Viral Load", 480],
+  ["HBV RNA by RT-PCR", 480],
+  ["HBV Qualitative (Confirmatory Test)", 480],
+  ["Hepatitis B Screening", 60],
+  ["Hepatitis C Screening", 60],
+  ["HCV RNA Viral Load", 480],
+  ["HCV Genotyping", 1440],
+  ["HCV Qualitative (Confirmatory Test)", 480],
+  ["HIV Screening", 60],
+  ["HIV 1 &amp; II Confirmatory Test", 180],
+  ["CD4 T Cell Count", 240],
+  ["CD4 T Cell Percentage", 240],
+  ["CD8 T Cell Count", 240],
+  ["Widal Test", 90],
+  ["Typhoid IgM/IgG Rapid Test", 30],
+  ["Dengue NS1 Antigen", 45],
+  ["H. Pylori Antibody (Serum)", 60],
+  ["H. Pylori Antigen (Stool)", 60],
+  ["H. Pylori Screening", 60],
+  ["Leptospira Screening", 120],
+  ["Hepatitis A Screening", 60],
+  ["Hepatitis E Screening", 90],
+  ["Hepatitis D Screening", 120],
+  ["Brucella Screening", 90],
+  ["VDRL", 90],
+  ["Chlamydia", 90],
+  ["Gonorrhoea Screening", 90],
+  ["Trichomonas Vaginalis", 60],
+  ["Candida Screening", 60],
+  ["Yellow Fever IgM", 90],
+  ["Monkeypox PCR", 480],
+  ["COVID-19 Antigen", 30],
+  ["COVID-19 Antibody (IgM/IgG)", 45],
+  ["Cytomegalovirus (CMV) IgM", 120],
+  ["Epstein-Barr Virus (EBV) IgM", 120],
+  ["Toxoplasma IgM", 120],
+  ["Rubella IgM", 120],
+  ["Measles IgM", 120],
+  ["Meningitis Screening", 120],
+  ["Tuberculosis Antigen Test", 90],
+
+  // â”€â”€ MICROBIOLOGY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Sputum AFB (X2)", 90],
+  ["Gram Staining", 30],
+  ["Mantoux Test", 2880],
+  ["Skin Scraping Analysis", 90],
+  ["Urine M/C/S", 2880],
+  ["Stool M/C/S", 2880],
+  ["Sputum M/C/S", 2880],
+  ["Blood Culture/Sensitivity", 4320],
+  ["High Vaginal Swab (HVS) M/C/S", 2880],
+  ["Endocervical Swab (ECS) M/C/S", 2880],
+  ["Urethral Swab M/C/S", 2880],
+  ["Semen M/C/S", 2880],
+  ["Skin/Nail Scraping M/C/S", 4320],
+  ["Other Swabs/Fluid M/C/S", 2880],
+
+  // â”€â”€ URINALYSIS / STOOL / SEMEN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Urinalysis", 60],
+  ["Stool Analysis", 90],
+  ["Faecal Occult Blood (FOB)", 45],
+  ["Malaria Parasite", 60],
+  ["Malaria Parasites (MP)", 60],
+  ["Semen Analysis", 90],
+
+  // â”€â”€ RADIOLOGY â€” X-RAY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Chest X-Ray (PA)", 45],
+  ["Chest X-Ray (AP)", 45],
+  ["Chest X-Ray (Decubitus)", 45],
+  ["Chest X-Ray (Apical Lordotic)", 45],
+  ["Chest X-Ray (AP &amp; LAT)", 60],
+  ["Chest X-Ray (Lateral)", 45],
+  ["Chest X-Ray (AP Supine)", 45],
+  ["Chest X-Ray (AP Erect)", 45],
+  ["Chest X-Ray (Expiratory View)", 45],
+  ["Skull X-Ray (AP &amp; LAT)", 45],
+  ["Skull X-Ray (Lateral)", 45],
+  ["Skull X-Ray (Towne View)", 45],
+  ["Skull X-Ray (SMV View)", 45],
+  ["PNS X-Ray (Waters View)", 45],
+  ["PNS X-Ray (Caldwell View)", 45],
+  ["Nasal Bones X-Ray", 45],
+  ["Facial Bones X-Ray", 45],
+  ["Orbital X-Ray", 45],
+  ["Cervical Spine X-Ray (AP &amp; LAT)", 45],
+  ["Thoracic Spine X-Ray (AP &amp; LAT)", 45],
+  ["Lumbosacral Spine X-Ray (AP &amp; LAT)", 45],
+  ["Sacrum &amp; Coccyx X-Ray", 45],
+  ["Scoliosis X-Ray (Full Spine)", 60],
+  ["Shoulder X-Ray (AP &amp; LAT)", 45],
+  ["Shoulder Stress View X-Ray", 45],
+  ["Clavicle X-Ray (AP &amp; LAT)", 45],
+  ["Scapula X-Ray (AP &amp; LAT)", 45],
+  ["Acromioclavicular Joint X-Ray", 45],
+  ["Humerus X-Ray (AP &amp; LAT)", 45],
+  ["Elbow X-Ray (AP &amp; LAT)", 45],
+  ["Forearm X-Ray (AP &amp; LAT)", 45],
+  ["Wrist X-Ray (AP &amp; LAT)", 45],
+  ["Hand X-Ray (AP &amp; LAT)", 45],
+  ["Fingers X-Ray (AP &amp; LAT)", 45],
+  ["Pelvis X-Ray (AP)", 45],
+  ["Pelvis X-Ray (Lateral)", 45],
+  ["Pelvis X-Ray (AP &amp; LAT)", 60],
+  ["Pelvis X-Ray (Inlet View)", 45],
+  ["Pelvis X-Ray (Outlet View)", 45],
+  ["Sacroiliac Joint X-Ray (AP &amp; Oblique)", 45],
+  ["Hip X-Ray (AP &amp; LAT)", 45],
+  ["Hip X-Ray (Cross-Table Lateral)", 45],
+  ["Femur X-Ray (AP &amp; LAT)", 45],
+  ["Leg X-Ray (AP &amp; LAT)", 45],
+  ["Knee X-Ray (AP &amp; LAT)", 45],
+  ["Knee X-Ray (Skyline View)", 45],
+  ["Knee X-Ray (Tunnel View)", 45],
+  ["Tibia &amp; Fibula X-Ray (AP &amp; LAT)", 45],
+  ["Ankle X-Ray (AP &amp; LAT)", 45],
+  ["Ankle X-Ray (Mortise View)", 45],
+  ["Foot X-Ray (AP &amp; LAT)", 45],
+  ["Foot X-Ray (Oblique)", 45],
+  ["Toes X-Ray (AP &amp; LAT)", 45],
+  ["Toes X-Ray (Oblique)", 45],
+  ["Calcaneus X-Ray", 45],
+  ["Abdomen X-Ray (Erect)", 45],
+  ["Abdomen X-Ray (Supine)", 45],
+  ["Abdomen X-Ray (Decubitus)", 45],
+  ["KUB X-Ray", 45],
+  ["Soft Tissue Neck X-Ray", 45],
+  ["Foreign Body Localization", 60],
+  ["Bone Age X-Ray", 60],
+  ["Stress View X-Ray", 45],
+  ["Skeletal Survey", 90],
+  ["Babygram", 60],
+  ["Digital X-Ray Skull", 45],
+  ["Digital X-Ray Mandible", 45],
+  ["Digital X-Ray TMJ", 45],
+  ["Digital X-Ray Chest", 45],
+  ["Digital X-Ray Shoulder", 45],
+  ["Digital X-Ray Humerus", 45],
+  ["Digital X-Ray Elbow", 45],
+  ["Digital X-Ray Forearm", 45],
+  ["Digital X-Ray Wrist", 45],
+  ["Digital X-Ray Hand", 45],
+  ["Digital X-Ray Cervical Spine", 45],
+  ["Digital X-Ray Thoracic Spine", 45],
+  ["Digital X-Ray Lumbo-Sacral Spine", 45],
+  ["Digital X-Ray Pelvis/Hip", 45],
+  ["Digital X-Ray Femur", 45],
+  ["Digital X-Ray Knee", 45],
+  ["Digital X-Ray Tibia-Fibula", 45],
+  ["Digital X-Ray Ankle", 45],
+  ["Digital X-Ray Foot", 45],
+  ["Digital X-Ray Paranasal Sinuses", 45],
+  ["Digital X-Ray Post Nasal Space", 45],
+  ["Digital X-Ray Trans-Cranial", 45],
+  ["Digital X-Ray Clavicle", 45],
+  ["Digital X-Ray Ribs", 45],
+  ["Digital X-Ray Sternum", 45],
+  ["Digital X-Ray Sacrum/Coccyx", 45],
+  ["Digital X-Ray Abdomen (Erect)", 45],
+  ["Digital X-Ray Abdomen (Supine)", 45],
+  ["Digital X-Ray Facial Bones", 45],
+  ["Digital X-Ray Mastoid", 45],
+  ["Plain X-Ray Abdomen", 45],
+
+  // â”€â”€ CONTRAST / SPECIAL RADIOLOGY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Barium Swallow", 60],
+  ["Barium Meal", 90],
+  ["Barium Follow-Through", 180],
+  ["Barium Enema", 90],
+  ["Intravenous Urography (IVU)", 120],
+  ["Hysterosalpingography (HSG)", 60],
+  ["Micturating Cystourethrogram (MCU)", 75],
+  ["Barium Swallow (Single Contrast)", 60],
+  ["Barium Swallow (Double Contrast)", 75],
+  ["Barium Meal (Single Contrast)", 90],
+  ["Barium Meal (Double Contrast)", 90],
+  ["Small Bowel Follow-Through (SBFT)", 180],
+  ["Enteroclysis", 180],
+  ["Barium Enema (Single Contrast)", 90],
+  ["Barium Enema (Double Contrast)", 90],
+  ["Water-Soluble Contrast Enema", 90],
+  ["IVU/IVP (Plain + Contrast + Delayed)", 120],
+  ["Retrograde Urethrogram (RGU)", 60],
+  ["Cystogram", 60],
+  ["Nephrostogram", 60],
+  ["Loopogram", 60],
+  ["Percutaneous Transhepatic Cholangiogram (PTC)", 90],
+  ["Cerebral Angiogram (DSA)", 120],
+  ["Coronary Angiogram", 120],
+  ["Pulmonary Angiogram", 120],
+  ["Venogram", 90],
+  ["Arthrogram", 75],
+  ["Myelogram", 120],
+  ["Fistulography", 60],
+  ["Retrograde Pyelography (RUCG)", 75],
+  ["Sialography", 60],
+  ["Mammography", 60],
+  ["Sono-HSG", 75],
+  ["Barium Meal/Follow Through", 180],
+
+  // â”€â”€ ULTRASOUND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Abdominal Ultrasound", 60],
+  ["Pelvic Ultrasound", 60],
+  ["Obstetric Ultrasound", 60],
+  ["Breast Ultrasound", 60],
+  ["Thyroid Ultrasound", 60],
+  ["Scrotal Ultrasound", 60],
+  ["Prostate Ultrasound", 60],
+  ["Renal Ultrasound", 60],
+  ["Doppler Ultrasound", 90],
+  ["Abdominal Scan", 60],
+  ["Pelvic Scan", 60],
+  ["Obstetric/Fetal Ultrasound", 75],
+  ["Breast Scan", 60],
+  ["Occular Scan", 60],
+  ["Transrectal/Prostate Scan", 75],
+  ["Thyroid Scan", 60],
+  ["Scrotal/Testicular Scan", 60],
+  ["Renal Scan", 60],
+  ["Neck Scan", 60],
+  ["Liver/Gallbladder Scan", 60],
+  ["Musculoskeletal Scan", 60],
+  ["Salivary Gland Scan", 60],
+  ["Soft Tissue Scan", 60],
+  ["Folliculometry (Follicular Tracking)", 60],
+  ["Neck Ultrasound", 60],
+  ["Pelvic Ultrasound (Transvaginal Scan - TVS)", 75],
+  ["Pelvic Ultrasound (Transabdominal)", 60],
+  ["FAST Scan (Abdominal Windows)", 30],
+  ["FAST Scan (Extended eFAST)", 45],
+  ["Carotid Doppler Ultrasound", 90],
+  ["Renal Artery Doppler Ultrasound", 90],
+  ["Lower Limb Venous Doppler (DVT Scan)", 90],
+  ["Obstetric Ultrasound (Anomaly Scan)", 90],
+  ["Obstetric Ultrasound (NT Scan)", 75],
+  ["Obstetric Ultrasound (Growth Scan)", 75],
+  ["Obstetric Ultrasound (Biophysical Profile)", 90],
+  ["Prostate Biopsy (Ultrasound Guided)", 90],
+  ["Liver Biopsy (Ultrasound Guided)", 90],
+  ["Kidney Biopsy (Ultrasound Guided)", 90],
+  ["Breast Biopsy (Ultrasound Guided)", 90],
+  ["Thyroid Biopsy (Ultrasound Guided)", 75],
+
+  // â”€â”€ CT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["CT Brain", 90],
+  ["CT Chest", 90],
+  ["CT Abdomen", 90],
+  ["CT Pelvis", 90],
+  ["CT Spine", 90],
+  ["CT Angiography", 120],
+  ["CT Sinuses", 75],
+  ["CT Orbit", 75],
+  ["CT KUB (Non-Contrast)", 75],
+  ["CT Pulmonary Angiogram (CTPA)", 90],
+  ["CT Coronary Angiography (CTCA)", 120],
+  ["CT Brain (With Contrast)", 90],
+  ["CT Brain Angiography (CTA)", 120],
+  ["CT Brain Venography (CTV)", 120],
+  ["CT Cervical Spine", 90],
+  ["CT Thoracic Spine", 90],
+  ["CT Lumbar Spine", 90],
+  ["CT Abdomen and Pelvis (With Contrast)", 120],
+  ["CT Chest (HRCT)", 90],
+  ["CT Chest (Low Dose)", 75],
+  ["CT Chest Abdomen Pelvis (Staging)", 120],
+  ["CT Urography (3-Phase)", 150],
+  ["CT Enterography", 120],
+  ["CT Colonography (Virtual Colonoscopy)", 120],
+  ["CTA Aorta (Thoracoabdominal)", 120],
+  ["CTA Carotid Arteries", 90],
+  ["CTA Renal Arteries", 90],
+  ["CTA Mesenteric Arteries", 90],
+  ["CT Perfusion Brain", 120],
+  ["CT Whole Body (Pan-Scan)", 90],
+  ["CT-Guided Biopsy", 120],
+  ["CT-Guided Drainage", 120],
+  ["CT-Guided Radiofrequency Ablation", 180],
+  ["CT Head Routine", 75],
+  ["CT Head Neuro", 90],
+  ["CT Inner Ear", 75],
+  ["CT Sinus", 75],
+  ["CT Dental", 60],
+  ["CT Neck", 90],
+  ["CT Shoulder", 90],
+  ["CT Lower Extremities", 90],
+  ["CT Cardiac Study", 120],
+  ["CT Vascular", 120],
+  ["CT Cranial Angiography", 120],
+  ["CT Carotid Angiography", 90],
+  ["CT Carotid Digital Subtraction", 120],
+  ["CT Thoracic Angiography", 120],
+  ["CT Thorax Routine", 90],
+  ["CT Thorax HR", 90],
+  ["CT Lung Low Dose", 75],
+  ["CT Upper Extremities", 90],
+  ["CT Calcium Scoring (CAC)", 75],
+
+  // â”€â”€ MRI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["MRI Brain", 120],
+  ["MRI Spine", 120],
+  ["MRI Abdomen", 150],
+  ["MRI Pelvis", 150],
+  ["MRI Spine (Cervical)", 120],
+  ["MRI Spine (Lumbar)", 120],
+  ["MRI Knee", 120],
+  ["MRI Shoulder", 120],
+  ["MRI Abdomen/Pelvis", 180],
+  ["MRCP (MR Cholangiopancreatography)", 120],
+  ["MRA Brain (TOF)", 120],
+  ["MRV Brain", 120],
+  ["Cardiac MRI (CMR)", 180],
+
+  // â”€â”€ ENDOSCOPY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["OGD / EGD (Diagnostic)", 90],
+  ["OGD / EGD (With Biopsy)", 120],
+  ["Colonoscopy (Diagnostic)", 120],
+  ["Colonoscopy (With Biopsy)", 150],
+  ["Colonoscopy (With Polypectomy)", 150],
+  ["Flexible Sigmoidoscopy", 90],
+  ["Proctoscopy", 60],
+  ["ERCP (Diagnostic)", 150],
+  ["ERCP (With Stenting)", 180],
+  ["Endoscopic Ultrasound (EUS)", 120],
+  ["Endoscopic Ultrasound (EUS-FNA)", 150],
+  ["Flexible Bronchoscopy", 120],
+  ["EBUS (Endobronchial Ultrasound)", 150],
+  ["Flexible Laryngoscopy", 60],
+  ["Flexible Cystoscopy", 75],
+  ["Ureteroscopy", 120],
+  ["Hysteroscopy (Diagnostic)", 90],
+  ["Colposcopy", 75],
+  ["Medical Thoracoscopy", 180],
+  ["VATS (Diagnostic)", 240],
+  ["Upper GI Endoscopy", 90],
+  ["Sigmoidoscopy/Colonoscopy", 120],
+
+  // â”€â”€ CARDIOLOGY â€” ECG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Resting ECG (12-lead)", 30],
+  ["6-Lead ECG", 30],
+  ["3-Lead ECG (Monitoring)", 20],
+  ["15-Lead ECG", 30],
+  ["18-Lead ECG", 30],
+  ["Signal-Averaged ECG (SAECG)", 60],
+  ["Stress ECG", 90],
+  ["Treadmill Test (TMT)", 90],
+  ["Exercise Stress Test (Bruce Protocol)", 90],
+  ["Exercise Stress Test (Modified Bruce)", 90],
+  ["Tilt Table Test", 120],
+  ["Holter Monitor (24-hour)", 1440],
+  ["Holter Monitor (48-hour)", 2880],
+  ["Holter Monitor (72-hour)", 4320],
+  ["Holter Monitor (7-day)", 10080],
+  ["Holter Monitor (14-day)", 20160],
+  ["External Loop Recorder (30-day)", 43200],
+  ["Ambulatory ECG (Holter)", 1440],
+
+  // â”€â”€ CARDIOLOGY â€” ECHO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["2D Echocardiography", 90],
+  ["Doppler Echocardiography", 90],
+  ["Colour Doppler Echocardiography", 90],
+  ["PW Doppler Echocardiography", 90],
+  ["CW Doppler Echocardiography", 90],
+  ["Tissue Doppler Imaging (TDI)", 90],
+  ["3D Echocardiography", 120],
+  ["4D Echocardiography", 120],
+  ["Contrast Echo (Bubble Study)", 90],
+  ["Fetal Echocardiography", 120],
+  ["Stress Echocardiography", 150],
+  ["Transesophageal Echo (TEE)", 120],
+
+  // â”€â”€ CARDIOLOGY â€” VASCULAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ["Carotid Doppler", 90],
+  ["Peripheral Doppler", 90],
+  ["Venous Doppler", 90],
+  ["Arterial Doppler", 90],
+  ["Nuclear Myocardial Perfusion Imaging", 480],
+  ["Electrophysiology Study (EPS)", 240],
+];
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ALTERNATE NAME ALIASES
+// Some tests exist in DB under slightly different names.
+// Each entry: [canonical name in TAT_CATALOG, ...aliases to also try]
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const ALIASES: Record&lt;string, string[]&gt; = {
+  "Full Blood Count":                         ["Full Blood Count (FBC)", "FBC", "Complete Blood Count", "CBC"],
+  "Hepatitis B Surface Antigen (HBsAg)":      ["HBsAg", "Hepatitis B Surface Antigen", "HBsAg Rapid Test"],
+  "Liver Function Test":                      ["Liver Function Tests", "LFT"],
+  "Kidney Function Test":                     ["Kidney Function Tests", "KFT", "Renal Function Test"],
+  "Malaria Parasite":                         ["Malaria Parasites", "MP", "Malaria RDT"],
+  "Malaria Parasites (MP)":                   ["Malaria Parasites (MP)", "Malaria Parasite"],
+  "HIV Screening":                            ["HIV Screen", "HIV Test", "HIV 1&amp;2 Screening"],
+  "HIV 1 &amp; II Confirmatory Test":             ["HIV 1 &amp; 2 Confirmatory", "HIV Confirmatory", "HIV Western Blot"],
+  "Widal Test":                               ["Widal", "Widal Agglutination Test"],
+  "Urine M/C/S":                             ["Urine Culture", "Urine MCS", "Urine Culture/Sensitivity", "Urinalysis M/C/S"],
+  "Stool M/C/S":                             ["Stool Culture", "Stool MCS"],
+  "Sputum M/C/S":                            ["Sputum Culture", "Sputum MCS"],
+  "Blood Culture/Sensitivity":               ["Blood Culture", "Blood C/S", "Blood Culture Sensitivity"],
+  "High Vaginal Swab (HVS) M/C/S":          ["HVS M/C/S", "HVS Culture", "HVS MCS"],
+  "Endocervical Swab (ECS) M/C/S":          ["ECS M/C/S", "ECS Culture", "Endocervical Swab"],
+  "Urethral Swab M/C/S":                    ["Urethral Swab Culture"],
+  "Semen M/C/S":                            ["Semen Culture"],
+  "Skin/Nail Scraping M/C/S":              ["Skin Scraping MCS", "Nail Scraping Culture"],
+  "Other Swabs/Fluid M/C/S":              ["Wound Swab MCS", "Fluid Culture"],
+  "Faecal Occult Blood (FOB)":             ["FOB", "Faecal Occult Blood", "Fecal Occult Blood"],
+  "Typhoid IgM/IgG Rapid Test":           ["Typhoid Rapid Test", "Typhoid IgM", "Typhoid IgG"],
+  "H. Pylori Antibody (Serum)":           ["H Pylori Antibody", "Helicobacter Pylori Antibody", "H. Pylori Serum"],
+  "H. Pylori Antigen (Stool)":            ["H Pylori Antigen", "Helicobacter Pylori Stool Antigen"],
+  "H. Pylori Screening":                  ["H Pylori Screen", "Helicobacter Pylori Screening", "H. Pylori Test"],
+  "Bleeding Time &amp; Clotting Time":        ["Bleeding Time and Clotting Time", "BT/CT", "BTCT"],
+  "Prothrombin Time":                     ["PT", "PT/INR", "INR"],
+  "Fasting Blood Sugar":                  ["FBS", "Fasting Glucose"],
+  "Random Blood Sugar":                   ["RBS", "Random Glucose", "RBG"],
+  "Prostate Specific Antigen (PSA)":      ["PSA Total", "Total PSA", "PSA"],
+  "Prostate Specific Antigen (Free)":     ["Free PSA", "PSA Free"],
+  "HBV DNA Viral Load":                   ["HBV DNA", "Hepatitis B DNA Viral Load"],
+  "HCV RNA Viral Load":                   ["HCV RNA", "Hepatitis C RNA Viral Load"],
+  "CD4 T Cell Count":                     ["CD4 Count", "CD4"],
+  "CD4 T Cell Percentage":                ["CD4 Percent", "CD4%"],
+  "CD8 T Cell Count":                     ["CD8 Count", "CD8"],
+  "Resting ECG (12-lead)":               ["ECG", "12-Lead ECG", "Electrocardiogram", "EKG"],
+  "2D Echocardiography":                  ["Echo", "2D Echo", "Echocardiogram", "TTE"],
+  "Chest X-Ray (PA)":                     ["CXR PA", "Chest PA", "CXR (PA)"],
+  "Chest X-Ray (AP)":                     ["CXR AP", "Chest AP", "CXR (AP)"],
+  "Abdominal Ultrasound":                 ["Abdominal Scan", "USS Abdomen"],
+  "Pelvic Ultrasound":                    ["Pelvic Scan", "USS Pelvis"],
+  "Obstetric Ultrasound":                 ["Obstetric Scan", "Antenatal Scan", "ANC Scan"],
+  "Thyroid Stimulating Hormone (TSH)":    ["TSH", "Thyroid Stimulating Hormone"],
+  "Anti-Mullerian Hormone (AMH)":         ["AMH"],
+  "Oestrogen (E2)":                       ["Estradiol", "E2", "Oestrogen"],
+  "Follicle Stimulating Hormone (FSH)":   ["FSH"],
+  "Luteinizing Hormone (LH)":             ["LH"],
+  "Human Chorionic Gonadotropin (B-HCG)": ["Beta HCG", "B-HCG", "Serum HCG", "hCG"],
+  "Dehydroepiandrosterone Sulfate (DHEA-S)": ["DHEA-S", "DHEAS"],
+  "Adrenocorticotropic Hormone (ACTH)":   ["ACTH"],
+  "Brain Natriuretic Peptide (NT-proBNP)": ["NT-proBNP", "BNP", "NT proBNP"],
+  "Carcinoembryonic Antigen (CEA)":       ["CEA"],
+  "Alpha-Fetoprotein (AFP)":              ["AFP"],
+  "CA-125 Test":                          ["CA-125", "CA125"],
+  "Anti Nuclear Antibody (ANA)":          ["ANA"],
+  "Double Stranded DNA Test (ds-DNA)":    ["dsDNA", "ds-DNA", "Anti-dsDNA"],
+  "Total Iron Binding Capacity (TIBC)":   ["TIBC"],
+  "MRCP (MR Cholangiopancreatography)":   ["MRCP"],
+  "MRA Brain (TOF)":                      ["MRA Brain", "MRA"],
+  "Nuclear Myocardial Perfusion Imaging": ["MPI", "MIBI Scan", "Thallium Scan"],
+  "Electrophysiology Study (EPS)":        ["EPS"],
+  "CT Pulmonary Angiogram (CTPA)":        ["CTPA"],
+  "CT Coronary Angiography (CTCA)":       ["CTCA", "Coronary CT"],
+  "Comprehensive Metabolic Panel (CMP)":  ["CMP"],
+  "Intravenous Urography (IVU)":          ["IVU", "IVP"],
+  "Hysterosalpingography (HSG)":          ["HSG"],
+  "Micturating Cystourethrogram (MCU)":   ["MCU", "MCUG", "VCUG"],
+};
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// RESULT TRACKING
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+interface TestResult {
+  catalogName:   string;
+  matchedName:   string | null;
+  oldTat:        number | null;
+  newTat:        number;
+  status:        "UPDATED" | "SKIPPED" | "MISSING" | "ERROR";
+  errorMessage?: string;
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// HELPERS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function delay(ms: number): Promise&lt;void&gt; {
+  return new Promise((resolve) =&gt; setTimeout(resolve, ms));
+}
+
+/**
+ * Build the org filter clause for Prisma WHERE conditions.
+ * Returns an empty object if TARGET_ORG_ID is null (no restriction).
+ */
+function orgFilter(): Record&lt;string, unknown&gt; {
+  if (TARGET_ORG_ID === null) return {};
+  return { organizationId: TARGET_ORG_ID };
+}
+
+/**
+ * Fetch the first matching DiagnosticTest record for a given name.
+ * Applies TARGET_ORG_ID scoping if set.
+ * Returns null if not found.
+ */
+async function findExistingRecord(
+  name: string,
+  attempt = 0
+): Promise&lt;{ id: string; name: string; turnaroundMinutes: number | null } | null&gt; {
+  try {
+    const record = await prisma.diagnosticTest.findFirst({
+      where: {
+        name: { equals: name, mode: "insensitive" },
+        ...orgFilter(),
+      },
+      select: {
+        id: true,
+        name: true,
+        turnaroundMinutes: true,
+      },
+    });
+    return record ?? null;
+  } catch (err: unknown) {
+    if (attempt &lt; 3) {
+      await delay(500 * (attempt + 1));
+      return findExistingRecord(name, attempt + 1);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Execute the TAT update for a specific record by ID.
+ * Only called when DRY_RUN = false and value has actually changed.
+ * Retries up to 3 times on transient failure.
+ */
+async function performUpdate(
+  id: string,
+  tat: number,
+  attempt = 0
+): Promise&lt;void&gt; {
+  try {
+    await prisma.diagnosticTest.update({
+      where: { id },
+      data: { turnaroundMinutes: tat },
+    });
+  } catch (err: unknown) {
+    if (attempt &lt; 3) {
+      await delay(500 * (attempt + 1));
+      return performUpdate(id, tat, attempt + 1);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Process a single catalog entry:
+ * 1. Try canonical name first, then aliases.
+ * 2. Fetch existing record.
+ * 3. Compare old vs new TAT.
+ * 4. Skip if unchanged. Update if changed (unless DRY_RUN).
+ * 5. Always returns a TestResult â€” never throws.
+ */
+async function processEntry(
+  catalogName: string,
+  newTat: number
+): Promise&lt;TestResult&gt; {
+  const namesToTry: string[] = [catalogName, ...(ALIASES[catalogName] ?? [])];
+
+  let existingRecord: { id: string; name: string; turnaroundMinutes: number | null } | null = null;
+  let matchedName: string | null = null;
+
+  // â”€â”€ Step 1: Find matching record in DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  for (const nameAttempt of namesToTry) {
+    try {
+      existingRecord = await findExistingRecord(nameAttempt);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        catalogName,
+        matchedName: null,
+        oldTat: null,
+        newTat,
+        status: "ERROR",
+        errorMessage: `DB lookup failed for "${nameAttempt}": ${message}`,
+      };
+    }
+
+    if (existingRecord !== null) {
+      matchedName = existingRecord.name;
+      break;
+    }
+  }
+
+  // â”€â”€ Step 2: Handle missing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (existingRecord === null || matchedName === null) {
+    return {
+      catalogName,
+      matchedName: null,
+      oldTat: null,
+      newTat,
+      status: "MISSING",
+    };
+  }
+
+  const oldTat = existingRecord.turnaroundMinutes ?? null;
+
+  // â”€â”€ Step 3: Skip if value unchanged â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (oldTat === newTat) {
+    return {
+      catalogName,
+      matchedName,
+      oldTat,
+      newTat,
+      status: "SKIPPED",
+    };
+  }
+
+  // â”€â”€ Step 4: Update (or simulate in dry-run) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (!DRY_RUN) {
+    try {
+      await performUpdate(existingRecord.id, newTat);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        catalogName,
+        matchedName,
+        oldTat,
+        newTat,
+        status: "ERROR",
+        errorMessage: `Update failed for "${matchedName}" (id: ${existingRecord.id}): ${message}`,
+      };
+    }
+  }
+
+  return {
+    catalogName,
+    matchedName,
+    oldTat,
+    newTat,
+    status: "UPDATED",
+  };
+}
+
+/**
+ * Print a single result line to stdout.
+ */
+function logResult(result: TestResult): void {
+  const label    = result.matchedName ?? result.catalogName;
+  const oldStr   = result.oldTat !== null ? `${result.oldTat} min` : "null";
+  const newStr   = `${result.newTat} min`;
+
+  switch (result.status) {
+    case "UPDATED":
+      console.log(`  [${DRY_RUN ? "DRY-RUN: WOULD UPDATE" : "UPDATED"}] ${label} â†’ ${oldStr} â†’ ${newStr}`);
+      break;
+    case "SKIPPED":
+      console.log(`  [SKIPPED]  ${label} â†’ already ${newStr}`);
+      break;
+    case "MISSING":
+      console.warn(`  [MISSING]  "${result.catalogName}" â€” not found in DB`);
+      break;
+    case "ERROR":
+      console.error(`  [ERROR]    ${label} â€” ${result.errorMessage ?? "unknown error"}`);
+      break;
+  }
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// MAIN
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+async function main(): Promise&lt;void&gt; {
+  console.log("=".repeat(70));
+  console.log("DiagSync â€” TAT Bulk Update (Production-Safe)");
+  console.log("=".repeat(70));
+  console.log(`Mode             : ${DRY_RUN ? "âš   DRY RUN â€” No DB writes will occur" : "ðŸ”´ LIVE â€” Writing to database"}`);
+  console.log(`Target Org       : ${TARGET_ORG_ID ?? "ALL organisations"}`);
+  console.log(`Total in catalog : ${TAT_CATALOG.length}`);
+  console.log(`Timestamp        : ${new Date().toISOString()}`);
+  console.log("=".repeat(70));
+  console.log("");
+
+  // â”€â”€ Counters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  let totalProcessed = 0;
+  let totalUpdated   = 0;
+  let totalSkipped   = 0;
+  let totalMissing   = 0;
+  let totalErrors    = 0;
+
+  const missingList: string[] = [];
+  const errorList:   TestResult[] = [];
+
+  // â”€â”€ Batch processing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const BATCH_SIZE = 25;
+
+  for (let i = 0; i &lt; TAT_CATALOG.length; i += BATCH_SIZE) {
+    const batch      = TAT_CATALOG.slice(i, i + BATCH_SIZE);
+    const batchNum   = Math.floor(i / BATCH_SIZE) + 1;
+    const totalBatches = Math.ceil(TAT_CATALOG.length / BATCH_SIZE);
+    const batchEnd   = Math.min(i + BATCH_SIZE, TAT_CATALOG.length);
+
+    console.log(`â”€â”€ Batch ${String(batchNum).padStart(2, "0")}/${totalBatches}  (tests ${i + 1}â€“${batchEnd}) ${"â”€".repeat(35)}`);
+
+    // Process all entries in this batch concurrently.
+    // Each processEntry() is fully self-contained and never throws.
+    const results = await Promise.all(
+      batch.map(([name, tat]) =&gt; processEntry(name, tat))
+    );
+
+    // Log and count each result
+    for (const result of results) {
+      totalProcessed++;
+      logResult(result);
+
+      switch (result.status) {
+        case "UPDATED": totalUpdated++;                          break;
+        case "SKIPPED": totalSkipped++;                          break;
+        case "MISSING": totalMissing++; missingList.push(result.catalogName); break;
+        case "ERROR":   totalErrors++;  errorList.push(result);               break;
+      }
+    }
+
+    console.log("");
+
+    // Pause between batches to avoid DB connection overload
+    if (i + BATCH_SIZE &lt; TAT_CATALOG.length) {
+      await delay(200);
+    }
+  }
+
+  // â”€â”€â”€ Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  console.log("=".repeat(70));
+  console.log("SUMMARY REPORT");
+  console.log("=".repeat(70));
+  console.log(`Mode             : ${DRY_RUN ? "DRY RUN (no writes performed)" : "LIVE"}`);
+  console.log(`Target Org       : ${TARGET_ORG_ID ?? "ALL"}`);
+  console.log(`Total processed  : ${totalProcessed}`);
+  console.log(`Total updated    : ${totalUpdated}${DRY_RUN ? " (simulated)" : ""}`);
+  console.log(`Total skipped    : ${totalSkipped}  (value already correct)`);
+  console.log(`Total missing    : ${totalMissing}  (not found in DB)`);
+  console.log(`Total errors     : ${totalErrors}`);
+  console.log("");
+
+  // â”€â”€ Missing tests detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (missingList.length &gt; 0) {
+    console.log("â”€".repeat(70));
+    console.log("MISSING TESTS â€” not found under any name or alias:");
+    console.log("â”€".repeat(70));
+    missingList.forEach((name, idx) =&gt; {
+      console.log(`  ${String(idx + 1).padStart(3, " ")}. ${name}`);
+    });
+    console.log("");
+    console.log("Possible causes:");
+    console.log("  1. Test has not been seeded yet â†’ run main seed first.");
+    console.log("  2. DB name differs from catalog â†’ add an alias entry.");
+    console.log("  3. Test belongs to a deleted or different organisation.");
+    console.log("");
+  }
+
+  // â”€â”€ Error detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (errorList.length &gt; 0) {
+    console.log("â”€".repeat(70));
+    console.log("ERRORS â€” the following tests encountered failures:");
+    console.log("â”€".repeat(70));
+    errorList.forEach((r, idx) =&gt; {
+      console.error(`  ${String(idx + 1).padStart(3, " ")}. ${r.catalogName}`);
+      console.error(`       ${r.errorMessage ?? "unknown error"}`);
+    });
+    console.log("");
+    console.log("ACTION: Investigate errors above. Re-run the script after fixing.");
+    console.log("");
+  }
+
+  // â”€â”€ Final status line â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (totalErrors === 0 &amp;&amp; totalMissing === 0) {
+    console.log("âœ… All tests matched and processed successfully.");
+  } else if (totalErrors === 0) {
+    console.log("âš   Completed with missing tests. See MISSING list above.");
+  } else {
+    console.log("âŒ Completed with errors. See ERROR list above. Do NOT mark as done.");
+  }
+
+  if (DRY_RUN) {
+    console.log("");
+    console.log("â„¹  This was a DRY RUN. Set DRY_RUN = false to apply changes.");
+  }
+
+  console.log("=".repeat(70));
+  console.log(`TAT update ${DRY_RUN ? "simulation" : "run"} complete. â€” ${new Date().toISOString()}`);
+  console.log("=".repeat(70));
+}
+
+main()
+  .then(async () =&gt; {
+    await prisma.$disconnect();
+  })
+  .catch(async (err: unknown) =&gt; {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("");
+    console.error("=".repeat(70));
+    console.error("FATAL ERROR â€” script aborted before completing.");
+    console.error(message);
+    console.error("=".repeat(70));
+    await prisma.$disconnect();
+    process.exit(1);
+  });</pre></div>
+<div class='file-block'><div class='file-header'>public/fallback-Qv7IERBdObid6sQU8-hrV.js</div><pre>(()=&gt;{"use strict";self.fallback=async e=&gt;"document"===e.destination?caches.match("/offline",{ignoreSearch:!0}):Response.error()})();</pre></div>
 <div class='file-block'><div class='file-header'>public/manifest.json</div><pre>{
   "name": "DiagSync",
   "short_name": "DiagSync",
@@ -4237,7 +5256,7 @@ main()
   ]
 }
 </pre></div>
-<div class='file-block'><div class='file-header'>public/sw.js</div><pre>if(!self.define){let e,a={};const s=(s,d)=&gt;(s=new URL(s+".js",d).href,a[s]||new Promise(a=&gt;{if("document"in self){const e=document.createElement("script");e.src=s,e.onload=a,document.head.appendChild(e)}else e=s,importScripts(s),a()}).then(()=&gt;{let e=a[s];if(!e)throw new Error(`Module ${s} didnâ€™t register its module`);return e}));self.define=(d,i)=&gt;{const n=e||("document"in self?document.currentScript.src:"")||location.href;if(a[n])return;let t={};const r=e=&gt;s(e,n),c={module:{uri:n},exports:t,require:r};a[n]=Promise.all(d.map(e=&gt;c[e]||r(e))).then(e=&gt;(i(...e),t))}}define(["./workbox-5268f9bb"],function(e){"use strict";importScripts("fallback-A9jBE7xex9dh-X1MzChjq.js"),self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"/_next/app-build-manifest.json",revision:"589217acea29dd648acbae8f830e64ea"},{url:"/_next/static/A9jBE7xex9dh-X1MzChjq/_buildManifest.js",revision:"0ea7e7088aabf697ba3d8aa8c7b54a89"},{url:"/_next/static/A9jBE7xex9dh-X1MzChjq/_ssgManifest.js",revision:"b6652df95db52feb4daf4eca35380933"},{url:"/_next/static/chunks/1718-9e06496cf6281bb9.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/2117-6248ab8a803926e9.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/2736-9f8377b65c2d9944.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/2972-d7f9b35a010ac3d8.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/5878-51910f4ce925886c.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/5898-5459377e6fbc9b48.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/5945-ff2e68e2dd489b63.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/6137-de267f975f27b52e.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/6547-c80170d839b70909.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/7526-2941b8a7b9d63709.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/8778-a7f1f2fd54c7181e.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/8989-261cee64e802debc.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/932-0d50caa7640cbb0a.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/analytics/page-2737ca61567b98ee.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/dashboard/page-03b3cc050613291f.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/labs/%5Bid%5D/page-bbf13a09159f20d8.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/labs/page-63f30225c4e4ee04.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/layout-b36a5cc6e335f722.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/loading-ca3f55463774615a.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/page-7ea3cd4e907a4afc.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/users/page-fc06f2241a3d31d9.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(auth)/layout-d24397c8277347da.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(auth)/login/page-78efb85392b16af4.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(auth)/register/page-57691950ac11fe7f.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/billing/page-9193ba2b6b87b806.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/analytics/page-944a213bfc6760d1.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/audit/page-7230e08e78977c0a.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/consultation/page-17612f8f0cadd6f7.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/notifications/page-6d8401068ba7ee0a.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/operations/page-ad7d5c0b87b3632f.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/page-0c9e185501c8b078.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/release/page-27516127472847a1.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/settings/page-be847f3c2a5ddb08.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/%5Bid%5D/page-1f429f5232c69ba3.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/new/page-ee191728a7176021.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/page-b6d5c85b78c17671.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/tests/page-e1662b3edfde3a72.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/notifications/page-de492e1cda53cfd8.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/page-4b520c59e13bdd8b.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/queue/page-78bdf233462c14fe.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/results/page-fb5d17069e83c7a3.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/loading-dd0787342e05e577.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/approved/page-d1ec75d045d0f052.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/consultation/page-0babefc40c1a5ddb.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/notifications/page-8f2fa8ef24d20125.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/page-d0cfda1bab6425bc.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/reports/page-c64873dec5828cea.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/review/page-1d58385551f3ef3b.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/page-096f773129a00ed7.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/notifications/page-738da60f4850849b.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/page-aa0c5d57f2271e6d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/queue/page-87e81de192b4fc44.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/reports/page-4f84ea8dca829f08.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/consultation/page-f94d9e4034a6ae66.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/new-patient/page-7046cdb40a39f4c4.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/notifications/page-602c6120b7ef544a.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/page-6de340b3900bc219.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/%5BpatientId%5D/edit/page-733bbd9d3b05f18e.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/page-99bca0d10695b85c.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/release/page-6a34d6c21551092d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/error-75e2a57f15a66f59.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/insights/reports/loading-c1477338e83f5efd.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/insights/reports/page-c1e20be3033be0d6.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/layout-f2c42f7f58879810.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/loading-6dfbf27b1edadf7b.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/patients/%5Bid%5D/page-d3f3088603b94b0d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/_not-found/page-42f244592ba1dc0d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/error-c77673c4d9bf4c49.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/global-error-0e83b7331b1f188c.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/layout-ec1b5a22fea6bb85.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/not-found-0ae8d22730a0a5dd.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/offline/page-24798d59c3d0991c.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/page-b7e27963907821d4.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/public/reports/%5Btoken%5D/page-632669d1cf35473d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/fd9d1056-8d69396482e34025.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/framework-a63c59c368572696.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/main-96f403ee7b28f4ac.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/main-app-2877bb5658641a8d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/pages/_app-78ddf957b9a9b996.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/pages/_error-7ce03bcf1df914ce.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/polyfills-42372ed130431b0a.js",revision:"846118c33b2c0e922d7b3a7676f81f6f"},{url:"/_next/static/chunks/webpack-e96e1091b6e3d5e0.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/css/f868d8ebbd453598.css",revision:"f868d8ebbd453598"},{url:"/_next/static/media/19cfc7226ec3afaa-s.woff2",revision:"9dda5cfc9a46f256d0e131bb535e46f8"},{url:"/_next/static/media/21350d82a1f187e9-s.woff2",revision:"4e2553027f1d60eff32898367dd4d541"},{url:"/_next/static/media/8e9860b6e62d6359-s.woff2",revision:"01ba6c2a184b8cba08b0d57167664d75"},{url:"/_next/static/media/ba9851c3c22cd980-s.woff2",revision:"9e494903d6b0ffec1a1e14d34427d44d"},{url:"/_next/static/media/c5fe6dc8356a8c31-s.woff2",revision:"027a89e9ab733a145db70f09b8a18b42"},{url:"/_next/static/media/df0a9ae256c0569c-s.woff2",revision:"d54db44de5ccb18886ece2fda72bdfe0"},{url:"/_next/static/media/e4af272ccee01ff0-s.p.woff2",revision:"65850a373e258f1c897a2b3d75eb74de"},{url:"/diagsync-logo.png",revision:"77e9c567b2a574379952fca17baf6e35"},{url:"/diagsync-watermark.png",revision:"aeff36c86804a6d13167bef4500ec421"},{url:"/icons/icon-192.png",revision:"cde0b3a52915e1aff301981f4779e52b"},{url:"/icons/icon-512.png",revision:"49194c78838f3f11eb491c3253dbfdbc"},{url:"/manifest.json",revision:"8bdaaa3cc85732dcb12359430cd0e4ef"},{url:"/offline",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/splash-screen.png",revision:"febe7eb192dd065880036523e3d1a075"}],{ignoreURLParametersMatching:[]}),e.cleanupOutdatedCaches(),e.registerRoute("/",new e.NetworkFirst({cacheName:"start-url",plugins:[{cacheWillUpdate:async({request:e,response:a,event:s,state:d})=&gt;a&amp;&amp;"opaqueredirect"===a.type?new Response(a.body,{status:200,statusText:"OK",headers:a.headers}):a},{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"document"===e.destination,new e.NetworkFirst({cacheName:"pages-cache",networkTimeoutSeconds:5,plugins:[new e.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({url:e})=&gt;e.pathname.startsWith("/_next/static/"),new e.StaleWhileRevalidate({cacheName:"next-static-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"image"===e.destination,new e.CacheFirst({cacheName:"image-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"style"===e.destination||"script"===e.destination,new e.StaleWhileRevalidate({cacheName:"asset-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({url:e})=&gt;e.pathname.startsWith("/api/"),new e.NetworkOnly({cacheName:"api-no-cache",plugins:[{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET")});
+<div class='file-block'><div class='file-header'>public/sw.js</div><pre>if(!self.define){let s,a={};const e=(e,i)=&gt;(e=new URL(e+".js",i).href,a[e]||new Promise(a=&gt;{if("document"in self){const s=document.createElement("script");s.src=e,s.onload=a,document.head.appendChild(s)}else s=e,importScripts(e),a()}).then(()=&gt;{let s=a[e];if(!s)throw new Error(`Module ${e} didnâ€™t register its module`);return s}));self.define=(i,d)=&gt;{const r=s||("document"in self?document.currentScript.src:"")||location.href;if(a[r])return;let n={};const t=s=&gt;e(s,r),c={module:{uri:r},exports:n,require:t};a[r]=Promise.all(i.map(s=&gt;c[s]||t(s))).then(s=&gt;(d(...s),n))}}define(["./workbox-5268f9bb"],function(s){"use strict";importScripts("fallback-Qv7IERBdObid6sQU8-hrV.js"),self.skipWaiting(),s.clientsClaim(),s.precacheAndRoute([{url:"/_next/app-build-manifest.json",revision:"2cecb0c07991bf562a6fd6bd89d7932e"},{url:"/_next/static/Qv7IERBdObid6sQU8-hrV/_buildManifest.js",revision:"0ea7e7088aabf697ba3d8aa8c7b54a89"},{url:"/_next/static/Qv7IERBdObid6sQU8-hrV/_ssgManifest.js",revision:"b6652df95db52feb4daf4eca35380933"},{url:"/_next/static/chunks/1718-fb724b48d076f377.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/2117-6248ab8a803926e9.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/2736-36566c17bf778401.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/2972-d7f9b35a010ac3d8.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/3e344cd8-0f991720fe9d9bba.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/5878-51910f4ce925886c.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/5898-590ff9025282abe7.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/5945-0ae65c569b97db77.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/6137-de267f975f27b52e.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/6547-c80170d839b70909.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/7526-2941b8a7b9d63709.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/8778-52160fc8efd04c25.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/8989-261cee64e802debc.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/932-8a254be1e395d5ba.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/9630-f247ccbb854122ad.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(admin)/admin/analytics/page-a4d620312b146bdf.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(admin)/admin/dashboard/page-a8c4a2cfc1a706a8.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(admin)/admin/labs/%5Bid%5D/page-74ce7ee117edb826.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(admin)/admin/labs/page-85b0d09a5697625c.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(admin)/admin/layout-aeededac514b090d.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(admin)/admin/loading-ad6323aa882f3ed7.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(admin)/admin/page-ffa7a24b04eab7a8.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(admin)/admin/rankings/page-6a471337fc2e8745.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(admin)/admin/users/page-45c79b9ef43cbab3.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(auth)/layout-704e8710201ebefe.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(auth)/login/page-78efb85392b16af4.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(auth)/register/page-dbae819f052ec9d7.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/billing/page-9193ba2b6b87b806.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/analytics/page-545f6079c961bf0b.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/audit/page-9cff9ebe4ec1f2f1.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/consultation/page-17612f8f0cadd6f7.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/notifications/page-61681a90c7170248.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/operations/page-2507841d913ce5d4.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/page-3e80db1b6e49c8ce.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/release/page-27516127472847a1.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/settings/page-5ec92c8f0360b52f.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/%5Bid%5D/page-002c92bc805dce04.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/new/page-a32d5a57026096ec.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/page-9f2dd55471e63945.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/tests/page-a21e6f67b82ccc1f.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/notifications/page-0058beac7027b014.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/page-4b520c59e13bdd8b.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/queue/page-0ccd7bbe090520dc.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/results/page-02300e1bb5f7a23e.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/loading-a93bee55d81b0cd4.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/approved/page-67313a6ed1d65c46.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/consultation/page-0babefc40c1a5ddb.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/notifications/page-57245cceb9c8b445.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/page-d0cfda1bab6425bc.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/reports/page-c64873dec5828cea.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/review/page-29df6faa07872c36.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/page-a38a6dc7381d2441.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/notifications/page-16a727c057cdee70.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/page-d5c4d99ee39c57ab.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/queue/page-8eee505bcbd47155.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/reports/page-39752f6616e00e5d.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/consultation/page-f94d9e4034a6ae66.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/new-patient/page-7046cdb40a39f4c4.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/notifications/page-fb65f48d7cb74ba6.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/page-fd63cfbfbe0a7268.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/%5BpatientId%5D/edit/page-12b8da881404bfeb.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/page-99bca0d10695b85c.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/release/page-6a34d6c21551092d.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/error-75e2a57f15a66f59.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/insights/reports/loading-c291507bfabd75d7.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/insights/reports/page-3ace0827d6980f0c.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/layout-60737e70278dce26.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/loading-70a37a5f3c5378f0.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/(dashboard)/patients/%5Bid%5D/page-bddfe50cfebf09e6.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/_not-found/page-8b1b10c0df969470.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/error-c77673c4d9bf4c49.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/global-error-0e83b7331b1f188c.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/labs/%5Blocation%5D/%5Bslug%5D/loading-905dfa9b9b809fea.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/labs/%5Blocation%5D/%5Bslug%5D/page-9dc9a3981ab1c4ff.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/labs/%5Blocation%5D/loading-2c0dd96394262580.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/labs/%5Blocation%5D/page-2ea75bb2173ad4fd.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/labs/loading-c489940ee5a36203.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/labs/page-9ee491d3764e2d7d.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/layout-ec1b5a22fea6bb85.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/not-found-36a956171835452c.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/offline/page-0f1e4f8a1f4bfad5.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/page-b7e27963907821d4.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/app/public/reports/%5Btoken%5D/page-a025f5163a84660c.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/fd9d1056-8d69396482e34025.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/framework-a63c59c368572696.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/main-70ecea625e6bf0b9.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/main-app-2877bb5658641a8d.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/pages/_app-78ddf957b9a9b996.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/pages/_error-7ce03bcf1df914ce.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/chunks/polyfills-42372ed130431b0a.js",revision:"846118c33b2c0e922d7b3a7676f81f6f"},{url:"/_next/static/chunks/webpack-e96e1091b6e3d5e0.js",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/_next/static/css/0184e5c057b9bdbf.css",revision:"0184e5c057b9bdbf"},{url:"/_next/static/media/19cfc7226ec3afaa-s.woff2",revision:"9dda5cfc9a46f256d0e131bb535e46f8"},{url:"/_next/static/media/21350d82a1f187e9-s.woff2",revision:"4e2553027f1d60eff32898367dd4d541"},{url:"/_next/static/media/8e9860b6e62d6359-s.woff2",revision:"01ba6c2a184b8cba08b0d57167664d75"},{url:"/_next/static/media/ba9851c3c22cd980-s.woff2",revision:"9e494903d6b0ffec1a1e14d34427d44d"},{url:"/_next/static/media/c5fe6dc8356a8c31-s.woff2",revision:"027a89e9ab733a145db70f09b8a18b42"},{url:"/_next/static/media/df0a9ae256c0569c-s.woff2",revision:"d54db44de5ccb18886ece2fda72bdfe0"},{url:"/_next/static/media/e4af272ccee01ff0-s.p.woff2",revision:"65850a373e258f1c897a2b3d75eb74de"},{url:"/diagsync-logo.png",revision:"77e9c567b2a574379952fca17baf6e35"},{url:"/diagsync-watermark.png",revision:"aeff36c86804a6d13167bef4500ec421"},{url:"/icons/icon-192.png",revision:"cde0b3a52915e1aff301981f4779e52b"},{url:"/icons/icon-512.png",revision:"49194c78838f3f11eb491c3253dbfdbc"},{url:"/manifest.json",revision:"8bdaaa3cc85732dcb12359430cd0e4ef"},{url:"/offline",revision:"Qv7IERBdObid6sQU8-hrV"},{url:"/splash-screen.png",revision:"febe7eb192dd065880036523e3d1a075"}],{ignoreURLParametersMatching:[]}),s.cleanupOutdatedCaches(),s.registerRoute("/",new s.NetworkFirst({cacheName:"start-url",plugins:[{cacheWillUpdate:async({request:s,response:a,event:e,state:i})=&gt;a&amp;&amp;"opaqueredirect"===a.type?new Response(a.body,{status:200,statusText:"OK",headers:a.headers}):a},{handlerDidError:async({request:s})=&gt;self.fallback(s)}]}),"GET"),s.registerRoute(({request:s})=&gt;"document"===s.destination,new s.NetworkFirst({cacheName:"pages-cache",networkTimeoutSeconds:5,plugins:[new s.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400}),{handlerDidError:async({request:s})=&gt;self.fallback(s)}]}),"GET"),s.registerRoute(({url:s})=&gt;s.pathname.startsWith("/_next/static/"),new s.StaleWhileRevalidate({cacheName:"next-static-cache",plugins:[new s.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:s})=&gt;self.fallback(s)}]}),"GET"),s.registerRoute(({request:s})=&gt;"image"===s.destination,new s.CacheFirst({cacheName:"image-cache",plugins:[new s.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:s})=&gt;self.fallback(s)}]}),"GET"),s.registerRoute(({request:s})=&gt;"style"===s.destination||"script"===s.destination,new s.StaleWhileRevalidate({cacheName:"asset-cache",plugins:[new s.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:s})=&gt;self.fallback(s)}]}),"GET"),s.registerRoute(({url:s})=&gt;s.pathname.startsWith("/api/"),new s.NetworkOnly({cacheName:"api-no-cache",plugins:[{handlerDidError:async({request:s})=&gt;self.fallback(s)}]}),"GET")});
 </pre></div>
 <div class='file-block'><div class='file-header'>public/workbox-5268f9bb.js</div><pre>define(["exports"],function(t){"use strict";try{self["workbox:core:6.5.4"]&amp;&amp;_()}catch(t){}const e=(t,...e)=&gt;{let s=t;return e.length&gt;0&amp;&amp;(s+=` :: ${JSON.stringify(e)}`),s};class s extends Error{constructor(t,s){super(e(t,s)),this.name=t,this.details=s}}try{self["workbox:routing:6.5.4"]&amp;&amp;_()}catch(t){}const n=t=&gt;t&amp;&amp;"object"==typeof t?t:{handle:t};class r{constructor(t,e,s="GET"){this.handler=n(e),this.match=t,this.method=s}setCatchHandler(t){this.catchHandler=n(t)}}class i extends r{constructor(t,e,s){super(({url:e})=&gt;{const s=t.exec(e.href);if(s&amp;&amp;(e.origin===location.origin||0===s.index))return s.slice(1)},e,s)}}class a{constructor(){this.t=new Map,this.i=new Map}get routes(){return this.t}addFetchListener(){self.addEventListener("fetch",t=&gt;{const{request:e}=t,s=this.handleRequest({request:e,event:t});s&amp;&amp;t.respondWith(s)})}addCacheListener(){self.addEventListener("message",t=&gt;{if(t.data&amp;&amp;"CACHE_URLS"===t.data.type){const{payload:e}=t.data,s=Promise.all(e.urlsToCache.map(e=&gt;{"string"==typeof e&amp;&amp;(e=[e]);const s=new Request(...e);return this.handleRequest({request:s,event:t})}));t.waitUntil(s),t.ports&amp;&amp;t.ports[0]&amp;&amp;s.then(()=&gt;t.ports[0].postMessage(!0))}})}handleRequest({request:t,event:e}){const s=new URL(t.url,location.href);if(!s.protocol.startsWith("http"))return;const n=s.origin===location.origin,{params:r,route:i}=this.findMatchingRoute({event:e,request:t,sameOrigin:n,url:s});let a=i&amp;&amp;i.handler;const o=t.method;if(!a&amp;&amp;this.i.has(o)&amp;&amp;(a=this.i.get(o)),!a)return;let c;try{c=a.handle({url:s,request:t,event:e,params:r})}catch(t){c=Promise.reject(t)}const h=i&amp;&amp;i.catchHandler;return c instanceof Promise&amp;&amp;(this.o||h)&amp;&amp;(c=c.catch(async n=&gt;{if(h)try{return await h.handle({url:s,request:t,event:e,params:r})}catch(t){t instanceof Error&amp;&amp;(n=t)}if(this.o)return this.o.handle({url:s,request:t,event:e});throw n})),c}findMatchingRoute({url:t,sameOrigin:e,request:s,event:n}){const r=this.t.get(s.method)||[];for(const i of r){let r;const a=i.match({url:t,sameOrigin:e,request:s,event:n});if(a)return r=a,(Array.isArray(r)&amp;&amp;0===r.length||a.constructor===Object&amp;&amp;0===Object.keys(a).length||"boolean"==typeof a)&amp;&amp;(r=void 0),{route:i,params:r}}return{}}setDefaultHandler(t,e="GET"){this.i.set(e,n(t))}setCatchHandler(t){this.o=n(t)}registerRoute(t){this.t.has(t.method)||this.t.set(t.method,[]),this.t.get(t.method).push(t)}unregisterRoute(t){if(!this.t.has(t.method))throw new s("unregister-route-but-not-found-with-method",{method:t.method});const e=this.t.get(t.method).indexOf(t);if(!(e&gt;-1))throw new s("unregister-route-route-not-registered");this.t.get(t.method).splice(e,1)}}let o;const c=()=&gt;(o||(o=new a,o.addFetchListener(),o.addCacheListener()),o);function h(t,e,n){let a;if("string"==typeof t){const s=new URL(t,location.href);a=new r(({url:t})=&gt;t.href===s.href,e,n)}else if(t instanceof RegExp)a=new i(t,e,n);else if("function"==typeof t)a=new r(t,e,n);else{if(!(t instanceof r))throw new s("unsupported-route-type",{moduleName:"workbox-routing",funcName:"registerRoute",paramName:"capture"});a=t}return c().registerRoute(a),a}try{self["workbox:strategies:6.5.4"]&amp;&amp;_()}catch(t){}const u={cacheWillUpdate:async({response:t})=&gt;200===t.status||0===t.status?t:null},l={googleAnalytics:"googleAnalytics",precache:"precache-v2",prefix:"workbox",runtime:"runtime",suffix:"undefined"!=typeof registration?registration.scope:""},f=t=&gt;[l.prefix,t,l.suffix].filter(t=&gt;t&amp;&amp;t.length&gt;0).join("-"),w=t=&gt;t||f(l.precache),d=t=&gt;t||f(l.runtime);function p(t,e){const s=new URL(t);for(const t of e)s.searchParams.delete(t);return s.href}class y{constructor(){this.promise=new Promise((t,e)=&gt;{this.resolve=t,this.reject=e})}}const m=new Set;function g(t){return new Promise(e=&gt;setTimeout(e,t))}function R(t){return"string"==typeof t?new Request(t):t}class v{constructor(t,e){this.h={},Object.assign(this,e),this.event=e.event,this.u=t,this.l=new y,this.p=[],this.m=[...t.plugins],this.R=new Map;for(const t of this.m)this.R.set(t,{});this.event.waitUntil(this.l.promise)}async fetch(t){const{event:e}=this;let n=R(t);if("navigate"===n.mode&amp;&amp;e instanceof FetchEvent&amp;&amp;e.preloadResponse){const t=await e.preloadResponse;if(t)return t}const r=this.hasCallback("fetchDidFail")?n.clone():null;try{for(const t of this.iterateCallbacks("requestWillFetch"))n=await t({request:n.clone(),event:e})}catch(t){if(t instanceof Error)throw new s("plugin-error-request-will-fetch",{thrownErrorMessage:t.message})}const i=n.clone();try{let t;t=await fetch(n,"navigate"===n.mode?void 0:this.u.fetchOptions);for(const s of this.iterateCallbacks("fetchDidSucceed"))t=await s({event:e,request:i,response:t});return t}catch(t){throw r&amp;&amp;await this.runCallbacks("fetchDidFail",{error:t,event:e,originalRequest:r.clone(),request:i.clone()}),t}}async fetchAndCachePut(t){const e=await this.fetch(t),s=e.clone();return this.waitUntil(this.cachePut(t,s)),e}async cacheMatch(t){const e=R(t);let s;const{cacheName:n,matchOptions:r}=this.u,i=await this.getCacheKey(e,"read"),a=Object.assign(Object.assign({},r),{cacheName:n});s=await caches.match(i,a);for(const t of this.iterateCallbacks("cachedResponseWillBeUsed"))s=await t({cacheName:n,matchOptions:r,cachedResponse:s,request:i,event:this.event})||void 0;return s}async cachePut(t,e){const n=R(t);await g(0);const r=await this.getCacheKey(n,"write");if(!e)throw new s("cache-put-with-no-response",{url:(i=r.url,new URL(String(i),location.href).href.replace(new RegExp(`^${location.origin}`),""))});var i;const a=await this.v(e);if(!a)return!1;const{cacheName:o,matchOptions:c}=this.u,h=await self.caches.open(o),u=this.hasCallback("cacheDidUpdate"),l=u?await async function(t,e,s,n){const r=p(e.url,s);if(e.url===r)return t.match(e,n);const i=Object.assign(Object.assign({},n),{ignoreSearch:!0}),a=await t.keys(e,i);for(const e of a)if(r===p(e.url,s))return t.match(e,n)}(h,r.clone(),["__WB_REVISION__"],c):null;try{await h.put(r,u?a.clone():a)}catch(t){if(t instanceof Error)throw"QuotaExceededError"===t.name&amp;&amp;await async function(){for(const t of m)await t()}(),t}for(const t of this.iterateCallbacks("cacheDidUpdate"))await t({cacheName:o,oldResponse:l,newResponse:a.clone(),request:r,event:this.event});return!0}async getCacheKey(t,e){const s=`${t.url} | ${e}`;if(!this.h[s]){let n=t;for(const t of this.iterateCallbacks("cacheKeyWillBeUsed"))n=R(await t({mode:e,request:n,event:this.event,params:this.params}));this.h[s]=n}return this.h[s]}hasCallback(t){for(const e of this.u.plugins)if(t in e)return!0;return!1}async runCallbacks(t,e){for(const s of this.iterateCallbacks(t))await s(e)}*iterateCallbacks(t){for(const e of this.u.plugins)if("function"==typeof e[t]){const s=this.R.get(e),n=n=&gt;{const r=Object.assign(Object.assign({},n),{state:s});return e[t](r)};yield n}}waitUntil(t){return this.p.push(t),t}async doneWaiting(){let t;for(;t=this.p.shift();)await t}destroy(){this.l.resolve(null)}async v(t){let e=t,s=!1;for(const t of this.iterateCallbacks("cacheWillUpdate"))if(e=await t({request:this.request,response:e,event:this.event})||void 0,s=!0,!e)break;return s||e&amp;&amp;200!==e.status&amp;&amp;(e=void 0),e}}class b{constructor(t={}){this.cacheName=d(t.cacheName),this.plugins=t.plugins||[],this.fetchOptions=t.fetchOptions,this.matchOptions=t.matchOptions}handle(t){const[e]=this.handleAll(t);return e}handleAll(t){t instanceof FetchEvent&amp;&amp;(t={event:t,request:t.request});const e=t.event,s="string"==typeof t.request?new Request(t.request):t.request,n="params"in t?t.params:void 0,r=new v(this,{event:e,request:s,params:n}),i=this.q(r,s,e);return[i,this.D(i,r,s,e)]}async q(t,e,n){let r;await t.runCallbacks("handlerWillStart",{event:n,request:e});try{if(r=await this.U(e,t),!r||"error"===r.type)throw new s("no-response",{url:e.url})}catch(s){if(s instanceof Error)for(const i of t.iterateCallbacks("handlerDidError"))if(r=await i({error:s,event:n,request:e}),r)break;if(!r)throw s}for(const s of t.iterateCallbacks("handlerWillRespond"))r=await s({event:n,request:e,response:r});return r}async D(t,e,s,n){let r,i;try{r=await t}catch(i){}try{await e.runCallbacks("handlerDidRespond",{event:n,request:s,response:r}),await e.doneWaiting()}catch(t){t instanceof Error&amp;&amp;(i=t)}if(await e.runCallbacks("handlerDidComplete",{event:n,request:s,response:r,error:i}),e.destroy(),i)throw i}}function q(t){t.then(()=&gt;{})}function D(){return D=Object.assign?Object.assign.bind():function(t){for(var e=1;e&lt;arguments.length;e++){var s=arguments[e];for(var n in s)({}).hasOwnProperty.call(s,n)&amp;&amp;(t[n]=s[n])}return t},D.apply(null,arguments)}let U,x;const E=new WeakMap,I=new WeakMap,L=new WeakMap,C=new WeakMap,N=new WeakMap;let k={get(t,e,s){if(t instanceof IDBTransaction){if("done"===e)return I.get(t);if("objectStoreNames"===e)return t.objectStoreNames||L.get(t);if("store"===e)return s.objectStoreNames[1]?void 0:s.objectStore(s.objectStoreNames[0])}return T(t[e])},set:(t,e,s)=&gt;(t[e]=s,!0),has:(t,e)=&gt;t instanceof IDBTransaction&amp;&amp;("done"===e||"store"===e)||e in t};function O(t){return t!==IDBDatabase.prototype.transaction||"objectStoreNames"in IDBTransaction.prototype?(x||(x=[IDBCursor.prototype.advance,IDBCursor.prototype.continue,IDBCursor.prototype.continuePrimaryKey])).includes(t)?function(...e){return t.apply(P(this),e),T(E.get(this))}:function(...e){return T(t.apply(P(this),e))}:function(e,...s){const n=t.call(P(this),e,...s);return L.set(n,e.sort?e.sort():[e]),T(n)}}function B(t){return"function"==typeof t?O(t):(t instanceof IDBTransaction&amp;&amp;function(t){if(I.has(t))return;const e=new Promise((e,s)=&gt;{const n=()=&gt;{t.removeEventListener("complete",r),t.removeEventListener("error",i),t.removeEventListener("abort",i)},r=()=&gt;{e(),n()},i=()=&gt;{s(t.error||new DOMException("AbortError","AbortError")),n()};t.addEventListener("complete",r),t.addEventListener("error",i),t.addEventListener("abort",i)});I.set(t,e)}(t),e=t,(U||(U=[IDBDatabase,IDBObjectStore,IDBIndex,IDBCursor,IDBTransaction])).some(t=&gt;e instanceof t)?new Proxy(t,k):t);var e}function T(t){if(t instanceof IDBRequest)return function(t){const e=new Promise((e,s)=&gt;{const n=()=&gt;{t.removeEventListener("success",r),t.removeEventListener("error",i)},r=()=&gt;{e(T(t.result)),n()},i=()=&gt;{s(t.error),n()};t.addEventListener("success",r),t.addEventListener("error",i)});return e.then(e=&gt;{e instanceof IDBCursor&amp;&amp;E.set(e,t)}).catch(()=&gt;{}),N.set(e,t),e}(t);if(C.has(t))return C.get(t);const e=B(t);return e!==t&amp;&amp;(C.set(t,e),N.set(e,t)),e}const P=t=&gt;N.get(t);const M=["get","getKey","getAll","getAllKeys","count"],W=["put","add","delete","clear"],j=new Map;function S(t,e){if(!(t instanceof IDBDatabase)||e in t||"string"!=typeof e)return;if(j.get(e))return j.get(e);const s=e.replace(/FromIndex$/,""),n=e!==s,r=W.includes(s);if(!(s in(n?IDBIndex:IDBObjectStore).prototype)||!r&amp;&amp;!M.includes(s))return;const i=async function(t,...e){const i=this.transaction(t,r?"readwrite":"readonly");let a=i.store;return n&amp;&amp;(a=a.index(e.shift())),(await Promise.all([a[s](...e),r&amp;&amp;i.done]))[0]};return j.set(e,i),i}k=(t=&gt;D({},t,{get:(e,s,n)=&gt;S(e,s)||t.get(e,s,n),has:(e,s)=&gt;!!S(e,s)||t.has(e,s)}))(k);try{self["workbox:expiration:6.5.4"]&amp;&amp;_()}catch(t){}const K="cache-entries",A=t=&gt;{const e=new URL(t,location.href);return e.hash="",e.href};class F{constructor(t){this._=null,this.I=t}L(t){const e=t.createObjectStore(K,{keyPath:"id"});e.createIndex("cacheName","cacheName",{unique:!1}),e.createIndex("timestamp","timestamp",{unique:!1})}C(t){this.L(t),this.I&amp;&amp;function(t,{blocked:e}={}){const s=indexedDB.deleteDatabase(t);e&amp;&amp;s.addEventListener("blocked",t=&gt;e(t.oldVersion,t)),T(s).then(()=&gt;{})}(this.I)}async setTimestamp(t,e){const s={url:t=A(t),timestamp:e,cacheName:this.I,id:this.N(t)},n=(await this.getDb()).transaction(K,"readwrite",{durability:"relaxed"});await n.store.put(s),await n.done}async getTimestamp(t){const e=await this.getDb(),s=await e.get(K,this.N(t));return null==s?void 0:s.timestamp}async expireEntries(t,e){const s=await this.getDb();let n=await s.transaction(K).store.index("timestamp").openCursor(null,"prev");const r=[];let i=0;for(;n;){const s=n.value;s.cacheName===this.I&amp;&amp;(t&amp;&amp;s.timestamp&lt;t||e&amp;&amp;i&gt;=e?r.push(n.value):i++),n=await n.continue()}const a=[];for(const t of r)await s.delete(K,t.id),a.push(t.url);return a}N(t){return this.I+"|"+A(t)}async getDb(){return this._||(this._=await function(t,e,{blocked:s,upgrade:n,blocking:r,terminated:i}={}){const a=indexedDB.open(t,e),o=T(a);return n&amp;&amp;a.addEventListener("upgradeneeded",t=&gt;{n(T(a.result),t.oldVersion,t.newVersion,T(a.transaction),t)}),s&amp;&amp;a.addEventListener("blocked",t=&gt;s(t.oldVersion,t.newVersion,t)),o.then(t=&gt;{i&amp;&amp;t.addEventListener("close",()=&gt;i()),r&amp;&amp;t.addEventListener("versionchange",t=&gt;r(t.oldVersion,t.newVersion,t))}).catch(()=&gt;{}),o}("workbox-expiration",1,{upgrade:this.C.bind(this)})),this._}}class ${constructor(t,e={}){this.k=!1,this.O=!1,this.B=e.maxEntries,this.T=e.maxAgeSeconds,this.P=e.matchOptions,this.I=t,this.M=new F(t)}async expireEntries(){if(this.k)return void(this.O=!0);this.k=!0;const t=this.T?Date.now()-1e3*this.T:0,e=await this.M.expireEntries(t,this.B),s=await self.caches.open(this.I);for(const t of e)await s.delete(t,this.P);this.k=!1,this.O&amp;&amp;(this.O=!1,q(this.expireEntries()))}async updateTimestamp(t){await this.M.setTimestamp(t,Date.now())}async isURLExpired(t){if(this.T){const e=await this.M.getTimestamp(t),s=Date.now()-1e3*this.T;return void 0===e||e&lt;s}return!1}async delete(){this.O=!1,await this.M.expireEntries(1/0)}}function H(t,e){const s=e();return t.waitUntil(s),s}try{self["workbox:precaching:6.5.4"]&amp;&amp;_()}catch(t){}function G(t){if(!t)throw new s("add-to-cache-list-unexpected-type",{entry:t});if("string"==typeof t){const e=new URL(t,location.href);return{cacheKey:e.href,url:e.href}}const{revision:e,url:n}=t;if(!n)throw new s("add-to-cache-list-unexpected-type",{entry:t});if(!e){const t=new URL(n,location.href);return{cacheKey:t.href,url:t.href}}const r=new URL(n,location.href),i=new URL(n,location.href);return r.searchParams.set("__WB_REVISION__",e),{cacheKey:r.href,url:i.href}}class V{constructor(){this.updatedURLs=[],this.notUpdatedURLs=[],this.handlerWillStart=async({request:t,state:e})=&gt;{e&amp;&amp;(e.originalRequest=t)},this.cachedResponseWillBeUsed=async({event:t,state:e,cachedResponse:s})=&gt;{if("install"===t.type&amp;&amp;e&amp;&amp;e.originalRequest&amp;&amp;e.originalRequest instanceof Request){const t=e.originalRequest.url;s?this.notUpdatedURLs.push(t):this.updatedURLs.push(t)}return s}}}class J{constructor({precacheController:t}){this.cacheKeyWillBeUsed=async({request:t,params:e})=&gt;{const s=(null==e?void 0:e.cacheKey)||this.W.getCacheKeyForURL(t.url);return s?new Request(s,{headers:t.headers}):t},this.W=t}}let Q,z;async function X(t,e){let n=null;if(t.url){n=new URL(t.url).origin}if(n!==self.location.origin)throw new s("cross-origin-copy-response",{origin:n});const r=t.clone(),i={headers:new Headers(r.headers),status:r.status,statusText:r.statusText},a=e?e(i):i,o=function(){if(void 0===Q){const t=new Response("");if("body"in t)try{new Response(t.body),Q=!0}catch(t){Q=!1}Q=!1}return Q}()?r.body:await r.blob();return new Response(o,a)}class Y extends b{constructor(t={}){t.cacheName=w(t.cacheName),super(t),this.j=!1!==t.fallbackToNetwork,this.plugins.push(Y.copyRedirectedCacheableResponsesPlugin)}async U(t,e){const s=await e.cacheMatch(t);return s||(e.event&amp;&amp;"install"===e.event.type?await this.S(t,e):await this.K(t,e))}async K(t,e){let n;const r=e.params||{};if(!this.j)throw new s("missing-precache-entry",{cacheName:this.cacheName,url:t.url});{const s=r.integrity,i=t.integrity,a=!i||i===s;n=await e.fetch(new Request(t,{integrity:"no-cors"!==t.mode?i||s:void 0})),s&amp;&amp;a&amp;&amp;"no-cors"!==t.mode&amp;&amp;(this.A(),await e.cachePut(t,n.clone()))}return n}async S(t,e){this.A();const n=await e.fetch(t);if(!await e.cachePut(t,n.clone()))throw new s("bad-precaching-response",{url:t.url,status:n.status});return n}A(){let t=null,e=0;for(const[s,n]of this.plugins.entries())n!==Y.copyRedirectedCacheableResponsesPlugin&amp;&amp;(n===Y.defaultPrecacheCacheabilityPlugin&amp;&amp;(t=s),n.cacheWillUpdate&amp;&amp;e++);0===e?this.plugins.push(Y.defaultPrecacheCacheabilityPlugin):e&gt;1&amp;&amp;null!==t&amp;&amp;this.plugins.splice(t,1)}}Y.defaultPrecacheCacheabilityPlugin={cacheWillUpdate:async({response:t})=&gt;!t||t.status&gt;=400?null:t},Y.copyRedirectedCacheableResponsesPlugin={cacheWillUpdate:async({response:t})=&gt;t.redirected?await X(t):t};class Z{constructor({cacheName:t,plugins:e=[],fallbackToNetwork:s=!0}={}){this.F=new Map,this.$=new Map,this.H=new Map,this.u=new Y({cacheName:w(t),plugins:[...e,new J({precacheController:this})],fallbackToNetwork:s}),this.install=this.install.bind(this),this.activate=this.activate.bind(this)}get strategy(){return this.u}precache(t){this.addToCacheList(t),this.G||(self.addEventListener("install",this.install),self.addEventListener("activate",this.activate),this.G=!0)}addToCacheList(t){const e=[];for(const n of t){"string"==typeof n?e.push(n):n&amp;&amp;void 0===n.revision&amp;&amp;e.push(n.url);const{cacheKey:t,url:r}=G(n),i="string"!=typeof n&amp;&amp;n.revision?"reload":"default";if(this.F.has(r)&amp;&amp;this.F.get(r)!==t)throw new s("add-to-cache-list-conflicting-entries",{firstEntry:this.F.get(r),secondEntry:t});if("string"!=typeof n&amp;&amp;n.integrity){if(this.H.has(t)&amp;&amp;this.H.get(t)!==n.integrity)throw new s("add-to-cache-list-conflicting-integrities",{url:r});this.H.set(t,n.integrity)}if(this.F.set(r,t),this.$.set(r,i),e.length&gt;0){const t=`Workbox is precaching URLs without revision info: ${e.join(", ")}\nThis is generally NOT safe. Learn more at https://bit.ly/wb-precache`;console.warn(t)}}}install(t){return H(t,async()=&gt;{const e=new V;this.strategy.plugins.push(e);for(const[e,s]of this.F){const n=this.H.get(s),r=this.$.get(e),i=new Request(e,{integrity:n,cache:r,credentials:"same-origin"});await Promise.all(this.strategy.handleAll({params:{cacheKey:s},request:i,event:t}))}const{updatedURLs:s,notUpdatedURLs:n}=e;return{updatedURLs:s,notUpdatedURLs:n}})}activate(t){return H(t,async()=&gt;{const t=await self.caches.open(this.strategy.cacheName),e=await t.keys(),s=new Set(this.F.values()),n=[];for(const r of e)s.has(r.url)||(await t.delete(r),n.push(r.url));return{deletedURLs:n}})}getURLsToCacheKeys(){return this.F}getCachedURLs(){return[...this.F.keys()]}getCacheKeyForURL(t){const e=new URL(t,location.href);return this.F.get(e.href)}getIntegrityForCacheKey(t){return this.H.get(t)}async matchPrecache(t){const e=t instanceof Request?t.url:t,s=this.getCacheKeyForURL(e);if(s){return(await self.caches.open(this.strategy.cacheName)).match(s)}}createHandlerBoundToURL(t){const e=this.getCacheKeyForURL(t);if(!e)throw new s("non-precached-url",{url:t});return s=&gt;(s.request=new Request(t),s.params=Object.assign({cacheKey:e},s.params),this.strategy.handle(s))}}const tt=()=&gt;(z||(z=new Z),z);class et extends r{constructor(t,e){super(({request:s})=&gt;{const n=t.getURLsToCacheKeys();for(const r of function*(t,{ignoreURLParametersMatching:e=[/^utm_/,/^fbclid$/],directoryIndex:s="index.html",cleanURLs:n=!0,urlManipulation:r}={}){const i=new URL(t,location.href);i.hash="",yield i.href;const a=function(t,e=[]){for(const s of[...t.searchParams.keys()])e.some(t=&gt;t.test(s))&amp;&amp;t.searchParams.delete(s);return t}(i,e);if(yield a.href,s&amp;&amp;a.pathname.endsWith("/")){const t=new URL(a.href);t.pathname+=s,yield t.href}if(n){const t=new URL(a.href);t.pathname+=".html",yield t.href}if(r){const t=r({url:i});for(const e of t)yield e.href}}(s.url,e)){const e=n.get(r);if(e){return{cacheKey:e,integrity:t.getIntegrityForCacheKey(e)}}}},t.strategy)}}t.CacheFirst=class extends b{async U(t,e){let n,r=await e.cacheMatch(t);if(!r)try{r=await e.fetchAndCachePut(t)}catch(t){t instanceof Error&amp;&amp;(n=t)}if(!r)throw new s("no-response",{url:t.url,error:n});return r}},t.ExpirationPlugin=class{constructor(t={}){this.cachedResponseWillBeUsed=async({event:t,request:e,cacheName:s,cachedResponse:n})=&gt;{if(!n)return null;const r=this.V(n),i=this.J(s);q(i.expireEntries());const a=i.updateTimestamp(e.url);if(t)try{t.waitUntil(a)}catch(t){}return r?n:null},this.cacheDidUpdate=async({cacheName:t,request:e})=&gt;{const s=this.J(t);await s.updateTimestamp(e.url),await s.expireEntries()},this.X=t,this.T=t.maxAgeSeconds,this.Y=new Map,t.purgeOnQuotaError&amp;&amp;function(t){m.add(t)}(()=&gt;this.deleteCacheAndMetadata())}J(t){if(t===d())throw new s("expire-custom-caches-only");let e=this.Y.get(t);return e||(e=new $(t,this.X),this.Y.set(t,e)),e}V(t){if(!this.T)return!0;const e=this.Z(t);if(null===e)return!0;return e&gt;=Date.now()-1e3*this.T}Z(t){if(!t.headers.has("date"))return null;const e=t.headers.get("date"),s=new Date(e).getTime();return isNaN(s)?null:s}async deleteCacheAndMetadata(){for(const[t,e]of this.Y)await self.caches.delete(t),await e.delete();this.Y=new Map}},t.NetworkFirst=class extends b{constructor(t={}){super(t),this.plugins.some(t=&gt;"cacheWillUpdate"in t)||this.plugins.unshift(u),this.tt=t.networkTimeoutSeconds||0}async U(t,e){const n=[],r=[];let i;if(this.tt){const{id:s,promise:a}=this.et({request:t,logs:n,handler:e});i=s,r.push(a)}const a=this.st({timeoutId:i,request:t,logs:n,handler:e});r.push(a);const o=await e.waitUntil((async()=&gt;await e.waitUntil(Promise.race(r))||await a)());if(!o)throw new s("no-response",{url:t.url});return o}et({request:t,logs:e,handler:s}){let n;return{promise:new Promise(e=&gt;{n=setTimeout(async()=&gt;{e(await s.cacheMatch(t))},1e3*this.tt)}),id:n}}async st({timeoutId:t,request:e,logs:s,handler:n}){let r,i;try{i=await n.fetchAndCachePut(e)}catch(t){t instanceof Error&amp;&amp;(r=t)}return t&amp;&amp;clearTimeout(t),!r&amp;&amp;i||(i=await n.cacheMatch(e)),i}},t.NetworkOnly=class extends b{constructor(t={}){super(t),this.tt=t.networkTimeoutSeconds||0}async U(t,e){let n,r;try{const s=[e.fetch(t)];if(this.tt){const t=g(1e3*this.tt);s.push(t)}if(r=await Promise.race(s),!r)throw new Error(`Timed out the network response after ${this.tt} seconds.`)}catch(t){t instanceof Error&amp;&amp;(n=t)}if(!r)throw new s("no-response",{url:t.url,error:n});return r}},t.StaleWhileRevalidate=class extends b{constructor(t={}){super(t),this.plugins.some(t=&gt;"cacheWillUpdate"in t)||this.plugins.unshift(u)}async U(t,e){const n=e.fetchAndCachePut(t).catch(()=&gt;{});e.waitUntil(n);let r,i=await e.cacheMatch(t);if(i);else try{i=await n}catch(t){t instanceof Error&amp;&amp;(r=t)}if(!i)throw new s("no-response",{url:t.url,error:r});return i}},t.cleanupOutdatedCaches=function(){self.addEventListener("activate",t=&gt;{const e=w();t.waitUntil((async(t,e="-precache-")=&gt;{const s=(await self.caches.keys()).filter(s=&gt;s.includes(e)&amp;&amp;s.includes(self.registration.scope)&amp;&amp;s!==t);return await Promise.all(s.map(t=&gt;self.caches.delete(t))),s})(e).then(t=&gt;{}))})},t.clientsClaim=function(){self.addEventListener("activate",()=&gt;self.clients.claim())},t.precacheAndRoute=function(t,e){!function(t){tt().precache(t)}(t),function(t){const e=tt();h(new et(e,t))}(e)},t.registerRoute=h});
 </pre></div>
@@ -4534,6 +5553,8 @@ import { setOrganizationStatus } from "@/lib/admin-data";
 import { prisma } from "@/lib/prisma";
 import { syncFullTestCatalogToOrganization } from "@/lib/test-catalog";
 import { revalidatePath } from "next/cache";
+import { enrichOrganizationWithAi } from "@/lib/ai/lab-enrichment";
+import { redirect } from "next/navigation";
 
 export async function suspendLabAction(formData: FormData) {
   await requireMegaAdmin();
@@ -4581,6 +5602,52 @@ export async function syncLabCatalogAction(formData: FormData) {
   await syncFullTestCatalogToOrganization(prisma, id);
   revalidatePath("/admin/labs");
   revalidatePath(`/admin/labs/${id}`);
+}
+
+export async function enrichLabProfileAction(formData: FormData) {
+  await requireMegaAdmin();
+  const id = String(formData.get("organizationId") ?? "");
+  if (!id) return;
+
+  const result = await enrichOrganizationWithAi(id);
+  revalidatePath("/admin/labs");
+  revalidatePath(`/admin/labs/${id}`);
+  revalidatePath("/labs");
+
+  const qs = new URLSearchParams();
+  if (result.ok) {
+    qs.set("ai", "success");
+    qs.set("confidence", String(result.confidence));
+  } else {
+    qs.set("ai", result.reason);
+    if ("confidence" in result &amp;&amp; typeof result.confidence === "number") {
+      qs.set("confidence", String(result.confidence));
+    }
+  }
+  redirect(`/admin/labs/${id}?${qs.toString()}`);
+}
+
+export async function forceEnrichLabProfileAction(formData: FormData) {
+  await requireMegaAdmin();
+  const id = String(formData.get("organizationId") ?? "");
+  if (!id) return;
+
+  const result = await enrichOrganizationWithAi(id, { force: true });
+  revalidatePath("/admin/labs");
+  revalidatePath(`/admin/labs/${id}`);
+  revalidatePath("/labs");
+
+  const qs = new URLSearchParams();
+  if (result.ok) {
+    qs.set("ai", "force_success");
+    qs.set("confidence", String(result.confidence));
+  } else {
+    qs.set("ai", `force_${result.reason}`);
+    if ("confidence" in result &amp;&amp; typeof result.confidence === "number") {
+      qs.set("confidence", String(result.confidence));
+    }
+  }
+  redirect(`/admin/labs/${id}?${qs.toString()}`);
 }
 
 export async function approvePaymentRequestAction(formData: FormData) {
@@ -4902,6 +5969,7 @@ const links = [
   { href: "/admin/labs", label: "Labs" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/analytics", label: "Analytics" },
+  { href: "/admin/rankings", label: "Rankings" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -4989,6 +6057,26 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
 export default function AdminIndexPage() {
   redirect("/admin/dashboard");
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(admin)/admin/rankings/page.tsx</div><pre>import { RankingsTable } from "@/components/admin/rankings-table";
+import { requireMegaAdmin } from "@/lib/admin-auth";
+import { getAllRankings, type RankingPeriod } from "@/lib/ranking/get-all-rankings";
+
+type PageProps = {
+  searchParams?: { period?: string };
+};
+
+function parsePeriod(period: string | undefined): RankingPeriod {
+  return period === "monthly" ? "monthly" : "weekly";
+}
+
+export default async function AdminRankingsPage({ searchParams }: PageProps) {
+  await requireMegaAdmin();
+  const period = parsePeriod(searchParams?.period);
+  const data = await getAllRankings(period);
+
+  return &lt;RankingsTable period={period} items={data.items} topLab={data.topLab} /&gt;;
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/(admin)/admin/users/page.tsx</div><pre>import Link from "next/link";
@@ -5292,12 +6380,16 @@ import { z } from "zod";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
+import { Country, State } from "country-state-city";
 
 const schema = z.object({
   orgName: z.string().min(2, "Organisation name is required"),
   orgEmail: z.string().email("Valid email required"),
   orgPhone: z.string().min(7, "Phone number required"),
   orgAddress: z.string().min(5, "Address required"),
+  orgCity: z.string().min(2, "City is required"),
+  orgState: z.string().min(2, "State is required"),
+  orgCountry: z.string().min(2).default("Nigeria"),
   orgContactInfo: z.string().optional(),
   // FIX: .or(z.literal("")) must come before .optional() so empty string is accepted
   orgLogo: z.string().url().or(z.literal("")).optional(),
@@ -5367,9 +6459,21 @@ export default function RegisterPage() {
   const [registered, setRegistered] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingLetterhead, setUploadingLetterhead] = useState(false);
+  const [countryQuery, setCountryQuery] = useState("");
+  const [stateQuery, setStateQuery] = useState("");
 
   const { register, setValue, watch, handleSubmit, formState: { errors, isSubmitting } } =
     useForm&lt;FormData&gt;({ resolver: zodResolver(schema) });
+  const countries = Country.getAllCountries();
+  const selectedCountryName = watch("orgCountry") || "Nigeria";
+  const selectedCountry = countries.find((c) =&gt; c.name === selectedCountryName) || null;
+  const stateOptions = selectedCountry ? State.getStatesOfCountry(selectedCountry.isoCode) : [];
+  const filteredCountries = countries.filter((c) =&gt;
+    c.name.toLowerCase().includes(countryQuery.trim().toLowerCase())
+  );
+  const filteredStates = stateOptions.filter((s) =&gt;
+    s.name.toLowerCase().includes(stateQuery.trim().toLowerCase())
+  );
 
   async function onSubmit(data: FormData) {
     setServerError("");
@@ -5466,6 +6570,59 @@ export default function RegisterPage() {
               &lt;label className={labelCls}&gt;Lab Address *&lt;/label&gt;
               &lt;input placeholder="Full lab address" {...register("orgAddress")} className={inputCls} /&gt;
               {errors.orgAddress &amp;&amp; &lt;p className={errCls}&gt;{errors.orgAddress.message}&lt;/p&gt;}
+            &lt;/div&gt;
+            &lt;div&gt;
+              &lt;label className={labelCls}&gt;City *&lt;/label&gt;
+              &lt;input placeholder="e.g. Lagos" {...register("orgCity")} className={inputCls} /&gt;
+              {errors.orgCity &amp;&amp; &lt;p className={errCls}&gt;{errors.orgCity.message}&lt;/p&gt;}
+            &lt;/div&gt;
+            &lt;div&gt;
+              &lt;label className={labelCls}&gt;State *&lt;/label&gt;
+              &lt;input
+                value={stateQuery}
+                onChange={(e) =&gt; setStateQuery(e.target.value)}
+                className={`${inputCls} mb-1`}
+                placeholder="Search state..."
+                disabled={!selectedCountry || stateOptions.length === 0}
+              /&gt;
+              &lt;select
+                {...register("orgState")}
+                className={inputCls}
+                disabled={!selectedCountry || stateOptions.length === 0}
+              &gt;
+                &lt;option value=""&gt;{selectedCountry ? "Select state" : "Select country first"}&lt;/option&gt;
+                {filteredStates.map((s) =&gt; (
+                  &lt;option key={s.isoCode} value={s.name}&gt;
+                    {s.name}
+                  &lt;/option&gt;
+                ))}
+              &lt;/select&gt;
+              {errors.orgState &amp;&amp; &lt;p className={errCls}&gt;{errors.orgState.message}&lt;/p&gt;}
+            &lt;/div&gt;
+            &lt;div className="col-span-2"&gt;
+              &lt;label className={labelCls}&gt;Country *&lt;/label&gt;
+              &lt;input
+                value={countryQuery}
+                onChange={(e) =&gt; setCountryQuery(e.target.value)}
+                className={`${inputCls} mb-1`}
+                placeholder="Search country..."
+              /&gt;
+              &lt;select
+                {...register("orgCountry")}
+                className={inputCls}
+                defaultValue="Nigeria"
+                onChange={(e) =&gt; {
+                  setValue("orgCountry", e.target.value, { shouldValidate: true });
+                  setValue("orgState", "", { shouldValidate: true });
+                }}
+              &gt;
+                {filteredCountries.map((c) =&gt; (
+                  &lt;option key={c.isoCode} value={c.name}&gt;
+                    {c.name}
+                  &lt;/option&gt;
+                ))}
+              &lt;/select&gt;
+              {errors.orgCountry &amp;&amp; &lt;p className={errCls}&gt;{errors.orgCountry.message}&lt;/p&gt;}
             &lt;/div&gt;
             &lt;div className="col-span-2"&gt;
               &lt;label className={labelCls}&gt;Additional Contact Info (optional)&lt;/label&gt;
@@ -7249,12 +8406,20 @@ export default async function MDDashboard({ searchParams }: { searchParams?: { s
           &lt;h1 className="text-base font-semibold text-slate-800"&gt;Medical Review&lt;/h1&gt;
           &lt;p className="text-xs text-slate-400 mt-0.5"&gt;Review submitted lab and radiology outputs. Approve, edit, or reject.&lt;/p&gt;
         &lt;/div&gt;
-        &lt;Link
-          href="/dashboard/md/consultation"
-          className="inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors sm:py-1.5"
-        &gt;
-          Consultation Queue
-        &lt;/Link&gt;
+        &lt;div className="flex flex-wrap items-center gap-2"&gt;
+          &lt;Link
+            href="/dashboard/receptionist/patients"
+            className="inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors sm:py-1.5"
+          &gt;
+            View Patients
+          &lt;/Link&gt;
+          &lt;Link
+            href="/dashboard/md/consultation"
+            className="inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors sm:py-1.5"
+          &gt;
+            Consultation Queue
+          &lt;/Link&gt;
+        &lt;/div&gt;
       &lt;/div&gt;
       &lt;MdStaffCallPanel callerRole={user.role} /&gt;
       &lt;MdReviewBoard initialStatus={initialStatus} viewerRole={user.role} /&gt;
@@ -8616,13 +9781,16 @@ export default async function InsightsReportsPage() {
     redirect(getDashboardPath(user.role));
   }
 
-  let reports: Awaited&lt;ReturnType&lt;typeof prisma.labInsightReport.findMany&gt;&gt; = [];
+  let reports: any[] = [];
   try {
-    reports = await prisma.labInsightReport.findMany({
-      where: { organizationId: user.organizationId },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    });
+    const labInsightReport = (prisma as any).labInsightReport;
+    if (labInsightReport?.findMany) {
+      reports = await labInsightReport.findMany({
+        where: { organizationId: user.organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      });
+    }
   } catch (error: any) {
     if (error?.code !== "P2021") {
       throw error;
@@ -8842,6 +10010,32 @@ export async function GET(req: NextRequest) {
 
   const data = await listOrganizations({ page, pageSize, search, plan, status });
   return NextResponse.json({ success: true, data });
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/admin/rankings/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { requireMegaAdminApi } from "@/lib/admin-auth";
+import { getAllRankings, type RankingPeriod } from "@/lib/ranking/get-all-rankings";
+
+export const dynamic = "force-dynamic";
+
+function parsePeriod(value: string | null): RankingPeriod {
+  return value === "monthly" ? "monthly" : "weekly";
+}
+
+export async function GET(req: NextRequest) {
+  const guard = await requireMegaAdminApi();
+  if (!guard.ok) {
+    return NextResponse.json({ success: false, error: guard.error }, { status: guard.status });
+  }
+
+  try {
+    const period = parsePeriod(new URL(req.url).searchParams.get("period"));
+    const data = await getAllRankings(period);
+    return NextResponse.json({ success: true, data });
+  } catch (error) {
+    console.error("[ADMIN_RANKINGS_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/admin/users/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
@@ -10250,13 +11444,16 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 
-    let reports: Awaited&lt;ReturnType&lt;typeof prisma.labInsightReport.findMany&gt;&gt; = [];
+    let reports: any[] = [];
     try {
-      reports = await prisma.labInsightReport.findMany({
-        where: { organizationId: user.organizationId },
-        orderBy: { createdAt: "desc" },
-        take: 30,
-      });
+      const labInsightReport = (prisma as any).labInsightReport;
+      if (labInsightReport?.findMany) {
+        reports = await labInsightReport.findMany({
+          where: { organizationId: user.organizationId },
+          orderBy: { createdAt: "desc" },
+          take: 30,
+        });
+      }
     } catch (error: any) {
       if (error?.code !== "P2021") {
         throw error;
@@ -10765,6 +11962,7 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { canUseCustomLetterhead } from "@/lib/billing-access";
 import { requireOrganizationCoreAccess } from "@/lib/billing-service";
+import { ensureUniqueOrganizationSlug } from "@/lib/slug";
 
 export const dynamic = "force-dynamic";
 
@@ -10773,6 +11971,9 @@ const bodySchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().min(7).optional(),
   address: z.string().min(5).optional(),
+  city: z.string().min(2).optional().nullable(),
+  state: z.string().min(2).optional().nullable(),
+  country: z.string().min(2).optional(),
   contactInfo: z.string().max(1000).optional().nullable(),
   logo: z.string().url().optional().nullable(),
   letterheadUrl: z.string().url().optional().nullable(),
@@ -10843,9 +12044,14 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Organization not found" }, { status: 404 });
     }
 
+    const nextSlug =
+      parsed.data.name &amp;&amp; parsed.data.name.trim() !== oldOrg.name
+        ? await ensureUniqueOrganizationSlug(parsed.data.name.trim(), oldOrg.id)
+        : oldOrg.slug;
+
     const updated = await prisma.organization.update({
       where: { id: user.organizationId },
-      data: parsed.data,
+      data: { ...parsed.data, slug: nextSlug },
     });
 
     await createAuditLog({
@@ -10858,6 +12064,9 @@ export async function PATCH(req: NextRequest) {
         name: oldOrg.name,
         phone: oldOrg.phone,
         address: oldOrg.address,
+        city: oldOrg.city,
+        state: oldOrg.state,
+        country: oldOrg.country,
         logo: oldOrg.logo,
         letterheadUrl: oldOrg.letterheadUrl,
         consultationTimeoutMinutes: oldOrg.consultationTimeoutMinutes,
@@ -10866,6 +12075,9 @@ export async function PATCH(req: NextRequest) {
         name: updated.name,
         phone: updated.phone,
         address: updated.address,
+        city: updated.city,
+        state: updated.state,
+        country: updated.country,
         logo: updated.logo,
         letterheadUrl: updated.letterheadUrl,
         consultationTimeoutMinutes: updated.consultationTimeoutMinutes,
@@ -10900,6 +12112,7 @@ import { z } from "zod";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { Role, Department } from "@prisma/client";
 import { syncFullTestCatalogToOrganization } from "@/lib/test-catalog";
+import { ensureUniqueOrganizationSlug } from "@/lib/slug";
 
 // Helper: accepts a valid URL, an empty string, null, or undefined â€” but never a non-URL string
 const optionalUrl = z
@@ -10916,6 +12129,9 @@ const registerSchema = z.object({
   orgEmail: z.string().email("Valid email required"),
   orgPhone: z.string().min(7, "Phone number required"),
   orgAddress: z.string().min(5, "Address required"),
+  orgCity: z.string().min(2, "City is required"),
+  orgState: z.string().min(2, "State is required"),
+  orgCountry: z.string().min(2).optional().default("Nigeria"),
   orgContactInfo: z.string().max(1000).optional().nullable(),
   orgLogo: optionalUrl,
   orgLetterheadUrl: optionalUrl,
@@ -10963,6 +12179,7 @@ export async function POST(req: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(data.adminPassword, 12);
+    const slug = await ensureUniqueOrganizationSlug(data.orgName);
 
     // Keep transaction short: create org + admin only
     const result = await prisma.$transaction(async (tx) =&gt; {
@@ -10977,6 +12194,10 @@ export async function POST(req: NextRequest) {
           billingLockReason: "No active subscription",
           phone: data.orgPhone,
           address: data.orgAddress,
+          city: data.orgCity,
+          state: data.orgState,
+          country: data.orgCountry || "Nigeria",
+          slug,
           contactInfo: data.orgContactInfo ?? null,
           logo: data.orgLogo ?? null,
           letterheadUrl: data.orgLetterheadUrl ?? null,
@@ -12851,6 +14072,97 @@ export default function GlobalError({
 }
 
 </pre></div>
+<div class='file-block'><div class='file-header'>src/app/labs/loading.tsx</div><pre>export default function LabsIndexLoading() {
+  return (
+    &lt;div className="mx-auto max-w-6xl px-4 py-10 sm:px-6"&gt;
+      &lt;div className="animate-pulse space-y-6"&gt;
+        &lt;div className="h-10 w-72 rounded bg-slate-200" /&gt;
+        &lt;div className="h-4 w-[32rem] rounded bg-slate-100" /&gt;
+        &lt;div className="grid grid-cols-1 gap-4 md:grid-cols-3"&gt;
+          &lt;div className="h-36 rounded-xl bg-slate-100" /&gt;
+          &lt;div className="h-36 rounded-xl bg-slate-100" /&gt;
+          &lt;div className="h-36 rounded-xl bg-slate-100" /&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/labs/page.tsx</div><pre>import Link from "next/link";
+import type { Metadata } from "next";
+import { getPublicLabLocations } from "@/lib/public-labs";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 600;
+
+export const metadata: Metadata = {
+  title: "Best Diagnostic Labs by City | DiagSync",
+  description:
+    "Discover top-ranked medical diagnostic laboratories by city, based on turnaround speed, consistency, activity, and completion performance.",
+};
+
+export default async function LabsIndexPage() {
+  const locations = await getPublicLabLocations();
+
+  return (
+    &lt;main className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100"&gt;
+      &lt;section className="mx-auto max-w-6xl px-4 py-12 sm:px-6"&gt;
+        &lt;div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"&gt;
+          &lt;p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700"&gt;DiagSync Directory&lt;/p&gt;
+          &lt;h1 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl"&gt;
+            Find The Best Diagnostic Labs By City
+          &lt;/h1&gt;
+          &lt;p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600"&gt;
+            Browse performance-ranked laboratories across cities. Rankings are updated regularly from operational
+            indicators such as turnaround reliability, consistency, activity, and completion quality.
+          &lt;/p&gt;
+          &lt;div className="mt-6 flex flex-wrap gap-3 text-xs text-slate-500"&gt;
+            &lt;span className="rounded-full bg-slate-100 px-3 py-1"&gt;Updated every 10 minutes&lt;/span&gt;
+            &lt;span className="rounded-full bg-slate-100 px-3 py-1"&gt;SEO-ready city pages&lt;/span&gt;
+            &lt;span className="rounded-full bg-slate-100 px-3 py-1"&gt;Top labs per location&lt;/span&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"&gt;
+          {locations.length === 0 ? (
+            &lt;div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500"&gt;
+              No published lab rankings available yet.
+            &lt;/div&gt;
+          ) : (
+            locations.map((location) =&gt; (
+              &lt;article
+                key={location.slug}
+                className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              &gt;
+                &lt;div className="flex items-start justify-between gap-3"&gt;
+                  &lt;h2 className="text-lg font-semibold text-slate-900"&gt;{location.city}&lt;/h2&gt;
+                  &lt;span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700"&gt;
+                    Avg {location.avgScore.toFixed(2)}
+                  &lt;/span&gt;
+                &lt;/div&gt;
+                &lt;p className="mt-2 text-sm text-slate-600"&gt;
+                  {location.count} ranked {location.count === 1 ? "lab" : "labs"} in this city.
+                &lt;/p&gt;
+                &lt;p className="mt-2 text-xs text-slate-500"&gt;
+                  Top lab: {location.topLabName ?? "N/A"} ({location.topScore.toFixed(2)})
+                &lt;/p&gt;
+                &lt;div className="mt-4"&gt;
+                  &lt;Link
+                    href={`/labs/${location.slug}`}
+                    className="inline-flex items-center rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 transition group-hover:bg-slate-50"
+                  &gt;
+                    Explore {location.city}
+                  &lt;/Link&gt;
+                &lt;/div&gt;
+              &lt;/article&gt;
+            ))
+          )}
+        &lt;/div&gt;
+      &lt;/section&gt;
+    &lt;/main&gt;
+  );
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/app/layout.tsx</div><pre>import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -13950,6 +15262,144 @@ export function AdminSignOutButton({ className }: AdminSignOutButtonProps) {
       &lt;LogOut className="h-4 w-4" /&gt;
       Logout
     &lt;/button&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/admin/rankings-table.tsx</div><pre>"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import type { RankingItem, RankingPeriod } from "@/lib/ranking/get-all-rankings";
+
+type Props = {
+  period: RankingPeriod;
+  items: RankingItem[];
+  topLab: RankingItem | null;
+};
+
+type SortKey =
+  | "labName"
+  | "city"
+  | "finalScore"
+  | "turnaroundScore"
+  | "consistencyScore"
+  | "activityScore"
+  | "healthScore"
+  | "completionScore";
+
+export function RankingsTable({ period, items, topLab }: Props) {
+  const [cityFilter, setCityFilter] = useState("ALL");
+  const [sortKey, setSortKey] = useState&lt;SortKey&gt;("finalScore");
+  const [sortDir, setSortDir] = useState&lt;"asc" | "desc"&gt;("desc");
+
+  const cities = useMemo(() =&gt; {
+    return Array.from(new Set(items.map((i) =&gt; i.city))).sort((a, b) =&gt; a.localeCompare(b));
+  }, [items]);
+
+  const filtered = useMemo(() =&gt; {
+    if (cityFilter === "ALL") return items;
+    return items.filter((item) =&gt; item.city === cityFilter);
+  }, [items, cityFilter]);
+
+  const sorted = useMemo(() =&gt; {
+    const list = [...filtered];
+    list.sort((a, b) =&gt; {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      const cmp = typeof av === "string" &amp;&amp; typeof bv === "string" ? av.localeCompare(bv) : Number(av) - Number(bv);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [filtered, sortKey, sortDir]);
+
+  function toggleSort(nextKey: SortKey) {
+    if (sortKey === nextKey) {
+      setSortDir((prev) =&gt; (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(nextKey);
+    setSortDir(nextKey === "labName" || nextKey === "city" ? "asc" : "desc");
+  }
+
+  return (
+    &lt;div className="space-y-5"&gt;
+      &lt;div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"&gt;
+        &lt;p className="text-xs uppercase tracking-wide text-gray-500"&gt;Top Lab This Week&lt;/p&gt;
+        &lt;h1 className="mt-2 text-xl font-semibold text-gray-900"&gt;{topLab?.labName ?? "No qualifying lab yet"}&lt;/h1&gt;
+        &lt;p className="mt-1 text-sm text-gray-500"&gt;
+          {topLab ? `${topLab.city} â€¢ Final Score ${topLab.finalScore.toFixed(2)}` : "Rankings require at least 20 tests per lab."}
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm"&gt;
+        &lt;div className="inline-flex rounded-lg border border-gray-200 p-1"&gt;
+          &lt;Link
+            href={`/admin/rankings?period=weekly`}
+            className={`rounded-md px-3 py-1.5 text-sm ${period === "weekly" ? "bg-blue-600 text-white" : "text-gray-600"}`}
+          &gt;
+            Weekly
+          &lt;/Link&gt;
+          &lt;Link
+            href={`/admin/rankings?period=monthly`}
+            className={`rounded-md px-3 py-1.5 text-sm ${period === "monthly" ? "bg-blue-600 text-white" : "text-gray-600"}`}
+          &gt;
+            Monthly
+          &lt;/Link&gt;
+        &lt;/div&gt;
+
+        &lt;select
+          value={cityFilter}
+          onChange={(e) =&gt; setCityFilter(e.target.value)}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        &gt;
+          &lt;option value="ALL"&gt;All Cities&lt;/option&gt;
+          {cities.map((city) =&gt; (
+            &lt;option key={city} value={city}&gt;
+              {city}
+            &lt;/option&gt;
+          ))}
+        &lt;/select&gt;
+      &lt;/div&gt;
+
+      &lt;div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm"&gt;
+        &lt;table className="min-w-[980px] w-full text-sm"&gt;
+          &lt;thead className="bg-gray-50"&gt;
+            &lt;tr className="text-left text-xs uppercase tracking-wide text-gray-500"&gt;
+              &lt;th className="px-4 py-3 cursor-pointer" onClick={() =&gt; toggleSort("labName")}&gt;Lab Name&lt;/th&gt;
+              &lt;th className="px-4 py-3 cursor-pointer" onClick={() =&gt; toggleSort("city")}&gt;City&lt;/th&gt;
+              &lt;th className="px-4 py-3 cursor-pointer" onClick={() =&gt; toggleSort("finalScore")}&gt;Final Score&lt;/th&gt;
+              &lt;th className="px-4 py-3 cursor-pointer" onClick={() =&gt; toggleSort("turnaroundScore")}&gt;Turnaround&lt;/th&gt;
+              &lt;th className="px-4 py-3 cursor-pointer" onClick={() =&gt; toggleSort("consistencyScore")}&gt;Consistency&lt;/th&gt;
+              &lt;th className="px-4 py-3 cursor-pointer" onClick={() =&gt; toggleSort("activityScore")}&gt;Activity&lt;/th&gt;
+              &lt;th className="px-4 py-3 cursor-pointer" onClick={() =&gt; toggleSort("healthScore")}&gt;Health&lt;/th&gt;
+              &lt;th className="px-4 py-3 cursor-pointer" onClick={() =&gt; toggleSort("completionScore")}&gt;Completion&lt;/th&gt;
+            &lt;/tr&gt;
+          &lt;/thead&gt;
+          &lt;tbody&gt;
+            {sorted.length === 0 ? (
+              &lt;tr&gt;
+                &lt;td colSpan={8} className="px-4 py-10 text-center text-gray-500"&gt;
+                  No rankings for the selected filter.
+                &lt;/td&gt;
+              &lt;/tr&gt;
+            ) : (
+              sorted.map((row) =&gt; (
+                &lt;tr key={row.organizationId} className="border-t border-gray-100"&gt;
+                  &lt;td className="px-4 py-3 font-medium text-gray-900"&gt;{row.labName}&lt;/td&gt;
+                  &lt;td className="px-4 py-3 text-gray-600"&gt;{row.city}&lt;/td&gt;
+                  &lt;td className="px-4 py-3 font-semibold text-blue-700"&gt;{row.finalScore.toFixed(2)}&lt;/td&gt;
+                  &lt;td className="px-4 py-3"&gt;{row.turnaroundScore.toFixed(2)}&lt;/td&gt;
+                  &lt;td className="px-4 py-3"&gt;{row.consistencyScore.toFixed(2)}&lt;/td&gt;
+                  &lt;td className="px-4 py-3"&gt;{row.activityScore.toFixed(2)}&lt;/td&gt;
+                  &lt;td className="px-4 py-3"&gt;{row.healthScore.toFixed(2)}&lt;/td&gt;
+                  &lt;td className="px-4 py-3"&gt;{row.completionScore.toFixed(2)}&lt;/td&gt;
+                &lt;/tr&gt;
+              ))
+            )}
+          &lt;/tbody&gt;
+        &lt;/table&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
   );
 }
 </pre></div>
@@ -16684,12 +18134,16 @@ export function HrmOperationsBoard({ staffOptions }: { staffOptions: StaffOption
 <div class='file-block'><div class='file-header'>src/components/hrm/lab-settings-form.tsx</div><pre>"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Country, State } from "country-state-city";
 
 type OrgSettings = {
   name: string;
   email: string;
   phone: string;
   address: string;
+  city: string;
+  state: string;
+  country: string;
   contactInfo: string;
   logo: string;
   letterheadUrl: string;
@@ -16705,6 +18159,9 @@ const emptySettings: OrgSettings = {
   email: "",
   phone: "",
   address: "",
+  city: "",
+  state: "",
+  country: "Nigeria",
   contactInfo: "",
   logo: "",
   letterheadUrl: "",
@@ -16732,6 +18189,17 @@ export function LabSettingsForm() {
   const [message, setMessage] = useState("");
   const [settings, setSettings] = useState&lt;OrgSettings&gt;(emptySettings);
   const [initialSettings, setInitialSettings] = useState&lt;OrgSettings&gt;(emptySettings);
+  const [countryQuery, setCountryQuery] = useState("");
+  const [stateQuery, setStateQuery] = useState("");
+  const countries = Country.getAllCountries();
+  const selectedCountry = countries.find((c) =&gt; c.name === settings.country) || null;
+  const stateOptions = selectedCountry ? State.getStatesOfCountry(selectedCountry.isoCode) : [];
+  const filteredCountries = countries.filter((c) =&gt;
+    c.name.toLowerCase().includes(countryQuery.trim().toLowerCase())
+  );
+  const filteredStates = stateOptions.filter((s) =&gt;
+    s.name.toLowerCase().includes(stateQuery.trim().toLowerCase())
+  );
 
   const hasChanges = useMemo(
     () =&gt; JSON.stringify(settings) !== JSON.stringify(initialSettings),
@@ -16757,6 +18225,9 @@ export function LabSettingsForm() {
         email: json.data?.email ?? "",
         phone: json.data?.phone ?? "",
         address: json.data?.address ?? "",
+        city: json.data?.city ?? "",
+        state: json.data?.state ?? "",
+        country: json.data?.country ?? "Nigeria",
         contactInfo: json.data?.contactInfo ?? "",
         logo: json.data?.logo ?? "",
         letterheadUrl: json.data?.letterheadUrl ?? "",
@@ -16809,6 +18280,9 @@ export function LabSettingsForm() {
         email: settings.email.trim(),
         phone: settings.phone.trim(),
         address: settings.address.trim(),
+        city: settings.city.trim() || null,
+        state: settings.state.trim() || null,
+        country: settings.country.trim() || "Nigeria",
         contactInfo: settings.contactInfo.trim() || null,
         logo: settings.logo.trim() || null,
         letterheadUrl: settings.letterheadUrl.trim() || null,
@@ -16832,6 +18306,9 @@ export function LabSettingsForm() {
         email: json.data?.email ?? payload.email,
         phone: json.data?.phone ?? payload.phone,
         address: json.data?.address ?? payload.address,
+        city: json.data?.city ?? payload.city ?? "",
+        state: json.data?.state ?? payload.state ?? "",
+        country: json.data?.country ?? payload.country ?? "Nigeria",
         contactInfo: json.data?.contactInfo ?? payload.contactInfo ?? "",
         logo: json.data?.logo ?? payload.logo ?? "",
         letterheadUrl: json.data?.letterheadUrl ?? payload.letterheadUrl ?? "",
@@ -16925,6 +18402,64 @@ export function LabSettingsForm() {
               className={inputCls}
               placeholder="10"
             /&gt;
+          &lt;/div&gt;
+          &lt;div&gt;
+            &lt;label className={labelCls}&gt;City&lt;/label&gt;
+            &lt;input
+              value={settings.city}
+              onChange={(e) =&gt; setSettings((prev) =&gt; ({ ...prev, city: e.target.value }))}
+              className={inputCls}
+              placeholder="e.g. Lagos"
+            /&gt;
+          &lt;/div&gt;
+          &lt;div&gt;
+            &lt;label className={labelCls}&gt;State&lt;/label&gt;
+            &lt;input
+              value={stateQuery}
+              onChange={(e) =&gt; setStateQuery(e.target.value)}
+              className={`${inputCls} mb-1`}
+              placeholder="Search state..."
+              disabled={!selectedCountry || stateOptions.length === 0}
+            /&gt;
+            &lt;select
+              value={settings.state}
+              onChange={(e) =&gt; setSettings((prev) =&gt; ({ ...prev, state: e.target.value }))}
+              className={inputCls}
+              disabled={!selectedCountry || stateOptions.length === 0}
+            &gt;
+              &lt;option value=""&gt;{selectedCountry ? "Select state" : "Select country first"}&lt;/option&gt;
+              {filteredStates.map((s) =&gt; (
+                &lt;option key={s.isoCode} value={s.name}&gt;
+                  {s.name}
+                &lt;/option&gt;
+              ))}
+            &lt;/select&gt;
+          &lt;/div&gt;
+          &lt;div&gt;
+            &lt;label className={labelCls}&gt;Country&lt;/label&gt;
+            &lt;input
+              value={countryQuery}
+              onChange={(e) =&gt; setCountryQuery(e.target.value)}
+              className={`${inputCls} mb-1`}
+              placeholder="Search country..."
+            /&gt;
+            &lt;select
+              value={settings.country}
+              onChange={(e) =&gt;
+                setSettings((prev) =&gt; ({
+                  ...prev,
+                  country: e.target.value,
+                  state: "",
+                }))
+              }
+              className={inputCls}
+            &gt;
+              {filteredCountries.map((c) =&gt; (
+                &lt;option key={c.isoCode} value={c.name}&gt;
+                  {c.name}
+                &lt;/option&gt;
+              ))}
+            &lt;/select&gt;
           &lt;/div&gt;
 
           &lt;div className="sm:col-span-2"&gt;
@@ -27801,6 +29336,7 @@ const navByRole: Record&lt;string, { href: string; label: string; icon: React.El
   ],
   MD: [
     { href: "/dashboard/md", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/dashboard/receptionist/patients", label: "Patients", icon: Users },
     { href: "/dashboard/md/review-queue", label: "Review Queue", icon: ClipboardList },
     { href: "/dashboard/md/corrections", label: "Corrections", icon: FileText },
     { href: "/dashboard/md/approved", label: "Approved Today", icon: UserCheck },
@@ -28706,6 +30242,17 @@ export async function getOrganizationDetail(organizationId: string) {
       status: true,
       phone: true,
       address: true,
+      city: true,
+      state: true,
+      country: true,
+      description: true,
+      website: true,
+      logoUrl: true,
+      images: true,
+      aiConfidence: true,
+      aiSource: true,
+      lastFetchedAt: true,
+      slug: true,
       trialStartedAt: true,
       trialEndsAt: true,
       subscriptionStartedAt: true,
@@ -28862,6 +30409,274 @@ export async function setOrganizationStatus(organizationId: string, status: Orga
       updatedAt: true,
     },
   });
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/ai/gemini.ts</div><pre>type GeminiLabData = {
+  description?: string;
+  website?: string;
+  phone?: string;
+  address?: string;
+  logoUrl?: string;
+  images?: string[];
+  source?: string;
+};
+
+function withTimeout(ms: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() =&gt; controller.abort(), ms);
+  return { controller, clear: () =&gt; clearTimeout(timer) };
+}
+
+export async function fetchLabDataWithGemini(labName: string, city?: string | null, state?: string | null) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const prompt = [
+    "Return ONLY valid JSON. No text before or after.",
+    "Find public profile details for this medical diagnostic lab.",
+    "JSON keys: description, website, phone, address, logoUrl, images, source",
+    `labName: ${labName}`,
+    `city: ${city ?? ""}`,
+    `state: ${state ?? ""}`,
+  ].join("\n");
+
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const timeout = withTimeout(10_000);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+      }),
+      signal: timeout.controller.signal,
+      cache: "no-store",
+    });
+
+    if (!res.ok) return null;
+    const payload = (await res.json()) as any;
+    const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (typeof text !== "string" || !text.trim()) return null;
+
+    try {
+      const parsed = JSON.parse(text) as GeminiLabData;
+      return parsed &amp;&amp; typeof parsed === "object" ? parsed : null;
+    } catch {
+      return null;
+    }
+  } catch {
+    return null;
+  } finally {
+    timeout.clear();
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/ai/lab-enrichment.ts</div><pre>import { prisma } from "@/lib/prisma";
+import { ensureUniqueOrganizationSlug } from "@/lib/slug";
+import { fetchLabDataWithGemini } from "./gemini";
+
+function isValidHttpUrl(value: string | null | undefined) {
+  if (!value) return false;
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function cleanDescription(value: string | null | undefined) {
+  if (!value) return "";
+  return value.trim().slice(0, 500);
+}
+
+function containsCity(address: string | null | undefined, city: string | null | undefined) {
+  if (!address || !city) return false;
+  return address.toLowerCase().includes(city.toLowerCase());
+}
+
+function computeConfidence(input: {
+  website?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  description?: string | null;
+}) {
+  let score = 0.5;
+  if (isValidHttpUrl(input.website)) score += 0.1;
+  if (input.phone &amp;&amp; /[0-9]{7,}/.test(input.phone.replace(/\D/g, ""))) score += 0.1;
+  if (containsCity(input.address, input.city)) score += 0.1;
+  if (input.description &amp;&amp; input.description.trim().length &gt; 0) score += 0.1;
+  return Math.min(1, score);
+}
+
+export async function enrichOrganizationWithAi(organizationId: string, opts?: { force?: boolean }) {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      id: true,
+      name: true,
+      city: true,
+      state: true,
+      address: true,
+      phone: true,
+      description: true,
+      website: true,
+      logoUrl: true,
+      images: true,
+      slug: true,
+      lastFetchedAt: true,
+    },
+  });
+
+  if (!org) return { ok: false as const, reason: "NOT_FOUND" as const };
+
+  const now = new Date();
+  if (!opts?.force &amp;&amp; org.lastFetchedAt &amp;&amp; now.getTime() - org.lastFetchedAt.getTime() &lt; 60 * 60 * 1000) {
+    return { ok: false as const, reason: "RATE_LIMITED" as const };
+  }
+
+  const fetched = await fetchLabDataWithGemini(org.name, org.city, org.state);
+  const nextSlug = org.slug || (await ensureUniqueOrganizationSlug(org.name, org.id));
+
+  if (!fetched) {
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { lastFetchedAt: now, slug: nextSlug },
+    });
+    return { ok: false as const, reason: "NO_AI_DATA" as const };
+  }
+
+  const cleaned = {
+    description: cleanDescription(fetched.description),
+    website: isValidHttpUrl(fetched.website) ? fetched.website!.trim() : null,
+    logoUrl: isValidHttpUrl(fetched.logoUrl) ? fetched.logoUrl!.trim() : null,
+    images: Array.isArray(fetched.images)
+      ? fetched.images.filter((v) =&gt; typeof v === "string" &amp;&amp; /^https?:\/\//i.test(v.trim())).map((v) =&gt; v.trim())
+      : [],
+    phone: typeof fetched.phone === "string" ? fetched.phone.trim() : org.phone,
+    address: typeof fetched.address === "string" ? fetched.address.trim() : org.address,
+    source: typeof fetched.source === "string" ? fetched.source.trim().slice(0, 200) : "gemini-1.5-flash",
+  };
+
+  const confidence = computeConfidence({
+    website: cleaned.website,
+    phone: cleaned.phone,
+    address: cleaned.address,
+    city: org.city,
+    description: cleaned.description,
+  });
+
+  if (confidence &gt;= 0.75) {
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: {
+        description: cleaned.description || org.description,
+        website: cleaned.website ?? org.website,
+        logoUrl: cleaned.logoUrl ?? org.logoUrl,
+        images: cleaned.images.length &gt; 0 ? cleaned.images : org.images,
+        phone: cleaned.phone || org.phone,
+        address: cleaned.address || org.address,
+        aiConfidence: confidence,
+        aiSource: cleaned.source,
+        lastFetchedAt: now,
+        slug: nextSlug,
+      },
+    });
+    return { ok: true as const, confidence };
+  }
+
+  await prisma.organization.update({
+    where: { id: org.id },
+    data: {
+      aiConfidence: confidence,
+      aiSource: cleaned.source,
+      lastFetchedAt: now,
+      slug: nextSlug,
+    },
+  });
+  return { ok: false as const, reason: "LOW_CONFIDENCE" as const, confidence };
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/analytics/activity-efficiency.ts</div><pre>import { ensureValidTimestamps } from "@/lib/utils/timestamp-safety";
+
+export type ActivityEfficiencyOrder = {
+  createdAt: Date;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  status: string;
+};
+
+export type ActivityEfficiencyResult = {
+  utilization: number;
+  growth: number;
+  activeDays: number;
+  activityScore: number;
+};
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function toDayKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+export function computeActivityEfficiencyFromData(
+  testOrders: ActivityEfficiencyOrder[],
+  previousData: ActivityEfficiencyOrder[] = []
+): ActivityEfficiencyResult {
+  const assigned = testOrders.length;
+  if (assigned === 0) {
+    return { utilization: 0, growth: 0, activeDays: 0, activityScore: 0 };
+  }
+
+  const completedOrders = testOrders.filter((order) =&gt; {
+    const safe = ensureValidTimestamps(order);
+    return order.status === "COMPLETED" &amp;&amp; Boolean(safe.completedAt);
+  });
+
+  const completed = completedOrders.length;
+  const utilization = completed / assigned;
+
+  const previousAssigned = previousData.length;
+  const previousCompleted = previousData.filter((order) =&gt; {
+    const safe = ensureValidTimestamps(order);
+    return order.status === "COMPLETED" &amp;&amp; Boolean(safe.completedAt);
+  }).length;
+
+  const currentRate = utilization;
+  const previousRate = previousAssigned &gt; 0 ? previousCompleted / previousAssigned : 0;
+  const growth = previousRate === 0 ? 0 : (currentRate - previousRate) / previousRate;
+
+  const activeDaySet = new Set&lt;string&gt;();
+  for (const order of completedOrders) {
+    const safe = ensureValidTimestamps(order);
+    if (!safe.completedAt) continue;
+    activeDaySet.add(toDayKey(safe.completedAt));
+  }
+  const activeDays = activeDaySet.size;
+
+  const spanMs =
+    testOrders.length &gt; 1
+      ? Math.max(...testOrders.map((o) =&gt; o.createdAt.getTime())) -
+        Math.min(...testOrders.map((o) =&gt; o.createdAt.getTime()))
+      : 0;
+  const spanDays = Math.max(1, Math.ceil(spanMs / (24 * 60 * 60 * 1000)) + 1);
+  const activeDayRatio = clamp(activeDays / spanDays, 0, 1);
+
+  const growthNormalized = clamp((growth + 1) * 50, 0, 100);
+  const activityScore = clamp(utilization * 60 + growthNormalized * 0.25 + activeDayRatio * 15, 0, 100);
+
+  return {
+    utilization,
+    growth,
+    activeDays,
+    activityScore: Math.round(activityScore * 100) / 100,
+  };
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/analytics/lab-stats.ts</div><pre>import { prisma } from "@/lib/prisma";
@@ -31654,15 +33469,18 @@ export async function generateLabInsights(orgId: string, start: Date, end: Date)
   const diffDays = Math.ceil(getDateRangeDurationMs(start, end) / (24 * 60 * 60 * 1000));
   const reportType = diffDays &lt;= 8 ? "WEEKLY" : "MONTHLY";
 
-  const report = await prisma.labInsightReport.create({
-    data: {
-      organizationId: orgId,
-      periodStart: start,
-      periodEnd: end,
-      reportType,
-      data,
-    },
-  });
+  const labInsightReport = (prisma as any).labInsightReport;
+  const report = labInsightReport?.create
+    ? await labInsightReport.create({
+        data: {
+          organizationId: orgId,
+          periodStart: start,
+          periodEnd: end,
+          reportType,
+          data,
+        },
+      })
+    : null;
 
   await sendNotificationToRoles({
     organizationId: orgId,
@@ -31670,9 +33488,9 @@ export async function generateLabInsights(orgId: string, start: Date, end: Date)
     type: NotificationType.SYSTEM,
     title: "Lab Performance Report Ready",
     message: "Your Lab Performance Report is ready",
-    entityId: report.id,
+    entityId: report?.id,
     entityType: "LabInsightReport",
-    dedupeKeyPrefix: `lab-insights:${report.id}`,
+    dedupeKeyPrefix: report?.id ? `lab-insights:${report.id}` : undefined,
   });
 
   return data;
@@ -34575,6 +36393,137 @@ export const prisma =
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 </pre></div>
+<div class='file-block'><div class='file-header'>src/lib/public-labs.ts</div><pre>import { unstable_cache } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { getAllRankings } from "@/lib/ranking/get-all-rankings";
+
+export function locationToSlug(value: string) {
+  return value.toLowerCase().trim().replace(/\s+/g, "-");
+}
+
+export function slugToLocation(value: string) {
+  return value.replace(/-/g, " ").trim();
+}
+
+export function normalizeLocation(input: string) {
+  return slugToLocation(input).toLowerCase();
+}
+
+export async function getCachedRankings(period: "weekly" | "monthly" = "weekly") {
+  const loader = unstable_cache(
+    async () =&gt; getAllRankings(period),
+    [`public-rankings-${period}`],
+    { revalidate: 600, tags: [`public-rankings-${period}`] }
+  );
+  return loader();
+}
+
+export async function getPublicLabsByLocation(locationSlug: string) {
+  const normalized = normalizeLocation(locationSlug);
+  const rankings = await getCachedRankings("weekly");
+  const items = rankings.items.filter((item) =&gt; item.city.toLowerCase() === normalized);
+  if (items.length === 0) return [];
+
+  const orgs = await prisma.organization.findMany({
+    where: {
+      id: { in: items.map((i) =&gt; i.organizationId) },
+    },
+    select: {
+      id: true,
+      name: true,
+      city: true,
+      state: true,
+      country: true,
+      slug: true,
+      description: true,
+      website: true,
+      logoUrl: true,
+      images: true,
+      aiConfidence: true,
+    },
+  });
+  const orgMap = new Map(orgs.map((o) =&gt; [o.id, o]));
+
+  return items
+    .map((r) =&gt; {
+      const org = orgMap.get(r.organizationId);
+      if (!org) return null;
+      return { ranking: r, org };
+    })
+    .filter((v): v is NonNullable&lt;typeof v&gt; =&gt; Boolean(v));
+}
+
+export async function getPublicLabProfile(locationSlug: string, slug: string) {
+  const normalized = normalizeLocation(locationSlug);
+  const lab = await prisma.organization.findFirst({
+    where: {
+      slug,
+      city: { equals: normalized, mode: "insensitive" },
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      city: true,
+      state: true,
+      country: true,
+      address: true,
+      phone: true,
+      description: true,
+      website: true,
+      logoUrl: true,
+      images: true,
+      aiConfidence: true,
+      aiSource: true,
+    },
+  });
+  if (!lab) return null;
+
+  const rankings = await getCachedRankings("weekly");
+  const ranking = rankings.items.find((x) =&gt; x.organizationId === lab.id) ?? null;
+  return { lab, ranking };
+}
+
+export async function getPublicLabLocations() {
+  const rankings = await getCachedRankings("weekly");
+  const grouped = new Map&lt;
+    string,
+    { city: string; count: number; avgScore: number; topLabName: string | null; topScore: number }
+  &gt;();
+
+  for (const item of rankings.items) {
+    const key = item.city.trim().toLowerCase();
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        city: item.city,
+        count: 1,
+        avgScore: item.finalScore,
+        topLabName: item.labName,
+        topScore: item.finalScore,
+      });
+      continue;
+    }
+    const nextCount = existing.count + 1;
+    existing.avgScore = (existing.avgScore * existing.count + item.finalScore) / nextCount;
+    existing.count = nextCount;
+    if (item.finalScore &gt; existing.topScore) {
+      existing.topScore = item.finalScore;
+      existing.topLabName = item.labName;
+    }
+    grouped.set(key, existing);
+  }
+
+  return Array.from(grouped.values())
+    .map((entry) =&gt; ({
+      ...entry,
+      slug: locationToSlug(entry.city),
+      avgScore: Math.round(entry.avgScore * 100) / 100,
+      topScore: Math.round(entry.topScore * 100) / 100,
+    }))
+    .sort((a, b) =&gt; b.count - a.count || b.avgScore - a.avgScore);
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/lib/push-client.ts</div><pre>function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -35602,6 +37551,282 @@ export function hasRequiredReportFields(report: {
   } catch {
     return hasTopLevel;
   }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/ranking/compute-ranking.ts</div><pre>import { computeActivityEfficiencyFromData } from "@/lib/analytics/activity-efficiency";
+import { ensureValidTimestamps } from "@/lib/utils/timestamp-safety";
+
+export type RankingOrderRow = {
+  organizationId: string;
+  createdAt: Date;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  status: string;
+  turnaroundMinutes: number;
+};
+
+export type OrganizationRanking = {
+  organizationId: string;
+  totalTests: number;
+  completedTests: number;
+  delayedTests: number;
+  onTimeTests: number;
+  turnaroundScore: number;
+  delayRate: number;
+  consistencyScore: number;
+  healthScore: number;
+  completionScore: number;
+  activityScore: number;
+  finalScore: number;
+};
+
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function round2(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function groupByOrganization(rows: RankingOrderRow[]) {
+  const grouped = new Map&lt;string, RankingOrderRow[]&gt;();
+  for (const row of rows) {
+    const bucket = grouped.get(row.organizationId);
+    if (bucket) {
+      bucket.push(row);
+    } else {
+      grouped.set(row.organizationId, [row]);
+    }
+  }
+  return grouped;
+}
+
+export function computeRankings(
+  testOrders: RankingOrderRow[],
+  previousPeriodOrders: RankingOrderRow[]
+): OrganizationRanking[] {
+  const currentByOrg = groupByOrganization(testOrders);
+  const previousByOrg = groupByOrganization(previousPeriodOrders);
+  const nowMs = Date.now();
+  const rankings: OrganizationRanking[] = [];
+
+  for (const [organizationId, orgOrders] of Array.from(currentByOrg.entries())) {
+    const totalTests = orgOrders.length;
+    if (totalTests === 0) continue;
+
+    const previousOrders = previousByOrg.get(organizationId) ?? [];
+
+    let completedTests = 0;
+    let delayedTests = 0;
+    let onTimeTests = 0;
+
+    for (const order of orgOrders) {
+      const safe = ensureValidTimestamps(order);
+      const startedMs = safe.startedAt.getTime();
+      const endMs = safe.completedAt ? safe.completedAt.getTime() : nowMs;
+      const elapsedMinutes = Math.max(0, (endMs - startedMs) / 60000);
+      const expectedMinutes = Math.max(1, order.turnaroundMinutes || 1);
+      const isDelayed = elapsedMinutes &gt; expectedMinutes;
+      const isCompleted = Boolean(safe.completedAt) || order.status === "COMPLETED";
+
+      if (isCompleted) completedTests += 1;
+      if (isDelayed) delayedTests += 1;
+      else onTimeTests += 1;
+    }
+
+    const turnaroundScore = (onTimeTests / totalTests) * 100;
+    const delayRate = delayedTests / totalTests;
+    const consistencyScore = 100 - delayRate * 100;
+    const healthScore = 100 - delayRate * 100;
+    const completionScore = (completedTests / totalTests) * 100;
+    const activity = computeActivityEfficiencyFromData(orgOrders, previousOrders);
+    const activityScore = activity.activityScore;
+
+    const finalScore =
+      turnaroundScore * 0.4 +
+      consistencyScore * 0.25 +
+      activityScore * 0.15 +
+      healthScore * 0.1 +
+      completionScore * 0.1;
+
+    rankings.push({
+      organizationId,
+      totalTests,
+      completedTests,
+      delayedTests,
+      onTimeTests,
+      turnaroundScore: round2(clampScore(turnaroundScore)),
+      delayRate: round2(delayRate),
+      consistencyScore: round2(clampScore(consistencyScore)),
+      healthScore: round2(clampScore(healthScore)),
+      completionScore: round2(clampScore(completionScore)),
+      activityScore: round2(clampScore(activityScore)),
+      finalScore: round2(clampScore(finalScore)),
+    });
+  }
+
+  return rankings.sort((a, b) =&gt; b.finalScore - a.finalScore);
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/ranking/get-all-rankings.ts</div><pre>import { prisma } from "@/lib/prisma";
+import { computeRankings, type RankingOrderRow } from "./compute-ranking";
+
+export type RankingPeriod = "weekly" | "monthly";
+
+export type RankingItem = {
+  organizationId: string;
+  labName: string;
+  city: string;
+  totalTests: number;
+  completedTests: number;
+  delayedTests: number;
+  onTimeTests: number;
+  turnaroundScore: number;
+  consistencyScore: number;
+  activityScore: number;
+  healthScore: number;
+  completionScore: number;
+  finalScore: number;
+  delayRate: number;
+};
+
+export type RankingsResult = {
+  period: RankingPeriod;
+  startDate: Date;
+  endDate: Date;
+  topLab: RankingItem | null;
+  totalLabsRanked: number;
+  items: RankingItem[];
+  groupedByCity: Record&lt;string, RankingItem[]&gt;;
+};
+
+function getPeriodWindow(period: RankingPeriod) {
+  const endDate = new Date();
+  const days = period === "weekly" ? 7 : 30;
+  const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
+  const previousEndDate = new Date(startDate);
+  const previousStartDate = new Date(previousEndDate.getTime() - days * 24 * 60 * 60 * 1000);
+  return { startDate, endDate, previousStartDate, previousEndDate };
+}
+
+function toRankingRows(
+  rows: Array&lt;{
+    organizationId: string;
+    createdAt: Date;
+    startedAt: Date | null;
+    completedAt: Date | null;
+    status: string;
+    test: { turnaroundMinutes: number; organization: { id: string; name: string; city: string | null } };
+  }&gt;
+): { metricRows: RankingOrderRow[]; orgMeta: Map&lt;string, { labName: string; city: string }&gt; } {
+  const metricRows: RankingOrderRow[] = [];
+  const orgMeta = new Map&lt;string, { labName: string; city: string }&gt;();
+
+  for (const row of rows) {
+    metricRows.push({
+      organizationId: row.organizationId,
+      createdAt: row.createdAt,
+      startedAt: row.startedAt,
+      completedAt: row.completedAt,
+      status: row.status,
+      turnaroundMinutes: row.test.turnaroundMinutes,
+    });
+
+    if (!orgMeta.has(row.organizationId)) {
+      orgMeta.set(row.organizationId, {
+        labName: row.test.organization.name,
+        city: row.test.organization.city?.trim() || "Unknown",
+      });
+    }
+  }
+
+  return { metricRows, orgMeta };
+}
+
+export async function getAllRankings(period: RankingPeriod): Promise&lt;RankingsResult&gt; {
+  const { startDate, endDate, previousStartDate, previousEndDate } = getPeriodWindow(period);
+
+  const [currentRows, previousRows] = await Promise.all([
+    prisma.testOrder.findMany({
+      where: {
+        createdAt: { gte: startDate, lt: endDate },
+      },
+      select: {
+        organizationId: true,
+        createdAt: true,
+        startedAt: true,
+        completedAt: true,
+        status: true,
+        test: {
+          select: {
+            turnaroundMinutes: true,
+            organization: { select: { id: true, name: true, city: true } },
+          },
+        },
+      },
+    }),
+    prisma.testOrder.findMany({
+      where: {
+        createdAt: { gte: previousStartDate, lt: previousEndDate },
+      },
+      select: {
+        organizationId: true,
+        createdAt: true,
+        startedAt: true,
+        completedAt: true,
+        status: true,
+        test: {
+          select: {
+            turnaroundMinutes: true,
+            organization: { select: { id: true, name: true, city: true } },
+          },
+        },
+      },
+    }),
+  ]);
+
+  const current = toRankingRows(currentRows);
+  const previous = toRankingRows(previousRows);
+  const computed = computeRankings(current.metricRows, previous.metricRows);
+
+  const items: RankingItem[] = computed
+    .filter((item) =&gt; item.totalTests &gt;= 20)
+    .map((item) =&gt; {
+      const meta = current.orgMeta.get(item.organizationId) ?? previous.orgMeta.get(item.organizationId);
+      return {
+        organizationId: item.organizationId,
+        labName: meta?.labName ?? "Unknown Lab",
+        city: meta?.city ?? "Unknown",
+        totalTests: item.totalTests,
+        completedTests: item.completedTests,
+        delayedTests: item.delayedTests,
+        onTimeTests: item.onTimeTests,
+        turnaroundScore: item.turnaroundScore,
+        consistencyScore: item.consistencyScore,
+        activityScore: item.activityScore,
+        healthScore: item.healthScore,
+        completionScore: item.completionScore,
+        finalScore: item.finalScore,
+        delayRate: item.delayRate,
+      };
+    })
+    .sort((a, b) =&gt; b.finalScore - a.finalScore);
+
+  const groupedByCity: Record&lt;string, RankingItem[]&gt; = {};
+  for (const item of items) {
+    if (!groupedByCity[item.city]) groupedByCity[item.city] = [];
+    groupedByCity[item.city].push(item);
+  }
+
+  return {
+    period,
+    startDate,
+    endDate,
+    topLab: items[0] ?? null,
+    totalLabsRanked: items.length,
+    items,
+    groupedByCity,
+  };
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/reference-ranges.ts</div><pre>export type ReferenceFieldType = "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
@@ -38672,6 +40897,37 @@ export function removeSignaturePreset(items: SignaturePreset[], id: string) {
   return items.filter((item) =&gt; item.id !== id);
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/lib/slug.ts</div><pre>import { prisma } from "@/lib/prisma";
+
+export function slugify(name: string) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "lab";
+}
+
+export async function ensureUniqueOrganizationSlug(baseName: string, excludeId?: string) {
+  const base = slugify(baseName);
+  let candidate = base;
+  let suffix = 1;
+
+  for (;;) {
+    const existing = await prisma.organization.findFirst({
+      where: {
+        slug: candidate,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (!existing) return candidate;
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/lib/test-catalog.ts</div><pre>import { PrismaClient, Prisma } from "@prisma/client";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
@@ -38893,6 +41149,35 @@ export const DEPARTMENT_LABELS: Record&lt;string, string&gt; = {
   MEDICAL_REVIEW: "Medical Review",
   HR_OPERATIONS: "HR &amp; Operations",
 };
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/utils/timestamp-safety.ts</div><pre>export type TimestampSafetyInput = {
+  createdAt: Date;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  status: string;
+};
+
+export type TimestampSafetyResult = {
+  startedAt: Date;
+  completedAt: Date | null;
+};
+
+const ONE_MINUTE_MS = 60 * 1000;
+
+export function ensureValidTimestamps(testOrder: TimestampSafetyInput): TimestampSafetyResult {
+  const startedAt = testOrder.startedAt ?? testOrder.createdAt;
+
+  let completedAt = testOrder.completedAt;
+  if (!completedAt &amp;&amp; testOrder.status === "COMPLETED") {
+    completedAt = new Date();
+  }
+
+  if (completedAt &amp;&amp; completedAt.getTime() &lt; startedAt.getTime()) {
+    completedAt = new Date(startedAt.getTime() + ONE_MINUTE_MS);
+  }
+
+  return { startedAt, completedAt };
+}
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/workflow-reconciliation.ts</div><pre>import { prisma } from "@/lib/prisma";
 import { Department, OrderStatus, RoutingTaskStatus } from "@prisma/client";
