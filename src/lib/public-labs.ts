@@ -88,3 +88,43 @@ export async function getPublicLabProfile(locationSlug: string, slug: string) {
   const ranking = rankings.items.find((x) => x.organizationId === lab.id) ?? null;
   return { lab, ranking };
 }
+
+export async function getPublicLabLocations() {
+  const rankings = await getCachedRankings("weekly");
+  const grouped = new Map<
+    string,
+    { city: string; count: number; avgScore: number; topLabName: string | null; topScore: number }
+  >();
+
+  for (const item of rankings.items) {
+    const key = item.city.trim().toLowerCase();
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        city: item.city,
+        count: 1,
+        avgScore: item.finalScore,
+        topLabName: item.labName,
+        topScore: item.finalScore,
+      });
+      continue;
+    }
+    const nextCount = existing.count + 1;
+    existing.avgScore = (existing.avgScore * existing.count + item.finalScore) / nextCount;
+    existing.count = nextCount;
+    if (item.finalScore > existing.topScore) {
+      existing.topScore = item.finalScore;
+      existing.topLabName = item.labName;
+    }
+    grouped.set(key, existing);
+  }
+
+  return Array.from(grouped.values())
+    .map((entry) => ({
+      ...entry,
+      slug: locationToSlug(entry.city),
+      avgScore: Math.round(entry.avgScore * 100) / 100,
+      topScore: Math.round(entry.topScore * 100) / 100,
+    }))
+    .sort((a, b) => b.count - a.count || b.avgScore - a.avgScore);
+}

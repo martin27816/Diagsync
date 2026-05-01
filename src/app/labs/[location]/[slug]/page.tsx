@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublicLabProfile, slugToLocation } from "@/lib/public-labs";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({
   params,
 }: {
