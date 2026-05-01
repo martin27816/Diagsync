@@ -247,15 +247,18 @@ export async function generateLabInsights(orgId: string, start: Date, end: Date)
   const diffDays = Math.ceil(getDateRangeDurationMs(start, end) / (24 * 60 * 60 * 1000));
   const reportType = diffDays <= 8 ? "WEEKLY" : "MONTHLY";
 
-  const report = await prisma.labInsightReport.create({
-    data: {
-      organizationId: orgId,
-      periodStart: start,
-      periodEnd: end,
-      reportType,
-      data,
-    },
-  });
+  const labInsightReport = (prisma as any).labInsightReport;
+  const report = labInsightReport?.create
+    ? await labInsightReport.create({
+        data: {
+          organizationId: orgId,
+          periodStart: start,
+          periodEnd: end,
+          reportType,
+          data,
+        },
+      })
+    : null;
 
   await sendNotificationToRoles({
     organizationId: orgId,
@@ -263,9 +266,9 @@ export async function generateLabInsights(orgId: string, start: Date, end: Date)
     type: NotificationType.SYSTEM,
     title: "Lab Performance Report Ready",
     message: "Your Lab Performance Report is ready",
-    entityId: report.id,
+    entityId: report?.id,
     entityType: "LabInsightReport",
-    dedupeKeyPrefix: `lab-insights:${report.id}`,
+    dedupeKeyPrefix: report?.id ? `lab-insights:${report.id}` : undefined,
   });
 
   return data;

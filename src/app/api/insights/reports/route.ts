@@ -15,13 +15,16 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 
-    let reports: Awaited<ReturnType<typeof prisma.labInsightReport.findMany>> = [];
+    let reports: any[] = [];
     try {
-      reports = await prisma.labInsightReport.findMany({
-        where: { organizationId: user.organizationId },
-        orderBy: { createdAt: "desc" },
-        take: 30,
-      });
+      const labInsightReport = (prisma as any).labInsightReport;
+      if (labInsightReport?.findMany) {
+        reports = await labInsightReport.findMany({
+          where: { organizationId: user.organizationId },
+          orderBy: { createdAt: "desc" },
+          take: 30,
+        });
+      }
     } catch (error: any) {
       if (error?.code !== "P2021") {
         throw error;

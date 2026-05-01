@@ -7,6 +7,9 @@ type OrgSettings = {
   email: string;
   phone: string;
   address: string;
+  city: string;
+  state: string;
+  country: string;
   contactInfo: string;
   logo: string;
   letterheadUrl: string;
@@ -22,6 +25,9 @@ const emptySettings: OrgSettings = {
   email: "",
   phone: "",
   address: "",
+  city: "",
+  state: "",
+  country: "Nigeria",
   contactInfo: "",
   logo: "",
   letterheadUrl: "",
@@ -74,6 +80,9 @@ export function LabSettingsForm() {
         email: json.data?.email ?? "",
         phone: json.data?.phone ?? "",
         address: json.data?.address ?? "",
+        city: json.data?.city ?? "",
+        state: json.data?.state ?? "",
+        country: json.data?.country ?? "Nigeria",
         contactInfo: json.data?.contactInfo ?? "",
         logo: json.data?.logo ?? "",
         letterheadUrl: json.data?.letterheadUrl ?? "",
@@ -126,6 +135,9 @@ export function LabSettingsForm() {
         email: settings.email.trim(),
         phone: settings.phone.trim(),
         address: settings.address.trim(),
+        city: settings.city.trim() || null,
+        state: settings.state.trim() || null,
+        country: settings.country.trim() || "Nigeria",
         contactInfo: settings.contactInfo.trim() || null,
         logo: settings.logo.trim() || null,
         letterheadUrl: settings.letterheadUrl.trim() || null,
@@ -149,6 +161,9 @@ export function LabSettingsForm() {
         email: json.data?.email ?? payload.email,
         phone: json.data?.phone ?? payload.phone,
         address: json.data?.address ?? payload.address,
+        city: json.data?.city ?? payload.city ?? "",
+        state: json.data?.state ?? payload.state ?? "",
+        country: json.data?.country ?? payload.country ?? "Nigeria",
         contactInfo: json.data?.contactInfo ?? payload.contactInfo ?? "",
         logo: json.data?.logo ?? payload.logo ?? "",
         letterheadUrl: json.data?.letterheadUrl ?? payload.letterheadUrl ?? "",
@@ -241,6 +256,33 @@ export function LabSettingsForm() {
               }
               className={inputCls}
               placeholder="10"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>City</label>
+            <input
+              value={settings.city}
+              onChange={(e) => setSettings((prev) => ({ ...prev, city: e.target.value }))}
+              className={inputCls}
+              placeholder="e.g. Lagos"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>State</label>
+            <input
+              value={settings.state}
+              onChange={(e) => setSettings((prev) => ({ ...prev, state: e.target.value }))}
+              className={inputCls}
+              placeholder="e.g. Lagos State"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Country</label>
+            <input
+              value={settings.country}
+              onChange={(e) => setSettings((prev) => ({ ...prev, country: e.target.value }))}
+              className={inputCls}
+              placeholder="Nigeria"
             />
           </div>
 

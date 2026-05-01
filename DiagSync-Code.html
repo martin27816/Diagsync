@@ -159,91 +159,91 @@ datasource db {
 }
 
 model Organization {
-  id                         String              @id @default(cuid())
-  name                       String
-  email                      String              @unique
-  plan                       OrganizationPlan    @default(TRIAL)
-  status                     OrganizationStatus  @default(EXPIRED)
-  trialStartedAt             DateTime?
-  trialEndsAt                DateTime?
-  subscriptionStartedAt      DateTime?
-  subscriptionEndsAt         DateTime?
-  lastPaymentAt              DateTime?
-  watermarkEnabled           Boolean             @default(true)
-  staffLimit                 Int?
-  billingLockedAt            DateTime?
-  billingLockReason          String?
-  phone                      String
-  address                    String
-  logo                       String?
-  contactInfo                String?
-  letterheadUrl              String?
-  consultationTimeoutMinutes Int                 @default(10)
-  createdAt                  DateTime            @default(now())
-  updatedAt                  DateTime            @updatedAt
-  consultationQueueEntries   ConsultationQueue[]
-  reports                    DiagnosticReport[]
+  id                          String                       @id @default(cuid())
+  name                        String
+  email                       String                       @unique
+  phone                       String
+  address                     String
+  logo                        String?
+  contactInfo                 String?
+  letterheadUrl               String?
+  consultationTimeoutMinutes  Int                          @default(10)
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  plan                        OrganizationPlan             @default(TRIAL)
+  status                      OrganizationStatus           @default(ACTIVE)
+  trialStartedAt              DateTime?
+  trialEndsAt                 DateTime?
+  subscriptionStartedAt       DateTime?
+  subscriptionEndsAt          DateTime?
+  lastPaymentAt               DateTime?
+  watermarkEnabled            Boolean                      @default(true)
+  staffLimit                  Int?
+  billingLockedAt             DateTime?
+  billingLockReason           String?
+  consultationQueueEntries    ConsultationQueue[]
+  devices                     Device[]
+  reports                     DiagnosticReport[]
+  tests                       DiagnosticTest[]
+  patients                    Patient[]
+  staff                       Staff[]
   subscriptionPaymentRequests SubscriptionPaymentRequest[]
-  tests                      DiagnosticTest[]
-  patients                   Patient[]
-  staff                      Staff[]
-  devices                    Device[]
 
   @@map("organizations")
 }
 
 model Staff {
-  id                                   String                    @id @default(cuid())
+  id                                   String                       @id @default(cuid())
   organizationId                       String?
   fullName                             String
-  email                                String                    @unique
+  email                                String                       @unique
   phone                                String
   passwordHash                         String
   role                                 Role
   department                           Department
   gender                               String?
-  dateJoined                           DateTime                  @default(now())
-  defaultShift                         Shift                     @default(MORNING)
-  status                               StaffStatus               @default(ACTIVE)
-  availabilityStatus                   AvailabilityStatus        @default(UNAVAILABLE)
+  dateJoined                           DateTime                     @default(now())
+  defaultShift                         Shift                        @default(MORNING)
+  status                               StaffStatus                  @default(ACTIVE)
+  availabilityStatus                   AvailabilityStatus           @default(UNAVAILABLE)
   lastAvailableAt                      DateTime?
   lastUnavailableAt                    DateTime?
+  createdAt                            DateTime                     @default(now())
+  updatedAt                            DateTime                     @updatedAt
+  createdById                          String?
   lastSeen                             DateTime?
   pinHash                              String?
   pinSetAt                             DateTime?
   lastQuickSwitchAt                    DateTime?
-  createdAt                            DateTime                  @default(now())
-  updatedAt                            DateTime                  @updatedAt
-  createdById                          String?
   auditLogs                            AuditLog[]
   availabilityLogs                     AvailabilityLog[]
-  acknowledgedConsultationQueueEntries ConsultationQueue[]       @relation("ConsultationAcknowledgedBy")
-  calledConsultationQueueEntries       ConsultationQueue[]       @relation("ConsultationCalledBy")
-  consultedConsultationQueueEntries    ConsultationQueue[]       @relation("ConsultationConsultedBy")
-  createdConsultationQueueEntries      ConsultationQueue[]       @relation("ConsultationCreatedBy")
+  acknowledgedConsultationQueueEntries ConsultationQueue[]          @relation("ConsultationAcknowledgedBy")
+  calledConsultationQueueEntries       ConsultationQueue[]          @relation("ConsultationCalledBy")
+  consultedConsultationQueueEntries    ConsultationQueue[]          @relation("ConsultationConsultedBy")
+  createdConsultationQueueEntries      ConsultationQueue[]          @relation("ConsultationCreatedBy")
+  deviceLinks                          DeviceStaff[]
   editedReportVersions                 DiagnosticReportVersion[]
-  generatedReports                     DiagnosticReport[]        @relation("ReportGeneratedBy")
-  releasedReports                      DiagnosticReport[]        @relation("ReportReleasedBy")
+  generatedReports                     DiagnosticReport[]           @relation("ReportGeneratedBy")
+  releasedReports                      DiagnosticReport[]           @relation("ReportReleasedBy")
   imagingFiles                         ImagingFile[]
-  reviewedSubscriptionPaymentRequests  SubscriptionPaymentRequest[] @relation("SubscriptionPaymentRequestReviewer")
-  editedLabResultVersions              LabResultVersion[]        @relation("LabResultVersionEditedBy")
+  editedLabResultVersions              LabResultVersion[]           @relation("LabResultVersionEditedBy")
   labResults                           LabResult[]
   labSamples                           LabSample[]
   notifications                        Notification[]
-  registeredPatients                   Patient[]                 @relation("RegisteredBy")
+  registeredPatients                   Patient[]                    @relation("RegisteredBy")
   pushSubscriptions                    PushSubscription[]
-  editedRadiologyReportVersions        RadiologyReportVersion[]  @relation("RadiologyReportVersionEditedBy")
+  editedRadiologyReportVersions        RadiologyReportVersion[]     @relation("RadiologyReportVersionEditedBy")
   radiologyReports                     RadiologyReport[]
   reviews                              Review[]
   routingTasks                         RoutingTask[]
   sessions                             Session[]
-  createdBy                            Staff?                    @relation("StaffCreatedBy", fields: [createdById], references: [id])
-  createdStaff                         Staff[]                   @relation("StaffCreatedBy")
-  organization                         Organization?             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assignedTestOrders                   TestOrder[]               @relation("AssignedTestOrders")
-  overriddenTestOrders                 TestOrder[]               @relation("OverriddenTestOrders")
+  createdBy                            Staff?                       @relation("StaffCreatedBy", fields: [createdById], references: [id])
+  createdStaff                         Staff[]                      @relation("StaffCreatedBy")
+  organization                         Organization?                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewedSubscriptionPaymentRequests  SubscriptionPaymentRequest[] @relation("SubscriptionPaymentRequestReviewer")
+  assignedTestOrders                   TestOrder[]                  @relation("AssignedTestOrders")
+  overriddenTestOrders                 TestOrder[]                  @relation("OverriddenTestOrders")
   visitPayments                        VisitPayment[]
-  deviceLinks                          DeviceStaff[]
 
   @@map("staff")
 }
@@ -345,18 +345,19 @@ model DiagnosticTest {
   turnaroundMinutes Int
   sampleType        String?
   description       String?
-  groupKey          String?
-  viewType          String?
-  isDefaultInGroup  Boolean               @default(false)
   isActive          Boolean               @default(true)
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
+  groupKey          String?
+  viewType          String?
+  isDefaultInGroup  Boolean               @default(false)
   category          TestCategory?         @relation(fields: [categoryId], references: [id])
   organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   resultFields      ResultTemplateField[]
   testOrders        TestOrder[]
 
   @@unique([organizationId, code])
+  @@index([organizationId, groupKey])
   @@map("diagnostic_tests")
 }
 
@@ -768,22 +769,6 @@ model RadiologyReportVersion {
   @@map("radiology_report_versions")
 }
 
-enum Role {
-  MEGA_ADMIN
-  SUPER_ADMIN
-  RECEPTIONIST
-  LAB_SCIENTIST
-  RADIOGRAPHER
-  MD
-  HRM
-}
-
-enum OrganizationPlan {
-  TRIAL
-  STARTER
-  ADVANCED
-}
-
 model Device {
   id             String        @id @default(cuid())
   deviceKey      String        @unique
@@ -791,34 +776,25 @@ model Device {
   name           String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   staffLinks     DeviceStaff[]
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@map("devices")
 }
 
 model DeviceStaff {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   deviceId   String
   staffId    String
-  addedAt    DateTime @default(now())
+  addedAt    DateTime  @default(now())
   lastUsedAt DateTime?
-  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  device     Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  staff      Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   @@unique([deviceId, staffId])
   @@index([staffId])
   @@map("device_staff")
-}
-
-enum OrganizationStatus {
-  ACTIVE
-  SUSPENDED
-  TRIAL_ACTIVE
-  TRIAL_EXPIRED
-  PAYMENT_PENDING
-  EXPIRED
 }
 
 model SubscriptionPaymentRequest {
@@ -838,11 +814,36 @@ model SubscriptionPaymentRequest {
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  reviewedBy           Staff?               @relation("SubscriptionPaymentRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedBy           Staff?               @relation("SubscriptionPaymentRequestReviewer", fields: [reviewedById], references: [id])
 
-  @@index([organizationId, status, createdAt])
   @@index([reviewedById])
+  @@index([organizationId, status, createdAt], map: "subscription_payment_requests_organizationId_status_createdAt_i")
   @@map("subscription_payment_requests")
+}
+
+enum Role {
+  SUPER_ADMIN
+  RECEPTIONIST
+  LAB_SCIENTIST
+  RADIOGRAPHER
+  MD
+  HRM
+  MEGA_ADMIN
+}
+
+enum OrganizationPlan {
+  TRIAL
+  STARTER
+  ADVANCED
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL_ACTIVE
+  TRIAL_EXPIRED
+  PAYMENT_PENDING
+  EXPIRED
 }
 
 enum PaymentRequestStatus {
@@ -1001,28 +1002,9 @@ config();
 import { PrismaClient, Prisma, Department, TestType, FieldType, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-function tuneSeedDatabaseUrl(raw?: string | null) {
-  if (!raw) return raw;
-  try {
-    const parsed = new URL(raw);
-    if (parsed.hostname.includes("pooler.supabase.com")) {
-      parsed.searchParams.set("connection_limit", "1");
-      parsed.searchParams.set("pool_timeout", "120");
-      // Remove pgbouncer flag for session pooler (port 5432)
-      if (parsed.port === "5432") {
-        parsed.searchParams.delete("pgbouncer");
-      }
-    }
-    return parsed.toString();
-  } catch {
-    return raw;
-  }
-}
-
 if (process.env.DIRECT_URL) {
   process.env.DATABASE_URL = process.env.DIRECT_URL;
 }
-process.env.DATABASE_URL = tuneSeedDatabaseUrl(process.env.DATABASE_URL) ?? process.env.DATABASE_URL;
 
 const prisma = new PrismaClient();
 
@@ -2190,16 +2172,138 @@ async function main() {
   const missingRadiologyTests: Array&lt;{ code: string; name: string }&gt; = [
     { code: "CXR-PAL", name: "Chest X-Ray (AP &amp; LAT)" },
     { code: "CXR-LAT", name: "Chest X-Ray (Lateral)" },
+    { code: "CXR-SUP", name: "Chest X-Ray (AP Supine)" },
+    { code: "CXR-ERT", name: "Chest X-Ray (AP Erect)" },
+    { code: "CXR-EXP", name: "Chest X-Ray (Expiratory View)" },
     { code: "ORB", name: "Orbital X-Ray" },
+    { code: "SKL-LAT", name: "Skull X-Ray (Lateral)" },
+    { code: "SKL-TWN", name: "Skull X-Ray (Towne View)" },
     { code: "COB", name: "Scoliosis X-Ray (Full Spine)" },
     { code: "SHS", name: "Shoulder Stress View X-Ray" },
+    { code: "PEL-LAT", name: "Pelvis X-Ray (Lateral)" },
+    { code: "PEL-APL", name: "Pelvis X-Ray (AP &amp; LAT)" },
+    { code: "PEL-INL", name: "Pelvis X-Ray (Inlet View)" },
+    { code: "PEL-OUT", name: "Pelvis X-Ray (Outlet View)" },
+    { code: "SIJ-APL", name: "Sacroiliac Joint X-Ray (AP &amp; Oblique)" },
+    { code: "HIP-XTL", name: "Hip X-Ray (Cross-Table Lateral)" },
     { code: "KNE-SKY", name: "Knee X-Ray (Skyline View)" },
+    { code: "KNE-TUN", name: "Knee X-Ray (Tunnel View)" },
+    { code: "ANK-MOR", name: "Ankle X-Ray (Mortise View)" },
+    { code: "FOO-OBL", name: "Foot X-Ray (Oblique)" },
+    { code: "TOE-OBL", name: "Toes X-Ray (Oblique)" },
+    { code: "ABD-DEC", name: "Abdomen X-Ray (Decubitus)" },
     { code: "USS-NT", name: "Neck Ultrasound" },
+    { code: "USS-TVS", name: "Pelvic Ultrasound (Transvaginal Scan - TVS)" },
+    { code: "USS-PTA", name: "Pelvic Ultrasound (Transabdominal)" },
+    { code: "USS-FAS", name: "FAST Scan (Abdominal Windows)" },
+    { code: "USS-EFS", name: "FAST Scan (Extended eFAST)" },
+    { code: "USS-CRD", name: "Carotid Doppler Ultrasound" },
+    { code: "USS-RAD", name: "Renal Artery Doppler Ultrasound" },
+    { code: "USS-DVT", name: "Lower Limb Venous Doppler (DVT Scan)" },
     { code: "USS-OB-ANOM", name: "Obstetric Ultrasound (Anomaly Scan)" },
+    { code: "USS-OB-NT", name: "Obstetric Ultrasound (NT Scan)" },
+    { code: "USS-OB-GR", name: "Obstetric Ultrasound (Growth Scan)" },
+    { code: "USS-OB-BPP", name: "Obstetric Ultrasound (Biophysical Profile)" },
     { code: "CT-SIN", name: "CT Sinuses" },
     { code: "CT-ORB", name: "CT Orbit" },
+    { code: "CT-KUB", name: "CT KUB (Non-Contrast)" },
+    { code: "CT-CTPA", name: "CT Pulmonary Angiogram (CTPA)" },
+    { code: "CT-CTCA", name: "CT Coronary Angiography (CTCA)" },
+    { code: "CT-BWC", name: "CT Brain (With Contrast)" },
+    { code: "CT-BCTA", name: "CT Brain Angiography (CTA)" },
+    { code: "CT-BCTV", name: "CT Brain Venography (CTV)" },
+    { code: "CT-CXSP", name: "CT Cervical Spine" },
+    { code: "CT-TXSP", name: "CT Thoracic Spine" },
+    { code: "CT-LXSP", name: "CT Lumbar Spine" },
+    { code: "CT-ABDP", name: "CT Abdomen and Pelvis (With Contrast)" },
+    { code: "CT-HRCT", name: "CT Chest (HRCT)" },
+    { code: "CT-LDCH", name: "CT Chest (Low Dose)" },
+    { code: "CT-APST", name: "CT Chest Abdomen Pelvis (Staging)" },
+    { code: "CT-URO", name: "CT Urography (3-Phase)" },
+    { code: "CT-ENTR", name: "CT Enterography" },
+    { code: "CT-COLN", name: "CT Colonography (Virtual Colonoscopy)" },
+    { code: "CT-AORT", name: "CTA Aorta (Thoracoabdominal)" },
+    { code: "CT-CARO", name: "CTA Carotid Arteries" },
+    { code: "CT-RNAL", name: "CTA Renal Arteries" },
+    { code: "CT-MESN", name: "CTA Mesenteric Arteries" },
+    { code: "CT-PERF", name: "CT Perfusion Brain" },
+    { code: "CT-TRMA", name: "CT Whole Body (Pan-Scan)" },
+    { code: "CT-CBIO", name: "CT-Guided Biopsy" },
+    { code: "CT-CDRN", name: "CT-Guided Drainage" },
+    { code: "CT-CRFA", name: "CT-Guided Radiofrequency Ablation" },
     { code: "MRI-KNE", name: "MRI Knee" },
     { code: "MRI-SHO", name: "MRI Shoulder" },
+    { code: "MRI-MRCP", name: "MRCP (MR Cholangiopancreatography)" },
+    { code: "MRI-MRA", name: "MRA Brain (TOF)" },
+    { code: "MRI-MRV", name: "MRV Brain" },
+    { code: "CON-BSW", name: "Barium Swallow (Single Contrast)" },
+    { code: "CON-BSD", name: "Barium Swallow (Double Contrast)" },
+    { code: "CON-BML", name: "Barium Meal (Single Contrast)" },
+    { code: "CON-BMD", name: "Barium Meal (Double Contrast)" },
+    { code: "CON-SBFT", name: "Small Bowel Follow-Through (SBFT)" },
+    { code: "CON-ECLS", name: "Enteroclysis" },
+    { code: "CON-BES", name: "Barium Enema (Single Contrast)" },
+    { code: "CON-BED", name: "Barium Enema (Double Contrast)" },
+    { code: "CON-WSE", name: "Water-Soluble Contrast Enema" },
+    { code: "CON-IVUP", name: "IVU/IVP (Plain + Contrast + Delayed)" },
+    { code: "CON-RGU", name: "Retrograde Urethrogram (RGU)" },
+    { code: "CON-CYSG", name: "Cystogram" },
+    { code: "CON-NEPG", name: "Nephrostogram" },
+    { code: "CON-LPGM", name: "Loopogram" },
+    { code: "CON-PTCG", name: "Percutaneous Transhepatic Cholangiogram (PTC)" },
+    { code: "CON-DSAC", name: "Cerebral Angiogram (DSA)" },
+    { code: "CON-CANG", name: "Coronary Angiogram" },
+    { code: "CON-PANG", name: "Pulmonary Angiogram" },
+    { code: "CON-VENG", name: "Venogram" },
+    { code: "CON-ARTH", name: "Arthrogram" },
+    { code: "CON-MYLG", name: "Myelogram" },
+    { code: "END-OGD", name: "OGD / EGD (Diagnostic)" },
+    { code: "END-OGB", name: "OGD / EGD (With Biopsy)" },
+    { code: "END-COL", name: "Colonoscopy (Diagnostic)" },
+    { code: "END-COB", name: "Colonoscopy (With Biopsy)" },
+    { code: "END-COP", name: "Colonoscopy (With Polypectomy)" },
+    { code: "END-SIG", name: "Flexible Sigmoidoscopy" },
+    { code: "END-PRO", name: "Proctoscopy" },
+    { code: "END-ERCP", name: "ERCP (Diagnostic)" },
+    { code: "END-ERST", name: "ERCP (With Stenting)" },
+    { code: "END-EUS", name: "Endoscopic Ultrasound (EUS)" },
+    { code: "END-EFNA", name: "Endoscopic Ultrasound (EUS-FNA)" },
+    { code: "END-BRNC", name: "Flexible Bronchoscopy" },
+    { code: "END-EBUS", name: "EBUS (Endobronchial Ultrasound)" },
+    { code: "END-LARY", name: "Flexible Laryngoscopy" },
+    { code: "END-CYST", name: "Flexible Cystoscopy" },
+    { code: "END-URTR", name: "Ureteroscopy" },
+    { code: "END-HYST", name: "Hysteroscopy (Diagnostic)" },
+    { code: "END-COLP", name: "Colposcopy" },
+    { code: "END-THOR", name: "Medical Thoracoscopy" },
+    { code: "END-VATS", name: "VATS (Diagnostic)" },
+    { code: "ECG-6LD", name: "6-Lead ECG" },
+    { code: "ECG-3LD", name: "3-Lead ECG (Monitoring)" },
+    { code: "ECG-15L", name: "15-Lead ECG" },
+    { code: "ECG-18L", name: "18-Lead ECG" },
+    { code: "ECG-SAE", name: "Signal-Averaged ECG (SAECG)" },
+    { code: "ECG-H24", name: "Holter Monitor (24-hour)" },
+    { code: "ECG-H48", name: "Holter Monitor (48-hour)" },
+    { code: "ECG-H72", name: "Holter Monitor (72-hour)" },
+    { code: "ECG-H7D", name: "Holter Monitor (7-day)" },
+    { code: "ECG-H14", name: "Holter Monitor (14-day)" },
+    { code: "ECG-ELR", name: "External Loop Recorder (30-day)" },
+    { code: "ECG-ESTB", name: "Exercise Stress Test (Bruce Protocol)" },
+    { code: "ECG-ESTM", name: "Exercise Stress Test (Modified Bruce)" },
+    { code: "ECG-TMT", name: "Treadmill Test (TMT)" },
+    { code: "ECG-TILT", name: "Tilt Table Test" },
+    { code: "ECHO-CLR", name: "Colour Doppler Echocardiography" },
+    { code: "ECHO-PWD", name: "PW Doppler Echocardiography" },
+    { code: "ECHO-CWD", name: "CW Doppler Echocardiography" },
+    { code: "ECHO-TDI", name: "Tissue Doppler Imaging (TDI)" },
+    { code: "ECHO-3D", name: "3D Echocardiography" },
+    { code: "ECHO-4D", name: "4D Echocardiography" },
+    { code: "ECHO-BUB", name: "Contrast Echo (Bubble Study)" },
+    { code: "ECHO-FET", name: "Fetal Echocardiography" },
+    { code: "CRD-CACS", name: "CT Calcium Scoring (CAC)" },
+    { code: "CRD-CMR", name: "Cardiac MRI (CMR)" },
+    { code: "CRD-MPI", name: "Nuclear Myocardial Perfusion Imaging" },
+    { code: "CRD-EPS", name: "Electrophysiology Study (EPS)" },
   ];
 
   for (const test of missingRadiologyTests) {
@@ -2620,9 +2724,9 @@ async function main() {
     "BREAST SCAN",
     "OCCULAR SCAN",
     "TRANSRECTAL/PROSTATE SCAN",
-    "FOLLICULOMETRY",
+    "FOLLICULOMETRY (FOLLICULAR TRACKING)",
     "SONO-HSG",
-    "PROSTATE BIOPSY (ULTRASOUND GUIDED)",
+    "PROSTATE BIOPSY (ULTRASOUND GUIDED)",  
     "LIVER BIOPSY (ULTRASOUND GUIDED)",
     "KIDNEY BIOPSY (ULTRASOUND GUIDED)",
     "BREAST BIOPSY (ULTRASOUND GUIDED)",
@@ -3638,7 +3742,7 @@ async function main() {
     { label: "Common Bile Duct", fieldKey: "cbd", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
     { label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
   ],
-  "FOLLICULOMETRY": [
+  "FOLLICULOMETRY (FOLLICULAR TRACKING)": [
     { label: "Day of Cycle", fieldKey: "day_of_cycle", fieldType: FieldType.TEXT, sortOrder: 1 },
     { label: "Right Ovary", fieldKey: "right_ovary", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
     { label: "Left Ovary", fieldKey: "left_ovary", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
@@ -3751,8 +3855,122 @@ async function main() {
     ];
   }
 
-  function buildRadiologyMainFields(_testName: string) {
+  function withCoreRadiologySections(fields: SeedField[]) {
+    const keys = new Set(fields.map((field) =&gt; field.fieldKey.toLowerCase()));
+    let nextSort = fields.length &gt; 0 ? Math.max(...fields.map((field) =&gt; field.sortOrder)) + 1 : 1;
+    const merged = [...fields];
+    if (!keys.has("findings")) {
+      merged.push({ label: "Findings", fieldKey: "findings", fieldType: FieldType.TEXTAREA, sortOrder: nextSort++ });
+    }
+    if (!keys.has("impression")) {
+      merged.push({ label: "Impression", fieldKey: "impression", fieldType: FieldType.TEXTAREA, sortOrder: nextSort++ });
+    }
+    if (!keys.has("recommendation")) {
+      merged.push({
+        label: "Recommendation",
+        fieldKey: "recommendation",
+        fieldType: FieldType.TEXTAREA,
+        isRequired: false,
+        sortOrder: nextSort++,
+      });
+    }
+    return merged;
+  }
+
+  function inferRadiologyFieldTemplate(testName: string): SeedField[] {
+    const n = normalizeName(testName).toUpperCase();
+
+    if (n.includes("MAMMO")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+        { label: "Breast Density", fieldKey: "breast_density", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+        { label: "Right Breast", fieldKey: "right_breast", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+        { label: "Left Breast", fieldKey: "left_breast", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+        { label: "Axillae", fieldKey: "axillae", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+        { label: "BI-RADS", fieldKey: "birads", fieldType: FieldType.DROPDOWN, options: "0,1,2,3,4,5,6", isRequired: false, sortOrder: 6 },
+      ];
+    }
+
+    if (n.includes("TVS") || n.includes("TRANSVAGINAL") || n.includes("PELVIC ULTRASOUND")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+        { label: "Uterus", fieldKey: "uterus", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+        { label: "Endometrium", fieldKey: "endometrium", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 3 },
+        { label: "Right Ovary", fieldKey: "right_ovary", fieldType: FieldType.TEXTAREA, sortOrder: 4 },
+        { label: "Left Ovary", fieldKey: "left_ovary", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+        { label: "Adnexa", fieldKey: "adnexa", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+        { label: "Pouch of Douglas", fieldKey: "pouch_of_douglas", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 7 },
+      ];
+    }
+
+    if (n.includes("OBSTETRIC") || n.includes("ANOMALY") || n.includes("NT SCAN") || n.includes("GROWTH SCAN") || n.includes("BPP")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+        { label: "Gestational Age", fieldKey: "gestational_age", fieldType: FieldType.TEXT, sortOrder: 2 },
+        { label: "Fetal Number", fieldKey: "fetal_number", fieldType: FieldType.DROPDOWN, options: "Singleton,Twins,Triplets", sortOrder: 3 },
+        { label: "Presentation", fieldKey: "presentation", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 4 },
+        { label: "Fetal Heart Rate", fieldKey: "fetal_heart_rate", fieldType: FieldType.NUMBER, unit: "bpm", isRequired: false, sortOrder: 5 },
+        { label: "Placenta", fieldKey: "placenta", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+        { label: "Liquor / AFI", fieldKey: "liquor_afi", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 7 },
+        { label: "Biometry", fieldKey: "biometry", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 8 },
+      ];
+    }
+
+    if (n.includes("DOPPLER")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+        { label: "Vessel / Region", fieldKey: "vessel_region", fieldType: FieldType.TEXT, sortOrder: 2 },
+        { label: "Peak Systolic Velocity", fieldKey: "peak_systolic_velocity", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 3 },
+        { label: "End Diastolic Velocity", fieldKey: "end_diastolic_velocity", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 4 },
+        { label: "Spectral / Flow Findings", fieldKey: "flow_findings", fieldType: FieldType.TEXTAREA, sortOrder: 5 },
+        { label: "Stenosis Grade", fieldKey: "stenosis_grade", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 6 },
+      ];
+    }
+
+    if (n.includes("ECHO")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+        { label: "Cardiac Chambers", fieldKey: "cardiac_chambers", fieldType: FieldType.TEXTAREA, sortOrder: 2 },
+        { label: "Valvular Findings", fieldKey: "valvular_findings", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+        { label: "Ejection Fraction", fieldKey: "ejection_fraction", fieldType: FieldType.NUMBER, unit: "%", isRequired: false, sortOrder: 4 },
+        { label: "Wall Motion", fieldKey: "wall_motion", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 5 },
+        { label: "Pericardium", fieldKey: "pericardium", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+      ];
+    }
+
+    if (n.includes("ECG") || n.includes("HOLTER") || n.includes("TREADMILL") || n.includes("STRESS")) {
+      return [
+        { label: "Heart Rate", fieldKey: "heart_rate", fieldType: FieldType.TEXT, sortOrder: 1 },
+        { label: "Rhythm", fieldKey: "rhythm", fieldType: FieldType.TEXT, sortOrder: 2 },
+        { label: "Intervals", fieldKey: "intervals", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 3 },
+        { label: "Axis", fieldKey: "axis", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 4 },
+      ];
+    }
+
+    if (n.includes("ENDOSCOPY") || n.includes("OGD") || n.includes("COLONOSCOPY") || n.includes("SIGMOIDOSCOPY") || n.includes("ERCP") || n.includes("EUS")) {
+      return [
+        { label: "Procedure", fieldKey: "procedure", fieldType: FieldType.TEXT, sortOrder: 1 },
+        { label: "Extent Reached", fieldKey: "extent_reached", fieldType: FieldType.TEXT, isRequired: false, sortOrder: 2 },
+        { label: "Segment Findings", fieldKey: "segment_findings", fieldType: FieldType.TEXTAREA, sortOrder: 3 },
+        { label: "Interventions", fieldKey: "interventions", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 4 },
+        { label: "Biopsy Taken", fieldKey: "biopsy_taken", fieldType: FieldType.DROPDOWN, options: "Yes,No", isRequired: false, sortOrder: 5 },
+        { label: "Complications", fieldKey: "complications", fieldType: FieldType.TEXTAREA, isRequired: false, sortOrder: 6 },
+      ];
+    }
+
+    if (n.includes("CT") || n.includes("MRI") || n.includes("X-RAY") || n.includes("XRAY")) {
+      return [
+        { label: "Technique", fieldKey: "technique", fieldType: FieldType.TEXTAREA, sortOrder: 1 },
+      ];
+    }
+
     return makeRadiologyWorkflowFields();
+  }
+
+  function buildRadiologyMainFields(testName: string) {
+    const mapped = RADIOLOGY_FIELD_LIBRARY[testName];
+    if (mapped) return withCoreRadiologySections(mapped);
+    return withCoreRadiologySections(inferRadiologyFieldTemplate(testName));
   }
 
   // Refresh templates for already-existing standard lab tests
@@ -3833,7 +4051,9 @@ async function main() {
     new Set(rawLabTests.map(normalizeName).filter(Boolean))
   ).filter((name) =&gt; !existingLabNames.has(name.toUpperCase()));
 
-  const dedupedRadiology: string[] = [];
+  const dedupedRadiology = Array.from(
+    new Set(rawRadiologyTests.map(normalizeName).filter(Boolean))
+  ).filter((name) =&gt; !existingRadiologyNames.has(name.toUpperCase()));
 
   for (let i = 0; i &lt; dedupedLab.length; i += 1) {
     const testName = dedupedLab[i];
@@ -3993,7 +4213,7 @@ main()
 
 
 </pre></div>
-<div class='file-block'><div class='file-header'>public/fallback-DLLRNZFgv067eZf-1BkmZ.js</div><pre>(()=&gt;{"use strict";self.fallback=async e=&gt;"document"===e.destination?caches.match("/offline",{ignoreSearch:!0}):Response.error()})();</pre></div>
+<div class='file-block'><div class='file-header'>public/fallback-A9jBE7xex9dh-X1MzChjq.js</div><pre>(()=&gt;{"use strict";self.fallback=async e=&gt;"document"===e.destination?caches.match("/offline",{ignoreSearch:!0}):Response.error()})();</pre></div>
 <div class='file-block'><div class='file-header'>public/manifest.json</div><pre>{
   "name": "DiagSync",
   "short_name": "DiagSync",
@@ -4017,7 +4237,7 @@ main()
   ]
 }
 </pre></div>
-<div class='file-block'><div class='file-header'>public/sw.js</div><pre>if(!self.define){let e,a={};const s=(s,i)=&gt;(s=new URL(s+".js",i).href,a[s]||new Promise(a=&gt;{if("document"in self){const e=document.createElement("script");e.src=s,e.onload=a,document.head.appendChild(e)}else e=s,importScripts(s),a()}).then(()=&gt;{let e=a[s];if(!e)throw new Error(`Module ${s} didnâ€™t register its module`);return e}));self.define=(i,n)=&gt;{const t=e||("document"in self?document.currentScript.src:"")||location.href;if(a[t])return;let r={};const d=e=&gt;s(e,t),c={module:{uri:t},exports:r,require:d};a[t]=Promise.all(i.map(e=&gt;c[e]||d(e))).then(e=&gt;(n(...e),r))}}define(["./workbox-5268f9bb"],function(e){"use strict";importScripts("fallback-DLLRNZFgv067eZf-1BkmZ.js"),self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"/_next/app-build-manifest.json",revision:"591c0b8ba9d1ead34ffb26a4f0cab991"},{url:"/_next/static/DLLRNZFgv067eZf-1BkmZ/_buildManifest.js",revision:"0ea7e7088aabf697ba3d8aa8c7b54a89"},{url:"/_next/static/DLLRNZFgv067eZf-1BkmZ/_ssgManifest.js",revision:"b6652df95db52feb4daf4eca35380933"},{url:"/_next/static/chunks/1718-cdea0b2ef0657e8b.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/2117-6248ab8a803926e9.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/2736-b854e4d0eb1cc744.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/2972-d7f9b35a010ac3d8.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/5878-51910f4ce925886c.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/5898-14b7d00275bff2b1.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/5945-780c5f10685ba6bd.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/6137-de267f975f27b52e.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/7526-2941b8a7b9d63709.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/8345-191dbf09d88a605f.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/8778-2df859ca51eebdac.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/8989-261cee64e802debc.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/932-8a254be1e395d5ba.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/analytics/page-b7b005834cafd4f3.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/dashboard/page-f87764f9488d30dc.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/labs/%5Bid%5D/page-25fd06e96d520ce6.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/labs/page-d2acc2f98cd56f8f.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/layout-a643ade4d834e2cd.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/loading-2d0580acb8a97dd2.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/page-27579f6edfdb69b5.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(admin)/admin/users/page-d341ad3eb18e0ad0.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(auth)/layout-c689f4417a61a5be.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(auth)/login/page-78efb85392b16af4.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(auth)/register/page-57691950ac11fe7f.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/billing/page-9193ba2b6b87b806.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/analytics/page-d53b3e4d29feb398.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/audit/page-d568e30748e77484.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/consultation/page-17612f8f0cadd6f7.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/notifications/page-aca02e1373dafeed.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/operations/page-87d52a234ed39557.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/page-0c9e185501c8b078.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/release/page-f2eba5be2a550206.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/settings/page-be847f3c2a5ddb08.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/%5Bid%5D/page-002c92bc805dce04.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/new/page-aaed7383083618fb.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/page-d05324d13cfedac2.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/tests/page-0f7b2dd0a00defd8.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/notifications/page-c745781ea410bb04.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/page-4b520c59e13bdd8b.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/queue/page-81ed58841ddbf45e.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/results/page-4f40e5702a348a3d.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/approved/page-d00fd463d2cc563a.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/consultation/page-0babefc40c1a5ddb.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/notifications/page-94369fba75256fc8.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/page-8f9a8759c24329bf.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/reports/page-d31204fd31df7871.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/review/page-e52a25dde393738e.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/notifications/page-c224b13f76fe7fa9.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/page-dd866c7786fa9375.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/queue/page-6bf7a7ba7e7f795a.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/reports/page-42114ae36bc4ab28.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/consultation/page-f94d9e4034a6ae66.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/new-patient/page-a0f40cb16e20fe51.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/notifications/page-4915db60cceacd5f.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/page-73e692c7cd0a7e12.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/%5BpatientId%5D/edit/page-2cbc1297bb2fba9f.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/page-73fee85b7e12f993.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/release/page-695479a4947850fb.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/error-75e2a57f15a66f59.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/layout-4f1147b5bf584cd7.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/(dashboard)/loading-68b36652b172fffb.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/_not-found/page-b1893bbc8d83e2db.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/dashboard/page-4fde7671ec839957.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/error-c77673c4d9bf4c49.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/global-error-0e83b7331b1f188c.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/layout-ec1b5a22fea6bb85.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/not-found-5374a67cdc18d930.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/offline/page-8919abde04b94da1.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/page-b7e27963907821d4.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/app/public/reports/%5Btoken%5D/page-1999b0dfdc302537.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/fd9d1056-8d69396482e34025.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/framework-a63c59c368572696.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/main-app-2877bb5658641a8d.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/main-cdf6783a7c85cd61.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/pages/_app-78ddf957b9a9b996.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/pages/_error-7ce03bcf1df914ce.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/chunks/polyfills-42372ed130431b0a.js",revision:"846118c33b2c0e922d7b3a7676f81f6f"},{url:"/_next/static/chunks/webpack-e96e1091b6e3d5e0.js",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/_next/static/css/d7878e2f1813864a.css",revision:"d7878e2f1813864a"},{url:"/_next/static/media/19cfc7226ec3afaa-s.woff2",revision:"9dda5cfc9a46f256d0e131bb535e46f8"},{url:"/_next/static/media/21350d82a1f187e9-s.woff2",revision:"4e2553027f1d60eff32898367dd4d541"},{url:"/_next/static/media/8e9860b6e62d6359-s.woff2",revision:"01ba6c2a184b8cba08b0d57167664d75"},{url:"/_next/static/media/ba9851c3c22cd980-s.woff2",revision:"9e494903d6b0ffec1a1e14d34427d44d"},{url:"/_next/static/media/c5fe6dc8356a8c31-s.woff2",revision:"027a89e9ab733a145db70f09b8a18b42"},{url:"/_next/static/media/df0a9ae256c0569c-s.woff2",revision:"d54db44de5ccb18886ece2fda72bdfe0"},{url:"/_next/static/media/e4af272ccee01ff0-s.p.woff2",revision:"65850a373e258f1c897a2b3d75eb74de"},{url:"/diagsync-logo.png",revision:"77e9c567b2a574379952fca17baf6e35"},{url:"/diagsync-watermark.png",revision:"aeff36c86804a6d13167bef4500ec421"},{url:"/icons/icon-192.png",revision:"cde0b3a52915e1aff301981f4779e52b"},{url:"/icons/icon-512.png",revision:"49194c78838f3f11eb491c3253dbfdbc"},{url:"/manifest.json",revision:"8bdaaa3cc85732dcb12359430cd0e4ef"},{url:"/offline",revision:"DLLRNZFgv067eZf-1BkmZ"},{url:"/splash-screen.png",revision:"febe7eb192dd065880036523e3d1a075"}],{ignoreURLParametersMatching:[]}),e.cleanupOutdatedCaches(),e.registerRoute("/",new e.NetworkFirst({cacheName:"start-url",plugins:[{cacheWillUpdate:async({request:e,response:a,event:s,state:i})=&gt;a&amp;&amp;"opaqueredirect"===a.type?new Response(a.body,{status:200,statusText:"OK",headers:a.headers}):a},{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"document"===e.destination,new e.NetworkFirst({cacheName:"pages-cache",networkTimeoutSeconds:5,plugins:[new e.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({url:e})=&gt;e.pathname.startsWith("/_next/static/"),new e.StaleWhileRevalidate({cacheName:"next-static-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"image"===e.destination,new e.CacheFirst({cacheName:"image-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"style"===e.destination||"script"===e.destination,new e.StaleWhileRevalidate({cacheName:"asset-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({url:e})=&gt;e.pathname.startsWith("/api/"),new e.NetworkOnly({cacheName:"api-no-cache",plugins:[{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET")});
+<div class='file-block'><div class='file-header'>public/sw.js</div><pre>if(!self.define){let e,a={};const s=(s,d)=&gt;(s=new URL(s+".js",d).href,a[s]||new Promise(a=&gt;{if("document"in self){const e=document.createElement("script");e.src=s,e.onload=a,document.head.appendChild(e)}else e=s,importScripts(s),a()}).then(()=&gt;{let e=a[s];if(!e)throw new Error(`Module ${s} didnâ€™t register its module`);return e}));self.define=(d,i)=&gt;{const n=e||("document"in self?document.currentScript.src:"")||location.href;if(a[n])return;let t={};const r=e=&gt;s(e,n),c={module:{uri:n},exports:t,require:r};a[n]=Promise.all(d.map(e=&gt;c[e]||r(e))).then(e=&gt;(i(...e),t))}}define(["./workbox-5268f9bb"],function(e){"use strict";importScripts("fallback-A9jBE7xex9dh-X1MzChjq.js"),self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"/_next/app-build-manifest.json",revision:"589217acea29dd648acbae8f830e64ea"},{url:"/_next/static/A9jBE7xex9dh-X1MzChjq/_buildManifest.js",revision:"0ea7e7088aabf697ba3d8aa8c7b54a89"},{url:"/_next/static/A9jBE7xex9dh-X1MzChjq/_ssgManifest.js",revision:"b6652df95db52feb4daf4eca35380933"},{url:"/_next/static/chunks/1718-9e06496cf6281bb9.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/2117-6248ab8a803926e9.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/2736-9f8377b65c2d9944.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/2972-d7f9b35a010ac3d8.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/5878-51910f4ce925886c.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/5898-5459377e6fbc9b48.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/5945-ff2e68e2dd489b63.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/6137-de267f975f27b52e.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/6547-c80170d839b70909.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/7526-2941b8a7b9d63709.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/8778-a7f1f2fd54c7181e.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/8989-261cee64e802debc.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/932-0d50caa7640cbb0a.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/analytics/page-2737ca61567b98ee.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/dashboard/page-03b3cc050613291f.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/labs/%5Bid%5D/page-bbf13a09159f20d8.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/labs/page-63f30225c4e4ee04.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/layout-b36a5cc6e335f722.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/loading-ca3f55463774615a.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/page-7ea3cd4e907a4afc.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(admin)/admin/users/page-fc06f2241a3d31d9.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(auth)/layout-d24397c8277347da.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(auth)/login/page-78efb85392b16af4.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(auth)/register/page-57691950ac11fe7f.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/billing/page-9193ba2b6b87b806.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/analytics/page-944a213bfc6760d1.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/audit/page-7230e08e78977c0a.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/consultation/page-17612f8f0cadd6f7.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/notifications/page-6d8401068ba7ee0a.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/operations/page-ad7d5c0b87b3632f.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/page-0c9e185501c8b078.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/release/page-27516127472847a1.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/settings/page-be847f3c2a5ddb08.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/%5Bid%5D/page-1f429f5232c69ba3.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/new/page-ee191728a7176021.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/staff/page-b6d5c85b78c17671.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/hrm/tests/page-e1662b3edfde3a72.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/notifications/page-de492e1cda53cfd8.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/page-4b520c59e13bdd8b.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/queue/page-78bdf233462c14fe.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/lab-scientist/results/page-fb5d17069e83c7a3.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/loading-dd0787342e05e577.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/approved/page-d1ec75d045d0f052.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/consultation/page-0babefc40c1a5ddb.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/notifications/page-8f2fa8ef24d20125.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/page-d0cfda1bab6425bc.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/reports/page-c64873dec5828cea.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/md/review/page-1d58385551f3ef3b.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/page-096f773129a00ed7.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/notifications/page-738da60f4850849b.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/page-aa0c5d57f2271e6d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/queue/page-87e81de192b4fc44.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/radiographer/reports/page-4f84ea8dca829f08.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/consultation/page-f94d9e4034a6ae66.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/new-patient/page-7046cdb40a39f4c4.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/notifications/page-602c6120b7ef544a.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/page-6de340b3900bc219.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/%5BpatientId%5D/edit/page-733bbd9d3b05f18e.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/patients/page-99bca0d10695b85c.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/dashboard/receptionist/release/page-6a34d6c21551092d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/error-75e2a57f15a66f59.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/insights/reports/loading-c1477338e83f5efd.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/insights/reports/page-c1e20be3033be0d6.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/layout-f2c42f7f58879810.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/loading-6dfbf27b1edadf7b.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/(dashboard)/patients/%5Bid%5D/page-d3f3088603b94b0d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/_not-found/page-42f244592ba1dc0d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/error-c77673c4d9bf4c49.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/global-error-0e83b7331b1f188c.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/layout-ec1b5a22fea6bb85.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/not-found-0ae8d22730a0a5dd.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/offline/page-24798d59c3d0991c.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/page-b7e27963907821d4.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/app/public/reports/%5Btoken%5D/page-632669d1cf35473d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/fd9d1056-8d69396482e34025.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/framework-a63c59c368572696.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/main-96f403ee7b28f4ac.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/main-app-2877bb5658641a8d.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/pages/_app-78ddf957b9a9b996.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/pages/_error-7ce03bcf1df914ce.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/chunks/polyfills-42372ed130431b0a.js",revision:"846118c33b2c0e922d7b3a7676f81f6f"},{url:"/_next/static/chunks/webpack-e96e1091b6e3d5e0.js",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/_next/static/css/f868d8ebbd453598.css",revision:"f868d8ebbd453598"},{url:"/_next/static/media/19cfc7226ec3afaa-s.woff2",revision:"9dda5cfc9a46f256d0e131bb535e46f8"},{url:"/_next/static/media/21350d82a1f187e9-s.woff2",revision:"4e2553027f1d60eff32898367dd4d541"},{url:"/_next/static/media/8e9860b6e62d6359-s.woff2",revision:"01ba6c2a184b8cba08b0d57167664d75"},{url:"/_next/static/media/ba9851c3c22cd980-s.woff2",revision:"9e494903d6b0ffec1a1e14d34427d44d"},{url:"/_next/static/media/c5fe6dc8356a8c31-s.woff2",revision:"027a89e9ab733a145db70f09b8a18b42"},{url:"/_next/static/media/df0a9ae256c0569c-s.woff2",revision:"d54db44de5ccb18886ece2fda72bdfe0"},{url:"/_next/static/media/e4af272ccee01ff0-s.p.woff2",revision:"65850a373e258f1c897a2b3d75eb74de"},{url:"/diagsync-logo.png",revision:"77e9c567b2a574379952fca17baf6e35"},{url:"/diagsync-watermark.png",revision:"aeff36c86804a6d13167bef4500ec421"},{url:"/icons/icon-192.png",revision:"cde0b3a52915e1aff301981f4779e52b"},{url:"/icons/icon-512.png",revision:"49194c78838f3f11eb491c3253dbfdbc"},{url:"/manifest.json",revision:"8bdaaa3cc85732dcb12359430cd0e4ef"},{url:"/offline",revision:"A9jBE7xex9dh-X1MzChjq"},{url:"/splash-screen.png",revision:"febe7eb192dd065880036523e3d1a075"}],{ignoreURLParametersMatching:[]}),e.cleanupOutdatedCaches(),e.registerRoute("/",new e.NetworkFirst({cacheName:"start-url",plugins:[{cacheWillUpdate:async({request:e,response:a,event:s,state:d})=&gt;a&amp;&amp;"opaqueredirect"===a.type?new Response(a.body,{status:200,statusText:"OK",headers:a.headers}):a},{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"document"===e.destination,new e.NetworkFirst({cacheName:"pages-cache",networkTimeoutSeconds:5,plugins:[new e.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({url:e})=&gt;e.pathname.startsWith("/_next/static/"),new e.StaleWhileRevalidate({cacheName:"next-static-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"image"===e.destination,new e.CacheFirst({cacheName:"image-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({request:e})=&gt;"style"===e.destination||"script"===e.destination,new e.StaleWhileRevalidate({cacheName:"asset-cache",plugins:[new e.ExpirationPlugin({maxEntries:128,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET"),e.registerRoute(({url:e})=&gt;e.pathname.startsWith("/api/"),new e.NetworkOnly({cacheName:"api-no-cache",plugins:[{handlerDidError:async({request:e})=&gt;self.fallback(e)}]}),"GET")});
 </pre></div>
 <div class='file-block'><div class='file-header'>public/workbox-5268f9bb.js</div><pre>define(["exports"],function(t){"use strict";try{self["workbox:core:6.5.4"]&amp;&amp;_()}catch(t){}const e=(t,...e)=&gt;{let s=t;return e.length&gt;0&amp;&amp;(s+=` :: ${JSON.stringify(e)}`),s};class s extends Error{constructor(t,s){super(e(t,s)),this.name=t,this.details=s}}try{self["workbox:routing:6.5.4"]&amp;&amp;_()}catch(t){}const n=t=&gt;t&amp;&amp;"object"==typeof t?t:{handle:t};class r{constructor(t,e,s="GET"){this.handler=n(e),this.match=t,this.method=s}setCatchHandler(t){this.catchHandler=n(t)}}class i extends r{constructor(t,e,s){super(({url:e})=&gt;{const s=t.exec(e.href);if(s&amp;&amp;(e.origin===location.origin||0===s.index))return s.slice(1)},e,s)}}class a{constructor(){this.t=new Map,this.i=new Map}get routes(){return this.t}addFetchListener(){self.addEventListener("fetch",t=&gt;{const{request:e}=t,s=this.handleRequest({request:e,event:t});s&amp;&amp;t.respondWith(s)})}addCacheListener(){self.addEventListener("message",t=&gt;{if(t.data&amp;&amp;"CACHE_URLS"===t.data.type){const{payload:e}=t.data,s=Promise.all(e.urlsToCache.map(e=&gt;{"string"==typeof e&amp;&amp;(e=[e]);const s=new Request(...e);return this.handleRequest({request:s,event:t})}));t.waitUntil(s),t.ports&amp;&amp;t.ports[0]&amp;&amp;s.then(()=&gt;t.ports[0].postMessage(!0))}})}handleRequest({request:t,event:e}){const s=new URL(t.url,location.href);if(!s.protocol.startsWith("http"))return;const n=s.origin===location.origin,{params:r,route:i}=this.findMatchingRoute({event:e,request:t,sameOrigin:n,url:s});let a=i&amp;&amp;i.handler;const o=t.method;if(!a&amp;&amp;this.i.has(o)&amp;&amp;(a=this.i.get(o)),!a)return;let c;try{c=a.handle({url:s,request:t,event:e,params:r})}catch(t){c=Promise.reject(t)}const h=i&amp;&amp;i.catchHandler;return c instanceof Promise&amp;&amp;(this.o||h)&amp;&amp;(c=c.catch(async n=&gt;{if(h)try{return await h.handle({url:s,request:t,event:e,params:r})}catch(t){t instanceof Error&amp;&amp;(n=t)}if(this.o)return this.o.handle({url:s,request:t,event:e});throw n})),c}findMatchingRoute({url:t,sameOrigin:e,request:s,event:n}){const r=this.t.get(s.method)||[];for(const i of r){let r;const a=i.match({url:t,sameOrigin:e,request:s,event:n});if(a)return r=a,(Array.isArray(r)&amp;&amp;0===r.length||a.constructor===Object&amp;&amp;0===Object.keys(a).length||"boolean"==typeof a)&amp;&amp;(r=void 0),{route:i,params:r}}return{}}setDefaultHandler(t,e="GET"){this.i.set(e,n(t))}setCatchHandler(t){this.o=n(t)}registerRoute(t){this.t.has(t.method)||this.t.set(t.method,[]),this.t.get(t.method).push(t)}unregisterRoute(t){if(!this.t.has(t.method))throw new s("unregister-route-but-not-found-with-method",{method:t.method});const e=this.t.get(t.method).indexOf(t);if(!(e&gt;-1))throw new s("unregister-route-route-not-registered");this.t.get(t.method).splice(e,1)}}let o;const c=()=&gt;(o||(o=new a,o.addFetchListener(),o.addCacheListener()),o);function h(t,e,n){let a;if("string"==typeof t){const s=new URL(t,location.href);a=new r(({url:t})=&gt;t.href===s.href,e,n)}else if(t instanceof RegExp)a=new i(t,e,n);else if("function"==typeof t)a=new r(t,e,n);else{if(!(t instanceof r))throw new s("unsupported-route-type",{moduleName:"workbox-routing",funcName:"registerRoute",paramName:"capture"});a=t}return c().registerRoute(a),a}try{self["workbox:strategies:6.5.4"]&amp;&amp;_()}catch(t){}const u={cacheWillUpdate:async({response:t})=&gt;200===t.status||0===t.status?t:null},l={googleAnalytics:"googleAnalytics",precache:"precache-v2",prefix:"workbox",runtime:"runtime",suffix:"undefined"!=typeof registration?registration.scope:""},f=t=&gt;[l.prefix,t,l.suffix].filter(t=&gt;t&amp;&amp;t.length&gt;0).join("-"),w=t=&gt;t||f(l.precache),d=t=&gt;t||f(l.runtime);function p(t,e){const s=new URL(t);for(const t of e)s.searchParams.delete(t);return s.href}class y{constructor(){this.promise=new Promise((t,e)=&gt;{this.resolve=t,this.reject=e})}}const m=new Set;function g(t){return new Promise(e=&gt;setTimeout(e,t))}function R(t){return"string"==typeof t?new Request(t):t}class v{constructor(t,e){this.h={},Object.assign(this,e),this.event=e.event,this.u=t,this.l=new y,this.p=[],this.m=[...t.plugins],this.R=new Map;for(const t of this.m)this.R.set(t,{});this.event.waitUntil(this.l.promise)}async fetch(t){const{event:e}=this;let n=R(t);if("navigate"===n.mode&amp;&amp;e instanceof FetchEvent&amp;&amp;e.preloadResponse){const t=await e.preloadResponse;if(t)return t}const r=this.hasCallback("fetchDidFail")?n.clone():null;try{for(const t of this.iterateCallbacks("requestWillFetch"))n=await t({request:n.clone(),event:e})}catch(t){if(t instanceof Error)throw new s("plugin-error-request-will-fetch",{thrownErrorMessage:t.message})}const i=n.clone();try{let t;t=await fetch(n,"navigate"===n.mode?void 0:this.u.fetchOptions);for(const s of this.iterateCallbacks("fetchDidSucceed"))t=await s({event:e,request:i,response:t});return t}catch(t){throw r&amp;&amp;await this.runCallbacks("fetchDidFail",{error:t,event:e,originalRequest:r.clone(),request:i.clone()}),t}}async fetchAndCachePut(t){const e=await this.fetch(t),s=e.clone();return this.waitUntil(this.cachePut(t,s)),e}async cacheMatch(t){const e=R(t);let s;const{cacheName:n,matchOptions:r}=this.u,i=await this.getCacheKey(e,"read"),a=Object.assign(Object.assign({},r),{cacheName:n});s=await caches.match(i,a);for(const t of this.iterateCallbacks("cachedResponseWillBeUsed"))s=await t({cacheName:n,matchOptions:r,cachedResponse:s,request:i,event:this.event})||void 0;return s}async cachePut(t,e){const n=R(t);await g(0);const r=await this.getCacheKey(n,"write");if(!e)throw new s("cache-put-with-no-response",{url:(i=r.url,new URL(String(i),location.href).href.replace(new RegExp(`^${location.origin}`),""))});var i;const a=await this.v(e);if(!a)return!1;const{cacheName:o,matchOptions:c}=this.u,h=await self.caches.open(o),u=this.hasCallback("cacheDidUpdate"),l=u?await async function(t,e,s,n){const r=p(e.url,s);if(e.url===r)return t.match(e,n);const i=Object.assign(Object.assign({},n),{ignoreSearch:!0}),a=await t.keys(e,i);for(const e of a)if(r===p(e.url,s))return t.match(e,n)}(h,r.clone(),["__WB_REVISION__"],c):null;try{await h.put(r,u?a.clone():a)}catch(t){if(t instanceof Error)throw"QuotaExceededError"===t.name&amp;&amp;await async function(){for(const t of m)await t()}(),t}for(const t of this.iterateCallbacks("cacheDidUpdate"))await t({cacheName:o,oldResponse:l,newResponse:a.clone(),request:r,event:this.event});return!0}async getCacheKey(t,e){const s=`${t.url} | ${e}`;if(!this.h[s]){let n=t;for(const t of this.iterateCallbacks("cacheKeyWillBeUsed"))n=R(await t({mode:e,request:n,event:this.event,params:this.params}));this.h[s]=n}return this.h[s]}hasCallback(t){for(const e of this.u.plugins)if(t in e)return!0;return!1}async runCallbacks(t,e){for(const s of this.iterateCallbacks(t))await s(e)}*iterateCallbacks(t){for(const e of this.u.plugins)if("function"==typeof e[t]){const s=this.R.get(e),n=n=&gt;{const r=Object.assign(Object.assign({},n),{state:s});return e[t](r)};yield n}}waitUntil(t){return this.p.push(t),t}async doneWaiting(){let t;for(;t=this.p.shift();)await t}destroy(){this.l.resolve(null)}async v(t){let e=t,s=!1;for(const t of this.iterateCallbacks("cacheWillUpdate"))if(e=await t({request:this.request,response:e,event:this.event})||void 0,s=!0,!e)break;return s||e&amp;&amp;200!==e.status&amp;&amp;(e=void 0),e}}class b{constructor(t={}){this.cacheName=d(t.cacheName),this.plugins=t.plugins||[],this.fetchOptions=t.fetchOptions,this.matchOptions=t.matchOptions}handle(t){const[e]=this.handleAll(t);return e}handleAll(t){t instanceof FetchEvent&amp;&amp;(t={event:t,request:t.request});const e=t.event,s="string"==typeof t.request?new Request(t.request):t.request,n="params"in t?t.params:void 0,r=new v(this,{event:e,request:s,params:n}),i=this.q(r,s,e);return[i,this.D(i,r,s,e)]}async q(t,e,n){let r;await t.runCallbacks("handlerWillStart",{event:n,request:e});try{if(r=await this.U(e,t),!r||"error"===r.type)throw new s("no-response",{url:e.url})}catch(s){if(s instanceof Error)for(const i of t.iterateCallbacks("handlerDidError"))if(r=await i({error:s,event:n,request:e}),r)break;if(!r)throw s}for(const s of t.iterateCallbacks("handlerWillRespond"))r=await s({event:n,request:e,response:r});return r}async D(t,e,s,n){let r,i;try{r=await t}catch(i){}try{await e.runCallbacks("handlerDidRespond",{event:n,request:s,response:r}),await e.doneWaiting()}catch(t){t instanceof Error&amp;&amp;(i=t)}if(await e.runCallbacks("handlerDidComplete",{event:n,request:s,response:r,error:i}),e.destroy(),i)throw i}}function q(t){t.then(()=&gt;{})}function D(){return D=Object.assign?Object.assign.bind():function(t){for(var e=1;e&lt;arguments.length;e++){var s=arguments[e];for(var n in s)({}).hasOwnProperty.call(s,n)&amp;&amp;(t[n]=s[n])}return t},D.apply(null,arguments)}let U,x;const E=new WeakMap,I=new WeakMap,L=new WeakMap,C=new WeakMap,N=new WeakMap;let k={get(t,e,s){if(t instanceof IDBTransaction){if("done"===e)return I.get(t);if("objectStoreNames"===e)return t.objectStoreNames||L.get(t);if("store"===e)return s.objectStoreNames[1]?void 0:s.objectStore(s.objectStoreNames[0])}return T(t[e])},set:(t,e,s)=&gt;(t[e]=s,!0),has:(t,e)=&gt;t instanceof IDBTransaction&amp;&amp;("done"===e||"store"===e)||e in t};function O(t){return t!==IDBDatabase.prototype.transaction||"objectStoreNames"in IDBTransaction.prototype?(x||(x=[IDBCursor.prototype.advance,IDBCursor.prototype.continue,IDBCursor.prototype.continuePrimaryKey])).includes(t)?function(...e){return t.apply(P(this),e),T(E.get(this))}:function(...e){return T(t.apply(P(this),e))}:function(e,...s){const n=t.call(P(this),e,...s);return L.set(n,e.sort?e.sort():[e]),T(n)}}function B(t){return"function"==typeof t?O(t):(t instanceof IDBTransaction&amp;&amp;function(t){if(I.has(t))return;const e=new Promise((e,s)=&gt;{const n=()=&gt;{t.removeEventListener("complete",r),t.removeEventListener("error",i),t.removeEventListener("abort",i)},r=()=&gt;{e(),n()},i=()=&gt;{s(t.error||new DOMException("AbortError","AbortError")),n()};t.addEventListener("complete",r),t.addEventListener("error",i),t.addEventListener("abort",i)});I.set(t,e)}(t),e=t,(U||(U=[IDBDatabase,IDBObjectStore,IDBIndex,IDBCursor,IDBTransaction])).some(t=&gt;e instanceof t)?new Proxy(t,k):t);var e}function T(t){if(t instanceof IDBRequest)return function(t){const e=new Promise((e,s)=&gt;{const n=()=&gt;{t.removeEventListener("success",r),t.removeEventListener("error",i)},r=()=&gt;{e(T(t.result)),n()},i=()=&gt;{s(t.error),n()};t.addEventListener("success",r),t.addEventListener("error",i)});return e.then(e=&gt;{e instanceof IDBCursor&amp;&amp;E.set(e,t)}).catch(()=&gt;{}),N.set(e,t),e}(t);if(C.has(t))return C.get(t);const e=B(t);return e!==t&amp;&amp;(C.set(t,e),N.set(e,t)),e}const P=t=&gt;N.get(t);const M=["get","getKey","getAll","getAllKeys","count"],W=["put","add","delete","clear"],j=new Map;function S(t,e){if(!(t instanceof IDBDatabase)||e in t||"string"!=typeof e)return;if(j.get(e))return j.get(e);const s=e.replace(/FromIndex$/,""),n=e!==s,r=W.includes(s);if(!(s in(n?IDBIndex:IDBObjectStore).prototype)||!r&amp;&amp;!M.includes(s))return;const i=async function(t,...e){const i=this.transaction(t,r?"readwrite":"readonly");let a=i.store;return n&amp;&amp;(a=a.index(e.shift())),(await Promise.all([a[s](...e),r&amp;&amp;i.done]))[0]};return j.set(e,i),i}k=(t=&gt;D({},t,{get:(e,s,n)=&gt;S(e,s)||t.get(e,s,n),has:(e,s)=&gt;!!S(e,s)||t.has(e,s)}))(k);try{self["workbox:expiration:6.5.4"]&amp;&amp;_()}catch(t){}const K="cache-entries",A=t=&gt;{const e=new URL(t,location.href);return e.hash="",e.href};class F{constructor(t){this._=null,this.I=t}L(t){const e=t.createObjectStore(K,{keyPath:"id"});e.createIndex("cacheName","cacheName",{unique:!1}),e.createIndex("timestamp","timestamp",{unique:!1})}C(t){this.L(t),this.I&amp;&amp;function(t,{blocked:e}={}){const s=indexedDB.deleteDatabase(t);e&amp;&amp;s.addEventListener("blocked",t=&gt;e(t.oldVersion,t)),T(s).then(()=&gt;{})}(this.I)}async setTimestamp(t,e){const s={url:t=A(t),timestamp:e,cacheName:this.I,id:this.N(t)},n=(await this.getDb()).transaction(K,"readwrite",{durability:"relaxed"});await n.store.put(s),await n.done}async getTimestamp(t){const e=await this.getDb(),s=await e.get(K,this.N(t));return null==s?void 0:s.timestamp}async expireEntries(t,e){const s=await this.getDb();let n=await s.transaction(K).store.index("timestamp").openCursor(null,"prev");const r=[];let i=0;for(;n;){const s=n.value;s.cacheName===this.I&amp;&amp;(t&amp;&amp;s.timestamp&lt;t||e&amp;&amp;i&gt;=e?r.push(n.value):i++),n=await n.continue()}const a=[];for(const t of r)await s.delete(K,t.id),a.push(t.url);return a}N(t){return this.I+"|"+A(t)}async getDb(){return this._||(this._=await function(t,e,{blocked:s,upgrade:n,blocking:r,terminated:i}={}){const a=indexedDB.open(t,e),o=T(a);return n&amp;&amp;a.addEventListener("upgradeneeded",t=&gt;{n(T(a.result),t.oldVersion,t.newVersion,T(a.transaction),t)}),s&amp;&amp;a.addEventListener("blocked",t=&gt;s(t.oldVersion,t.newVersion,t)),o.then(t=&gt;{i&amp;&amp;t.addEventListener("close",()=&gt;i()),r&amp;&amp;t.addEventListener("versionchange",t=&gt;r(t.oldVersion,t.newVersion,t))}).catch(()=&gt;{}),o}("workbox-expiration",1,{upgrade:this.C.bind(this)})),this._}}class ${constructor(t,e={}){this.k=!1,this.O=!1,this.B=e.maxEntries,this.T=e.maxAgeSeconds,this.P=e.matchOptions,this.I=t,this.M=new F(t)}async expireEntries(){if(this.k)return void(this.O=!0);this.k=!0;const t=this.T?Date.now()-1e3*this.T:0,e=await this.M.expireEntries(t,this.B),s=await self.caches.open(this.I);for(const t of e)await s.delete(t,this.P);this.k=!1,this.O&amp;&amp;(this.O=!1,q(this.expireEntries()))}async updateTimestamp(t){await this.M.setTimestamp(t,Date.now())}async isURLExpired(t){if(this.T){const e=await this.M.getTimestamp(t),s=Date.now()-1e3*this.T;return void 0===e||e&lt;s}return!1}async delete(){this.O=!1,await this.M.expireEntries(1/0)}}function H(t,e){const s=e();return t.waitUntil(s),s}try{self["workbox:precaching:6.5.4"]&amp;&amp;_()}catch(t){}function G(t){if(!t)throw new s("add-to-cache-list-unexpected-type",{entry:t});if("string"==typeof t){const e=new URL(t,location.href);return{cacheKey:e.href,url:e.href}}const{revision:e,url:n}=t;if(!n)throw new s("add-to-cache-list-unexpected-type",{entry:t});if(!e){const t=new URL(n,location.href);return{cacheKey:t.href,url:t.href}}const r=new URL(n,location.href),i=new URL(n,location.href);return r.searchParams.set("__WB_REVISION__",e),{cacheKey:r.href,url:i.href}}class V{constructor(){this.updatedURLs=[],this.notUpdatedURLs=[],this.handlerWillStart=async({request:t,state:e})=&gt;{e&amp;&amp;(e.originalRequest=t)},this.cachedResponseWillBeUsed=async({event:t,state:e,cachedResponse:s})=&gt;{if("install"===t.type&amp;&amp;e&amp;&amp;e.originalRequest&amp;&amp;e.originalRequest instanceof Request){const t=e.originalRequest.url;s?this.notUpdatedURLs.push(t):this.updatedURLs.push(t)}return s}}}class J{constructor({precacheController:t}){this.cacheKeyWillBeUsed=async({request:t,params:e})=&gt;{const s=(null==e?void 0:e.cacheKey)||this.W.getCacheKeyForURL(t.url);return s?new Request(s,{headers:t.headers}):t},this.W=t}}let Q,z;async function X(t,e){let n=null;if(t.url){n=new URL(t.url).origin}if(n!==self.location.origin)throw new s("cross-origin-copy-response",{origin:n});const r=t.clone(),i={headers:new Headers(r.headers),status:r.status,statusText:r.statusText},a=e?e(i):i,o=function(){if(void 0===Q){const t=new Response("");if("body"in t)try{new Response(t.body),Q=!0}catch(t){Q=!1}Q=!1}return Q}()?r.body:await r.blob();return new Response(o,a)}class Y extends b{constructor(t={}){t.cacheName=w(t.cacheName),super(t),this.j=!1!==t.fallbackToNetwork,this.plugins.push(Y.copyRedirectedCacheableResponsesPlugin)}async U(t,e){const s=await e.cacheMatch(t);return s||(e.event&amp;&amp;"install"===e.event.type?await this.S(t,e):await this.K(t,e))}async K(t,e){let n;const r=e.params||{};if(!this.j)throw new s("missing-precache-entry",{cacheName:this.cacheName,url:t.url});{const s=r.integrity,i=t.integrity,a=!i||i===s;n=await e.fetch(new Request(t,{integrity:"no-cors"!==t.mode?i||s:void 0})),s&amp;&amp;a&amp;&amp;"no-cors"!==t.mode&amp;&amp;(this.A(),await e.cachePut(t,n.clone()))}return n}async S(t,e){this.A();const n=await e.fetch(t);if(!await e.cachePut(t,n.clone()))throw new s("bad-precaching-response",{url:t.url,status:n.status});return n}A(){let t=null,e=0;for(const[s,n]of this.plugins.entries())n!==Y.copyRedirectedCacheableResponsesPlugin&amp;&amp;(n===Y.defaultPrecacheCacheabilityPlugin&amp;&amp;(t=s),n.cacheWillUpdate&amp;&amp;e++);0===e?this.plugins.push(Y.defaultPrecacheCacheabilityPlugin):e&gt;1&amp;&amp;null!==t&amp;&amp;this.plugins.splice(t,1)}}Y.defaultPrecacheCacheabilityPlugin={cacheWillUpdate:async({response:t})=&gt;!t||t.status&gt;=400?null:t},Y.copyRedirectedCacheableResponsesPlugin={cacheWillUpdate:async({response:t})=&gt;t.redirected?await X(t):t};class Z{constructor({cacheName:t,plugins:e=[],fallbackToNetwork:s=!0}={}){this.F=new Map,this.$=new Map,this.H=new Map,this.u=new Y({cacheName:w(t),plugins:[...e,new J({precacheController:this})],fallbackToNetwork:s}),this.install=this.install.bind(this),this.activate=this.activate.bind(this)}get strategy(){return this.u}precache(t){this.addToCacheList(t),this.G||(self.addEventListener("install",this.install),self.addEventListener("activate",this.activate),this.G=!0)}addToCacheList(t){const e=[];for(const n of t){"string"==typeof n?e.push(n):n&amp;&amp;void 0===n.revision&amp;&amp;e.push(n.url);const{cacheKey:t,url:r}=G(n),i="string"!=typeof n&amp;&amp;n.revision?"reload":"default";if(this.F.has(r)&amp;&amp;this.F.get(r)!==t)throw new s("add-to-cache-list-conflicting-entries",{firstEntry:this.F.get(r),secondEntry:t});if("string"!=typeof n&amp;&amp;n.integrity){if(this.H.has(t)&amp;&amp;this.H.get(t)!==n.integrity)throw new s("add-to-cache-list-conflicting-integrities",{url:r});this.H.set(t,n.integrity)}if(this.F.set(r,t),this.$.set(r,i),e.length&gt;0){const t=`Workbox is precaching URLs without revision info: ${e.join(", ")}\nThis is generally NOT safe. Learn more at https://bit.ly/wb-precache`;console.warn(t)}}}install(t){return H(t,async()=&gt;{const e=new V;this.strategy.plugins.push(e);for(const[e,s]of this.F){const n=this.H.get(s),r=this.$.get(e),i=new Request(e,{integrity:n,cache:r,credentials:"same-origin"});await Promise.all(this.strategy.handleAll({params:{cacheKey:s},request:i,event:t}))}const{updatedURLs:s,notUpdatedURLs:n}=e;return{updatedURLs:s,notUpdatedURLs:n}})}activate(t){return H(t,async()=&gt;{const t=await self.caches.open(this.strategy.cacheName),e=await t.keys(),s=new Set(this.F.values()),n=[];for(const r of e)s.has(r.url)||(await t.delete(r),n.push(r.url));return{deletedURLs:n}})}getURLsToCacheKeys(){return this.F}getCachedURLs(){return[...this.F.keys()]}getCacheKeyForURL(t){const e=new URL(t,location.href);return this.F.get(e.href)}getIntegrityForCacheKey(t){return this.H.get(t)}async matchPrecache(t){const e=t instanceof Request?t.url:t,s=this.getCacheKeyForURL(e);if(s){return(await self.caches.open(this.strategy.cacheName)).match(s)}}createHandlerBoundToURL(t){const e=this.getCacheKeyForURL(t);if(!e)throw new s("non-precached-url",{url:t});return s=&gt;(s.request=new Request(t),s.params=Object.assign({cacheKey:e},s.params),this.strategy.handle(s))}}const tt=()=&gt;(z||(z=new Z),z);class et extends r{constructor(t,e){super(({request:s})=&gt;{const n=t.getURLsToCacheKeys();for(const r of function*(t,{ignoreURLParametersMatching:e=[/^utm_/,/^fbclid$/],directoryIndex:s="index.html",cleanURLs:n=!0,urlManipulation:r}={}){const i=new URL(t,location.href);i.hash="",yield i.href;const a=function(t,e=[]){for(const s of[...t.searchParams.keys()])e.some(t=&gt;t.test(s))&amp;&amp;t.searchParams.delete(s);return t}(i,e);if(yield a.href,s&amp;&amp;a.pathname.endsWith("/")){const t=new URL(a.href);t.pathname+=s,yield t.href}if(n){const t=new URL(a.href);t.pathname+=".html",yield t.href}if(r){const t=r({url:i});for(const e of t)yield e.href}}(s.url,e)){const e=n.get(r);if(e){return{cacheKey:e,integrity:t.getIntegrityForCacheKey(e)}}}},t.strategy)}}t.CacheFirst=class extends b{async U(t,e){let n,r=await e.cacheMatch(t);if(!r)try{r=await e.fetchAndCachePut(t)}catch(t){t instanceof Error&amp;&amp;(n=t)}if(!r)throw new s("no-response",{url:t.url,error:n});return r}},t.ExpirationPlugin=class{constructor(t={}){this.cachedResponseWillBeUsed=async({event:t,request:e,cacheName:s,cachedResponse:n})=&gt;{if(!n)return null;const r=this.V(n),i=this.J(s);q(i.expireEntries());const a=i.updateTimestamp(e.url);if(t)try{t.waitUntil(a)}catch(t){}return r?n:null},this.cacheDidUpdate=async({cacheName:t,request:e})=&gt;{const s=this.J(t);await s.updateTimestamp(e.url),await s.expireEntries()},this.X=t,this.T=t.maxAgeSeconds,this.Y=new Map,t.purgeOnQuotaError&amp;&amp;function(t){m.add(t)}(()=&gt;this.deleteCacheAndMetadata())}J(t){if(t===d())throw new s("expire-custom-caches-only");let e=this.Y.get(t);return e||(e=new $(t,this.X),this.Y.set(t,e)),e}V(t){if(!this.T)return!0;const e=this.Z(t);if(null===e)return!0;return e&gt;=Date.now()-1e3*this.T}Z(t){if(!t.headers.has("date"))return null;const e=t.headers.get("date"),s=new Date(e).getTime();return isNaN(s)?null:s}async deleteCacheAndMetadata(){for(const[t,e]of this.Y)await self.caches.delete(t),await e.delete();this.Y=new Map}},t.NetworkFirst=class extends b{constructor(t={}){super(t),this.plugins.some(t=&gt;"cacheWillUpdate"in t)||this.plugins.unshift(u),this.tt=t.networkTimeoutSeconds||0}async U(t,e){const n=[],r=[];let i;if(this.tt){const{id:s,promise:a}=this.et({request:t,logs:n,handler:e});i=s,r.push(a)}const a=this.st({timeoutId:i,request:t,logs:n,handler:e});r.push(a);const o=await e.waitUntil((async()=&gt;await e.waitUntil(Promise.race(r))||await a)());if(!o)throw new s("no-response",{url:t.url});return o}et({request:t,logs:e,handler:s}){let n;return{promise:new Promise(e=&gt;{n=setTimeout(async()=&gt;{e(await s.cacheMatch(t))},1e3*this.tt)}),id:n}}async st({timeoutId:t,request:e,logs:s,handler:n}){let r,i;try{i=await n.fetchAndCachePut(e)}catch(t){t instanceof Error&amp;&amp;(r=t)}return t&amp;&amp;clearTimeout(t),!r&amp;&amp;i||(i=await n.cacheMatch(e)),i}},t.NetworkOnly=class extends b{constructor(t={}){super(t),this.tt=t.networkTimeoutSeconds||0}async U(t,e){let n,r;try{const s=[e.fetch(t)];if(this.tt){const t=g(1e3*this.tt);s.push(t)}if(r=await Promise.race(s),!r)throw new Error(`Timed out the network response after ${this.tt} seconds.`)}catch(t){t instanceof Error&amp;&amp;(n=t)}if(!r)throw new s("no-response",{url:t.url,error:n});return r}},t.StaleWhileRevalidate=class extends b{constructor(t={}){super(t),this.plugins.some(t=&gt;"cacheWillUpdate"in t)||this.plugins.unshift(u)}async U(t,e){const n=e.fetchAndCachePut(t).catch(()=&gt;{});e.waitUntil(n);let r,i=await e.cacheMatch(t);if(i);else try{i=await n}catch(t){t instanceof Error&amp;&amp;(r=t)}if(!i)throw new s("no-response",{url:t.url,error:r});return i}},t.cleanupOutdatedCaches=function(){self.addEventListener("activate",t=&gt;{const e=w();t.waitUntil((async(t,e="-precache-")=&gt;{const s=(await self.caches.keys()).filter(s=&gt;s.includes(e)&amp;&amp;s.includes(self.registration.scope)&amp;&amp;s!==t);return await Promise.all(s.map(t=&gt;self.caches.delete(t))),s})(e).then(t=&gt;{}))})},t.clientsClaim=function(){self.addEventListener("activate",()=&gt;self.clients.claim())},t.precacheAndRoute=function(t,e){!function(t){tt().precache(t)}(t),function(t){const e=tt();h(new et(e,t))}(e)},t.registerRoute=h});
 </pre></div>
@@ -5519,20 +5739,19 @@ export default async function HrmAnalyticsPage() {
         )}
       &lt;/div&gt;
 
-      {/* Revenue + leakage */}
+      {/* Revenue + collections */}
       &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
         &lt;div className="border-b border-slate-100 px-4 py-2.5"&gt;
           &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;
-            Revenue + Leakage ({revenueOps.summary.windowDays}d)
+            Revenue + Collections ({revenueOps.summary.windowDays}d)
           &lt;/span&gt;
         &lt;/div&gt;
-        &lt;div className="grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-5"&gt;
+        &lt;div className="grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4"&gt;
           {[
-            { label: "Ordered Value", value: formatCurrency(revenueOps.summary.orderedValue) },
             { label: "Billed Value", value: formatCurrency(revenueOps.summary.billedValue) },
             { label: "Collected", value: formatCurrency(revenueOps.summary.collectedValue) },
-            { label: "Unbilled Leakage", value: formatCurrency(revenueOps.summary.unbilledLeakage), alert: revenueOps.summary.unbilledLeakage &gt; 0 },
             { label: "Uncollected Leakage", value: formatCurrency(revenueOps.summary.uncollectedLeakage), alert: revenueOps.summary.uncollectedLeakage &gt; 0 },
+            { label: "Incomplete Billed", value: formatCurrency(revenueOps.summary.incompleteBilledValue), alert: revenueOps.summary.incompleteBilledValue &gt; 0 },
           ].map((s) =&gt; (
             &lt;div key={s.label} className="bg-white px-4 py-3"&gt;
               &lt;p className="text-[11px] uppercase tracking-wide text-slate-400"&gt;{s.label}&lt;/p&gt;
@@ -5546,12 +5765,12 @@ export default async function HrmAnalyticsPage() {
         &lt;/div&gt;
       &lt;/div&gt;
 
-      {/* Profit by test line */}
+      {/* Top test performance */}
       &lt;div className="rounded-lg border border-slate-200 bg-white overflow-hidden"&gt;
         &lt;div className="border-b border-slate-100 px-4 py-2.5"&gt;
-          &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Daily Profit by Test Line&lt;/span&gt;
+          &lt;span className="text-xs font-semibold uppercase tracking-wide text-slate-500"&gt;Top Test Performance&lt;/span&gt;
         &lt;/div&gt;
-        {revenueOps.profitByTestLine.length === 0 ? (
+        {revenueOps.topTestPerformance.length === 0 ? (
           &lt;p className="px-4 py-6 text-xs text-slate-400"&gt;No billing data yet.&lt;/p&gt;
         ) : (
           &lt;div className="overflow-x-auto"&gt;
@@ -5561,21 +5780,19 @@ export default async function HrmAnalyticsPage() {
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Test&lt;/th&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Orders&lt;/th&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Revenue&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Cost&lt;/th&gt;
-                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Profit&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Avg Order Value&lt;/th&gt;
               &lt;/tr&gt;
             &lt;/thead&gt;
             &lt;tbody className="divide-y divide-slate-100"&gt;
-              {revenueOps.profitByTestLine.map((row) =&gt; (
+              {revenueOps.topTestPerformance.map((row) =&gt; (
                 &lt;tr key={`${row.code}-${row.name}`}&gt;
                   &lt;td className="px-4 py-2.5 font-medium text-slate-800"&gt;
                     {row.name} &lt;span className="text-slate-400"&gt;({row.code})&lt;/span&gt;
                   &lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-700"&gt;{row.orders}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-700"&gt;{formatCurrency(row.revenue)}&lt;/td&gt;
-                  &lt;td className="px-4 py-2.5 text-slate-700"&gt;{formatCurrency(row.cost)}&lt;/td&gt;
-                  &lt;td className={`px-4 py-2.5 font-semibold ${row.profit &lt; 0 ? "text-red-600" : "text-emerald-700"}`}&gt;
-                    {formatCurrency(row.profit)}
+                  &lt;td className="px-4 py-2.5 font-semibold text-slate-800"&gt;
+                    {formatCurrency(row.avgOrderValue)}
                   &lt;/td&gt;
                 &lt;/tr&gt;
               ))}
@@ -6357,6 +6574,7 @@ export default async function StaffListPage() {
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { TestCatalogForm } from "@/components/hrm/test-catalog-form";
+import { RadiologyFieldManager } from "@/components/hrm/radiology-field-manager";
 import { formatCurrency } from "@/lib/utils";
 
 function turnaround(mins: number) {
@@ -6486,7 +6704,7 @@ export default async function TestCatalogPage() {
           &lt;p className="px-4 py-6 text-xs text-slate-400"&gt;No radiology tests.&lt;/p&gt;
         ) : (
           &lt;div className="overflow-x-auto"&gt;
-          &lt;table className="w-full min-w-[920px] text-xs"&gt;
+          &lt;table className="w-full min-w-[1040px] text-xs"&gt;
             &lt;thead&gt;
               &lt;tr className="border-b border-slate-100 bg-slate-50"&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Test Name&lt;/th&gt;
@@ -6496,6 +6714,7 @@ export default async function TestCatalogPage() {
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Price&lt;/th&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Cost&lt;/th&gt;
                 &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Fields&lt;/th&gt;
+                &lt;th className="px-4 py-2.5 text-left font-medium text-slate-400"&gt;Template&lt;/th&gt;
               &lt;/tr&gt;
             &lt;/thead&gt;
             &lt;tbody className="divide-y divide-slate-100"&gt;
@@ -6512,6 +6731,9 @@ export default async function TestCatalogPage() {
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;{formatCurrency(Number(test.price))}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-500"&gt;{formatCurrency(Number((test as any).costPrice ?? 0))}&lt;/td&gt;
                   &lt;td className="px-4 py-2.5 text-slate-400"&gt;{test._count.resultFields}&lt;/td&gt;
+                  &lt;td className="px-4 py-2.5"&gt;
+                    &lt;RadiologyFieldManager testId={test.id} /&gt;
+                  &lt;/td&gt;
                 &lt;/tr&gt;
               ))}
             &lt;/tbody&gt;
@@ -6940,6 +7162,24 @@ export default async function LabResultsPage({
   );
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/loading.tsx</div><pre>export default function DashboardLoading() {
+  return (
+    &lt;div className="space-y-4"&gt;
+      &lt;div className="h-10 animate-pulse rounded-xl bg-slate-200" /&gt;
+      &lt;div className="grid grid-cols-2 gap-4 xl:grid-cols-4"&gt;
+        {Array.from({ length: 4 }).map((_, i) =&gt; (
+          &lt;div key={i} className="h-28 animate-pulse rounded-xl bg-slate-200" /&gt;
+        ))}
+      &lt;/div&gt;
+      &lt;div className="grid grid-cols-1 gap-4 xl:grid-cols-2"&gt;
+        &lt;div className="h-52 animate-pulse rounded-xl bg-slate-200" /&gt;
+        &lt;div className="h-52 animate-pulse rounded-xl bg-slate-200" /&gt;
+      &lt;/div&gt;
+      &lt;div className="h-40 animate-pulse rounded-xl bg-slate-200" /&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/md/approved/page.tsx</div><pre>import { redirect } from "next/navigation";
 
 export default function MdApprovedRedirectPage() {
@@ -7048,6 +7288,172 @@ export default function MdReviewRedirectPage() {
   redirect("/dashboard/md");
 }
 
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/page.tsx</div><pre>import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { formatCurrency } from "@/lib/utils";
+import { getRevenueStats } from "@/lib/analytics/revenue";
+import { getLabStats } from "@/lib/analytics/lab-stats";
+import { StatCard } from "@/components/insights/StatCard";
+import { SectionCard } from "@/components/insights/SectionCard";
+import { getDashboardPath } from "@/lib/utils";
+import { MdStaffCallPanel } from "@/components/md/md-staff-call-panel";
+
+export default async function InsightsDashboardPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const user = session.user as any;
+  if (!["SUPER_ADMIN", "HRM", "MD"].includes(user.role)) {
+    redirect(getDashboardPath(user.role));
+  }
+
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const [revenueStats, labStats, patientsToday, recentOrders] = await Promise.all([
+    getRevenueStats(user.organizationId),
+    getLabStats(user.organizationId),
+    prisma.visit.count({
+      where: { organizationId: user.organizationId, registeredAt: { gte: todayStart, lt: now } },
+    }),
+    prisma.testOrder.findMany({
+      where: {
+        organizationId: user.organizationId,
+        startedAt: { not: null },
+        completedAt: { not: null, gte: weekStart, lt: now },
+      },
+      select: {
+        assignedToId: true,
+        startedAt: true,
+        completedAt: true,
+        test: { select: { turnaroundMinutes: true } },
+      },
+    }),
+  ]);
+
+  let alerts = 0;
+  const staffCountMap = new Map&lt;string, number&gt;();
+  for (const order of recentOrders) {
+    if (!order.startedAt || !order.completedAt) continue;
+    const elapsedMinutes = Math.floor((order.completedAt.getTime() - order.startedAt.getTime()) / 60000);
+    if (elapsedMinutes &gt; order.test.turnaroundMinutes) alerts += 1;
+    if (order.assignedToId) {
+      staffCountMap.set(order.assignedToId, (staffCountMap.get(order.assignedToId) ?? 0) + 1);
+    }
+  }
+
+  const staffIds = Array.from(staffCountMap.keys());
+  const staffRows = staffIds.length
+    ? await prisma.staff.findMany({ where: { id: { in: staffIds } }, select: { id: true, fullName: true } })
+    : [];
+  const staffNameMap = new Map(staffRows.map((s) =&gt; [s.id, s.fullName]));
+  const staffPerformance = staffIds
+    .map((id) =&gt; ({ id, name: staffNameMap.get(id) ?? "Unknown Staff", completedTests: staffCountMap.get(id) ?? 0 }))
+    .sort((a, b) =&gt; b.completedTests - a.completedTests)
+    .slice(0, 5);
+
+  return (
+    &lt;div className="space-y-4"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-base font-semibold text-slate-800"&gt;Insights Dashboard&lt;/h1&gt;
+        &lt;p className="text-xs text-slate-500"&gt;Revenue, growth, activity and performance at a glance.&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;MdStaffCallPanel callerRole={user.role} /&gt;
+
+      &lt;section className="grid grid-cols-2 gap-4 xl:grid-cols-4"&gt;
+        &lt;StatCard
+          title="Revenue Today"
+          value={formatCurrency(revenueStats.todayRevenue)}
+          sub={`This Month: ${formatCurrency(revenueStats.monthRevenue)}`}
+        /&gt;
+        &lt;StatCard
+          title="Growth"
+          value={`${revenueStats.growth &gt;= 0 ? "+" : ""}${revenueStats.growth}%`}
+          sub="vs last period"
+          color={revenueStats.growth &gt;= 0 ? "green" : "red"}
+        /&gt;
+        &lt;StatCard
+          title="Patients Today"
+          value={`${patientsToday}`}
+          sub={`This week: ${labStats.patientsThisWeek}`}
+        /&gt;
+        &lt;StatCard
+          title="Operational Alerts"
+          value={`${alerts} Delays`}
+          sub={alerts &gt; 0 ? "Needs attention" : "No delay warnings"}
+          color={alerts &gt; 0 ? "red" : "green"}
+        /&gt;
+      &lt;/section&gt;
+
+      &lt;section className="grid grid-cols-1 gap-4 xl:grid-cols-2"&gt;
+        &lt;SectionCard title="Top Tests"&gt;
+          {revenueStats.topTests.length === 0 ? (
+            &lt;p className="text-xs text-slate-500"&gt;No data yet&lt;/p&gt;
+          ) : (
+            &lt;div className="space-y-2"&gt;
+              {revenueStats.topTests.map((test) =&gt; (
+                &lt;div key={test.testId} className="flex items-center justify-between rounded-lg border border-slate-100 p-2"&gt;
+                  &lt;span className="text-sm text-slate-700"&gt;{test.testName}&lt;/span&gt;
+                  &lt;span className="text-sm font-semibold text-slate-900"&gt;{formatCurrency(test.amount)}&lt;/span&gt;
+                &lt;/div&gt;
+              ))}
+            &lt;/div&gt;
+          )}
+        &lt;/SectionCard&gt;
+
+        &lt;SectionCard title="Staff Performance"&gt;
+          {staffPerformance.length === 0 ? (
+            &lt;p className="text-xs text-slate-500"&gt;No data yet&lt;/p&gt;
+          ) : (
+            &lt;div className="space-y-2"&gt;
+              {staffPerformance.map((staff) =&gt; (
+                &lt;div key={staff.id} className="flex items-center justify-between rounded-lg border border-slate-100 p-2"&gt;
+                  &lt;span className="text-sm text-slate-700"&gt;{staff.name}&lt;/span&gt;
+                  &lt;span className="text-sm font-semibold text-slate-900"&gt;{staff.completedTests} tests&lt;/span&gt;
+                &lt;/div&gt;
+              ))}
+            &lt;/div&gt;
+          )}
+        &lt;/SectionCard&gt;
+      &lt;/section&gt;
+
+      &lt;SectionCard title="Weekly Summary"&gt;
+        &lt;div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"&gt;
+          &lt;div className="rounded-lg border border-slate-100 p-3"&gt;
+            &lt;p className="text-xs text-slate-500"&gt;Patients This Week&lt;/p&gt;
+            &lt;p className="text-lg font-semibold text-slate-900"&gt;{labStats.patientsThisWeek}&lt;/p&gt;
+          &lt;/div&gt;
+          &lt;div className="rounded-lg border border-slate-100 p-3"&gt;
+            &lt;p className="text-xs text-slate-500"&gt;Growth %&lt;/p&gt;
+            &lt;p className={`text-lg font-semibold ${labStats.growthPercent &gt;= 0 ? "text-emerald-600" : "text-red-600"}`}&gt;
+              {labStats.growthPercent &gt;= 0 ? "+" : ""}
+              {labStats.growthPercent}%
+            &lt;/p&gt;
+          &lt;/div&gt;
+          &lt;div className="rounded-lg border border-slate-100 p-3"&gt;
+            &lt;p className="text-xs text-slate-500"&gt;Busiest Day&lt;/p&gt;
+            &lt;p className="text-lg font-semibold text-slate-900"&gt;{labStats.busiestDay}&lt;/p&gt;
+          &lt;/div&gt;
+          &lt;div className="rounded-lg border border-slate-100 p-3"&gt;
+            &lt;p className="text-xs text-slate-500"&gt;Quietest Day&lt;/p&gt;
+            &lt;p className="text-lg font-semibold text-slate-900"&gt;{labStats.quietestDay}&lt;/p&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/SectionCard&gt;
+
+      &lt;div className="flex justify-end"&gt;
+        &lt;Link href="/insights/reports" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"&gt;
+          View Full Report â†’
+        &lt;/Link&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/dashboard/radiographer/notifications/page.tsx</div><pre>import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -8055,6 +8461,12 @@ export default async function PatientsListPage({
                                   Edit Patient
                                 &lt;/Link&gt;
                               ) : null}
+                              &lt;Link
+                                href={`/patients/${row.id}`}
+                                className="rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                              &gt;
+                                Insights
+                              &lt;/Link&gt;
                               {canDeletePatient ? (
                                 row.latestVisit ? (
                                   &lt;DeletePatientButton
@@ -8174,6 +8586,82 @@ export default function DashboardError({
   );
 }
 
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/insights/reports/loading.tsx</div><pre>export default function ReportsLoading() {
+  return (
+    &lt;div className="space-y-4"&gt;
+      &lt;div className="h-10 animate-pulse rounded-xl bg-slate-200" /&gt;
+      &lt;div className="grid grid-cols-1 gap-4 lg:grid-cols-2"&gt;
+        {Array.from({ length: 4 }).map((_, i) =&gt; (
+          &lt;div key={i} className="h-40 animate-pulse rounded-xl bg-slate-200" /&gt;
+        ))}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/(dashboard)/insights/reports/page.tsx</div><pre>import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+import { ReportsBoard } from "@/components/insights/reports-board";
+import { getDashboardPath } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+
+export default async function InsightsReportsPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const user = session.user as any;
+  if (!["SUPER_ADMIN", "HRM", "MD"].includes(user.role)) {
+    redirect(getDashboardPath(user.role));
+  }
+
+  let reports: Awaited&lt;ReturnType&lt;typeof prisma.labInsightReport.findMany&gt;&gt; = [];
+  try {
+    reports = await prisma.labInsightReport.findMany({
+      where: { organizationId: user.organizationId },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    });
+  } catch (error: any) {
+    if (error?.code !== "P2021") {
+      throw error;
+    }
+  }
+
+  const normalized = reports.map((report) =&gt; {
+    const data = (report.data as Record&lt;string, unknown&gt;) ?? {};
+    return {
+      id: report.id,
+      reportType: report.reportType,
+      periodStart: report.periodStart.toISOString(),
+      periodEnd: report.periodEnd.toISOString(),
+      summary: {
+        revenue: Number(data.revenue ?? 0),
+        growth: Number(data.growth ?? 0),
+        totalPatients: Number(data.totalPatients ?? 0),
+        delays: Number(data.delays ?? 0),
+      },
+      data,
+    };
+  });
+
+  return (
+    &lt;div className="space-y-4"&gt;
+      &lt;div&gt;
+        &lt;h1 className="text-base font-semibold text-slate-800"&gt;Lab Performance Reports&lt;/h1&gt;
+        &lt;p className="text-xs text-slate-500"&gt;Weekly and monthly generated reports.&lt;/p&gt;
+      &lt;/div&gt;
+      {normalized.length === 0 ? (
+        &lt;div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm"&gt;
+          No data yet
+        &lt;/div&gt;
+      ) : (
+        &lt;ReportsBoard reports={normalized} /&gt;
+      )}
+    &lt;/div&gt;
+  );
+}
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/(dashboard)/layout.tsx</div><pre>import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -8800,6 +9288,102 @@ export async function POST(req: NextRequest) {
   }
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/cron/insights/route.ts</div><pre>import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { generateLabInsights } from "@/lib/insights/generate-insights";
+
+export const dynamic = "force-dynamic";
+
+function isEndOfWeek(date: Date) {
+  return date.getDay() === 0;
+}
+
+function isEndOfMonth(date: Date) {
+  const tomorrow = new Date(date);
+  tomorrow.setDate(date.getDate() + 1);
+  return tomorrow.getMonth() !== date.getMonth();
+}
+
+function startOfDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+}
+
+export async function GET() {
+  try {
+    const secret = process.env.CRON_SECRET;
+    if (secret) {
+      return NextResponse.json(
+        { success: false, error: "Use POST with Bearer token for cron execution." },
+        { status: 405 }
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: "Cron secret not configured." },
+      { status: 403 }
+    );
+  } catch (error) {
+    console.error("[CRON_INSIGHTS_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const secret = process.env.CRON_SECRET;
+    const authHeader = request.headers.get("authorization") ?? "";
+    if (!secret || authHeader !== `Bearer ${secret}`) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const now = new Date();
+    const shouldRunWeekly = isEndOfWeek(now);
+    const shouldRunMonthly = isEndOfMonth(now);
+    if (!shouldRunWeekly &amp;&amp; !shouldRunMonthly) {
+      return NextResponse.json({
+        success: true,
+        message: "No insights due today",
+        date: now.toISOString(),
+      });
+    }
+
+    const organizations = await prisma.organization.findMany({
+      select: { id: true },
+    });
+
+    const periodEnd = startOfDay(now);
+    const monthlyStart = startOfMonth(now);
+    const weeklyStart = new Date(periodEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const reports: Array&lt;{ organizationId: string; reportType: "WEEKLY" | "MONTHLY" }&gt; = [];
+
+    for (const org of organizations) {
+      if (shouldRunWeekly) {
+        await generateLabInsights(org.id, weeklyStart, periodEnd);
+        reports.push({ organizationId: org.id, reportType: "WEEKLY" });
+      }
+      if (shouldRunMonthly) {
+        await generateLabInsights(org.id, monthlyStart, periodEnd);
+        reports.push({ organizationId: org.id, reportType: "MONTHLY" });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      date: now.toISOString(),
+      generated: reports.length,
+      reports,
+    });
+  } catch (error) {
+    console.error("[CRON_INSIGHTS_POST]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/departments/route.ts</div><pre>import { NextResponse } from "next/server";
 import { DEPARTMENT_LABELS } from "@/lib/utils";
 import { auth } from "@/lib/auth";
@@ -8921,52 +9505,47 @@ export async function POST(req: NextRequest) {
       },
       select: { id: true },
     });
-    if (link) {
-      return NextResponse.json({ success: false, error: "Staff already exists on this device" }, { status: 409 });
+    if (!link) {
+      await prisma.deviceStaff.create({
+        data: {
+          deviceId: device.id,
+          staffId: candidate.id,
+        },
+      });
+
+      await createAuditLog({
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "STAFF_ADDED_TO_DEVICE",
+        entityType: "DeviceStaff",
+        entityId: candidate.id,
+        changes: {
+          deviceId: device.id,
+          deviceKey: device.deviceKey,
+          targetStaffId: candidate.id,
+        },
+        ...getAuditMetaFromRequest(req),
+      });
     }
-
-    await prisma.deviceStaff.create({
-      data: {
-        deviceId: device.id,
+    const pinSetupToken = createDeviceToken(
+      "pin_setup",
+      {
         staffId: candidate.id,
-      },
-    });
-
-    await createAuditLog({
-      actorId: actor.id,
-      actorRole: actor.role,
-      action: "STAFF_ADDED_TO_DEVICE",
-      entityType: "DeviceStaff",
-      entityId: candidate.id,
-      changes: {
-        deviceId: device.id,
+        organizationId: actor.organizationId!,
         deviceKey: device.deviceKey,
-        targetStaffId: candidate.id,
       },
-      ...getAuditMetaFromRequest(req),
-    });
-
-    const pinSetupToken =
-      !candidate.pinHash
-        ? createDeviceToken(
-            "pin_setup",
-            {
-              staffId: candidate.id,
-              organizationId: actor.organizationId!,
-              deviceKey: device.deviceKey,
-            },
-            10 * 60
-          )
-        : null;
+      10 * 60
+    );
 
     return NextResponse.json({
       success: true,
       data: {
         staff: toSafeStaffSummary(candidate),
-        requiresPinSetup: !candidate.pinHash,
+        requiresPinSetup: true,
         pinSetupToken,
+        alreadyLinked: Boolean(link),
       },
-      message: "Staff added to this device",
+      message: link ? "Staff already on this device. You can update PIN now." : "Staff added to this device",
     });
   } catch (error) {
     console.error("[DEVICE_ADD_STAFF_POST]", error);
@@ -9448,6 +10027,74 @@ export async function POST(req: NextRequest) {
   }
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/export/data/route.ts</div><pre>import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+function csvEscape(value: string | number | null | undefined) {
+  const raw = value == null ? "" : String(value);
+  if (raw.includes(",") || raw.includes('"') || raw.includes("\n")) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const user = session.user as any;
+    if (!["SUPER_ADMIN", "HRM", "MD", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    const rows = await prisma.labResult.findMany({
+      where: { organizationId: user.organizationId },
+      orderBy: { createdAt: "desc" },
+      take: 5000,
+      select: {
+        createdAt: true,
+        resultData: true,
+        testOrder: {
+          select: {
+            test: { select: { name: true } },
+            visit: {
+              select: {
+                patient: { select: { fullName: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const header = "patientName,testName,result,date";
+    const body = rows.map((row) =&gt; {
+      const patientName = row.testOrder.visit.patient.fullName;
+      const testName = row.testOrder.test.name;
+      const result = JSON.stringify(row.resultData);
+      const date = row.createdAt.toISOString();
+      return [patientName, testName, result, date].map(csvEscape).join(",");
+    });
+
+    const csv = [header, ...body].join("\n");
+    return new NextResponse(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="diagsync-export-${new Date().toISOString().slice(0, 10)}.csv"`,
+      },
+    });
+  } catch (error) {
+    console.error("[EXPORT_DATA_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/hrm/overview/route.ts</div><pre>import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getHrmOverview } from "@/lib/hrm-monitoring";
@@ -9585,6 +10232,157 @@ export async function GET(req: NextRequest) {
   }
 }
 
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/insights/reports/route.ts</div><pre>import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const user = session.user as any;
+    if (!["SUPER_ADMIN", "HRM", "MD"].includes(user.role)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    let reports: Awaited&lt;ReturnType&lt;typeof prisma.labInsightReport.findMany&gt;&gt; = [];
+    try {
+      reports = await prisma.labInsightReport.findMany({
+        where: { organizationId: user.organizationId },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      });
+    } catch (error: any) {
+      if (error?.code !== "P2021") {
+        throw error;
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: reports.map((report) =&gt; {
+        const data = (report.data as Record&lt;string, unknown&gt;) ?? {};
+        return {
+          id: report.id,
+          reportType: report.reportType,
+          periodStart: report.periodStart,
+          periodEnd: report.periodEnd,
+          createdAt: report.createdAt,
+          summary: {
+            revenue: typeof data.revenue === "number" ? data.revenue : 0,
+            growth: typeof data.growth === "number" ? data.growth : 0,
+            totalPatients: typeof data.totalPatients === "number" ? data.totalPatients : 0,
+            delays: typeof data.delays === "number" ? data.delays : 0,
+          },
+          data,
+        };
+      }),
+    });
+  } catch (error) {
+    console.error("[INSIGHTS_REPORTS_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/insights/summary/route.ts</div><pre>import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { getRevenueStats } from "@/lib/analytics/revenue";
+import { getLabStats } from "@/lib/analytics/lab-stats";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const user = session.user as any;
+    if (!["SUPER_ADMIN", "HRM", "MD"].includes(user.role)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [revenueStats, labStats, patientsToday, completedOrders, staffPerformanceRaw] = await Promise.all([
+      getRevenueStats(user.organizationId),
+      getLabStats(user.organizationId),
+      prisma.visit.count({
+        where: { organizationId: user.organizationId, registeredAt: { gte: todayStart, lt: now } },
+      }),
+      prisma.testOrder.findMany({
+        where: {
+          organizationId: user.organizationId,
+          startedAt: { not: null },
+          completedAt: { not: null, gte: todayStart, lt: now },
+        },
+        select: {
+          startedAt: true,
+          completedAt: true,
+          test: { select: { turnaroundMinutes: true } },
+        },
+      }),
+      prisma.testOrder.groupBy({
+        by: ["assignedToId"],
+        where: {
+          organizationId: user.organizationId,
+          assignedToId: { not: null },
+          completedAt: { gte: todayStart, lt: now },
+        },
+        _count: { _all: true },
+        orderBy: { _count: { assignedToId: "desc" } },
+        take: 5,
+      }),
+    ]);
+    const alerts = completedOrders.reduce((acc, order) =&gt; {
+      if (!order.startedAt || !order.completedAt) return acc;
+      const elapsed = Math.floor((order.completedAt.getTime() - order.startedAt.getTime()) / 60000);
+      return elapsed &gt; order.test.turnaroundMinutes ? acc + 1 : acc;
+    }, 0);
+
+    const staffIds = staffPerformanceRaw
+      .map((row) =&gt; row.assignedToId)
+      .filter((id): id is string =&gt; Boolean(id));
+    const staff = staffIds.length
+      ? await prisma.staff.findMany({ where: { id: { in: staffIds } }, select: { id: true, fullName: true } })
+      : [];
+    const staffMap = new Map(staff.map((s) =&gt; [s.id, s.fullName]));
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        todayRevenue: revenueStats.todayRevenue,
+        monthRevenue: revenueStats.monthRevenue,
+        growth: revenueStats.growth,
+        patientsToday,
+        patientsWeek: labStats.patientsThisWeek,
+        alerts,
+        topTests: revenueStats.topTests,
+        staffPerformance: staffPerformanceRaw.map((row) =&gt; ({
+          staffId: row.assignedToId,
+          name: row.assignedToId ? staffMap.get(row.assignedToId) ?? "Unknown Staff" : "Unassigned",
+          completedTests:
+            row._count &amp;&amp; typeof row._count === "object" &amp;&amp; "_all" in row._count
+              ? Number((row._count as { _all?: number })._all ?? 0)
+              : 0,
+        })),
+        busiestDay: labStats.busiestDay,
+        quietestDay: labStats.quietestDay,
+      },
+    });
+  } catch (error) {
+    console.error("[INSIGHTS_SUMMARY_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/api/lab/tasks/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
@@ -10235,6 +11033,41 @@ export async function POST(req: NextRequest) {
       { success: false, error: "Internal server error" },
       { status: 500 }
     );
+  }
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/app/api/patient/trends/route.ts</div><pre>import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { getPatientTrends } from "@/lib/intelligence/patient-trends";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const user = session.user as any;
+    const patientId = req.nextUrl.searchParams.get("patientId");
+    if (!patientId) {
+      return NextResponse.json({ success: false, error: "patientId is required" }, { status: 400 });
+    }
+
+    const patient = await prisma.patient.findFirst({
+      where: { id: patientId, organizationId: user.organizationId },
+      select: { id: true },
+    });
+    if (!patient) {
+      return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
+    }
+
+    const data = await getPatientTrends(patientId);
+    return NextResponse.json({ success: true, data });
+  } catch (error) {
+    console.error("[PATIENT_TRENDS_GET]", error);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
 </pre></div>
@@ -11666,21 +12499,6 @@ export async function GET() {
   } catch {
     return NextResponse.json({ success: true });
   }
-}
-</pre></div>
-<div class='file-block'><div class='file-header'>src/app/dashboard/page.tsx</div><pre>import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { getDashboardPath } from "@/lib/utils";
-import { Role } from "@prisma/client";
-
-export default async function DashboardEntryPage() {
-  const session = await auth();
-  if (!session?.user) {
-    redirect("/login?callbackUrl=/dashboard");
-  }
-
-  const role = (session.user as any).role as Role;
-  redirect(getDashboardPath(role));
 }
 </pre></div>
 <div class='file-block'><div class='file-header'>src/app/error.tsx</div><pre>"use client";
@@ -14333,6 +15151,7 @@ type AddStaffResponse = {
     staff: DeviceStaffSummary;
     requiresPinSetup: boolean;
     pinSetupToken: string | null;
+    alreadyLinked?: boolean;
   };
 };
 
@@ -14399,9 +15218,9 @@ export function AddStaffToDeviceModal({ open, deviceKey, onClose, onStaffAdded }
       setPinSetupToken(json.data.pinSetupToken);
       onStaffAdded(json.data.staff);
       if (json.data.requiresPinSetup) {
-        setMessage("Staff verified. Create a 4-digit PIN.");
+        setMessage(json.message ?? "Staff verified. Create or update a 4-digit PIN.");
       } else {
-        setMessage("Staff added to this device.");
+        setMessage(json.message ?? "Staff added to this device.");
       }
     } catch {
       setError("Network error while verifying staff.");
@@ -15041,7 +15860,6 @@ export function RemoveStaffFromDeviceDialog({
 <div class='file-block'><div class='file-header'>src/components/device/switch-staff-modal.tsx</div><pre>"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { ROLE_LABELS } from "@/lib/utils";
 import { DeviceStaffSummary } from "@/lib/device-client";
@@ -15075,7 +15893,6 @@ export function SwitchStaffModal({
   onClose,
   onSwitched,
 }: SwitchStaffModalProps) {
-  const router = useRouter();
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -15127,8 +15944,7 @@ export function SwitchStaffModal({
 
       onSwitched(selected.staffId);
       onClose();
-      router.push(json.data.dashboardPath);
-      router.refresh();
+      window.location.assign(json.data.dashboardPath);
     } catch {
       setError("Network error while switching account.");
     } finally {
@@ -16198,6 +17014,227 @@ export function LabSettingsForm() {
   );
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/components/hrm/radiology-field-manager.tsx</div><pre>"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/index";
+
+type FieldType = "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
+
+type FieldRow = {
+  id: string;
+  label: string;
+  fieldKey: string;
+  fieldType: FieldType;
+  isRequired: boolean;
+};
+
+type DraftField = {
+  label: string;
+  fieldKey: string;
+  fieldType: FieldType;
+  options: string;
+  isRequired: boolean;
+};
+
+function toFieldKey(label: string) {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+export function RadiologyFieldManager({ testId }: { testId: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [fields, setFields] = useState&lt;FieldRow[]&gt;([]);
+  const [draft, setDraft] = useState&lt;DraftField&gt;({
+    label: "",
+    fieldKey: "",
+    fieldType: "TEXT",
+    options: "",
+    isRequired: false,
+  });
+
+  async function loadFields() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/tests/${testId}`);
+      const json = (await res.json()) as {
+        success: boolean;
+        error?: string;
+        data?: { resultFields?: FieldRow[] };
+      };
+      if (!json.success) {
+        setError(json.error ?? "Failed to load test fields.");
+        return;
+      }
+      setFields((json.data?.resultFields ?? []) as FieldRow[]);
+    } catch {
+      setError("Network error while loading test fields.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleOpen() {
+    const next = !open;
+    setOpen(next);
+    if (next &amp;&amp; fields.length === 0) {
+      await loadFields();
+    }
+  }
+
+  async function removeField(fieldId: string) {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/tests/${testId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ removeFieldIds: [fieldId] }),
+      });
+      const json = (await res.json()) as { success: boolean; error?: string; data?: { resultFields?: FieldRow[] } };
+      if (!json.success) {
+        setError(json.error ?? "Failed to remove field.");
+        return;
+      }
+      setFields((json.data?.resultFields ?? []) as FieldRow[]);
+      router.refresh();
+    } catch {
+      setError("Network error while removing field.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addField() {
+    setError("");
+    if (!draft.label.trim()) {
+      setError("Field label is required.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/tests/${testId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          addFields: [
+            {
+              label: draft.label.trim(),
+              fieldKey: (draft.fieldKey.trim() || toFieldKey(draft.label)).trim(),
+              fieldType: draft.fieldType,
+              options: draft.options.trim() || undefined,
+              isRequired: draft.isRequired,
+            },
+          ],
+        }),
+      });
+      const json = (await res.json()) as { success: boolean; error?: string; data?: { resultFields?: FieldRow[] } };
+      if (!json.success) {
+        setError(json.error ?? "Failed to add field.");
+        return;
+      }
+      setFields((json.data?.resultFields ?? []) as FieldRow[]);
+      setDraft({ label: "", fieldKey: "", fieldType: "TEXT", options: "", isRequired: false });
+      router.refresh();
+    } catch {
+      setError("Network error while adding field.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    &lt;div className="space-y-2"&gt;
+      &lt;Button type="button" variant="outline" onClick={() =&gt; void toggleOpen()} disabled={busy} className="h-7 text-[11px]"&gt;
+        {open ? "Hide Fields" : "Manage Fields"}
+      &lt;/Button&gt;
+
+      {open ? (
+        &lt;div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-2"&gt;
+          {error ? &lt;p className="text-[11px] text-red-600"&gt;{error}&lt;/p&gt; : null}
+          &lt;div className="space-y-1"&gt;
+            {fields.map((field) =&gt; (
+              &lt;div key={field.id} className="flex items-center gap-2 rounded border border-slate-200 bg-white px-2 py-1.5"&gt;
+                &lt;div className="min-w-0 flex-1"&gt;
+                  &lt;p className="truncate text-[11px] font-medium text-slate-700"&gt;{field.label}&lt;/p&gt;
+                  &lt;p className="truncate text-[10px] text-slate-400"&gt;{field.fieldKey} Â· {field.fieldType}&lt;/p&gt;
+                &lt;/div&gt;
+                &lt;button
+                  type="button"
+                  className="text-[11px] text-red-600 hover:underline disabled:opacity-50"
+                  disabled={busy}
+                  onClick={() =&gt; void removeField(field.id)}
+                &gt;
+                  Remove
+                &lt;/button&gt;
+              &lt;/div&gt;
+            ))}
+          &lt;/div&gt;
+
+          &lt;div className="grid grid-cols-1 gap-1.5 md:grid-cols-5"&gt;
+            &lt;Input
+              value={draft.label}
+              onChange={(e) =&gt; setDraft((prev) =&gt; ({ ...prev, label: e.target.value }))}
+              placeholder="Field label"
+              className="h-7 text-[11px]"
+            /&gt;
+            &lt;Input
+              value={draft.fieldKey}
+              onChange={(e) =&gt; setDraft((prev) =&gt; ({ ...prev, fieldKey: e.target.value }))}
+              placeholder="field_key"
+              className="h-7 text-[11px]"
+            /&gt;
+            &lt;Select value={draft.fieldType} onValueChange={(v) =&gt; setDraft((prev) =&gt; ({ ...prev, fieldType: v as FieldType }))}&gt;
+              &lt;SelectTrigger className="h-7 text-[11px]"&gt;&lt;SelectValue /&gt;&lt;/SelectTrigger&gt;
+              &lt;SelectContent&gt;
+                &lt;SelectItem value="TEXT"&gt;TEXT&lt;/SelectItem&gt;
+                &lt;SelectItem value="TEXTAREA"&gt;TEXTAREA&lt;/SelectItem&gt;
+                &lt;SelectItem value="NUMBER"&gt;NUMBER&lt;/SelectItem&gt;
+                &lt;SelectItem value="DROPDOWN"&gt;DROPDOWN&lt;/SelectItem&gt;
+                &lt;SelectItem value="CHECKBOX"&gt;CHECKBOX&lt;/SelectItem&gt;
+              &lt;/SelectContent&gt;
+            &lt;/Select&gt;
+            &lt;Input
+              value={draft.options}
+              onChange={(e) =&gt; setDraft((prev) =&gt; ({ ...prev, options: e.target.value }))}
+              placeholder="Options (comma)"
+              className="h-7 text-[11px]"
+            /&gt;
+            &lt;div className="flex items-center gap-2"&gt;
+              &lt;label className="flex items-center gap-1 text-[11px] text-slate-600"&gt;
+                &lt;input
+                  type="checkbox"
+                  checked={draft.isRequired}
+                  onChange={(e) =&gt; setDraft((prev) =&gt; ({ ...prev, isRequired: e.target.checked }))}
+                /&gt;
+                Required
+              &lt;/label&gt;
+              &lt;Button type="button" onClick={() =&gt; void addField()} disabled={busy} className="h-7 text-[11px]"&gt;
+                Add
+              &lt;/Button&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;p className="text-[10px] text-slate-500"&gt;
+            Protected for radiology: `findings` and `impression` cannot be removed.
+          &lt;/p&gt;
+        &lt;/div&gt;
+      ) : null}
+    &lt;/div&gt;
+  );
+}
+
+</pre></div>
 <div class='file-block'><div class='file-header'>src/components/hrm/staff-management-table.tsx</div><pre>"use client";
 
 import Link from "next/link";
@@ -16765,6 +17802,189 @@ export function TestCatalogForm({ categories }: { categories: CategoryOption[] }
         &lt;/Button&gt;
       &lt;/div&gt;
     &lt;/section&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/insights/ReportCard.tsx</div><pre>import { formatCurrency, formatDate } from "@/lib/utils";
+
+type ReportCardProps = {
+  id: string;
+  type: string;
+  periodStart: Date;
+  periodEnd: Date;
+  revenue: number;
+  growth: number;
+  onClick?: (id: string) =&gt; void;
+};
+
+export function ReportCard({ id, type, periodStart, periodEnd, revenue, growth, onClick }: ReportCardProps) {
+  return (
+    &lt;div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:bg-slate-50"&gt;
+      &lt;div className="flex items-center justify-between gap-2"&gt;
+        &lt;span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700"&gt;
+          {type}
+        &lt;/span&gt;
+        &lt;span className={`text-xs font-semibold ${growth &gt;= 0 ? "text-emerald-600" : "text-red-600"}`}&gt;
+          {growth &gt;= 0 ? "+" : ""}
+          {growth}%
+        &lt;/span&gt;
+      &lt;/div&gt;
+      &lt;p className="mt-2 text-xs text-slate-500"&gt;
+        {formatDate(periodStart)} - {formatDate(periodEnd)}
+      &lt;/p&gt;
+      &lt;p className="mt-1 text-lg font-semibold text-slate-900"&gt;{formatCurrency(revenue)}&lt;/p&gt;
+      &lt;button
+        type="button"
+        onClick={() =&gt; onClick?.(id)}
+        className="mt-3 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+      &gt;
+        View Details
+      &lt;/button&gt;
+    &lt;/div&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/insights/reports-board.tsx</div><pre>"use client";
+
+import { useMemo, useState } from "react";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { ReportCard } from "@/components/insights/ReportCard";
+import { SectionCard } from "@/components/insights/SectionCard";
+
+type ReportItem = {
+  id: string;
+  reportType: string;
+  periodStart: string;
+  periodEnd: string;
+  summary: {
+    revenue: number;
+    growth: number;
+    totalPatients: number;
+    delays: number;
+  };
+  data: Record&lt;string, unknown&gt;;
+};
+
+export function ReportsBoard({ reports }: { reports: ReportItem[] }) {
+  const [activeId, setActiveId] = useState&lt;string | null&gt;(null);
+  const activeReport = useMemo(() =&gt; reports.find((r) =&gt; r.id === activeId) ?? null, [activeId, reports]);
+
+  return (
+    &lt;&gt;
+      &lt;div className="grid grid-cols-1 gap-4 lg:grid-cols-2"&gt;
+        {reports.map((report) =&gt; (
+          &lt;ReportCard
+            key={report.id}
+            id={report.id}
+            type={report.reportType}
+            periodStart={new Date(report.periodStart)}
+            periodEnd={new Date(report.periodEnd)}
+            revenue={report.summary.revenue}
+            growth={report.summary.growth}
+            onClick={setActiveId}
+          /&gt;
+        ))}
+      &lt;/div&gt;
+
+      {activeReport ? (
+        &lt;div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-3 sm:items-center"&gt;
+          &lt;div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl"&gt;
+            &lt;div className="mb-4 flex items-start justify-between gap-4"&gt;
+              &lt;div&gt;
+                &lt;p className="text-sm font-semibold text-slate-800"&gt;{activeReport.reportType} Report&lt;/p&gt;
+                &lt;p className="text-xs text-slate-500"&gt;
+                  {formatDate(activeReport.periodStart)} - {formatDate(activeReport.periodEnd)}
+                &lt;/p&gt;
+              &lt;/div&gt;
+              &lt;button
+                type="button"
+                onClick={() =&gt; setActiveId(null)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
+              &gt;
+                Close
+              &lt;/button&gt;
+            &lt;/div&gt;
+
+            &lt;div className="space-y-3"&gt;
+              &lt;SectionCard title="Revenue"&gt;
+                &lt;p className="text-sm text-slate-700"&gt;Revenue: {formatCurrency(Number(activeReport.data.revenue ?? 0))}&lt;/p&gt;
+                &lt;p className="text-sm text-slate-700"&gt;Previous: {formatCurrency(Number(activeReport.data.previousRevenue ?? 0))}&lt;/p&gt;
+                &lt;p className="text-sm text-slate-700"&gt;
+                  Growth: {Number(activeReport.data.growth ?? 0) &gt;= 0 ? "+" : ""}
+                  {Number(activeReport.data.growth ?? 0)}%
+                &lt;/p&gt;
+              &lt;/SectionCard&gt;
+              &lt;SectionCard title="Patients"&gt;
+                &lt;p className="text-sm text-slate-700"&gt;Total Patients: {Number(activeReport.data.totalPatients ?? 0)}&lt;/p&gt;
+                &lt;p className="text-sm text-slate-700"&gt;New Patients: {Number(activeReport.data.newPatients ?? 0)}&lt;/p&gt;
+              &lt;/SectionCard&gt;
+              &lt;SectionCard title="Top Tests"&gt;
+                &lt;pre className="overflow-x-auto rounded bg-slate-50 p-2 text-xs text-slate-700"&gt;
+                  {JSON.stringify(activeReport.data.topTests ?? [], null, 2)}
+                &lt;/pre&gt;
+              &lt;/SectionCard&gt;
+              &lt;SectionCard title="Delays"&gt;
+                &lt;p className="text-sm text-slate-700"&gt;Delayed Tests: {Number(activeReport.data.delays ?? 0)}&lt;/p&gt;
+              &lt;/SectionCard&gt;
+              &lt;SectionCard title="Staff Performance"&gt;
+                &lt;pre className="overflow-x-auto rounded bg-slate-50 p-2 text-xs text-slate-700"&gt;
+                  {JSON.stringify(activeReport.data.staffPerformance ?? [], null, 2)}
+                &lt;/pre&gt;
+              &lt;/SectionCard&gt;
+              &lt;SectionCard title="Missed Opportunities"&gt;
+                &lt;p className="text-sm text-slate-700"&gt;{Number(activeReport.data.missedOpportunities ?? 0)}&lt;/p&gt;
+              &lt;/SectionCard&gt;
+              &lt;SectionCard title="Activity Insight"&gt;
+                &lt;p className="text-sm text-slate-700"&gt;Busiest Day: {String(activeReport.data.busiestDay ?? "-")}&lt;/p&gt;
+                &lt;p className="text-sm text-slate-700"&gt;Quietest Day: {String(activeReport.data.quietestDay ?? "-")}&lt;/p&gt;
+              &lt;/SectionCard&gt;
+            &lt;/div&gt;
+
+            &lt;div className="mt-4 flex justify-end gap-2"&gt;
+              &lt;button type="button" className="rounded-lg border px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"&gt;
+                Download PDF
+              &lt;/button&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      ) : null}
+    &lt;/&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/insights/SectionCard.tsx</div><pre>import type { ReactNode } from "react";
+
+type SectionCardProps = {
+  title: string;
+  children: ReactNode;
+};
+
+export function SectionCard({ title, children }: SectionCardProps) {
+  return (
+    &lt;section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"&gt;
+      &lt;h2 className="text-sm font-semibold text-slate-700"&gt;{title}&lt;/h2&gt;
+      &lt;div className="mt-3"&gt;{children}&lt;/div&gt;
+    &lt;/section&gt;
+  );
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/components/insights/StatCard.tsx</div><pre>type StatCardProps = {
+  title: string;
+  value: string;
+  sub?: string;
+  color?: "default" | "green" | "red";
+};
+
+export function StatCard({ title, value, sub, color = "default" }: StatCardProps) {
+  const valueClass =
+    color === "green" ? "text-emerald-600" : color === "red" ? "text-red-600" : "text-slate-900";
+
+  return (
+    &lt;div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:bg-slate-50"&gt;
+      &lt;p className="text-sm text-slate-500"&gt;{title}&lt;/p&gt;
+      &lt;p className={`mt-1 text-xl font-semibold ${valueClass}`}&gt;{value}&lt;/p&gt;
+      {sub ? &lt;p className="mt-1 text-xs text-slate-500"&gt;{sub}&lt;/p&gt; : null}
+    &lt;/div&gt;
   );
 }
 </pre></div>
@@ -19968,7 +21188,8 @@ interface NavItem {
 
 const navByRole: Record&lt;string, NavItem[]&gt; = {
   SUPER_ADMIN: [
-    { label: "Overview", href: "/dashboard/hrm", icon: LayoutDashboard },
+    { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
     { label: "Lab Settings", href: "/dashboard/hrm/settings", icon: Settings2 },
     { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
     { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
@@ -19982,7 +21203,8 @@ const navByRole: Record&lt;string, NavItem[]&gt; = {
     { label: "Analytics", href: "/dashboard/hrm/analytics", icon: BarChart3 },
   ],
   HRM: [
-    { label: "Overview", href: "/dashboard/hrm", icon: LayoutDashboard },
+    { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
     { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
     { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
     { label: "Review Queue", href: "/dashboard/md/review", icon: ClipboardList },
@@ -20012,11 +21234,12 @@ const navByRole: Record&lt;string, NavItem[]&gt; = {
     { label: "Reports", href: "/dashboard/radiographer/reports", icon: ClipboardList },
   ],
   MD: [
-    { label: "Dashboard", href: "/dashboard/md", icon: LayoutDashboard },
-    { label: "Consultation Queue", href: "/dashboard/md/consultation", icon: Users },
     { label: "Review Queue", href: "/dashboard/md/review", icon: Stethoscope },
+    { label: "Consultation Queue", href: "/dashboard/md/consultation", icon: Users },
     { label: "Approved", href: "/dashboard/md/approved", icon: ClipboardList },
     { label: "Report Drafts", href: "/dashboard/md/reports", icon: ClipboardList },
+    { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
   ],
 };
 
@@ -20042,6 +21265,10 @@ function notificationPathForRole(role: Role) {
 export function Sidebar({ user, className, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const navItems = navByRole[user.role] ?? [];
+  const isActivePath = (href: string) =&gt; {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname === href || pathname.startsWith(href + "/");
+  };
 
   return (
     &lt;aside className={cn("flex h-[100dvh] w-56 flex-col border-r border-slate-200 bg-white", className)}&gt;
@@ -20074,8 +21301,7 @@ export function Sidebar({ user, className, onNavigate }: SidebarProps) {
         &lt;ul className="space-y-0.5"&gt;
           {navItems.map((item) =&gt; {
             const Icon = item.icon;
-            const isActive =
-              pathname === item.href || pathname.startsWith(item.href + "/");
+            const isActive = isActivePath(item.href);
             return (
               &lt;li key={item.href}&gt;
                 &lt;Link
@@ -21136,12 +22362,13 @@ type NavConfig = {
 const navByRole: Record&lt;Role, NavConfig&gt; = {
   SUPER_ADMIN: {
     primary: [
-      { label: "Dashboard", href: "/dashboard/hrm", icon: LayoutDashboard },
+      { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
       { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
       { label: "Tasks", href: "/dashboard/hrm/operations", icon: Activity },
       { label: "Reports", href: "/dashboard/hrm/release", icon: FileText },
     ],
     more: [
+      { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
       { label: "Lab Settings", href: "/dashboard/hrm/settings", icon: Settings2 },
       { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
       { label: "Review Queue", href: "/dashboard/md/review", icon: ClipboardList },
@@ -21156,12 +22383,13 @@ const navByRole: Record&lt;Role, NavConfig&gt; = {
   },
   HRM: {
     primary: [
-      { label: "Dashboard", href: "/dashboard/hrm", icon: LayoutDashboard },
+      { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
       { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
       { label: "Tasks", href: "/dashboard/hrm/operations", icon: Activity },
       { label: "Reports", href: "/dashboard/hrm/release", icon: FileText },
     ],
     more: [
+      { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
       { label: "Consultations", href: "/dashboard/hrm/consultation", icon: Stethoscope },
       { label: "Review Queue", href: "/dashboard/md/review", icon: ClipboardList },
       { label: "Staff Management", href: "/dashboard/hrm/staff", icon: Users },
@@ -21212,12 +22440,14 @@ const navByRole: Record&lt;Role, NavConfig&gt; = {
   },
   MD: {
     primary: [
-      { label: "Dashboard", href: "/dashboard/md", icon: LayoutDashboard },
+      { label: "Review", href: "/dashboard/md/review", icon: ClipboardList },
       { label: "Patients", href: "/dashboard/receptionist/patients", icon: Users },
-      { label: "Tasks", href: "/dashboard/md/review", icon: ClipboardList },
+      { label: "Tasks", href: "/dashboard/md/consultation", icon: Stethoscope },
       { label: "Reports", href: "/dashboard/md/reports", icon: FileText },
     ],
     more: [
+      { label: "Insights", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Insights Reports", href: "/insights/reports", icon: BarChart3 },
       { label: "Consultation", href: "/dashboard/md/consultation", icon: Stethoscope },
       { label: "Approved", href: "/dashboard/md/approved", icon: ClipboardList },
       { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
@@ -21231,9 +22461,13 @@ export function MobileBottomNav({ role }: { role: Role }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const config = navByRole[role];
+  const isActivePath = (href: string) =&gt; {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   const moreActive = useMemo(
-    () =&gt; config.more.some((item) =&gt; pathname === item.href || pathname.startsWith(`${item.href}/`)),
+    () =&gt; config.more.some((item) =&gt; isActivePath(item.href)),
     [config.more, pathname]
   );
 
@@ -21250,7 +22484,7 @@ export function MobileBottomNav({ role }: { role: Role }) {
         &gt;
           {config.primary.map((item) =&gt; {
             const Icon = item.icon;
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active = isActivePath(item.href);
             return (
               &lt;li key={item.href}&gt;
                 &lt;Link
@@ -21297,7 +22531,7 @@ export function MobileBottomNav({ role }: { role: Role }) {
             &lt;div className="grid grid-cols-1 gap-1"&gt;
               {config.more.map((item) =&gt; {
                 const Icon = item.icon;
-                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const active = isActivePath(item.href);
                 return (
                   &lt;Link
                     key={item.href}
@@ -22191,7 +23425,21 @@ type Task = {
     patient: { fullName: string; patientId: string; age: number; dateOfBirth?: string | null; sex: string };
   };
   radiologyReport: Report | null;
-  testOrders: Array&lt;{ id: string; createdAt: string; test: { name: string; code: string } }&gt;;
+  testOrders: Array&lt;{
+    id: string;
+    createdAt: string;
+    test: {
+      name: string;
+      code: string;
+      resultFields: Array&lt;{
+        label: string;
+        fieldKey: string;
+        fieldType: "NUMBER" | "TEXT" | "TEXTAREA" | "DROPDOWN" | "CHECKBOX";
+        options?: string | null;
+        isRequired: boolean;
+      }&gt;;
+    };
+  }&gt;;
 };
 type Draft = {
   findings: string;
@@ -22227,6 +23475,10 @@ function sanitizeDraftExtraFields(
   );
 }
 
+function perTestFieldStorageKey(testOrderId: string, fieldKey: string) {
+  return `test_${testOrderId}__${fieldKey.trim().toLowerCase()}`;
+}
+
 const priorityStyle: Record&lt;string, string&gt; = {
   EMERGENCY: "bg-red-50 text-red-600", URGENT: "bg-amber-50 text-amber-700", ROUTINE: "bg-slate-100 text-slate-600",
 };
@@ -22248,6 +23500,8 @@ export function RadiologyTaskBoard() {
   const [drafts, setDrafts] = useState&lt;Record&lt;string, Draft&gt;&gt;({});
   const [newExtraFieldLabel, setNewExtraFieldLabel] = useState&lt;Record&lt;string, string&gt;&gt;({});
   const [newExtraFieldValue, setNewExtraFieldValue] = useState&lt;Record&lt;string, string&gt;&gt;({});
+  const [newPerTestFieldLabel, setNewPerTestFieldLabel] = useState&lt;Record&lt;string, string&gt;&gt;({});
+  const [newPerTestFieldValue, setNewPerTestFieldValue] = useState&lt;Record&lt;string, string&gt;&gt;({});
   const [expandedTask, setExpandedTask] = useState&lt;string | null&gt;(null);
   const [signatureLibrary, setSignatureLibrary] = useState&lt;SignaturePreset[]&gt;([]);
   const [selectedSignatureByTask, setSelectedSignatureByTask] = useState&lt;Record&lt;string, string&gt;&gt;({});
@@ -22481,6 +23735,26 @@ export function RadiologyTaskBoard() {
     updateDraft(taskId, { extraFields: { ...current.extraFields, [fieldKey]: value } });
   }
 
+  function setPerTestTemplateFieldValue(
+    taskId: string,
+    testOrderId: string,
+    fieldKey: string,
+    value: string
+  ) {
+    const storageKey = perTestFieldStorageKey(testOrderId, fieldKey);
+    const current = drafts[taskId] ?? EMPTY_DRAFT;
+    updateDraft(taskId, { extraFields: { ...current.extraFields, [storageKey]: value } });
+  }
+
+  function removePerTestTemplateFieldValue(taskId: string, testOrderId: string, fieldKey: string) {
+    const storageKey = perTestFieldStorageKey(testOrderId, fieldKey);
+    const current = drafts[taskId] ?? EMPTY_DRAFT;
+    if (!Object.prototype.hasOwnProperty.call(current.extraFields, storageKey)) return;
+    const next = { ...current.extraFields };
+    delete next[storageKey];
+    updateDraft(taskId, { extraFields: next });
+  }
+
   function removeExtraField(taskId: string, fieldKey: string) {
     const current = drafts[taskId] ?? EMPTY_DRAFT;
     if (!Object.prototype.hasOwnProperty.call(current.extraFields, fieldKey)) return;
@@ -22498,6 +23772,19 @@ export function RadiologyTaskBoard() {
       return;
     }
     updateDraft(taskId, { extraFields: { ...current.extraFields, [baseKey]: value } });
+    setError("");
+  }
+
+  function addPerTestExtraField(taskId: string, testOrderId: string, label: string, value: string) {
+    const baseKey = toCustomFieldKey(label);
+    if (!baseKey) return;
+    const storageKey = perTestFieldStorageKey(testOrderId, `custom_${baseKey}`);
+    const current = drafts[taskId] ?? EMPTY_DRAFT;
+    if (Object.prototype.hasOwnProperty.call(current.extraFields, storageKey)) {
+      setError(`Field '${baseKey}' already exists for this test.`);
+      return;
+    }
+    updateDraft(taskId, { extraFields: { ...current.extraFields, [storageKey]: value } });
     setError("");
   }
 
@@ -22889,6 +24176,141 @@ export function RadiologyTaskBoard() {
                                     &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;Notes (optional)&lt;/label&gt;
                                     &lt;input value={drafts[task.id]?.testReports?.[order.id]?.notes ?? ""} onChange={(e) =&gt; setTestReportField(task.id, order.id, "notes", e.target.value)}
                                       className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500" /&gt;
+                                  &lt;/div&gt;
+                                  {order.test.resultFields
+                                    .filter(
+                                      (field) =&gt;
+                                        !["findings", "impression", "notes"].includes(
+                                          field.fieldKey.trim().toLowerCase()
+                                        )
+                                    )
+                                    .map((field) =&gt; {
+                                      const fieldValue =
+                                        drafts[task.id]?.extraFields?.[
+                                          perTestFieldStorageKey(order.id, field.fieldKey)
+                                        ] ?? "";
+                                      const options =
+                                        field.fieldType === "DROPDOWN"
+                                          ? (field.options ?? "")
+                                              .split(",")
+                                              .map((opt) =&gt; opt.trim())
+                                              .filter(Boolean)
+                                          : [];
+
+                                      return (
+                                        &lt;div key={`${order.id}-${field.fieldKey}`}&gt;
+                                          &lt;label className="block text-[11px] font-medium text-slate-500 mb-1"&gt;
+                                            {field.label}
+                                            {field.isRequired ? " *" : ""}
+                                          &lt;/label&gt;
+                                          {field.fieldType === "TEXTAREA" ? (
+                                            &lt;textarea
+                                              rows={2}
+                                              value={fieldValue}
+                                              onChange={(e) =&gt;
+                                                setPerTestTemplateFieldValue(
+                                                  task.id,
+                                                  order.id,
+                                                  field.fieldKey,
+                                                  e.target.value
+                                                )
+                                              }
+                                              className="w-full rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            /&gt;
+                                          ) : field.fieldType === "DROPDOWN" ? (
+                                            &lt;select
+                                              value={fieldValue}
+                                              onChange={(e) =&gt;
+                                                setPerTestTemplateFieldValue(
+                                                  task.id,
+                                                  order.id,
+                                                  field.fieldKey,
+                                                  e.target.value
+                                                )
+                                              }
+                                              className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            &gt;
+                                              &lt;option value=""&gt;Select...&lt;/option&gt;
+                                              {options.map((option) =&gt; (
+                                                &lt;option key={option} value={option}&gt;
+                                                  {option}
+                                                &lt;/option&gt;
+                                              ))}
+                                            &lt;/select&gt;
+                                          ) : (
+                                            &lt;input
+                                              type={field.fieldType === "NUMBER" ? "number" : "text"}
+                                              value={fieldValue}
+                                              onChange={(e) =&gt;
+                                                setPerTestTemplateFieldValue(
+                                                  task.id,
+                                                  order.id,
+                                                  field.fieldKey,
+                                                  e.target.value
+                                                )
+                                              }
+                                              className="h-7 w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            /&gt;
+                                          )}
+                                          &lt;div className="mt-1 flex justify-end"&gt;
+                                            &lt;button
+                                              type="button"
+                                              onClick={() =&gt;
+                                                removePerTestTemplateFieldValue(
+                                                  task.id,
+                                                  order.id,
+                                                  field.fieldKey
+                                                )
+                                              }
+                                              className="text-[11px] text-slate-500 hover:text-red-600"
+                                            &gt;
+                                              Clear field
+                                            &lt;/button&gt;
+                                          &lt;/div&gt;
+                                        &lt;/div&gt;
+                                      );
+                                    })}
+                                  &lt;div className="rounded border border-slate-200 bg-slate-50 p-2"&gt;
+                                    &lt;p className="text-[11px] font-medium text-slate-500 mb-1"&gt;Add per-test extra field&lt;/p&gt;
+                                    &lt;div className="grid grid-cols-12 gap-2"&gt;
+                                      &lt;input
+                                        value={newPerTestFieldLabel[`${task.id}_${order.id}`] ?? ""}
+                                        onChange={(e) =&gt;
+                                          setNewPerTestFieldLabel((prev) =&gt; ({
+                                            ...prev,
+                                            [`${task.id}_${order.id}`]: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Field name"
+                                        className="col-span-4 rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      /&gt;
+                                      &lt;input
+                                        value={newPerTestFieldValue[`${task.id}_${order.id}`] ?? ""}
+                                        onChange={(e) =&gt;
+                                          setNewPerTestFieldValue((prev) =&gt; ({
+                                            ...prev,
+                                            [`${task.id}_${order.id}`]: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Value"
+                                        className="col-span-6 rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      /&gt;
+                                      &lt;button
+                                        type="button"
+                                        onClick={() =&gt; {
+                                          const scopedKey = `${task.id}_${order.id}`;
+                                          const label = newPerTestFieldLabel[scopedKey] ?? "";
+                                          const value = newPerTestFieldValue[scopedKey] ?? "";
+                                          if (!label.trim()) return;
+                                          addPerTestExtraField(task.id, order.id, label, value);
+                                          setNewPerTestFieldLabel((prev) =&gt; ({ ...prev, [scopedKey]: "" }));
+                                          setNewPerTestFieldValue((prev) =&gt; ({ ...prev, [scopedKey]: "" }));
+                                        }}
+                                        className="col-span-2 rounded border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
+                                      &gt;
+                                        Add
+                                      &lt;/button&gt;
+                                    &lt;/div&gt;
                                   &lt;/div&gt;
                                 &lt;/div&gt;
                               ))}
@@ -27442,6 +28864,170 @@ export async function setOrganizationStatus(organizationId: string, status: Orga
   });
 }
 </pre></div>
+<div class='file-block'><div class='file-header'>src/lib/analytics/lab-stats.ts</div><pre>import { prisma } from "@/lib/prisma";
+
+const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function safeGrowth(current: number, previous: number) {
+  if (previous === 0) return current &gt; 0 ? 100 : 0;
+  return Number((((current - previous) / previous) * 100).toFixed(2));
+}
+
+export async function getLabStats(orgId: string) {
+  const now = new Date();
+  const thisWeekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const lastWeekStart = new Date(thisWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const [patientsThisWeek, patientsLastWeek, visitsThisWeek] = await Promise.all([
+    prisma.visit.count({
+      where: {
+        organizationId: orgId,
+        registeredAt: { gte: thisWeekStart, lt: now },
+      },
+    }),
+    prisma.visit.count({
+      where: {
+        organizationId: orgId,
+        registeredAt: { gte: lastWeekStart, lt: thisWeekStart },
+      },
+    }),
+    prisma.visit.findMany({
+      where: {
+        organizationId: orgId,
+        registeredAt: { gte: thisWeekStart, lt: now },
+      },
+      select: { registeredAt: true },
+    }),
+  ]);
+
+  const dayCounts = WEEKDAY.map((day) =&gt; ({ day, count: 0 }));
+  for (const visit of visitsThisWeek) {
+    dayCounts[visit.registeredAt.getDay()].count += 1;
+  }
+  const busiest = dayCounts.reduce((a, b) =&gt; (b.count &gt; a.count ? b : a), dayCounts[0]);
+  const quietest = dayCounts.reduce((a, b) =&gt; (b.count &lt; a.count ? b : a), dayCounts[0]);
+
+  return {
+    patientsThisWeek,
+    patientsLastWeek,
+    growthPercent: safeGrowth(patientsThisWeek, patientsLastWeek),
+    busiestDay: busiest.day,
+    quietestDay: quietest.day,
+  };
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/analytics/revenue.ts</div><pre>import { prisma } from "@/lib/prisma";
+
+function dayStart(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function monthStart(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+}
+
+function nextMonthStart(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 1, 0, 0, 0, 0);
+}
+
+function safeGrowth(current: number, previous: number) {
+  if (previous === 0) return current &gt; 0 ? 100 : 0;
+  return Number((((current - previous) / previous) * 100).toFixed(2));
+}
+
+export async function getRevenueStats(orgId: string) {
+  const now = new Date();
+  const todayStart = dayStart(now);
+  const monthCurrentStart = monthStart(now);
+  const monthNextStart = nextMonthStart(now);
+  const monthPreviousStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+
+  const [todayAgg, monthAgg, prevMonthAgg, topTestsRaw, staffRevenueRaw] = await Promise.all([
+    prisma.visitPayment.aggregate({
+      where: {
+        organizationId: orgId,
+        createdAt: { gte: todayStart, lt: now },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.visitPayment.aggregate({
+      where: {
+        organizationId: orgId,
+        createdAt: { gte: monthCurrentStart, lt: monthNextStart },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.visitPayment.aggregate({
+      where: {
+        organizationId: orgId,
+        createdAt: { gte: monthPreviousStart, lt: monthCurrentStart },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.testOrder.groupBy({
+      by: ["testId"],
+      where: {
+        organizationId: orgId,
+        registeredAt: { gte: monthCurrentStart, lt: monthNextStart },
+      },
+      _sum: { price: true },
+      orderBy: { _sum: { price: "desc" } },
+      take: 5,
+    }),
+    prisma.testOrder.groupBy({
+      by: ["assignedToId"],
+      where: {
+        organizationId: orgId,
+        registeredAt: { gte: monthCurrentStart, lt: monthNextStart },
+        assignedToId: { not: null },
+      },
+      _sum: { price: true },
+      orderBy: { _sum: { price: "desc" } },
+    }),
+  ]);
+
+  const testIds = topTestsRaw.map((x) =&gt; x.testId);
+  const staffIds = staffRevenueRaw
+    .map((x) =&gt; x.assignedToId)
+    .filter((id): id is string =&gt; Boolean(id));
+
+  const [tests, staff] = await Promise.all([
+    testIds.length
+      ? prisma.diagnosticTest.findMany({
+          where: { id: { in: testIds } },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
+    staffIds.length
+      ? prisma.staff.findMany({
+          where: { id: { in: staffIds } },
+          select: { id: true, fullName: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const testMap = new Map(tests.map((t) =&gt; [t.id, t.name]));
+  const staffMap = new Map(staff.map((s) =&gt; [s.id, s.fullName]));
+
+  return {
+    todayRevenue: Number(todayAgg._sum.amount ?? 0),
+    monthRevenue: Number(monthAgg._sum.amount ?? 0),
+    growth: safeGrowth(Number(monthAgg._sum.amount ?? 0), Number(prevMonthAgg._sum.amount ?? 0)),
+    topTests: topTestsRaw.map((row) =&gt; ({
+      testId: row.testId,
+      testName: testMap.get(row.testId) ?? "Unknown Test",
+      amount: Number(row._sum.price ?? 0),
+    })),
+    staffRevenue: staffRevenueRaw.map((row) =&gt; ({
+      staffId: row.assignedToId,
+      staffName: row.assignedToId ? staffMap.get(row.assignedToId) ?? "Unknown Staff" : "Unassigned",
+      amount: Number(row._sum.price ?? 0),
+    })),
+  };
+}
+</pre></div>
 <div class='file-block'><div class='file-header'>src/lib/api-observability.ts</div><pre>type ApiMetric = {
   route: string;
   startMs: number;
@@ -29818,6 +31404,373 @@ export function isOverloaded(activeTaskCount: number, threshold = 8) {
   return activeTaskCount &gt;= threshold;
 }
 
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/insights/generate-insights.ts</div><pre>import { prisma } from "@/lib/prisma";
+import { NotificationType, Role } from "@prisma/client";
+import { sendNotificationToRoles } from "@/lib/notifications";
+
+type WeekdayName =
+  | "Sunday"
+  | "Monday"
+  | "Tuesday"
+  | "Wednesday"
+  | "Thursday"
+  | "Friday"
+  | "Saturday";
+
+const WEEKDAYS: WeekdayName[] = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+function safePercentGrowth(current: number, previous: number) {
+  if (previous === 0) return current &gt; 0 ? 100 : 0;
+  return Number((((current - previous) / previous) * 100).toFixed(2));
+}
+
+function asNumber(value: unknown): number {
+  if (typeof value === "number" &amp;&amp; Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function getDateRangeDurationMs(start: Date, end: Date) {
+  return Math.max(1, end.getTime() - start.getTime());
+}
+
+function getPreviousRange(start: Date, end: Date) {
+  const duration = getDateRangeDurationMs(start, end);
+  return {
+    start: new Date(start.getTime() - duration),
+    end: new Date(start.getTime()),
+  };
+}
+
+function getBusiestAndQuietestDays(dates: Date[]) {
+  const dayCounts = WEEKDAYS.map((day) =&gt; ({ day, count: 0 }));
+  for (const dt of dates) {
+    dayCounts[dt.getDay()].count += 1;
+  }
+  const busiest = dayCounts.reduce((a, b) =&gt; (b.count &gt; a.count ? b : a), dayCounts[0]);
+  const quietest = dayCounts.reduce((a, b) =&gt; (b.count &lt; a.count ? b : a), dayCounts[0]);
+  return { busiestDay: busiest.day, quietestDay: quietest.day };
+}
+
+function extractSuggestion(testName: string): string | null {
+  const name = testName.toLowerCase();
+  if (name.includes("malaria")) return "FBC";
+  if (name === "fbs" || name.includes("fasting blood sugar")) return "Lipid Profile";
+  return null;
+}
+
+export async function generateLabInsights(orgId: string, start: Date, end: Date) {
+  const previousRange = getPreviousRange(start, end);
+  const [revenueAgg, previousRevenueAgg, totalPatients, newPatients, topTestsAgg, periodOrders, periodVisits] =
+    await Promise.all([
+      prisma.visitPayment.aggregate({
+        where: {
+          organizationId: orgId,
+          createdAt: { gte: start, lt: end },
+        },
+        _sum: { amount: true },
+      }),
+      prisma.visitPayment.aggregate({
+        where: {
+          organizationId: orgId,
+          createdAt: { gte: previousRange.start, lt: previousRange.end },
+        },
+        _sum: { amount: true },
+      }),
+      prisma.visit.count({
+        where: {
+          organizationId: orgId,
+          registeredAt: { gte: start, lt: end },
+        },
+      }),
+      prisma.patient.count({
+        where: {
+          organizationId: orgId,
+          createdAt: { gte: start, lt: end },
+        },
+      }),
+      prisma.testOrder.groupBy({
+        by: ["testId"],
+        where: {
+          organizationId: orgId,
+          registeredAt: { gte: start, lt: end },
+        },
+        _sum: { price: true },
+        orderBy: { _sum: { price: "desc" } },
+        take: 5,
+      }),
+      prisma.testOrder.findMany({
+        where: {
+          organizationId: orgId,
+          registeredAt: { gte: start, lt: end },
+        },
+        select: {
+          id: true,
+          visitId: true,
+          startedAt: true,
+          completedAt: true,
+          assignedToId: true,
+          test: {
+            select: {
+              id: true,
+              name: true,
+              turnaroundMinutes: true,
+            },
+          },
+        },
+      }),
+      prisma.visit.findMany({
+        where: {
+          organizationId: orgId,
+          registeredAt: { gte: start, lt: end },
+        },
+        select: {
+          id: true,
+          registeredAt: true,
+        },
+      }),
+    ]);
+
+  const revenue = Number(revenueAgg._sum.amount ?? 0);
+  const previousRevenue = Number(previousRevenueAgg._sum.amount ?? 0);
+  const growth = safePercentGrowth(revenue, previousRevenue);
+
+  const topTestIds = topTestsAgg.map((row) =&gt; row.testId);
+  const tests = topTestIds.length
+    ? await prisma.diagnosticTest.findMany({
+        where: { id: { in: topTestIds } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const testNameMap = new Map(tests.map((t) =&gt; [t.id, t.name]));
+  const topTests = topTestsAgg.map((row) =&gt; ({
+    testId: row.testId,
+    testName: testNameMap.get(row.testId) ?? "Unknown Test",
+    amount: Number(row._sum.price ?? 0),
+  }));
+
+  let delays = 0;
+  const staffTotals = new Map&lt;string, { completedTests: number; totalDelayMinutes: number }&gt;();
+  for (const order of periodOrders) {
+    if (!order.startedAt || !order.completedAt) continue;
+    const elapsedMinutes = Math.max(
+      0,
+      Math.floor((order.completedAt.getTime() - order.startedAt.getTime()) / 60000)
+    );
+    const delayMinutes = Math.max(0, elapsedMinutes - order.test.turnaroundMinutes);
+    if (delayMinutes &gt; 0) delays += 1;
+
+    if (!order.assignedToId) continue;
+    const existing = staffTotals.get(order.assignedToId) ?? {
+      completedTests: 0,
+      totalDelayMinutes: 0,
+    };
+    existing.completedTests += 1;
+    existing.totalDelayMinutes += delayMinutes;
+    staffTotals.set(order.assignedToId, existing);
+  }
+
+  const staffIds = Array.from(staffTotals.keys());
+  const staffRows = staffIds.length
+    ? await prisma.staff.findMany({
+        where: { id: { in: staffIds } },
+        select: { id: true, fullName: true },
+      })
+    : [];
+  const staffNameMap = new Map(staffRows.map((s) =&gt; [s.id, s.fullName]));
+  const staffPerformance = staffIds.map((staffId) =&gt; {
+    const row = staffTotals.get(staffId)!;
+    return {
+      staffId,
+      staffName: staffNameMap.get(staffId) ?? "Unknown Staff",
+      completedTests: row.completedTests,
+      averageDelayMinutes:
+        row.completedTests &gt; 0 ? Number((row.totalDelayMinutes / row.completedTests).toFixed(2)) : 0,
+    };
+  });
+
+  const { busiestDay, quietestDay } = getBusiestAndQuietestDays(periodVisits.map((v) =&gt; v.registeredAt));
+
+  const singleTestVisits = await prisma.testOrder.groupBy({
+    by: ["visitId"],
+    where: {
+      organizationId: orgId,
+      registeredAt: { gte: start, lt: end },
+    },
+    _count: { _all: true },
+    having: {
+      visitId: {
+        _count: {
+          equals: 1,
+        },
+      },
+    },
+  });
+  const singleVisitIds = singleTestVisits.map((v) =&gt; v.visitId);
+  const singleOrders = singleVisitIds.length
+    ? await prisma.testOrder.findMany({
+        where: {
+          organizationId: orgId,
+          visitId: { in: singleVisitIds },
+        },
+        select: {
+          visitId: true,
+          test: { select: { name: true } },
+        },
+      })
+    : [];
+
+  const missedOpportunities = singleOrders.reduce((acc, order) =&gt; {
+    const suggestion = extractSuggestion(order.test.name);
+    return suggestion ? acc + 1 : acc;
+  }, 0);
+
+  const data = {
+    revenue,
+    previousRevenue,
+    growth,
+    totalPatients,
+    newPatients,
+    topTests,
+    delays,
+    staffPerformance,
+    busiestDay,
+    quietestDay,
+    missedOpportunities,
+  };
+
+  const diffDays = Math.ceil(getDateRangeDurationMs(start, end) / (24 * 60 * 60 * 1000));
+  const reportType = diffDays &lt;= 8 ? "WEEKLY" : "MONTHLY";
+
+  const report = await prisma.labInsightReport.create({
+    data: {
+      organizationId: orgId,
+      periodStart: start,
+      periodEnd: end,
+      reportType,
+      data,
+    },
+  });
+
+  await sendNotificationToRoles({
+    organizationId: orgId,
+    roles: [Role.SUPER_ADMIN],
+    type: NotificationType.SYSTEM,
+    title: "Lab Performance Report Ready",
+    message: "Your Lab Performance Report is ready",
+    entityId: report.id,
+    entityType: "LabInsightReport",
+    dedupeKeyPrefix: `lab-insights:${report.id}`,
+  });
+
+  return data;
+}
+</pre></div>
+<div class='file-block'><div class='file-header'>src/lib/intelligence/patient-trends.ts</div><pre>import { prisma } from "@/lib/prisma";
+
+type TrendDirection = "RISING" | "FALLING" | "STABLE";
+
+type TrendItem = {
+  testName: string;
+  values: number[];
+  trend: TrendDirection;
+  message: string;
+};
+
+function collectNumbers(value: unknown): number[] {
+  if (typeof value === "number" &amp;&amp; Number.isFinite(value)) return [value];
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return [parsed];
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item) =&gt; collectNumbers(item));
+  }
+  if (value &amp;&amp; typeof value === "object") {
+    return Object.values(value as Record&lt;string, unknown&gt;).flatMap((item) =&gt; collectNumbers(item));
+  }
+  return [];
+}
+
+function detectTrend(values: number[]): TrendDirection {
+  if (values.length &lt; 2) return "STABLE";
+  const diffs = values.slice(1).map((curr, idx) =&gt; curr - values[idx]);
+  const rising = diffs.every((d) =&gt; d &gt; 0);
+  const falling = diffs.every((d) =&gt; d &lt; 0);
+  if (rising) return "RISING";
+  if (falling) return "FALLING";
+  return "STABLE";
+}
+
+function buildTrendMessage(testName: string, trend: TrendDirection, pointCount: number) {
+  if (trend === "RISING") return `${testName} rising over last ${pointCount} result entries`;
+  if (trend === "FALLING") return `${testName} falling over last ${pointCount} result entries`;
+  return `${testName} stable across last ${pointCount} result entries`;
+}
+
+export async function getPatientTrends(patientId: string): Promise&lt;TrendItem[]&gt; {
+  const results = await prisma.labResult.findMany({
+    where: {
+      testOrder: {
+        visit: {
+          patientId,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      createdAt: true,
+      resultData: true,
+      testOrder: {
+        select: {
+          test: { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  const grouped = new Map&lt;string, Array&lt;{ createdAt: Date; value: number }&gt;&gt;();
+  for (const row of results) {
+    const testName = row.testOrder.test.name;
+    const numericValues = collectNumbers(row.resultData);
+    if (numericValues.length === 0) continue;
+    const firstNumeric = numericValues[0];
+    const bucket = grouped.get(testName) ?? [];
+    bucket.push({ createdAt: row.createdAt, value: firstNumeric });
+    grouped.set(testName, bucket);
+  }
+
+  const trends: TrendItem[] = [];
+  for (const [testName, rows] of Array.from(grouped.entries())) {
+    const latestFive = rows
+      .sort((a: { createdAt: Date }, b: { createdAt: Date }) =&gt; a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(-5);
+    const values = latestFive.map((r: { value: number }) =&gt; r.value);
+    if (values.length === 0) continue;
+    const trend = detectTrend(values);
+    trends.push({
+      testName,
+      values,
+      trend,
+      message: buildTrendMessage(testName, trend, values.length),
+    });
+  }
+
+  return trends.sort((a, b) =&gt; a.testName.localeCompare(b.testName));
+}
 </pre></div>
 <div class='file-block'><div class='file-header'>src/lib/lab-workflow.ts</div><pre>import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import type { AuditMeta } from "@/lib/audit-core";
@@ -33201,7 +35154,22 @@ export async function getRadiologyTasks(
         select: {
           id: true,
           createdAt: true,
-          test: { select: { name: true, code: true } },
+          test: {
+            select: {
+              name: true,
+              code: true,
+              resultFields: {
+                orderBy: { sortOrder: "asc" },
+                select: {
+                  label: true,
+                  fieldKey: true,
+                  fieldType: true,
+                  options: true,
+                  isRequired: true,
+                },
+              },
+            },
+          },
         },
       })
     : [];
@@ -36089,7 +38057,7 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
           status: true,
           price: true,
           defaultPrice: true,
-          test: { select: { id: true, name: true, code: true, type: true, costPrice: true } },
+          test: { select: { id: true, name: true, code: true, type: true } },
         },
       },
       payments: {
@@ -36099,7 +38067,6 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
     orderBy: { registeredAt: "desc" },
   });
 
-  let orderedValue = 0;
   let billedValue = 0;
   let collectedValue = 0;
   let incompleteBilledValue = 0;
@@ -36107,11 +38074,11 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
   let completedCount = 0;
 
   const completedStatuses = new Set&lt;OrderStatus&gt;([OrderStatus.APPROVED, OrderStatus.RELEASED]);
-  const profitMap = new Map&lt;
+  const performanceMap = new Map&lt;
     string,
-    { name: string; code: string; type: string; orders: number; revenue: number; cost: number; profit: number }
+    { name: string; code: string; type: string; orders: number; revenue: number; avgOrderValue: number }
   &gt;();
-  const dailyProfitMap = new Map&lt;string, { revenue: number; cost: number; profit: number }&gt;();
+  const dailyRevenueMap = new Map&lt;string, { revenue: number; orders: number }&gt;();
 
   for (const visit of visits) {
     const paymentLedger = visit.payments.reduce((sum, payment) =&gt; {
@@ -36125,9 +38092,6 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
     for (const order of visit.testOrders) {
       const defaultPrice = toMoney(order.defaultPrice) &gt; 0 ? toMoney(order.defaultPrice) : toMoney(order.price);
       const billedPrice = toMoney(order.price);
-      const costPrice = toMoney(order.test.costPrice);
-
-      orderedValue += defaultPrice;
       billedValue += billedPrice;
       orderedCount += 1;
 
@@ -36137,28 +38101,25 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
         incompleteBilledValue += billedPrice;
       }
 
-      const byTest = profitMap.get(order.test.id) ?? {
+      const byTest = performanceMap.get(order.test.id) ?? {
         name: order.test.name,
         code: order.test.code,
         type: order.test.type,
         orders: 0,
         revenue: 0,
-        cost: 0,
-        profit: 0,
+        avgOrderValue: 0,
       };
       byTest.orders += 1;
       byTest.revenue += billedPrice;
-      byTest.cost += costPrice;
-      byTest.profit += billedPrice - costPrice;
-      profitMap.set(order.test.id, byTest);
+      byTest.avgOrderValue = byTest.orders &gt; 0 ? byTest.revenue / byTest.orders : 0;
+      performanceMap.set(order.test.id, byTest);
 
       if (visit.registeredAt &gt;= start14) {
         const key = dayKey(visit.registeredAt);
-        const day = dailyProfitMap.get(key) ?? { revenue: 0, cost: 0, profit: 0 };
+        const day = dailyRevenueMap.get(key) ?? { revenue: 0, orders: 0 };
         day.revenue += billedPrice;
-        day.cost += costPrice;
-        day.profit += billedPrice - costPrice;
-        dailyProfitMap.set(key, day);
+        day.orders += 1;
+        dailyRevenueMap.set(key, day);
       }
     }
   }
@@ -36196,41 +38157,34 @@ export async function getRevenueOpsIntelligence(actor: HrmActor) {
   const predictedNoShowsNext7 = Math.max(0, Math.round(last7Rate * avgDailyRegistrations * 7));
   const confidence = totalVisits &gt;= 150 ? "high" : totalVisits &gt;= 60 ? "medium" : "low";
 
-  const unbilledLeakage = Math.max(0, orderedValue - billedValue);
   const uncollectedLeakage = Math.max(0, billedValue - collectedValue);
   const completionLeakageRate = orderedCount &gt; 0 ? (orderedCount - completedCount) / orderedCount : 0;
 
-  const topProfitLines = Array.from(profitMap.values())
-    .sort((a, b) =&gt; b.profit - a.profit)
+  const topTestPerformance = Array.from(performanceMap.values())
+    .sort((a, b) =&gt; b.revenue - a.revenue)
     .slice(0, 12);
 
-  const dailyProfit = Array.from({ length: 14 }, (_, i) =&gt; {
+  const dailyRevenue = Array.from({ length: 14 }, (_, i) =&gt; {
     const date = new Date(start14);
     date.setDate(start14.getDate() + i);
     const key = dayKey(date);
-    const day = dailyProfitMap.get(key) ?? { revenue: 0, cost: 0, profit: 0 };
+    const day = dailyRevenueMap.get(key) ?? { revenue: 0, orders: 0 };
     return { date: key, ...day };
   });
-
-  const totalCost = topProfitLines.reduce((sum, row) =&gt; sum + row.cost, 0);
-  const totalRevenue = topProfitLines.reduce((sum, row) =&gt; sum + row.revenue, 0);
 
   return {
     summary: {
       windowDays: 30,
-      orderedValue,
       billedValue,
       collectedValue,
-      unbilledLeakage,
       uncollectedLeakage,
       incompleteBilledValue,
       completionLeakageRate,
-      grossMarginPct: totalRevenue &gt; 0 ? (totalRevenue - totalCost) / totalRevenue : 0,
       orderedCount,
       completedCount,
     },
-    profitByTestLine: topProfitLines,
-    dailyProfit,
+    topTestPerformance,
+    dailyRevenue,
     noShowForecast: {
       noShowCancelRate,
       last7Rate,
@@ -36861,12 +38815,12 @@ export function cn(...inputs: ClassValue[]) {
 export function getDashboardPath(role: Role): string {
   const map: Record&lt;Role, string&gt; = {
     MEGA_ADMIN: "/admin/dashboard",
-    SUPER_ADMIN: "/dashboard/hrm",
-    HRM: "/dashboard/hrm",
+    SUPER_ADMIN: "/dashboard",
+    HRM: "/dashboard",
     RECEPTIONIST: "/dashboard/receptionist",
     LAB_SCIENTIST: "/dashboard/lab-scientist",
     RADIOGRAPHER: "/dashboard/radiographer",
-    MD: "/dashboard/md",
+    MD: "/dashboard/md/review",
   };
   return map[role] ?? "/dashboard/hrm";
 }
@@ -37144,6 +39098,7 @@ const AUTH_SECRET =
   (process.env.NODE_ENV !== "production" ? "diagsync-local-dev-auth-secret" : undefined);
 
 const roleRouteMap: Record&lt;string, Role[]&gt; = {
+  "/insights": ["MD", "HRM", "SUPER_ADMIN"],
   "/dashboard/receptionist": ["RECEPTIONIST", "SUPER_ADMIN"],
   "/dashboard/lab-scientist": ["LAB_SCIENTIST", "SUPER_ADMIN"],
   "/dashboard/radiographer": ["RADIOGRAPHER", "SUPER_ADMIN"],
@@ -37188,10 +39143,6 @@ export default async function middleware(req: NextRequest) {
   }
 
   const userRole = token.role as Role;
-  if (pathname === "/dashboard") {
-    return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
-  }
-
   if (pathname.startsWith("/admin") &amp;&amp; userRole !== "MEGA_ADMIN") {
     return NextResponse.redirect(new URL(getDashboardPath(userRole), nextUrl.origin));
   }

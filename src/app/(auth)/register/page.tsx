@@ -13,6 +13,9 @@ const schema = z.object({
   orgEmail: z.string().email("Valid email required"),
   orgPhone: z.string().min(7, "Phone number required"),
   orgAddress: z.string().min(5, "Address required"),
+  orgCity: z.string().min(2, "City is required"),
+  orgState: z.string().min(2, "State is required"),
+  orgCountry: z.string().min(2).default("Nigeria"),
   orgContactInfo: z.string().optional(),
   // FIX: .or(z.literal("")) must come before .optional() so empty string is accepted
   orgLogo: z.string().url().or(z.literal("")).optional(),
@@ -181,6 +184,21 @@ export default function RegisterPage() {
               <label className={labelCls}>Lab Address *</label>
               <input placeholder="Full lab address" {...register("orgAddress")} className={inputCls} />
               {errors.orgAddress && <p className={errCls}>{errors.orgAddress.message}</p>}
+            </div>
+            <div>
+              <label className={labelCls}>City *</label>
+              <input placeholder="e.g. Lagos" {...register("orgCity")} className={inputCls} />
+              {errors.orgCity && <p className={errCls}>{errors.orgCity.message}</p>}
+            </div>
+            <div>
+              <label className={labelCls}>State *</label>
+              <input placeholder="e.g. Lagos State" {...register("orgState")} className={inputCls} />
+              {errors.orgState && <p className={errCls}>{errors.orgState.message}</p>}
+            </div>
+            <div className="col-span-2">
+              <label className={labelCls}>Country *</label>
+              <input defaultValue="Nigeria" {...register("orgCountry")} className={inputCls} />
+              {errors.orgCountry && <p className={errCls}>{errors.orgCountry.message}</p>}
             </div>
             <div className="col-span-2">
               <label className={labelCls}>Additional Contact Info (optional)</label>

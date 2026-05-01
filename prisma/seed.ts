@@ -3053,7 +3053,9 @@ async function main() {
     new Set(rawLabTests.map(normalizeName).filter(Boolean))
   ).filter((name) => !existingLabNames.has(name.toUpperCase()));
 
-  const dedupedRadiology: string[] = [];
+  const dedupedRadiology = Array.from(
+    new Set(rawRadiologyTests.map(normalizeName).filter(Boolean))
+  ).filter((name) => !existingRadiologyNames.has(name.toUpperCase()));
 
   for (let i = 0; i < dedupedLab.length; i += 1) {
     const testName = dedupedLab[i];
