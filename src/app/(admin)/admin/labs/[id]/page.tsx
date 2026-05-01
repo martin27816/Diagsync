@@ -11,6 +11,7 @@ import {
   suspendLabAction,
   syncLabCatalogAction,
   enrichLabProfileAction,
+  forceEnrichLabProfileAction,
 } from "../actions";
 
 function asNumber(value: Decimal | number | null | undefined) {
@@ -22,7 +23,11 @@ function asNumber(value: Decimal | number | null | undefined) {
 function getAiMessage(ai: string | undefined, confidence: string | undefined) {
   if (!ai) return null;
   if (ai === "success") return { tone: "green", text: `AI enrichment saved successfully${confidence ? ` (confidence ${Number(confidence).toFixed(2)})` : ""}.` };
+  if (ai === "force_success") return { tone: "green", text: `Force AI enrichment saved successfully${confidence ? ` (confidence ${Number(confidence).toFixed(2)})` : ""}.` };
   if (ai === "RATE_LIMITED") return { tone: "amber", text: "AI fetch skipped: this lab can only be enriched once per hour." };
+  if (ai === "force_LOW_CONFIDENCE") return { tone: "amber", text: `Force AI fetch completed but confidence was too low to overwrite data${confidence ? ` (${Number(confidence).toFixed(2)})` : ""}.` };
+  if (ai === "force_NO_AI_DATA") return { tone: "amber", text: "Force AI fetch returned no usable data." };
+  if (ai === "force_NOT_FOUND") return { tone: "red", text: "Lab not found for force enrichment." };
   if (ai === "LOW_CONFIDENCE") return { tone: "amber", text: `AI fetch completed but confidence was too low to overwrite data${confidence ? ` (${Number(confidence).toFixed(2)})` : ""}.` };
   if (ai === "NO_AI_DATA") return { tone: "amber", text: "AI fetch returned no usable data." };
   if (ai === "NOT_FOUND") return { tone: "red", text: "Lab not found for enrichment." };
@@ -81,6 +86,12 @@ export default async function AdminLabDetailPage({
             <input type="hidden" name="organizationId" value={organization.id} />
             <button className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100">
               Enrich Lab Data (AI)
+            </button>
+          </form>
+          <form action={forceEnrichLabProfileAction}>
+            <input type="hidden" name="organizationId" value={organization.id} />
+            <button className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-700 transition-colors hover:bg-violet-100">
+              Force Enrich (Bypass 1h)
             </button>
           </form>
           {organization.status === "SUSPENDED" ? (

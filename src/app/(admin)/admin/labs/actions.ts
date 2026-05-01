@@ -79,6 +79,29 @@ export async function enrichLabProfileAction(formData: FormData) {
   redirect(`/admin/labs/${id}?${qs.toString()}`);
 }
 
+export async function forceEnrichLabProfileAction(formData: FormData) {
+  await requireMegaAdmin();
+  const id = String(formData.get("organizationId") ?? "");
+  if (!id) return;
+
+  const result = await enrichOrganizationWithAi(id, { force: true });
+  revalidatePath("/admin/labs");
+  revalidatePath(`/admin/labs/${id}`);
+  revalidatePath("/labs");
+
+  const qs = new URLSearchParams();
+  if (result.ok) {
+    qs.set("ai", "force_success");
+    qs.set("confidence", String(result.confidence));
+  } else {
+    qs.set("ai", `force_${result.reason}`);
+    if ("confidence" in result && typeof result.confidence === "number") {
+      qs.set("confidence", String(result.confidence));
+    }
+  }
+  redirect(`/admin/labs/${id}?${qs.toString()}`);
+}
+
 export async function approvePaymentRequestAction(formData: FormData) {
   const admin = await requireMegaAdmin();
   const organizationId = String(formData.get("organizationId") ?? "");

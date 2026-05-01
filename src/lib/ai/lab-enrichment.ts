@@ -37,7 +37,7 @@ function computeConfidence(input: {
   return Math.min(1, score);
 }
 
-export async function enrichOrganizationWithAi(organizationId: string) {
+export async function enrichOrganizationWithAi(organizationId: string, opts?: { force?: boolean }) {
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
     select: {
@@ -59,7 +59,7 @@ export async function enrichOrganizationWithAi(organizationId: string) {
   if (!org) return { ok: false as const, reason: "NOT_FOUND" as const };
 
   const now = new Date();
-  if (org.lastFetchedAt && now.getTime() - org.lastFetchedAt.getTime() < 60 * 60 * 1000) {
+  if (!opts?.force && org.lastFetchedAt && now.getTime() - org.lastFetchedAt.getTime() < 60 * 60 * 1000) {
     return { ok: false as const, reason: "RATE_LIMITED" as const };
   }
 
