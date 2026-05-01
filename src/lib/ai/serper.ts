@@ -8,6 +8,15 @@ type SerperLabData = {
   source?: string;
 };
 
+const BLOCKED_DOMAINS = [
+  "unizik.edu.ng",
+  "anambrastate.gov.ng",
+  "wikipedia.org",
+  "facebook.com/groups",
+];
+
+const GOOD_SIGNALS = ["diagnostic", "laboratory", "medical", "clinic"];
+
 export type SerperFetchResult =
   | { ok: true; data: SerperLabData }
   | {
@@ -35,6 +44,34 @@ function normalizeUrl(input?: string | null) {
   }
 }
 
+function isBlockedDomain(url: string) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return BLOCKED_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+  } catch {
+    return true;
+  }
+}
+
+function hasGoodSignal(text: string) {
+  const value = text.toLowerCase();
+  return GOOD_SIGNALS.some((signal) => value.includes(signal));
+}
+
+function getLabTokens(labName: string) {
+  return labName
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 4 && !["medical", "center", "centre", "diagnostic", "diagnostics", "services"].includes(t));
+}
+
+function hasNameTokenMatch(text: string, labName: string) {
+  const tokens = getLabTokens(labName);
+  const value = text.toLowerCase();
+  if (!tokens.length) return false;
+  return tokens.some((t) => value.includes(t));
+}
+
 function extractFirstPhone(text?: string | null) {
   if (!text) return null;
   const m = text.match(/(\+?\d[\d\s\-().]{6,}\d)/);
@@ -51,22 +88,23 @@ function scoreDomain(url: string, labName: string) {
     const path = parsed.pathname.toLowerCase();
     const normalized = labName.toLowerCase().replace(/[^a-z0-9]/g, "");
     const hostNorm = host.replace(/[^a-z0-9]/g, "");
-    const tokens = labName
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((t) => t.length >= 4 && !["medical", "center", "centre", "laboratory", "diagnostic"].includes(t));
+    const tokens = getLabTokens(labName);
     let score = 0;
     const isSocial = host.includes("facebook.com") || host.includes("instagram.com") || host.includes("linkedin.com");
     const isGov = host.endsWith(".gov.ng") || host.endsWith(".gov") || host.includes(".gov.");
     const isDirectoryPath = /\/(facilit|facilitie|facility|directory|listing|listings|places|businesses)\b/.test(path);
     const hasNameToken = tokens.some((t) => hostNorm.includes(t));
     const hasStrongName = hostNorm.includes(normalized.slice(0, Math.min(normalized.length, 8)));
+    const isAcademic = host.includes(".edu") || host.includes(".ac.");
+    const isProfilePath = /\/(profile|profiles|user|users|people|person)\b/.test(path);
 
     if (!isSocial) score += 2;
     if (hasStrongName) score += 5;
     if (hasNameToken) score += 4;
     if (isGov) score -= 3;
+    if (isAcademic) score -= 4;
     if (isDirectoryPath) score -= 5;
+    if (isProfilePath) score -= 6;
     if (path === "/" || path.length <= 1) score += 2;
     return score;
   } catch {
@@ -79,7 +117,7 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
   if (!apiKey) return { ok: false, reason: "MISSING_API_KEY" };
 
   const timeout = withTimeout(10_000);
-  const query = [labName, city, state, "medical laboratory website phone address"].filter(Boolean).join(" ");
+  const query = [`"${labName}"`, city, state, "Nigeria", "laboratory", "medical diagnostic center website phone address"].filter(Boolean).join(" ");
 
   try {
     const res = await fetch("https://google.serper.dev/search", {
@@ -105,9 +143,24 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
 
     const candidates: string[] = [];
     for (const row of organic) {
-      if (typeof row?.link === "string") candidates.push(row.link);
+      if (typeof row?.link === "string") {
+        const title = typeof row?.title === "string" ? row.title : "";
+        const snippet = typeof row?.snippet === "string" ? row.snippet : "";
+        if (isBlockedDomain(row.link)) continue;
+        if (!hasGoodSignal(`${title} ${snippet} ${row.link}`)) continue;
+        if (hasNameTokenMatch(`${title} ${snippet}`, labName) || hasNameTokenMatch(row.link, labName)) {
+          candidates.push(row.link);
+        }
+      }
     }
-    if (typeof knowledge?.website === "string") candidates.push(knowledge.website);
+    if (
+      typeof knowledge?.website === "string" &&
+      !isBlockedDomain(knowledge.website) &&
+      hasGoodSignal(knowledge.website) &&
+      hasNameTokenMatch(knowledge.website, labName)
+    ) {
+      candidates.push(knowledge.website);
+    }
 
     let bestWebsite: string | null = null;
     let bestScore = -999;
@@ -115,6 +168,7 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
     for (const link of candidates) {
       const normalized = normalizeUrl(link);
       if (!normalized) continue;
+      if (isBlockedDomain(normalized)) continue;
       const score = scoreDomain(normalized, labName);
       const host = new URL(normalized).hostname.toLowerCase();
       if (score > bestScore) {
@@ -143,6 +197,11 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
     }
 
     const snippets = organic
+      .filter((row: any) => {
+        const title = typeof row?.title === "string" ? row.title : "";
+        const snippet = typeof row?.snippet === "string" ? row.snippet : "";
+        return hasNameTokenMatch(`${title} ${snippet}`, labName);
+      })
       .map((row: any) => (typeof row?.snippet === "string" ? row.snippet : ""))
       .filter(Boolean)
       .join(" ");
@@ -157,8 +216,8 @@ export async function fetchLabDataWithSerper(labName: string, city?: string | nu
       (city ? `${city}${state ? `, ${state}` : ""}` : undefined);
 
     const description =
-      (typeof knowledge?.description === "string" && knowledge.description.trim()) ||
-      (typeof organic[0]?.snippet === "string" ? organic[0].snippet.trim() : undefined);
+      (typeof knowledge?.description === "string" && hasNameTokenMatch(knowledge.description, labName) && knowledge.description.trim()) ||
+      (typeof organic[0]?.snippet === "string" && hasNameTokenMatch(organic[0].snippet, labName) ? organic[0].snippet.trim() : undefined);
 
     const images = Array.isArray(payload?.images)
       ? payload.images
