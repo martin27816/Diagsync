@@ -29,6 +29,12 @@ export default async function LabProfilePage({
   const data = await getPublicLabProfile(params.location, params.slug);
   if (!data) notFound();
   const { lab, ranking } = data;
+  const compact = (v: string) => v.replace(/\s+/g, " ").trim();
+  const looksLikeScrapeBlob = (v: string) =>
+    v.length > 180 ||
+    /(home about us services gallery contact book now|all rights reserved|learn more|quick links|opening hours)/i.test(v);
+  const safeAddress = lab.address && !looksLikeScrapeBlob(compact(lab.address)) ? compact(lab.address) : `${lab.city ?? "Unknown City"}, ${lab.state ?? "Unknown State"}, ${lab.country}`;
+  const safePhone = lab.phone && !looksLikeScrapeBlob(compact(lab.phone)) && compact(lab.phone).length <= 40 ? compact(lab.phone) : null;
   const allImages = Array.isArray(lab.images) ? lab.images : [];
   const galleryImages = [
     ...(lab.logoUrl ? [lab.logoUrl] : []),
@@ -148,8 +154,8 @@ export default async function LabProfilePage({
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Contact & Access</h3>
               <div className="mt-3 space-y-2 text-sm text-slate-600">
-                <p>{lab.address || `${lab.city ?? "Unknown City"}, ${lab.state ?? "Unknown State"}, ${lab.country}`}</p>
-                {lab.phone ? <p>{lab.phone}</p> : null}
+                <p>{safeAddress}</p>
+                {safePhone ? <p>{safePhone}</p> : null}
                 {lab.website ? (
                   <a href={lab.website} target="_blank" rel="noreferrer" className="inline-flex rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-700">
                     Visit Website
