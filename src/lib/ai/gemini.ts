@@ -1,5 +1,6 @@
 type GeminiLabData = {
   description?: string;
+  services?: string[];
   website?: string;
   phone?: string;
   address?: string;
@@ -126,9 +127,11 @@ export async function refineLabDataWithGemini(input: {
 
   const prompt = [
     "Return ONLY valid JSON. No text before or after.",
-    "You are validating profile data for an official diagnostic laboratory.",
+    "You are validating profile data for an official diagnostic laboratory listing page.",
     "Only return high-confidence fields that match the exact lab identity.",
-    "JSON keys: description, website, phone, address, logoUrl, images, source",
+    "Write a natural, professional and human-like description (max 420 chars). Avoid hype.",
+    "Return 3 to 6 concise services as plain strings if clearly supported by source text.",
+    "JSON keys: description, services, website, phone, address, logoUrl, images, source",
     `labName: ${input.labName}`,
     `city: ${input.city ?? ""}`,
     `state: ${input.state ?? ""}`,

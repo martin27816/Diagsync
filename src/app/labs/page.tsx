@@ -15,6 +15,8 @@ export const metadata: Metadata = {
 export default async function LabsIndexPage() {
   const locations = await getPublicLabLocations();
   const featured = locations[0] ?? null;
+  const cityNarrative = (city: string, topLabName: string | null, avgScore: number) =>
+    `${city} diagnostics spotlight led by ${topLabName ?? "top local labs"} with an average performance score of ${avgScore.toFixed(2)}.`;
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#dbeafe_0%,_#f8fafc_35%,_#ffffff_100%)]">
@@ -25,13 +27,23 @@ export default async function LabsIndexPage() {
             <span className="rounded-full bg-sky-50 px-3 py-1">DiagSync Premium Directory</span>
             <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">Verified Ranking Signals</span>
           </div>
-          <h1 className="mt-5 text-4xl font-black leading-tight text-slate-900 sm:text-5xl">
-            Discover Trusted Diagnostic Labs
+          <h1 className="mt-5 text-4xl font-black leading-tight text-slate-900 sm:text-6xl">
+            Find Trusted Diagnostic Labs Near You
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
             Explore city-by-city laboratory rankings with stronger public profiles, performance badges, and trust
             indicators powered by DiagSync operational intelligence.
           </p>
+          <div className="mt-8 mx-auto max-w-3xl">
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <input
+                aria-label="Search city"
+                placeholder="Search by city, e.g. Onitsha, Lagos, Abuja"
+                className="w-full bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
+              />
+            </div>
+          </div>
+
           <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Locations</p>
@@ -75,9 +87,10 @@ export default async function LabsIndexPage() {
             </div>
           ) : (
             locations.map((location) => (
-              <article
+              <Link
                 key={location.slug}
-                className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                href={`/labs/${location.slug}`}
+                className="group block rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-sky-50 p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg"
               >
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="text-xl font-bold text-slate-900">{location.city}</h2>
@@ -88,20 +101,16 @@ export default async function LabsIndexPage() {
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   {location.count} ranked {location.count === 1 ? "lab" : "labs"} in this city.
                 </p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">{cityNarrative(location.city, location.topLabName, location.avgScore)}</p>
                 <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
                   <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">Operationally Ranked</span>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">Top Score {location.topScore.toFixed(2)}</span>
                 </div>
                 <p className="mt-3 text-xs text-slate-500">Top lab: {location.topLabName ?? "N/A"}</p>
-                <div className="mt-5">
-                  <Link
-                    href={`/labs/${location.slug}`}
-                    className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 transition group-hover:bg-slate-50"
-                  >
-                    Explore {location.city}
-                  </Link>
+                <div className="mt-5 inline-flex items-center rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 transition group-hover:bg-slate-50">
+                  Explore {location.city}
                 </div>
-              </article>
+              </Link>
             ))
           )}
         </div>

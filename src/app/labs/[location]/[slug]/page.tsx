@@ -113,27 +113,51 @@ export default async function LabProfilePage({
           ) : null}
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-3">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">About</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">{aboutText}</p>
-          </section>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">Services</h2>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              {services.map((service) => (
-                <li key={service}>• {service}</li>
-              ))}
-            </ul>
-          </section>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">Highlights</h2>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              {highlights.map((item) => (
-                <li key={item}>• {item}</li>
-              ))}
-            </ul>
-          </section>
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-10">
+          <div className="space-y-6 lg:col-span-7">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-2xl font-black text-slate-900">About</h2>
+              <p className="mt-3 text-sm leading-8 text-slate-600">{aboutText}</p>
+            </section>
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-2xl font-black text-slate-900">Services</h2>
+              <ul className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-600 md:grid-cols-2">
+                {services.map((service) => (
+                  <li key={service}>• {service}</li>
+                ))}
+              </ul>
+            </section>
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-2xl font-black text-slate-900">Highlights</h2>
+              <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                {highlights.map((item) => (
+                  <li key={item}>• {item}</li>
+                ))}
+              </ul>
+            </section>
+          </div>
+          <aside className="space-y-4 lg:col-span-3">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Score Breakdown</h3>
+              <div className="mt-3 space-y-2 text-sm text-slate-600">
+                <div className="flex items-center justify-between"><span>Trust Tier</span><span className="font-semibold text-slate-900">{trustLevel}</span></div>
+                <div className="flex items-center justify-between"><span>Final Score</span><span className="font-semibold text-slate-900">{score.toFixed(2)}</span></div>
+                <div className="flex items-center justify-between"><span>Verification</span><span className="font-semibold text-emerald-700">DiagSync Verified</span></div>
+              </div>
+            </section>
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Contact & Access</h3>
+              <div className="mt-3 space-y-2 text-sm text-slate-600">
+                <p>{lab.address || `${lab.city ?? "Unknown City"}, ${lab.state ?? "Unknown State"}, ${lab.country}`}</p>
+                {lab.phone ? <p>{lab.phone}</p> : null}
+                {lab.website ? (
+                  <a href={lab.website} target="_blank" rel="noreferrer" className="inline-flex rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-700">
+                    Visit Website
+                  </a>
+                ) : null}
+              </div>
+            </section>
+          </aside>
         </div>
 
         <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

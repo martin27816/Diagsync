@@ -124,12 +124,14 @@ function pickLogo(images: string[]) {
 }
 
 function filterMainImages(images: string[]) {
-  const banned = /sprite|icon|avatar|favicon|googleusercontent|doubleclick|analytics|pixel|logo|brandmark|wordmark/i;
+  const banned = /sprite|icon|avatar|favicon|googleusercontent|doubleclick|analytics|pixel|logo|brandmark|wordmark|thumb|placeholder/i;
   const seen = new Set<string>();
   const out: string[] = [];
   for (const img of images) {
     const url = img.split(" ")[0];
     if (!url) continue;
+    if (/[?&](w|width|h|height)=([0-9]{1,2}|1[0-9]{2})\b/i.test(url)) continue;
+    if (/(^|\/)(32x32|48x48|64x64|96x96|120x120|150x150|180x180|192x192|256x256)(\/|\.|$)/i.test(url)) continue;
     if (banned.test(img)) continue;
     if (seen.has(url)) continue;
     seen.add(url);

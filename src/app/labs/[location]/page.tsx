@@ -55,16 +55,40 @@ export default async function LabsByLocationPage({ params }: { params: { locatio
         </div>
 
         {top ? (
-          <article className="mt-8 rounded-3xl border border-amber-100 bg-gradient-to-r from-amber-50 via-white to-sky-50 p-6 shadow-sm">
+          <article className="mt-8 rounded-3xl border border-amber-100 bg-gradient-to-r from-amber-50 via-white to-sky-50 p-8 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">Top Lab This Week</p>
-            <h2 className="mt-2 text-2xl font-bold text-slate-900">{top.org.name}</h2>
-            <p className="mt-1 text-sm text-slate-600">Final Score: {top.ranking.finalScore.toFixed(2)}</p>
+            <div className="mt-4 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-4">
+                {top.org.logoUrl ? (
+                  <img src={top.org.logoUrl} alt={`${top.org.name} logo`} className="h-20 w-20 rounded-2xl border border-slate-200 bg-white object-contain p-2" />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-slate-200 bg-white text-2xl font-black text-slate-700">
+                    {top.org.name.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-3xl font-black text-slate-900">{top.org.name}</h2>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">Top Rated</span>
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">Highly Reliable</span>
+                    <span className="rounded-full bg-violet-50 px-2.5 py-1 font-semibold text-violet-700">Fast Turnaround</span>
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Final Score</p>
+                <p className="text-4xl font-black text-slate-900">{top.ranking.finalScore.toFixed(2)}</p>
+                <Link href={`/labs/${locationToSlug(top.org.city ?? locationLabel)}/${top.org.slug}`} className="mt-2 inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">
+                  View Full Profile
+                </Link>
+              </div>
+            </div>
           </article>
         ) : null}
 
         <section className="mt-8 space-y-5">
           {labs.map(({ org, ranking }, index) => (
-            <article key={org.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <Link key={org.id} href={`/labs/${locationToSlug(org.city ?? locationLabel)}/${org.slug}`} className="group block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -75,6 +99,7 @@ export default async function LabsByLocationPage({ params }: { params: { locatio
                     <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
                       Verified Lab
                     </span>
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">Highly Reliable</span>
                   </div>
                   <div className="mt-3 flex items-center gap-3">
                     {org.logoUrl ? (
@@ -91,7 +116,7 @@ export default async function LabsByLocationPage({ params }: { params: { locatio
                       </p>
                     </div>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                  <p className="mt-2 text-sm leading-6 text-slate-600 line-clamp-2">
                     {org.description?.trim()
                       ? org.description
                       : "This diagnostic lab is actively listed in city rankings. Public profile details are being enriched."}
@@ -117,24 +142,11 @@ export default async function LabsByLocationPage({ params }: { params: { locatio
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                {org.website ? (
-                  <a
-                    href={org.website}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                  >
-                    Website
-                  </a>
-                ) : null}
-                <Link
-                  href={`/labs/${locationToSlug(org.city ?? locationLabel)}/${org.slug}`}
-                  className="inline-flex rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700"
-                >
+                <span className="inline-flex rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white">
                   View Full Profile
-                </Link>
+                </span>
               </div>
-            </article>
+            </Link>
           ))}
         </section>
 

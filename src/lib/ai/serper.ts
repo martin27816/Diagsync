@@ -11,10 +11,15 @@ type SerperLabData = {
 };
 
 const BLOCKED_DOMAINS = [
-  "unizik.edu.ng",
-  "anambrastate.gov.ng",
   "wikipedia.org",
   "facebook.com/groups",
+  "linkedin.com",
+  "pinterest.com",
+  "x.com",
+  "twitter.com",
+  "instagram.com",
+  "youtube.com",
+  "tiktok.com",
 ];
 
 const GOOD_SIGNALS = ["diagnostic", "laboratory", "medical", "clinic"];
@@ -49,6 +54,8 @@ function normalizeUrl(input?: string | null) {
 function isBlockedDomain(url: string) {
   try {
     const host = new URL(url).hostname.toLowerCase();
+    if (host.endsWith(".edu") || host.includes(".edu.")) return true;
+    if (host.endsWith(".gov") || host.includes(".gov.")) return true;
     return BLOCKED_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
   } catch {
     return true;
@@ -103,7 +110,7 @@ function scoreDomain(url: string, labName: string) {
     if (!isSocial) score += 2;
     if (hasStrongName) score += 5;
     if (hasNameToken) score += 4;
-    if (isGov) score -= 3;
+    if (isGov) score -= 10;
     if (isAcademic) score -= 4;
     if (isDirectoryPath) score -= 5;
     if (isProfilePath) score -= 6;
