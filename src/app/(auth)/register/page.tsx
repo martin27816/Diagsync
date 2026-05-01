@@ -7,6 +7,7 @@ import { z } from "zod";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
+import { Country, State } from "country-state-city";
 
 const schema = z.object({
   orgName: z.string().min(2, "Organisation name is required"),
@@ -85,9 +86,21 @@ export default function RegisterPage() {
   const [registered, setRegistered] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingLetterhead, setUploadingLetterhead] = useState(false);
+  const [countryQuery, setCountryQuery] = useState("");
+  const [stateQuery, setStateQuery] = useState("");
 
   const { register, setValue, watch, handleSubmit, formState: { errors, isSubmitting } } =
     useForm<FormData>({ resolver: zodResolver(schema) });
+  const countries = Country.getAllCountries();
+  const selectedCountryName = watch("orgCountry") || "Nigeria";
+  const selectedCountry = countries.find((c) => c.name === selectedCountryName) || null;
+  const stateOptions = selectedCountry ? State.getStatesOfCountry(selectedCountry.isoCode) : [];
+  const filteredCountries = countries.filter((c) =>
+    c.name.toLowerCase().includes(countryQuery.trim().toLowerCase())
+  );
+  const filteredStates = stateOptions.filter((s) =>
+    s.name.toLowerCase().includes(stateQuery.trim().toLowerCase())
+  );
 
   async function onSubmit(data: FormData) {
     setServerError("");
@@ -192,12 +205,50 @@ export default function RegisterPage() {
             </div>
             <div>
               <label className={labelCls}>State *</label>
-              <input placeholder="e.g. Lagos State" {...register("orgState")} className={inputCls} />
+              <input
+                value={stateQuery}
+                onChange={(e) => setStateQuery(e.target.value)}
+                className={`${inputCls} mb-1`}
+                placeholder="Search state..."
+                disabled={!selectedCountry || stateOptions.length === 0}
+              />
+              <select
+                {...register("orgState")}
+                className={inputCls}
+                disabled={!selectedCountry || stateOptions.length === 0}
+              >
+                <option value="">{selectedCountry ? "Select state" : "Select country first"}</option>
+                {filteredStates.map((s) => (
+                  <option key={s.isoCode} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
               {errors.orgState && <p className={errCls}>{errors.orgState.message}</p>}
             </div>
             <div className="col-span-2">
               <label className={labelCls}>Country *</label>
-              <input defaultValue="Nigeria" {...register("orgCountry")} className={inputCls} />
+              <input
+                value={countryQuery}
+                onChange={(e) => setCountryQuery(e.target.value)}
+                className={`${inputCls} mb-1`}
+                placeholder="Search country..."
+              />
+              <select
+                {...register("orgCountry")}
+                className={inputCls}
+                defaultValue="Nigeria"
+                onChange={(e) => {
+                  setValue("orgCountry", e.target.value, { shouldValidate: true });
+                  setValue("orgState", "", { shouldValidate: true });
+                }}
+              >
+                {filteredCountries.map((c) => (
+                  <option key={c.isoCode} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
               {errors.orgCountry && <p className={errCls}>{errors.orgCountry.message}</p>}
             </div>
             <div className="col-span-2">

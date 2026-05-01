@@ -67,13 +67,13 @@ export function RankingsTable({ period, items, topLab }: Props) {
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="inline-flex rounded-lg border border-gray-200 p-1">
           <Link
-            href={`/rankings?period=weekly`}
+            href={`/admin/rankings?period=weekly`}
             className={`rounded-md px-3 py-1.5 text-sm ${period === "weekly" ? "bg-blue-600 text-white" : "text-gray-600"}`}
           >
             Weekly
           </Link>
           <Link
-            href={`/rankings?period=monthly`}
+            href={`/admin/rankings?period=monthly`}
             className={`rounded-md px-3 py-1.5 text-sm ${period === "monthly" ? "bg-blue-600 text-white" : "text-gray-600"}`}
           >
             Monthly

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Country, State } from "country-state-city";
 
 type OrgSettings = {
   name: string;
@@ -55,6 +56,17 @@ export function LabSettingsForm() {
   const [message, setMessage] = useState("");
   const [settings, setSettings] = useState<OrgSettings>(emptySettings);
   const [initialSettings, setInitialSettings] = useState<OrgSettings>(emptySettings);
+  const [countryQuery, setCountryQuery] = useState("");
+  const [stateQuery, setStateQuery] = useState("");
+  const countries = Country.getAllCountries();
+  const selectedCountry = countries.find((c) => c.name === settings.country) || null;
+  const stateOptions = selectedCountry ? State.getStatesOfCountry(selectedCountry.isoCode) : [];
+  const filteredCountries = countries.filter((c) =>
+    c.name.toLowerCase().includes(countryQuery.trim().toLowerCase())
+  );
+  const filteredStates = stateOptions.filter((s) =>
+    s.name.toLowerCase().includes(stateQuery.trim().toLowerCase())
+  );
 
   const hasChanges = useMemo(
     () => JSON.stringify(settings) !== JSON.stringify(initialSettings),
@@ -270,20 +282,51 @@ export function LabSettingsForm() {
           <div>
             <label className={labelCls}>State</label>
             <input
+              value={stateQuery}
+              onChange={(e) => setStateQuery(e.target.value)}
+              className={`${inputCls} mb-1`}
+              placeholder="Search state..."
+              disabled={!selectedCountry || stateOptions.length === 0}
+            />
+            <select
               value={settings.state}
               onChange={(e) => setSettings((prev) => ({ ...prev, state: e.target.value }))}
               className={inputCls}
-              placeholder="e.g. Lagos State"
-            />
+              disabled={!selectedCountry || stateOptions.length === 0}
+            >
+              <option value="">{selectedCountry ? "Select state" : "Select country first"}</option>
+              {filteredStates.map((s) => (
+                <option key={s.isoCode} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className={labelCls}>Country</label>
             <input
-              value={settings.country}
-              onChange={(e) => setSettings((prev) => ({ ...prev, country: e.target.value }))}
-              className={inputCls}
-              placeholder="Nigeria"
+              value={countryQuery}
+              onChange={(e) => setCountryQuery(e.target.value)}
+              className={`${inputCls} mb-1`}
+              placeholder="Search country..."
             />
+            <select
+              value={settings.country}
+              onChange={(e) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  country: e.target.value,
+                  state: "",
+                }))
+              }
+              className={inputCls}
+            >
+              {filteredCountries.map((c) => (
+                <option key={c.isoCode} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="sm:col-span-2">
