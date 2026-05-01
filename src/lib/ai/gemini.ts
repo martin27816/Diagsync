@@ -35,36 +35,55 @@ export async function fetchLabDataWithGemini(labName: string, city?: string | nu
     `state: ${state ?? ""}`,
   ].join("\n");
 
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const modelCandidates = [
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+  ];
   const timeout = withTimeout(10_000);
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
-      }),
-      signal: timeout.controller.signal,
-      cache: "no-store",
-    });
+    let lastStatus: number | undefined;
 
-    if (!res.ok) return { ok: false, reason: "HTTP_ERROR", status: res.status };
-    const payload = (await res.json()) as any;
-    const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (typeof text !== "string" || !text.trim()) return { ok: false, reason: "EMPTY_RESPONSE" };
+    for (const model of modelCandidates) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+        }),
+        signal: timeout.controller.signal,
+        cache: "no-store",
+      });
 
-    try {
-      const parsed = JSON.parse(text) as GeminiLabData;
-      if (!parsed || typeof parsed !== "object") {
+      if (!res.ok) {
+        lastStatus = res.status;
+        if (res.status === 404) {
+          continue;
+        }
+        return { ok: false, reason: "HTTP_ERROR", status: res.status };
+      }
+
+      const payload = (await res.json()) as any;
+      const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (typeof text !== "string" || !text.trim()) {
+        return { ok: false, reason: "EMPTY_RESPONSE" };
+      }
+
+      try {
+        const parsed = JSON.parse(text) as GeminiLabData;
+        if (!parsed || typeof parsed !== "object") {
+          return { ok: false, reason: "INVALID_JSON" };
+        }
+        return { ok: true, data: parsed };
+      } catch {
         return { ok: false, reason: "INVALID_JSON" };
       }
-      return { ok: true, data: parsed };
-    } catch {
-      return { ok: false, reason: "INVALID_JSON" };
     }
+    return { ok: false, reason: "HTTP_ERROR", status: lastStatus ?? 404 };
   } catch (error: any) {
     if (error?.name === "AbortError") {
       return { ok: false, reason: "TIMEOUT" };
