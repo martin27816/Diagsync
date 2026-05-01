@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublicLabProfile, slugToLocation } from "@/lib/public-labs";
+import { LabsSiteFooter, LabsSiteHeader } from "@/components/public/labs-site-chrome";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,7 @@ export default async function LabProfilePage({
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe_0%,_#f8fafc_38%,_#ffffff_100%)]">
+      <LabsSiteHeader />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
         <div className="rounded-3xl border border-sky-100 bg-white p-8 shadow-[0_20px_60px_-30px_rgba(2,132,199,0.45)]">
@@ -243,7 +245,28 @@ export default async function LabProfilePage({
             </a>
           </div>
         </section>
+
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-black text-slate-900">Patient Information & Planning Guide</h2>
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 p-4">
+              <h3 className="text-sm font-bold text-slate-900">Before You Visit</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                Confirm appointment expectations with the lab, prepare clinical notes when available, and verify
+                location details for smoother arrival and faster processing.
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-4">
+              <h3 className="text-sm font-bold text-slate-900">After Sample Collection</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                Ask for expected completion timelines and result handoff channels. Operationally ranked labs often
+                maintain stronger completion consistency and clearer release workflows.
+              </p>
+            </div>
+          </div>
+        </section>
       </section>
+      <LabsSiteFooter />
     </main>
   );
 }

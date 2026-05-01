@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getPublicLabLocations } from "@/lib/public-labs";
+import { LabsSiteFooter, LabsSiteHeader } from "@/components/public/labs-site-chrome";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 600;
@@ -17,6 +18,7 @@ export default async function LabsIndexPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#dbeafe_0%,_#f8fafc_35%,_#ffffff_100%)]">
+      <LabsSiteHeader />
       <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
         <div className="rounded-3xl border border-sky-100 bg-white/90 p-10 shadow-[0_20px_60px_-30px_rgba(2,132,199,0.45)] backdrop-blur">
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
@@ -103,7 +105,42 @@ export default async function LabsIndexPage() {
             ))
           )}
         </div>
+
+        <section className="mt-10 rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
+          <h2 className="text-2xl font-black text-slate-900">How DiagSync Rankings Work</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-600">
+            Our ranking engine combines operational discipline and outcome consistency metrics. Public pages are built
+            to help patients and care teams discover labs that are actively monitored and performance-tracked.
+          </p>
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Turnaround</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">On-time completion reliability</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Consistency</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">Delay-rate stability across periods</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Activity</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">Operational throughput signals</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Completion</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">Assigned-to-finished test performance</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
+          <h2 className="text-2xl font-black text-slate-900">Editorial Note</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-600">
+            DiagSync public listings are designed for trust-first decisions. If a lab profile appears brief today, the
+            profile can expand as website data and operational metadata improve over time.
+          </p>
+        </section>
       </section>
+      <LabsSiteFooter />
     </main>
   );
 }

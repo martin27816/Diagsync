@@ -45,6 +45,14 @@ function extractOgImage(html: string, baseUrl: string) {
   return absoluteUrl(baseUrl, m[1]) ?? undefined;
 }
 
+function isLikelyLogoCandidate(value: string | undefined) {
+  if (!value) return false;
+  const v = value.toLowerCase();
+  const hasLogoSignal = /logo|brand|wordmark|logotype|navbar|site-logo/.test(v);
+  const hasBadSignal = /hero|banner|slide|carousel|cover|background|team|blog|post|news|event/.test(v);
+  return hasLogoSignal && !hasBadSignal;
+}
+
 function extractTitle(html: string) {
   const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
   return m?.[1] ? cleanText(m[1]) : undefined;
@@ -110,10 +118,9 @@ function extractInternalLinks(html: string, baseUrl: string) {
 }
 
 function pickLogo(images: string[]) {
-  const logoLike = images.find((u) => /logo|brand|header/i.test(u));
-  if (!logoLike) return images[0];
-  const firstUrl = logoLike.split(" ")[0];
-  return firstUrl;
+  const logoLike = images.find((u) => isLikelyLogoCandidate(u));
+  if (!logoLike) return undefined;
+  return logoLike.split(" ")[0];
 }
 
 function filterMainImages(images: string[]) {
@@ -202,7 +209,9 @@ export async function scrapeLabWebsite(websiteUrl: string): Promise<WebsiteScrap
     const allImagesRaw = pages.flatMap((p) => extractImageUrls(p.html, p.url));
     const images = filterMainImages(allImagesRaw).slice(0, 24);
     const ogImage = extractOgImage(html, normalized.toString());
-    const logoUrl = ogImage || pickLogo(images);
+    const logoFromOg = isLikelyLogoCandidate(ogImage) ? ogImage : undefined;
+    const logoFromImages = pickLogo(images);
+    const logoUrl = logoFromOg || logoFromImages;
     const phone = extractPhones(allText)[0];
     const description = extractMetaDescription(html) || extractTitle(html);
     const address = extractAddressLike(allText);
