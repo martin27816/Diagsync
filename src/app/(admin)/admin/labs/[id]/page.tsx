@@ -19,7 +19,23 @@ function asNumber(value: Decimal | number | null | undefined) {
   return Number(value);
 }
 
-export default async function AdminLabDetailPage({ params }: { params: { id: string } }) {
+function getAiMessage(ai: string | undefined, confidence: string | undefined) {
+  if (!ai) return null;
+  if (ai === "success") return { tone: "green", text: `AI enrichment saved successfully${confidence ? ` (confidence ${Number(confidence).toFixed(2)})` : ""}.` };
+  if (ai === "RATE_LIMITED") return { tone: "amber", text: "AI fetch skipped: this lab can only be enriched once per hour." };
+  if (ai === "LOW_CONFIDENCE") return { tone: "amber", text: `AI fetch completed but confidence was too low to overwrite data${confidence ? ` (${Number(confidence).toFixed(2)})` : ""}.` };
+  if (ai === "NO_AI_DATA") return { tone: "amber", text: "AI fetch returned no usable data." };
+  if (ai === "NOT_FOUND") return { tone: "red", text: "Lab not found for enrichment." };
+  return { tone: "amber", text: "AI enrichment completed with partial result." };
+}
+
+export default async function AdminLabDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { ai?: string; confidence?: string };
+}) {
   await requireMegaAdmin();
   const detail = await getOrganizationDetail(params.id);
 
@@ -28,9 +44,24 @@ export default async function AdminLabDetailPage({ params }: { params: { id: str
   }
 
   const { organization, users, paymentRequests, stats } = detail;
+  const aiMsg = getAiMessage(searchParams?.ai, searchParams?.confidence);
 
   return (
     <div className="space-y-5">
+      {aiMsg ? (
+        <div
+          className={`rounded-md border px-3 py-2 text-sm ${
+            aiMsg.tone === "green"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : aiMsg.tone === "red"
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-amber-200 bg-amber-50 text-amber-700"
+          }`}
+        >
+          {aiMsg.text}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link href="/admin/labs" className="text-xs text-gray-500 hover:text-gray-700 hover:underline">
@@ -102,6 +133,24 @@ export default async function AdminLabDetailPage({ params }: { params: { id: str
           <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Total Test Requests</p>
           <p className="mt-2 text-3xl font-bold text-gray-900">{stats.totalTestRequests}</p>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-gray-800">Public Profile & AI</h2>
+        <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-gray-600 sm:grid-cols-2">
+          <p><span className="font-medium text-gray-700">Slug:</span> {organization.slug}</p>
+          <p><span className="font-medium text-gray-700">City:</span> {organization.city ?? "-"}</p>
+          <p><span className="font-medium text-gray-700">State:</span> {organization.state ?? "-"}</p>
+          <p><span className="font-medium text-gray-700">Country:</span> {organization.country ?? "-"}</p>
+          <p><span className="font-medium text-gray-700">Website:</span> {organization.website ?? "-"}</p>
+          <p><span className="font-medium text-gray-700">AI Confidence:</span> {organization.aiConfidence?.toFixed(2) ?? "-"}</p>
+          <p><span className="font-medium text-gray-700">AI Source:</span> {organization.aiSource ?? "-"}</p>
+          <p><span className="font-medium text-gray-700">Last Fetched:</span> {organization.lastFetchedAt ? formatDateTime(organization.lastFetchedAt) : "-"}</p>
+        </div>
+        <p className="mt-3 text-sm text-gray-600">
+          <span className="font-medium text-gray-700">Description:</span>{" "}
+          {organization.description?.trim() ? organization.description : "No description yet"}
+        </p>
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">

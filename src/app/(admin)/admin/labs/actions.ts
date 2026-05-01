@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { syncFullTestCatalogToOrganization } from "@/lib/test-catalog";
 import { revalidatePath } from "next/cache";
 import { enrichOrganizationWithAi } from "@/lib/ai/lab-enrichment";
+import { redirect } from "next/navigation";
 
 export async function suspendLabAction(formData: FormData) {
   await requireMegaAdmin();
@@ -60,10 +61,22 @@ export async function enrichLabProfileAction(formData: FormData) {
   const id = String(formData.get("organizationId") ?? "");
   if (!id) return;
 
-  await enrichOrganizationWithAi(id);
+  const result = await enrichOrganizationWithAi(id);
   revalidatePath("/admin/labs");
   revalidatePath(`/admin/labs/${id}`);
   revalidatePath("/labs");
+
+  const qs = new URLSearchParams();
+  if (result.ok) {
+    qs.set("ai", "success");
+    qs.set("confidence", String(result.confidence));
+  } else {
+    qs.set("ai", result.reason);
+    if ("confidence" in result && typeof result.confidence === "number") {
+      qs.set("confidence", String(result.confidence));
+    }
+  }
+  redirect(`/admin/labs/${id}?${qs.toString()}`);
 }
 
 export async function approvePaymentRequestAction(formData: FormData) {
