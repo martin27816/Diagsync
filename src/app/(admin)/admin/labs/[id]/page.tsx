@@ -22,12 +22,12 @@ function asNumber(value: Decimal | number | null | undefined) {
 
 function getAiFetchReasonLabel(aiReason: string | undefined, aiStatus: string | undefined) {
   if (!aiReason) return "";
-  if (aiReason === "MISSING_API_KEY") return "Gemini API key is missing in server environment.";
-  if (aiReason === "TIMEOUT") return "Gemini request timed out after 10 seconds.";
-  if (aiReason === "HTTP_ERROR") return `Gemini API returned HTTP ${aiStatus ?? "error"}.`;
-  if (aiReason === "EMPTY_RESPONSE") return "Gemini returned an empty response.";
-  if (aiReason === "INVALID_JSON") return "Gemini did not return valid JSON.";
-  if (aiReason === "REQUEST_FAILED") return "Network/request failed while contacting Gemini.";
+  if (aiReason === "MISSING_API_KEY") return "SERPER_API_KEY is missing in server environment.";
+  if (aiReason === "TIMEOUT") return "Serper request timed out after 10 seconds.";
+  if (aiReason === "HTTP_ERROR") return `Serper API returned HTTP ${aiStatus ?? "error"}.`;
+  if (aiReason === "EMPTY_RESPONSE") return "Serper returned no useful search results.";
+  if (aiReason === "INVALID_JSON") return "Upstream response format was invalid.";
+  if (aiReason === "REQUEST_FAILED") return "Network/request failed while contacting Serper.";
   return `AI fetch failed: ${aiReason}.`;
 }
 

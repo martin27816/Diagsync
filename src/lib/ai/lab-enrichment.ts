@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ensureUniqueOrganizationSlug } from "@/lib/slug";
-import { fetchLabDataWithGemini } from "./gemini";
+import { fetchLabDataWithSerper } from "./serper";
 
 function isValidHttpUrl(value: string | null | undefined) {
   if (!value) return false;
@@ -63,7 +63,7 @@ export async function enrichOrganizationWithAi(organizationId: string, opts?: { 
     return { ok: false as const, reason: "RATE_LIMITED" as const };
   }
 
-  const fetched = await fetchLabDataWithGemini(org.name, org.city, org.state);
+  const fetched = await fetchLabDataWithSerper(org.name, org.city, org.state);
   const nextSlug = org.slug || (await ensureUniqueOrganizationSlug(org.name, org.id));
 
   if (!fetched.ok) {
@@ -88,7 +88,7 @@ export async function enrichOrganizationWithAi(organizationId: string, opts?: { 
       : [],
     phone: typeof fetched.data.phone === "string" ? fetched.data.phone.trim() : org.phone,
     address: typeof fetched.data.address === "string" ? fetched.data.address.trim() : org.address,
-    source: typeof fetched.data.source === "string" ? fetched.data.source.trim().slice(0, 200) : "gemini-1.5-flash",
+    source: typeof fetched.data.source === "string" ? fetched.data.source.trim().slice(0, 200) : "serper-search-rules",
   };
 
   const confidence = computeConfidence({
