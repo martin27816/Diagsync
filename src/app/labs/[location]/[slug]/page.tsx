@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublicLabProfile, slugToLocation } from "@/lib/public-labs";
 import { LabsSiteFooter, LabsSiteHeader } from "@/components/public/labs-site-chrome";
 
 export const dynamic = "force-dynamic";
+
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://diagsync.vercel.app";
 
 export async function generateMetadata({
   params,
@@ -12,12 +15,23 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const data = await getPublicLabProfile(params.location, params.slug);
   const location = slugToLocation(params.location);
-  if (!data) {
-    return { title: `Best Labs in ${location} | DiagSync` };
-  }
+  const labName = data?.lab.name ?? "Medical Laboratory";
+  const title = `${labName} - Diagnostic Lab in ${location} | DiagSync`;
+  const description = `Find diagnostic labs and medical laboratory services in ${location}. View ${labName} profile for healthcare testing details on DiagSync.`;
+
   return {
-    title: `${data.lab.name} | Labs in ${location} | DiagSync`,
-    description: data.lab.description?.slice(0, 160) || `Lab profile for ${data.lab.name} in ${location}.`,
+    title,
+    description,
+    alternates: {
+      canonical: `${siteUrl}/labs/${params.location}/${params.slug}`,
+    },
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      url: `${siteUrl}/labs/${params.location}/${params.slug}`,
+      images: [{ url: `${siteUrl}/diagsync-logo.png` }],
+    },
   };
 }
 
@@ -28,55 +42,31 @@ export default async function LabProfilePage({
 }) {
   const data = await getPublicLabProfile(params.location, params.slug);
   if (!data) notFound();
-  const { lab, ranking } = data;
-  const compact = (v: string) => v.replace(/\s+/g, " ").trim();
-  const looksLikeScrapeBlob = (v: string) =>
-    v.length > 180 ||
-    /(home about us services gallery contact book now|all rights reserved|learn more|quick links|opening hours)/i.test(v);
-  const safeAddress = lab.address && !looksLikeScrapeBlob(compact(lab.address)) ? compact(lab.address) : `${lab.city ?? "Unknown City"}, ${lab.state ?? "Unknown State"}, ${lab.country}`;
-  const safePhone = lab.phone && !looksLikeScrapeBlob(compact(lab.phone)) && compact(lab.phone).length <= 40 ? compact(lab.phone) : null;
-  const allImages = Array.isArray(lab.images) ? lab.images : [];
-  const galleryImages = [
-    ...(lab.logoUrl ? [lab.logoUrl] : []),
-    ...allImages.filter((img) => img !== lab.logoUrl),
-  ].slice(0, 24);
-  const hasGallery = galleryImages.length > 0;
-  const initials = lab.name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase() ?? "")
-    .join("");
+
+  const { lab } = data;
+  const location = slugToLocation(params.location);
   const aboutText =
     lab.description?.trim() ||
-    "This diagnostic laboratory is listed on DiagSync with operational performance signals and location coverage.";
-  const services = [
-    "Clinical diagnostics",
-    "Routine laboratory testing",
-    "Operationally tracked turnaround performance",
-  ];
-  const highlights = [
-    `City coverage: ${lab.city ?? "Unknown City"}, ${lab.state ?? "Unknown State"}`,
-    ranking ? `Performance score: ${ranking.finalScore.toFixed(2)}` : "Performance score available in active ranking periods",
-    lab.website ? "Official website verified" : "Website not yet published",
-  ];
-  const score = ranking?.finalScore ?? 0;
-  const trustLevel = score >= 80 ? "Elite" : score >= 65 ? "Strong" : score >= 45 ? "Growing" : "Emerging";
+    `${lab.name} is a diagnostic laboratory in ${location} offering medical testing services.`;
+
+  const services = ["Blood tests", "Urine analysis", "Imaging (if applicable)", "Radiology (if applicable)"];
+  const galleryImages = [lab.logoUrl, ...(Array.isArray(lab.images) ? lab.images : [])]
+    .filter((v): v is string => Boolean(v))
+    .slice(0, 6);
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
     name: lab.name,
-    image: lab.logoUrl || undefined,
-    description: lab.description || undefined,
+    description: aboutText,
+    url: `${siteUrl}/labs/${params.location}/${params.slug}`,
+    category: "Medical Laboratory",
     address: {
       "@type": "PostalAddress",
-      streetAddress: lab.address || undefined,
-      addressLocality: lab.city || undefined,
+      addressLocality: lab.city || location,
       addressRegion: lab.state || undefined,
-      addressCountry: lab.country || undefined,
+      addressCountry: lab.country || "Nigeria",
     },
-    url: lab.website || undefined,
-    telephone: lab.phone || undefined,
   };
 
   return (
@@ -84,215 +74,164 @@ export default async function LabProfilePage({
       <LabsSiteHeader />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+        <nav aria-label="Breadcrumb" className="mb-6 text-sm text-slate-500">
+          <Link href="/" className="hover:text-slate-800">
+            Home
+          </Link>
+          <span className="mx-2">→</span>
+          <Link href="/labs" className="hover:text-slate-800">
+            Labs
+          </Link>
+          <span className="mx-2">→</span>
+          <Link href={`/labs/${params.location}`} className="hover:text-slate-800">
+            {location}
+          </Link>
+          <span className="mx-2">→</span>
+          <span className="font-semibold text-slate-700">{lab.name}</span>
+        </nav>
+
         <div className="rounded-3xl border border-sky-100 bg-white p-8 shadow-[0_20px_60px_-30px_rgba(2,132,199,0.45)]">
-          <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-            <div className="flex items-start gap-4">
-              {lab.logoUrl ? (
-                <img src={lab.logoUrl} alt={`${lab.name} logo`} className="h-24 w-24 rounded-2xl border border-slate-200 bg-white object-contain p-2" />
-              ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-2xl font-black text-slate-700">
-                  {initials}
-                </div>
-              )}
-              <div>
-                <h1 className="text-3xl font-black text-slate-900 sm:text-4xl">{lab.name}</h1>
-                <p className="mt-1 text-sm text-slate-600">
-                  {lab.city ?? "Unknown City"}, {lab.state ?? "Unknown State"}, {lab.country}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Verified Lab Profile</span>
-                  <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">Public Directory</span>
-                </div>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-black text-slate-900 sm:text-4xl">{lab.name}</h1>
+              <p className="mt-1 text-sm text-slate-600">
+                {lab.city ?? location}, {lab.state ?? "State"}, {lab.country ?? "Nigeria"}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                  Verified Lab
+                </span>
+                <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                  Powered by DiagSync
+                </span>
               </div>
             </div>
-            {ranking ? (
-              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4">
-                <p className="text-xs uppercase tracking-wide text-blue-700">Ranking Score</p>
-                <p className="mt-1 text-3xl font-black text-blue-900">{ranking.finalScore.toFixed(2)}</p>
-              </div>
-            ) : null}
+            <Link
+              href="/register"
+              className="inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+            >
+              Own this lab? Claim your profile
+            </Link>
           </div>
-          {lab.website ? (
-            <a href={lab.website} target="_blank" rel="noreferrer" className="mt-5 inline-flex rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-              Visit Official Website
-            </a>
-          ) : null}
         </div>
 
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-black text-slate-900">Lab Overview</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-600">{aboutText}</p>
+        </section>
+
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-10">
-          <div className="space-y-6 lg:col-span-7">
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-2xl font-black text-slate-900">About</h2>
-              <p className="mt-3 text-sm leading-8 text-slate-600">{aboutText}</p>
-            </section>
+          <div className="space-y-6 lg:col-span-6">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-2xl font-black text-slate-900">Services</h2>
-              <ul className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-600 md:grid-cols-2">
+              <ul className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-600 sm:grid-cols-2">
                 {services.map((service) => (
                   <li key={service}>• {service}</li>
                 ))}
               </ul>
             </section>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-2xl font-black text-slate-900">Highlights</h2>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                {highlights.map((item) => (
-                  <li key={item}>• {item}</li>
-                ))}
-              </ul>
+              <h2 className="text-2xl font-black text-slate-900">This lab is listed on DiagSync</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                DiagSync helps laboratories manage patients, tests, and reports efficiently while maintaining trusted
+                public visibility.
+              </p>
             </section>
           </div>
-          <aside className="space-y-4 lg:col-span-3">
+
+          <aside className="space-y-4 lg:col-span-4">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Score Breakdown</h3>
-              <div className="mt-3 space-y-2 text-sm text-slate-600">
-                <div className="flex items-center justify-between"><span>Trust Tier</span><span className="font-semibold text-slate-900">{trustLevel}</span></div>
-                <div className="flex items-center justify-between"><span>Final Score</span><span className="font-semibold text-slate-900">{score.toFixed(2)}</span></div>
-                <div className="flex items-center justify-between"><span>Verification</span><span className="font-semibold text-emerald-700">DiagSync Verified</span></div>
-              </div>
-            </section>
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Contact & Access</h3>
-              <div className="mt-3 space-y-2 text-sm text-slate-600">
-                <p>{safeAddress}</p>
-                {safePhone ? <p>{safePhone}</p> : null}
-                {lab.website ? (
-                  <a href={lab.website} target="_blank" rel="noreferrer" className="inline-flex rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-700">
-                    Visit Website
-                  </a>
-                ) : null}
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Details</h3>
+              <div className="mt-3 grid grid-cols-1 gap-3 text-sm text-slate-700">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">Location</p>
+                  <p className="mt-1 font-medium">
+                    {lab.city ?? location}, {lab.state ?? "State"}, {lab.country ?? "Nigeria"}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">Opening hours</p>
+                  <p className="mt-1 font-medium">Mon - Sat, 8:00 AM - 6:00 PM</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">Contact</p>
+                  <p className="mt-1 font-medium">{lab.phone?.trim() || "Contact details available on request"}</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">Diagnostic services available</p>
+                  <p className="mt-1 font-medium">Clinical diagnostics and healthcare testing support</p>
+                </div>
               </div>
             </section>
           </aside>
         </div>
 
         <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-2xl font-black text-slate-900">Why Patients Choose {lab.name}</h2>
-          <p className="mt-3 text-sm leading-7 text-slate-600">
-            {lab.name} serves individuals, families, and referring clinicians who need dependable diagnostic support.
-            This profile combines public identity data with operational ranking signals, helping patients identify
-            laboratories that are active, consistent, and performance-tracked.
-          </p>
-          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Trust Tier</p>
-              <p className="mt-2 text-xl font-bold text-slate-900">{trustLevel}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Performance Score</p>
-              <p className="mt-2 text-xl font-bold text-slate-900">{score.toFixed(2)}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Public Profile</p>
-              <p className="mt-2 text-xl font-bold text-slate-900">Verified</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Coverage Area</p>
-              <p className="mt-2 text-xl font-bold text-slate-900">{lab.city ?? "City"}</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-2xl font-black text-slate-900">Service Scope & Diagnostic Focus</h2>
-          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 p-4">
-              <h3 className="text-lg font-bold text-slate-900">Core Diagnostics</h3>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li>• Hematology and routine blood investigations</li>
-                <li>• Clinical chemistry and metabolic screening</li>
-                <li>• Infection-focused and rapid support diagnostics</li>
-                <li>• Diagnostic workflow support for outpatient care</li>
-              </ul>
-            </div>
-            <div className="rounded-xl border border-slate-200 p-4">
-              <h3 className="text-lg font-bold text-slate-900">Operational Reliability</h3>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li>• Monitored turnaround and completion efficiency</li>
-                <li>• Active ranking participation in city-level listings</li>
-                <li>• Structured profile enrichment and public trust signals</li>
-                <li>• Transparent location and website identity mapping</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        {hasGallery ? (
-          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">Gallery</h2>
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {galleryImages.map((img, index) => (
+          <h2 className="text-2xl font-black text-slate-900">Lab Images</h2>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {(galleryImages.length ? galleryImages : ["/diagsync-logo.png", "/diagsync-logo.png", "/diagsync-logo.png"]).map(
+              (img, index) => (
                 <img
                   key={`${img}-${index}`}
                   src={img}
-                  alt={`${lab.name} gallery image ${index + 1}`}
-                  className="h-44 w-full rounded-lg border border-slate-200 bg-slate-50 object-cover"
+                  alt={`${lab.name} image ${index + 1}`}
+                  loading="lazy"
+                  className="h-52 w-full rounded-xl border border-slate-200 bg-slate-50 object-cover"
                 />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-2xl font-black text-slate-900">Public Lab FAQ</h2>
-          <div className="mt-4 space-y-4">
-            <div className="rounded-xl border border-slate-200 p-4">
-              <h3 className="text-sm font-bold text-slate-900">How is this lab ranked?</h3>
-              <p className="mt-2 text-sm leading-7 text-slate-600">
-                Rankings are computed from operational metrics such as turnaround reliability, consistency, activity,
-                and completion behavior over defined periods.
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 p-4">
-              <h3 className="text-sm font-bold text-slate-900">Can profile information change over time?</h3>
-              <p className="mt-2 text-sm leading-7 text-slate-600">
-                Yes. Profile content is updated as the lab maintains website presence, operational data, and public
-                profile signals.
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 p-4">
-              <h3 className="text-sm font-bold text-slate-900">Does this page include direct contact details?</h3>
-              <p className="mt-2 text-sm leading-7 text-slate-600">
-                Where available, the profile includes location data, official website, and validated public identity
-                fields for easier patient access.
-              </p>
-            </div>
+              )
+            )}
           </div>
         </section>
 
         <section className="mt-8 rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-900 to-slate-800 p-6 text-white shadow-sm">
-          <h2 className="text-2xl font-black">Explore More Labs in {lab.city ?? "This City"}</h2>
+          <h2 className="text-2xl font-black">Own this lab listing?</h2>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-200">
-            Compare top-performing labs in this location to find the best fit for your diagnostic needs. DiagSync
-            rankings help patients and care teams make informed, trust-first choices.
+            Claim this profile to publish complete service details, contact channels, and stronger trust indicators
+            for patients searching in {location}.
           </p>
-          <div className="mt-4">
-            <a
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link href="/register" className="inline-flex rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100">
+              Own this lab? Claim your profile
+            </Link>
+            <Link
               href={`/labs/${params.location}`}
-              className="inline-flex rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100"
+              className="inline-flex rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
             >
-              View City Rankings
-            </a>
+              Back to {location} labs
+            </Link>
           </div>
         </section>
 
         <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-2xl font-black text-slate-900">Patient Information & Planning Guide</h2>
-          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 p-4">
-              <h3 className="text-sm font-bold text-slate-900">Before You Visit</h3>
-              <p className="mt-2 text-sm leading-7 text-slate-600">
-                Confirm appointment expectations with the lab, prepare clinical notes when available, and verify
-                location details for smoother arrival and faster processing.
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 p-4">
-              <h3 className="text-sm font-bold text-slate-900">After Sample Collection</h3>
-              <p className="mt-2 text-sm leading-7 text-slate-600">
-                Ask for expected completion timelines and result handoff channels. Operationally ranked labs often
-                maintain stronger completion consistency and clearer release workflows.
-              </p>
-            </div>
+          <h2 className="text-2xl font-black text-slate-900">About Diagnostic Laboratories In {location}</h2>
+          <div className="mt-4 space-y-4 text-sm leading-7 text-slate-600">
+            <p>
+              Diagnostic labs in {location} are an essential part of patient care, supporting clinicians with accurate
+              healthcare testing and timely results. From everyday screening to targeted diagnostic requests, medical
+              laboratory services help guide treatment plans and follow-up decisions. People searching for diagnostic
+              labs in {location} often prioritize trust, convenience, and clarity, especially when time-sensitive care
+              is involved.
+            </p>
+            <p>
+              A complete lab profile helps patients make informed choices. When public information is easy to
+              understand, visitors can compare service scope, location access, and provider credibility with confidence.
+              This is why DiagSync structures each listing around practical details, including profile identity, city
+              relevance, and service visibility. Our goal is to make local medical laboratory services easier to find
+              and easier to trust.
+            </p>
+            <p>
+              For lab operators, public visibility is increasingly important. Many patients discover healthcare testing
+              providers through search engines before calling or visiting. A strong, up-to-date listing can improve
+              conversion by showing clear information at the exact moment a patient is ready to act. Labs that claim
+              profiles on DiagSync can present richer data, improve authority signals, and build credibility in their
+              city market.
+            </p>
+            <p>
+              As demand grows for high-quality healthcare testing, diagnostic laboratories in {location} that invest in
+              transparent public profiles are better positioned to serve both patients and referring professionals.
+              DiagSync supports that standard by connecting trusted listings with the workflows real laboratories use
+              every day.
+            </p>
           </div>
         </section>
       </section>
